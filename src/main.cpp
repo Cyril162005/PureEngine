@@ -31,6 +31,12 @@
  * Goal: Transform geometry with our own math code. A Mat4 built on the
  *       CPU (rotation driven by deltaTime) is uploaded to the vertex
  *       shader as a uniform every frame, and the triangle visibly rotates.
+ *
+ * Step 6: Sprite/Mesh Rendering + Camera
+ * Goal: Objects live in WORLD space and a camera decides what is visible.
+ *       Each instance gets its own model matrix; a view matrix (camera
+ *       position, moved with WASD) and an orthographic projection matrix
+ *       are combined as projection * view * model and uploaded per draw.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -51,6 +57,17 @@ static_assert(pe::Mat4().transformPoint(pe::Vec3(2.0f, 3.0f, 4.0f)) == pe::Vec3(
 // A translation applied through transformPoint must shift the point.
 static_assert(pe::Mat4::translation(pe::Vec3(1.0f, 1.0f, 1.0f)).transformPoint(pe::Vec3(1.0f, 2.0f, 3.0f)) == pe::Vec3(2.0f, 3.0f, 4.0f),
               "Mat4 translation transform is broken");
+// --- Step 6 additions: prove the orthographic projection at compile time ---
+// The corners of the ortho box must land EXACTLY on the clip-cube corners.
+// The box below was chosen so every intermediate value is exactly
+// representable in float (scales 0.5 and 1.0) — static_assert compares
+// floats with ==, so the test values must be exact, no rounding luck.
+// transformPoint is safe to use here: orthographic preserves w = 1, so the
+// skipped perspective divide is a genuine no-op for this matrix.
+static_assert(pe::Mat4::orthographic(-2.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f).transformPoint(pe::Vec3(2.0f, 1.0f, 0.0f)) == pe::Vec3(1.0f, 1.0f, 0.0f),
+              "Mat4 orthographic projection is broken");
+static_assert(pe::Mat4::orthographic(-2.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f).transformPoint(pe::Vec3(-2.0f, -1.0f, 0.0f)) == pe::Vec3(-1.0f, -1.0f, 0.0f),
+              "Mat4 orthographic projection is broken");
 int main() {
     // 1. Initialize GLFW
     if (!glfwInit()) {
@@ -233,6 +250,22 @@ int main() {
     float rotationAngle = 0.0f;
     const float rotationSpeed = 0.9f;
 
+    // --- Step 6: Camera + Projection State (before the loop) ---
+    // The camera's position IN WORLD SPACE. WASD shifts it every frame and
+    // the view matrix is rebuilt from it, so the whole scene appears to
+    // slide the opposite way — that IS camera movement.
+    pe::Vec3 cameraPos(0.0f, 0.0f, 0.0f);
+    // Camera speed in WORLD UNITS PER SECOND. Multiplied by deltaTime in
+    // the loop, so panning is frame-rate independent — same pattern as
+    // Step 5's rotation.
+    const float cameraSpeed = 3.0f;
+    // The PROJECTION matrix: maps the visible slice of world space onto the
+    // clip cube. An 8 x 6 world-unit box matches the 800x600 window's 4:3
+    // aspect ratio, so shapes keep their proportions (no stretching).
+    // Orthographic: apparent size never changes with depth — right for this
+    // flat scene. Built ONCE: nothing about it changes per frame (yet).
+    const pe::Mat4 projection = pe::Mat4::orthographic(-4.0f, 4.0f, -3.0f, 3.0f, -1.0f, 1.0f);
+
     // --- Step 4: Vertex Data + VAO/VBO (before the loop) ---
     // Three vertices (x, y, z) forming a triangle centered on screen.
     // NDC coordinates: x and y run from -1 (left/bottom) to +1 (right/top).
@@ -315,6 +348,26 @@ int main() {
         // Store this frame's state so the NEXT frame can compare against it.
         spaceWasPressedLastFrame = spaceIsPressedNow;
 
+        // --- Step 6: Camera Movement (WASD, polled every frame) ---
+        // Movement is a RATE, not a toggle: while a key is held it must act
+        // on EVERY frame. So — unlike SPACE's edge detection in Step 3 —
+        // there is NO previous-frame comparison here. speed * deltaTime
+        // turns a per-frame key state into frame-rate-independent units
+        // per second.
+        float dt = static_cast<float>(deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+            cameraPos.y += cameraSpeed * dt;   // camera up    -> scene slides down
+        }
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+            cameraPos.y -= cameraSpeed * dt;   // camera down  -> scene slides up
+        }
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+            cameraPos.x -= cameraSpeed * dt;   // camera left  -> scene slides right
+        }
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+            cameraPos.x += cameraSpeed * dt;   // camera right -> scene slides left
+        }
+
         // --- Step 5: Update the rotation angle (per-frame simulation) ---
         // deltaTime (Step 2) finally gets a job: advance the angle by
         // speed * elapsed-seconds. This is the universal game-loop pattern
@@ -338,26 +391,56 @@ int main() {
         // Activate our shader program: all following draw calls use it.
         glUseProgram(shaderProgram);
 
-        // --- Step 5: Build this frame's transform and upload it ---
-        // Compose the matrix from our OWN math builders. Order matters —
-        // (rotation * scale) applies scale to the vertices FIRST, then
-        // rotation (matrices act right-to-left on the vertex). Scale is
-        // neutral (1,1,1) for now; translation could join the chain the
-        // same way — the builders are proven by the static_asserts above.
-        pe::Mat4 transform = pe::Mat4::rotationZ(rotationAngle)
-                           * pe::Mat4::scale(pe::Vec3(1.0f, 1.0f, 1.0f));
-        // Upload the 16 floats to the uniform. Arguments: the uniform's
-        // location, number of matrices (1), transpose flag (GL_FALSE — our
-        // Mat4 is ALREADY column-major, the layout OpenGL expects, so no
-        // conversion needed), and a pointer to the 16 floats.
-        glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &transform.m[0][0]);
+        // --- Step 6: Build the VIEW matrix from the camera position ---
+        // lookAt constructs the camera's INVERSE transform directly: the
+        // camera sits at cameraPos, aims straight down -Z (orientation is
+        // fixed for now), with world +Y as up. Because the view matrix is
+        // the inverse of the camera transform, shifting cameraPos moves
+        // every rendered vertex by the OPPOSITE amount — the camera pans
+        // across the world, the geometry stays put.
+        const pe::Mat4 view = pe::Mat4::lookAt(cameraPos,
+                                               cameraPos + pe::Vec3(0.0f, 0.0f, -1.0f),
+                                               pe::Vec3(0.0f, 1.0f, 0.0f));
 
         // Bind the VAO: restores the vertex data layout we configured once.
+        // BOTH instances share this exact vertex data — only the transform
+        // differs, which is the whole point of model matrices.
         glBindVertexArray(VAO);
-        // Draw: GL_TRIANGLES = interpret vertices as triangles, start at
-        // index 0, use 3 vertices. This is THE call that feeds the GPU
-        // pipeline: vertices -> vertex shader -> rasterizer -> fragment
-        // shader -> pixels in the back buffer.
+
+        // --- Step 6: Draw TWO instances at different world positions ---
+        // The final matrix is projection * view * model. Multiplication
+        // acts on the vertex RIGHT-TO-LEFT, so the order reads as a
+        // pipeline, exactly like Step 5's rotation * scale:
+        //   model      : local triangle coords -> WORLD coords
+        //   view       : world coords          -> CAMERA coords
+        //   projection : camera coords         -> clip coords (-1..1 cube)
+        // Reverse the order and the math is nonsense — you would be
+        // projecting a camera onto a triangle instead of a triangle onto
+        // the screen. Order is meaning, same lesson, three stages now.
+        //
+        // Instance 1 at world (-1.5, 0). Its model matrix is
+        // translation * rotationZ: right-to-left, the triangle SPINS
+        // AROUND ITS OWN CENTER first, then gets placed at (-1.5, 0).
+        // Swap the order and it would orbit the world origin instead.
+        pe::Mat4 model1 = pe::Mat4::translation(pe::Vec3(-1.5f, 0.0f, 0.0f))
+                        * pe::Mat4::rotationZ(rotationAngle);
+        pe::Mat4 mvp1 = projection * view * model1;
+        // Upload the combined MVP to the SAME 'transform' uniform Step 5
+        // introduced — the shader neither knows nor cares how the matrix
+        // was built, it just multiplies. GL_FALSE: our Mat4 is already
+        // column-major, the layout OpenGL expects, so no conversion.
+        glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp1.m[0][0]);
+        // Draw: GL_TRIANGLES, start index 0, 3 vertices.
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        // Instance 2 at world (+1.5, 0): IDENTICAL vertex data, different
+        // model matrix. Two triangles visible in different places is the
+        // proof that positioning comes from the math, not from hardcoded
+        // screen-space vertices.
+        pe::Mat4 model2 = pe::Mat4::translation(pe::Vec3(1.5f, 0.0f, 0.0f))
+                        * pe::Mat4::rotationZ(rotationAngle);
+        pe::Mat4 mvp2 = projection * view * model2;
+        glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp2.m[0][0]);
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
         // C. Swap buffers

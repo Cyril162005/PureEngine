@@ -25,9 +25,10 @@
  *
  * constexpr: every pure-arithmetic member (identity constructor, builders
  * that don't call trig, multiply, transformPoint) is constexpr so main()
- * can prove them with static_assert at compile time. rotationZ is the one
- * exception: std::sin/std::cos are not constexpr on MSVC, so it runs at
- * runtime — which is exactly when we need it anyway (once per frame).
+ * can prove them with static_assert at compile time. rotationZ and lookAt
+ * are the exceptions: std::sin/std::cos (rotationZ) and std::sqrt via
+ * Vec3::normalized (lookAt) are not constexpr on MSVC, so they run at
+ * runtime — which is exactly when we need them anyway (once per frame).
  */
 #ifndef PUREENGINE_MATH_MAT4_H
 #define PUREENGINE_MATH_MAT4_H
@@ -134,6 +135,82 @@ public:
     }
 
     // ------------------------------------------------------------------
+    // Builder: ORTHOGRAPHIC PROJECTION (Step 6). Maps a world-space box
+    // (left..right, bottom..top, zNear..zFar) onto the clip cube
+    // (-1..1 on every axis). No perspective: a unit stays the same size
+    // near or far — correct for our flat 2D-style scene. A perspective
+    // builder belongs to the day the engine grows real 3D depth.
+    //
+    // How it works: SCALE each axis by 2/(extent) to squeeze the box
+    // into a 2-unit range, then TRANSLATE so the box's center lands on
+    // the origin. The Z scale is NEGATIVE: the camera looks down -Z, so
+    // increasing world z (deeper into the scene) must map to decreasing
+    // depth values — the minus keeps depth ordering consistent with the
+    // right-handed convention the rest of this file assumes.
+    // constexpr: pure arithmetic — proven by static_assert in main().
+    // ------------------------------------------------------------------
+    static constexpr Mat4 orthographic(float left, float right,
+                                       float bottom, float top,
+                                       float zNear, float zFar) {
+        Mat4 result;                                  // starts as identity
+        result.m[0][0] = 2.0f / (right - left);       // x scale
+        result.m[1][1] = 2.0f / (top - bottom);       // y scale
+        result.m[2][2] = -2.0f / (zFar - zNear);      // z scale (negative)
+        result.m[3][0] = -(right + left) / (right - left);  // center x -> 0
+        result.m[3][1] = -(top + bottom) / (top - bottom);  // center y -> 0
+        result.m[3][2] = -(zFar + zNear) / (zFar - zNear);  // center z -> 0
+        return result;
+    }
+
+    // ------------------------------------------------------------------
+    // Builder: VIEW MATRIX from camera position + orientation (Step 6).
+    // The view matrix is the INVERSE of the camera's own transform: moving
+    // the camera right is mathematically identical to moving the whole
+    // world left. Instead of building the camera transform and inverting
+    // it, we construct the inverse DIRECTLY:
+    //   1. Build three orthonormal camera axes:
+    //        forward = normalize(target - eye)
+    //        right   = normalize(forward x up)
+    //        trueUp  = right x forward
+    //      trueUp is recomputed from the other two so the axes are
+    //      guaranteed perpendicular even if the caller's 'up' is sloppy.
+    //   2. The camera looks down its own -Z, so the matrix's third ROW is
+    //      -forward. Rows 0/1 are right/trueUp: dotting a world vector
+    //      with each axis IS the change of basis into camera space.
+    //   3. The translation column subtracts the eye's position, projected
+    //      onto each axis: -dot(axis, eye).
+    // NOT constexpr: Vec3::normalized() calls std::sqrt, which MSVC cannot
+    // run at compile time. Built once per frame anyway (the camera moves).
+    // Degenerate case: if 'up' is parallel to the look direction the cross
+    // product collapses to zero; normalized() safely returns the zero
+    // vector rather than NaN (see vec3.h), but the caller must never aim
+    // straight along 'up'.
+    // ------------------------------------------------------------------
+    static Mat4 lookAt(const Vec3& eye, const Vec3& target, const Vec3& up) {
+        Vec3 forward = (target - eye).normalized();   // where the camera aims
+        Vec3 right = forward.cross(up).normalized();  // camera's +X axis
+        Vec3 trueUp = right.cross(forward);           // camera's +Y axis
+        Mat4 result;                                  // starts as identity
+        // Row 0 = right axis (stored column-major: row index is SECOND).
+        result.m[0][0] = right.x;
+        result.m[1][0] = right.y;
+        result.m[2][0] = right.z;
+        // Row 1 = true up axis.
+        result.m[0][1] = trueUp.x;
+        result.m[1][1] = trueUp.y;
+        result.m[2][1] = trueUp.z;
+        // Row 2 = -forward (camera looks down its own -Z).
+        result.m[0][2] = -forward.x;
+        result.m[1][2] = -forward.y;
+        result.m[2][2] = -forward.z;
+        // Translation: subtract the eye, projected onto each camera axis.
+        result.m[3][0] = -right.dot(eye);
+        result.m[3][1] = -trueUp.dot(eye);
+        result.m[3][2] = forward.dot(eye);            // == -(-forward).dot(eye)
+        return result;
+    }
+
+    // ------------------------------------------------------------------
     // Matrix * Matrix. THE composition operation: applying (this * other)
     // to a vertex is identical to applying 'other' FIRST and 'this' SECOND.
     // Multiplication is NOT commutative: T*R != R*T (translate-then-rotate
@@ -161,9 +238,18 @@ public:
     // ------------------------------------------------------------------
     // Matrix * Point. Applies the transform to one 3D point. The w = 1
     // makes translation take effect (see header: homogeneous coordinates).
-    // The perspective divide (dividing by w') is skipped because none of
-    // our builders produce a w different from 1 — add it the day a
-    // projection matrix enters the engine.
+    //
+    // THE PERSPECTIVE-DIVIDE QUESTION — decided in Step 6: NO divide here.
+    // 1. Orthographic projection PRESERVES w: orthographic()'s 4th row is
+    //    (0, 0, 0, 1), so w' stays 1.0 and dividing by it is a no-op.
+    //    Adding the divide now would change zero numbers — cargo cult.
+    // 2. On the GPU path the divide happens IN HARDWARE after the vertex
+    //    shader (gl_Position's clip coordinates are divided by w by
+    //    fixed-function logic before rasterization) — so even a future
+    //    perspective projection needs no divide code in the shader.
+    // 3. This function is a CPU-side helper. It needs the divide ONLY the
+    //    day the CPU itself must project points through a PERSPECTIVE
+    //    matrix (mouse picking, CPU-side culling). That day: add it here.
     // ------------------------------------------------------------------
     constexpr Vec3 transformPoint(const Vec3& p) const {
         float x = m[0][0] * p.x + m[1][0] * p.y + m[2][0] * p.z + m[3][0];
