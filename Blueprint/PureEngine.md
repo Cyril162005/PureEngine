@@ -58,9 +58,14 @@ No copy-pasted code you can't explain.
 - VERIFIED: Triangle rotates continuously counter-clockwise at constant speed (~one full revolution per 7 seconds); ESC close and SPACE background toggle still work.
 
 ### Step 6 — Sprite/Mesh Rendering + Camera
-**Status:** Not started
+**Status:** Completed
 **Notes:**
--
+- Added orthographic() and lookAt() builders to the own math layer (src/math/mat4.h): ortho maps a world box to the clip cube (constexpr, static_assert-proven); lookAt builds the view matrix as the camera's inverse directly from orthonormal axes (forward/right/trueUp via Vec3 cross/dot).
+- Combined projection * view * model per instance and uploaded via glUniformMatrix4fv; shader unchanged (single 'transform' uniform now carries the full MVP).
+- Two triangle instances drawn from identical vertex data at world positions (-1.5, 0) and (+1.5, 0), each spinning around its own center (translation * rotationZ order).
+- WASD pans the camera at 3 world units/s via deltaTime (rate polling, no edge detection — movement is a rate, not a toggle); perspective divide deliberately left out of transformPoint (ortho preserves w = 1; GPU divides in hardware).
+- No CMakeLists.txt change needed (no new files).
+- VERIFIED: Two triangles side by side spinning independently; camera movement correctly inverted (D->scene left, A->right, W->down, S->up); ESC/SPACE intact.
 
 ### Step 7 — Basic Object/ECS System
 **Status:** Not started

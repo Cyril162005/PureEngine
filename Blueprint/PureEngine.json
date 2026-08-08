@@ -47,8 +47,9 @@
     {
       "id": 6,
       "name": "Sprite/Mesh Rendering + Camera",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Assets rendered in space, camera can move/view them",
+      "notes": "Own math layer extended with orthographic() (constexpr, static_assert-proven) and lookAt() (view = inverse camera transform built from orthonormal axes). MVP = projection * view * model uploaded per instance via glUniformMatrix4fv; two triangle instances at world (-1.5,0) and (+1.5,0) from identical vertex data, spinning around own centers. WASD pans camera 3 units/s via deltaTime. Visually verified: independent spins, correctly inverted camera pan, ESC/SPACE intact.",
       "depends_on": [5]
     },
     {
