@@ -15,6 +15,11 @@
  * Goal: Poll the keyboard inside the loop. ESC closes the window;
  *       SPACE toggles the clear color between black and dark blue
  *       (one toggle per press, not per held frame).
+ *
+ * Step 4: Draw One Shape
+ * Goal: Render a triangle through a basic shader program, proving
+ *       the full GPU pipeline works: vertex data -> vertex shader ->
+ *       rasterization -> fragment shader -> framebuffer.
  */
 int main() {
     // 1. Initialize GLFW
@@ -74,6 +79,119 @@ int main() {
     // Initialized to false: before the program starts, SPACE is not pressed.
     bool spaceWasPressedLastFrame = false;
 
+    // --- Step 4: Shader Setup (before the loop) ---
+    // Shaders are tiny programs that run ON THE GPU. OpenGL's fixed-function
+    // pipeline is gone in core profile 3.3 — we MUST supply at least a vertex
+    // shader (positions vertices) and a fragment shader (colors pixels).
+    // They are written in GLSL and compiled at runtime from these strings.
+    // "#version 330 core" matches the OpenGL 3.3 Core context from Step 1.
+    //
+    // VERTEX SHADER: runs once per vertex. "layout (location = 0)" binds the
+    // input attribute aPos to attribute index 0 — the same index we will use
+    // when describing our vertex data with glVertexAttribPointer below.
+    // gl_Position is the mandatory output: the vertex's final position in
+    // normalized device coordinates (-1..1 on each axis maps to the screen).
+    const char* vertexShaderSource =
+        "#version 330 core\n"
+        "layout (location = 0) in vec3 aPos;\n"
+        "void main() {\n"
+        "    gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+        "}\n";
+
+    // FRAGMENT SHADER: runs once per pixel covered by the shape. Its output
+    // (FragColor, an RGBA vec4) becomes that pixel's color. Solid orange here.
+    const char* fragmentShaderSource =
+        "#version 330 core\n"
+        "out vec4 FragColor;\n"
+        "void main() {\n"
+        "    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+        "}\n";
+
+    // Compile the vertex shader. glCreateShader creates an empty shader object
+    // of the given type; glShaderSource attaches our GLSL text; glCompileShader
+    // compiles it on the GPU driver.
+    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glCompileShader(vertexShader);
+    // Error check: if compilation failed (typo in GLSL, unsupported feature),
+    // the info log contains the driver's error message. Without this check a
+    // broken shader fails SILENTLY and you just get a black screen.
+    int success;
+    char infoLog[512];
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+        std::cerr << "Vertex shader compilation failed:\n" << infoLog << std::endl;
+        return -1;
+    }
+
+    // Compile the fragment shader — same three calls, same error check.
+    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    glCompileShader(fragmentShader);
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+        std::cerr << "Fragment shader compilation failed:\n" << infoLog << std::endl;
+        return -1;
+    }
+
+    // Link both compiled shaders into one shader PROGRAM: the complete
+    // executable pipeline the GPU will run. Linking can also fail (e.g. the
+    // vertex shader's outputs don't match the fragment shader's inputs), so
+    // we check GL_LINK_STATUS with glGetProgramiv the same way.
+    GLuint shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        std::cerr << "Shader program linking failed:\n" << infoLog << std::endl;
+        return -1;
+    }
+    // The individual shader objects are now baked into the program; delete
+    // them to free resources. The program itself stays alive until cleanup.
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    // --- Step 4: Vertex Data + VAO/VBO (before the loop) ---
+    // Three vertices (x, y, z) forming a triangle centered on screen.
+    // NDC coordinates: x and y run from -1 (left/bottom) to +1 (right/top).
+    float vertices[] = {
+        -0.5f, -0.5f, 0.0f,   // bottom-left
+         0.5f, -0.5f, 0.0f,   // bottom-right
+         0.0f,  0.5f, 0.0f    // top
+    };
+
+    // VBO (Vertex Buffer Object): a buffer that lives in GPU memory.
+    // We upload our vertex data once so the GPU doesn't need it re-sent
+    // every frame.
+    // VAO (Vertex Array Object): a small state container that REMEMBERS how
+    // to interpret the VBO (which attribute index, how many floats, stride,
+    // offset). Binding the VAO later restores all of that in one call.
+    GLuint VAO, VBO;
+    glGenVertexArrays(1, &VAO);   // generate names/IDs for 1 VAO and 1 VBO
+    glGenBuffers(1, &VBO);
+
+    // In core-profile OpenGL, most calls act on whatever object is currently
+    // BOUND. Bind the VAO first: everything we configure now is recorded
+    // inside it.
+    glBindVertexArray(VAO);
+    // Bind the VBO as the current GL_ARRAY_BUFFER target, then upload data.
+    // GL_STATIC_DRAW hints the data is set once and drawn many times.
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    // Tell OpenGL how to read the raw floats: attribute index 0 (matches
+    // "layout (location = 0)" in the vertex shader), 3 floats per vertex,
+    // no normalization, stride = byte distance to the next vertex
+    // (3 floats), offset 0 (data starts at the buffer's beginning).
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    // Attribute arrays are disabled by default — enable index 0.
+    glEnableVertexAttribArray(0);
+    // Unbind the VBO (optional safety measure); the VAO remembers the setup.
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     // 6. The Main Loop
     while (!glfwWindowShouldClose(window)) {
         // --- Step 2: Delta Time Calculation (top of the frame) ---
@@ -132,6 +250,17 @@ int main() {
         // glClear actually performs the clear operation on the color buffer
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // --- Step 4: Draw the Triangle (after clear, before swap) ---
+        // Activate our shader program: all following draw calls use it.
+        glUseProgram(shaderProgram);
+        // Bind the VAO: restores the vertex data layout we configured once.
+        glBindVertexArray(VAO);
+        // Draw: GL_TRIANGLES = interpret vertices as triangles, start at
+        // index 0, use 3 vertices. This is THE call that feeds the GPU
+        // pipeline: vertices -> vertex shader -> rasterizer -> fragment
+        // shader -> pixels in the back buffer.
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
         // C. Swap buffers
         // GLFW uses double buffering. This swaps the front buffer (what we see)
         // with the back buffer (what we just drew to).
@@ -139,6 +268,10 @@ int main() {
     }
 
     // 7. Cleanup
+    // Free GPU resources in reverse order of creation, before GLFW teardown.
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteProgram(shaderProgram);
     glfwDestroyWindow(window);
     glfwTerminate();
 
