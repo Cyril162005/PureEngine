@@ -78,9 +78,15 @@ No copy-pasted code you can't explain.
 - VERIFIED: Three triangles — two original spin counter-clockwise together, smaller third one spins clockwise and faster (per-entity state proven independent); WASD camera pan, SPACE toggle, ESC close all intact.
 
 ### Step 8 — Collision Detection (AABB)
-**Status:** Not started
+**Status:** Completed
 **Notes:**
--
+- Design rulings: AABB over circles (canonical first primitive, axis-aligned math) and over exact per-triangle tests (AABB is the permanent broadphase first gate in real engines). Bounds live DIRECTLY on Entity as halfExtents — same 'don't over-engineer for 3 objects' rule as Step 7. Algorithm lives in new header-only src/collision.h (data vs. algorithm split), not in entity.h.
+- Overlap test: |dx| < sum-of-half-extents AND on BOTH axes (separating axis principle; OR is the classic bug), strict '<' = touching is not colliding. constexpr + 3 new static_asserts prove it at compile time, including the X-gap-only case that catches an AND->OR mistake.
+- Entity.halfExtents = (0.7071, 0.7071, 0): distance to the triangle's farthest vertex — the tightest box correct at EVERY rotation angle for spinning geometry; collision multiplies by scale so the collider matches what renders (default constructor argument keeps Step 7 call sites unchanged).
+- Movement ruling: player-driven over automatic oscillation — ARROW keys move entities[0] at 2.5 units/s (WASD stays the camera's); collision becomes an interaction, and it's the engine's first real entity-movement code.
+- Visible feedback: fragment shader gained 'uniform vec3 color'; colliding entities draw red per frame via glUniform3f, all others keep the Step 4 orange. Collision flags rebuilt from zero every frame (derived state, never sticky); unique pairs tested once via j = i + 1.
+- No CMakeLists.txt change needed (header-only; git status proved only the three Step 8 files changed).
+- VERIFIED: Driving into another triangle turns BOTH red instantly, backing off clears both to orange immediately; the red-trigger gap matches the rotation-safe AABB square; WASD camera, arrow movement, SPACE toggle, ESC close all work independently.
 
 ### Step 9 — Audio Playback
 **Status:** Not started

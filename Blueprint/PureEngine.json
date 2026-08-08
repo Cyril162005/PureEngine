@@ -63,8 +63,9 @@
     {
       "id": 8,
       "name": "Collision Detection (AABB)",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Two objects can be detected as overlapping",
+      "notes": "AABB chosen over circles/exact tests; halfExtents added directly to Entity (0.7071 rotation-safe bound, multiplied by scale at test time). New header-only src/collision.h: constexpr aabbOverlap (separating-axis, AND on both axes) proven by 3 static_asserts. Arrow keys move entities[0] at 2.5 units/s (WASD stays camera); per-frame derived collision flags (unique pairs, j=i+1); fragment shader gained uniform vec3 color — colliding entities render red. Visually verified: both entities red on overlap, instant clear on separation, all prior inputs intact.",
       "depends_on": [7]
     },
     {
