@@ -3,7 +3,8 @@
  * File: entity.h
  *
  * One game object, represented as plain DATA: a world position, a Z-axis
- * rotation (angle + speed), and a per-axis scale. Nothing more.
+ * rotation (angle + speed), a per-axis scale, and (since Step 8) AABB
+ * half-extents for collision. Nothing more.
  *
  * Why a plain struct and not a full ECS? At three instances and exactly
  * one behavior (spin, then draw), a full Entity-Component-System — entity
@@ -34,25 +35,45 @@ struct Entity {
     float rotationAngle;  // current Z rotation in RADIANS, accumulates
     float rotationSpeed;  // radians per second; negative = clockwise
     Vec3 scale;           // per-axis size multiplier, (1,1,1) = no change
+    // --- Step 8: collision bounds (AABB half-extents) ---
+    // Distance from the entity's origin to each bounding-box edge,
+    // BEFORE scale is applied (collision code multiplies by scale, so
+    // a 0.6-scale entity gets a 0.6-size box — collider matches what
+    // renders). For the shared triangle geometry this is the distance
+    // from the origin to its FARTHEST vertex: the corners at
+    // (+/-0.5, -0.5) sit sqrt(0.5^2 + 0.5^2) = 0.7071... away. The
+    // triangle SPINS, and a bounding box tighter than its farthest
+    // vertex would be wrong at some angles — the 0.7071 square is the
+    // tightest box that stays correct at EVERY rotation angle. Z is 0:
+    // the scene is flat, collision is a 2D test.
+    Vec3 halfExtents;
 
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
     // in the initializer list: no garbage state possible, same standard
-    // as the math types.
+    // as the math types. Half-extents default to the shared triangle's
+    // rotation-safe bound (see the member's comment).
     Entity()
         : position(0.0f, 0.0f, 0.0f),
           rotationAngle(0.0f),
           rotationSpeed(0.0f),
-          scale(1.0f, 1.0f, 1.0f) {}
+          scale(1.0f, 1.0f, 1.0f),
+          halfExtents(0.7071f, 0.7071f, 0.0f) {}
 
-    // Configured constructor: the three things that differ per instance.
+    // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
     // accumulate angle from their own speed every frame.
-    Entity(const Vec3& position, float rotationSpeed, const Vec3& scale)
+    // halfExtents has a DEFAULT ARGUMENT: every entity so far shares
+    // the same triangle geometry, so callers omit it; the day a second
+    // mesh arrives, callers pass its real bounds — no existing call
+    // site breaks.
+    Entity(const Vec3& position, float rotationSpeed, const Vec3& scale,
+           const Vec3& halfExtents = Vec3(0.7071f, 0.7071f, 0.0f))
         : position(position),
           rotationAngle(0.0f),
           rotationSpeed(rotationSpeed),
-          scale(scale) {}
+          scale(scale),
+          halfExtents(halfExtents) {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the

@@ -14,6 +14,12 @@
 // Header-only like the math layer, so the CMake build stays unchanged.
 #include "entity.h"
 
+// --- Step 8: Collision Detection (AABB) ---
+// The overlap ALGORITHM lives apart from the entity DATA (same
+// data/system split as Step 7, at file level). Header-only: no
+// CMakeLists.txt change.
+#include "collision.h"
+
 /**
  * Step 1: Window + Context Creation
  * Goal: Open a window and create a valid OpenGL context.
@@ -49,6 +55,12 @@
  *       instance is a pe::Entity struct (position, rotation, scale) in a
  *       std::vector; ONE update loop and ONE draw loop process all of
  *       them — adding an entity is a push_back, never new code.
+ *
+ * Step 8: Collision Detection (AABB)
+ * Goal: Detect when two entities overlap using axis-aligned bounding
+ *       boxes. The player drives entities[0] with the ARROW keys into
+ *       the others; overlapping entities turn red via a per-draw color
+ *       uniform. The overlap test is constexpr and static_assert-proven.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -80,6 +92,20 @@ static_assert(pe::Mat4::orthographic(-2.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f).tran
               "Mat4 orthographic projection is broken");
 static_assert(pe::Mat4::orthographic(-2.0f, 2.0f, -1.0f, 1.0f, -1.0f, 1.0f).transformPoint(pe::Vec3(-2.0f, -1.0f, 0.0f)) == pe::Vec3(-1.0f, -1.0f, 0.0f),
               "Mat4 orthographic projection is broken");
+// --- Step 8 additions: prove the AABB overlap test at compile time ---
+// Two identical unit boxes at the same center: maximally overlapping.
+static_assert(pe::aabbOverlap(pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(1.0f, 1.0f, 0.0f),
+                              pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(1.0f, 1.0f, 0.0f)),
+              "AABB overlap: concentric boxes must collide");
+// Gap on the X axis alone kills the collision — even with Y ranges
+// fully shared. This is the test that catches the classic AND->OR bug.
+static_assert(!pe::aabbOverlap(pe::Vec3(3.0f, 0.0f, 0.0f), pe::Vec3(1.0f, 1.0f, 0.0f),
+                               pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(1.0f, 1.0f, 0.0f)),
+              "AABB overlap: X gap must prevent collision");
+// Mirror image: gap on the Y axis alone must also prevent it.
+static_assert(!pe::aabbOverlap(pe::Vec3(0.0f, 3.0f, 0.0f), pe::Vec3(1.0f, 1.0f, 0.0f),
+                               pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(1.0f, 1.0f, 0.0f)),
+              "AABB overlap: Y gap must prevent collision");
 int main() {
     // 1. Initialize GLFW
     if (!glfwInit()) {
@@ -167,12 +193,20 @@ int main() {
         "}\n";
 
     // FRAGMENT SHADER: runs once per pixel covered by the shape. Its output
-    // (FragColor, an RGBA vec4) becomes that pixel's color. Solid orange here.
+    // (FragColor, an RGBA vec4) becomes that pixel's color.
+    //
+    // STEP 8 ADDITION — "uniform vec3 color;": the triangle's color is now
+    // a shader INPUT instead of the hardcoded orange from Step 4. Every
+    // draw call uploads its own color with glUniform3f: normal orange for
+    // a free entity, red for one caught colliding. The shader code path is
+    // identical for both — only the uniform's value differs per draw, the
+    // same trick the 'transform' uniform uses for per-entity matrices.
     const char* fragmentShaderSource =
         "#version 330 core\n"
+        "uniform vec3 color;\n"
         "out vec4 FragColor;\n"
         "void main() {\n"
-        "    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+        "    FragColor = vec4(color, 1.0f);\n"
         "}\n";
 
     // Compile the vertex shader. glCreateShader creates an empty shader object
@@ -253,6 +287,19 @@ int main() {
         return -1;
     }
 
+    // --- Step 8: Locate the color uniform (after linking) ---
+    // Same pattern as 'transform' above: get the handle once, check it,
+    // upload a per-draw value every frame below. Without the check a
+    // misspelled uniform name fails silently and EVERY entity renders
+    // black (vec3 default 0) — visible, but confusing.
+    GLint colorLocation = glGetUniformLocation(shaderProgram, "color");
+    if (colorLocation < 0) {
+        std::cerr << "Uniform 'color' not found in shader program" << std::endl;
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+
     // --- Step 7: Entities as DATA (before the loop) ---
     // Every triangle instance is one entry in this vector. The Step 5/6
     // globals rotationAngle/rotationSpeed no longer exist — that state
@@ -288,6 +335,12 @@ int main() {
     // Orthographic: apparent size never changes with depth — right for this
     // flat scene. Built ONCE: nothing about it changes per frame (yet).
     const pe::Mat4 projection = pe::Mat4::orthographic(-4.0f, 4.0f, -3.0f, 3.0f, -1.0f, 1.0f);
+
+    // --- Step 8: Player movement speed (before the loop) ---
+    // World units per second for the ARROW-key-driven entity
+    // (entities[0]). Deliberately a bit slower than the camera's 3.0
+    // so driving into another triangle feels controlled, not twitchy.
+    const float entityMoveSpeed = 2.5f;
 
     // --- Step 4: Vertex Data + VAO/VBO (before the loop) ---
     // Three vertices (x, y, z) forming a triangle centered on screen.
@@ -391,6 +444,28 @@ int main() {
             cameraPos.x += cameraSpeed * dt;   // camera right -> scene slides left
         }
 
+        // --- Step 8: Player entity movement (ARROW keys, polled every frame) ---
+        // WASD belongs to the CAMERA (established Step 6 behavior, kept
+        // untouched). The ARROW keys — completely free — move entities[0]
+        // through the world, so the player can drive it into the other
+        // two triangles and trigger a collision on demand. Same pattern
+        // as camera panning: a RATE, polled every frame while held,
+        // multiplied by dt for frame-rate independence. The reference
+        // below points INTO the vector — writes land in the real entity.
+        pe::Entity& player = entities[0];
+        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+            player.position.y += entityMoveSpeed * dt;
+        }
+        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+            player.position.y -= entityMoveSpeed * dt;
+        }
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+            player.position.x -= entityMoveSpeed * dt;
+        }
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+            player.position.x += entityMoveSpeed * dt;
+        }
+
         // --- Step 7: Update every entity (per-frame simulation) ---
         // One loop replaces the old global rotationAngle update from
         // Steps 5/6. Each entity carries its OWN speed (and even its own
@@ -398,6 +473,27 @@ int main() {
         // state += rate * deltaTime pattern, now per-entity data.
         for (pe::Entity& entity : entities) {
             entity.update(dt);
+        }
+
+        // --- Step 8: Collision pass (after movement, before drawing) ---
+        // One flag per entity, rebuilt from ZERO every frame: collision
+        // state is derived fresh from positions, never remembered. A
+        // 'sticky' flag would need explicit reset logic and drift out of
+        // sync; deriving it needs nothing. char over bool: zero-init is
+        // unambiguous and it reads fine as a flag.
+        std::vector<char> colliding(entities.size(), 0);
+        // Test every UNIQUE pair exactly once: i runs each entity,
+        // j only the ones AFTER it. With N entities that is N*(N-1)/2
+        // tests — 3 for N = 3. Testing i == j would self-collide
+        // (always true — useless); testing both orders doubles the work
+        // for identical results. Overlap is symmetric: set BOTH flags.
+        for (size_t i = 0; i < entities.size(); ++i) {
+            for (size_t j = i + 1; j < entities.size(); ++j) {
+                if (pe::aabbOverlap(entities[i], entities[j])) {
+                    colliding[i] = 1;
+                    colliding[j] = 1;
+                }
+            }
         }
 
         // B. Clear the screen
@@ -442,13 +538,23 @@ int main() {
         // The loop neither knows nor cares how many entities exist:
         // three, thirty, or three hundred — same code, same three GL
         // calls per entity. THAT is what "entities as data" buys you.
-        for (const pe::Entity& entity : entities) {
+        // (Step 8: the same index also selects the draw color, so a
+        // colliding entity turns red — the visible proof of detection.)
+        for (size_t i = 0; i < entities.size(); ++i) {
+            const pe::Entity& entity = entities[i];
             // Build this entity's MVP from its own data.
             pe::Mat4 mvp = projection * view * entity.modelMatrix();
             // Upload to the same 'transform' uniform (GL_FALSE: our Mat4
-            // is already column-major, the layout OpenGL expects), then
-            // issue one draw call for this entity.
+            // is already column-major, the layout OpenGL expects).
             glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
+            // Step 8: per-draw color — red (1,0,0) while this entity's
+            // box overlaps another, the original Step 4 orange otherwise.
+            if (colliding[i]) {
+                glUniform3f(colorLocation, 1.0f, 0.0f, 0.0f);
+            } else {
+                glUniform3f(colorLocation, 1.0f, 0.5f, 0.2f);
+            }
+            // One draw call for this entity.
             glDrawArrays(GL_TRIANGLES, 0, 3);
         }
 
