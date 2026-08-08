@@ -1,12 +1,18 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <vector>   // Step 7: entities live in a std::vector
 
 // --- Step 5: The Math Layer ---
 // Our OWN math code (src/math/), not an external library. Header-only:
 // all logic lives in these two files, so the CMake build is unchanged.
 #include "math/vec3.h"
 #include "math/mat4.h"
+
+// --- Step 7: The Object System ---
+// Entities as data: one struct per game object, stored in a vector.
+// Header-only like the math layer, so the CMake build stays unchanged.
+#include "entity.h"
 
 /**
  * Step 1: Window + Context Creation
@@ -37,6 +43,12 @@
  *       Each instance gets its own model matrix; a view matrix (camera
  *       position, moved with WASD) and an orthographic projection matrix
  *       are combined as projection * view * model and uploaded per draw.
+ *
+ * Step 7: Basic Object/ECS System
+ * Goal: Entities are DATA, not hardcoded per-object blocks. Each triangle
+ *       instance is a pe::Entity struct (position, rotation, scale) in a
+ *       std::vector; ONE update loop and ONE draw loop process all of
+ *       them — adding an entity is a push_back, never new code.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -241,14 +253,25 @@ int main() {
         return -1;
     }
 
-    // --- Step 5: Rotation State (before the loop) ---
-    // Current rotation angle in RADIANS. It accumulates every frame:
-    // angle += speed * deltaTime. Because deltaTime is in seconds, the
-    // factor below is a SPEED in radians per second — the triangle spins
-    // at the same rate whether the machine runs 30 FPS or 300 FPS.
-    // 0.9 rad/s ≈ one full revolution every 7 seconds: slow enough to see.
-    float rotationAngle = 0.0f;
-    const float rotationSpeed = 0.9f;
+    // --- Step 7: Entities as DATA (before the loop) ---
+    // Every triangle instance is one entry in this vector. The Step 5/6
+    // globals rotationAngle/rotationSpeed no longer exist — that state
+    // now lives INSIDE each entity, per instance. Adding an entity is
+    // one push_back; the update loop and draw loop below never change.
+    std::vector<pe::Entity> entities;
+    // Instances 1 & 2 — the Step 6 pair, exactly preserved: same world
+    // positions, same 0.9 rad/s counter-clockwise spin (~7 s/revolution),
+    // same unit scale.
+    entities.push_back(pe::Entity(pe::Vec3(-1.5f, 0.0f, 0.0f), 0.9f,
+                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
+    entities.push_back(pe::Entity(pe::Vec3( 1.5f, 0.0f, 0.0f), 0.9f,
+                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
+    // Instance 3 — the proof that the loop scales without code
+    // duplication: new position, new speed AND DIRECTION (-1.4 rad/s =
+    // clockwise, ~4.5 s/revolution), new scale (60% size). None of this
+    // required a single new rendering line — behavior comes from DATA.
+    entities.push_back(pe::Entity(pe::Vec3(0.0f, 1.5f, 0.0f), -1.4f,
+                                  pe::Vec3(0.6f, 0.6f, 1.0f)));
 
     // --- Step 6: Camera + Projection State (before the loop) ---
     // The camera's position IN WORLD SPACE. WASD shifts it every frame and
@@ -368,11 +391,14 @@ int main() {
             cameraPos.x += cameraSpeed * dt;   // camera right -> scene slides left
         }
 
-        // --- Step 5: Update the rotation angle (per-frame simulation) ---
-        // deltaTime (Step 2) finally gets a job: advance the angle by
-        // speed * elapsed-seconds. This is the universal game-loop pattern
-        // — state += rate * deltaTime — that movement and physics will use.
-        rotationAngle += rotationSpeed * static_cast<float>(deltaTime);
+        // --- Step 7: Update every entity (per-frame simulation) ---
+        // One loop replaces the old global rotationAngle update from
+        // Steps 5/6. Each entity carries its OWN speed (and even its own
+        // direction), so each advances at its own rate — the same
+        // state += rate * deltaTime pattern, now per-entity data.
+        for (pe::Entity& entity : entities) {
+            entity.update(dt);
+        }
 
         // B. Clear the screen
         // glClearColor sets the color to clear to (R, G, B, A).
@@ -402,46 +428,29 @@ int main() {
                                                cameraPos + pe::Vec3(0.0f, 0.0f, -1.0f),
                                                pe::Vec3(0.0f, 1.0f, 0.0f));
 
-        // Bind the VAO: restores the vertex data layout we configured once.
-        // BOTH instances share this exact vertex data — only the transform
-        // differs, which is the whole point of model matrices.
+        // Bind the VAO ONCE: every entity shares this exact vertex data —
+        // only the transform differs per instance.
         glBindVertexArray(VAO);
 
-        // --- Step 6: Draw TWO instances at different world positions ---
-        // The final matrix is projection * view * model. Multiplication
-        // acts on the vertex RIGHT-TO-LEFT, so the order reads as a
-        // pipeline, exactly like Step 5's rotation * scale:
-        //   model      : local triangle coords -> WORLD coords
-        //   view       : world coords          -> CAMERA coords
-        //   projection : camera coords         -> clip coords (-1..1 cube)
-        // Reverse the order and the math is nonsense — you would be
-        // projecting a camera onto a triangle instead of a triangle onto
-        // the screen. Order is meaning, same lesson, three stages now.
-        //
-        // Instance 1 at world (-1.5, 0). Its model matrix is
-        // translation * rotationZ: right-to-left, the triangle SPINS
-        // AROUND ITS OWN CENTER first, then gets placed at (-1.5, 0).
-        // Swap the order and it would orbit the world origin instead.
-        pe::Mat4 model1 = pe::Mat4::translation(pe::Vec3(-1.5f, 0.0f, 0.0f))
-                        * pe::Mat4::rotationZ(rotationAngle);
-        pe::Mat4 mvp1 = projection * view * model1;
-        // Upload the combined MVP to the SAME 'transform' uniform Step 5
-        // introduced — the shader neither knows nor cares how the matrix
-        // was built, it just multiplies. GL_FALSE: our Mat4 is already
-        // column-major, the layout OpenGL expects, so no conversion.
-        glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp1.m[0][0]);
-        // Draw: GL_TRIANGLES, start index 0, 3 vertices.
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-
-        // Instance 2 at world (+1.5, 0): IDENTICAL vertex data, different
-        // model matrix. Two triangles visible in different places is the
-        // proof that positioning comes from the math, not from hardcoded
-        // screen-space vertices.
-        pe::Mat4 model2 = pe::Mat4::translation(pe::Vec3(1.5f, 0.0f, 0.0f))
-                        * pe::Mat4::rotationZ(rotationAngle);
-        pe::Mat4 mvp2 = projection * view * model2;
-        glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp2.m[0][0]);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        // --- Step 7: ONE draw loop for ALL entities ---
+        // This replaces Step 6's copy-pasted model1/mvp1/draw,
+        // model2/mvp2/draw blocks. The pipeline math is unchanged —
+        // projection * view * model, acting RIGHT-TO-LEFT on the vertex:
+        //   model      : local coords  -> WORLD coords  (from entity DATA)
+        //   view       : world coords  -> CAMERA coords
+        //   projection : camera coords -> clip coords (-1..1 cube)
+        // The loop neither knows nor cares how many entities exist:
+        // three, thirty, or three hundred — same code, same three GL
+        // calls per entity. THAT is what "entities as data" buys you.
+        for (const pe::Entity& entity : entities) {
+            // Build this entity's MVP from its own data.
+            pe::Mat4 mvp = projection * view * entity.modelMatrix();
+            // Upload to the same 'transform' uniform (GL_FALSE: our Mat4
+            // is already column-major, the layout OpenGL expects), then
+            // issue one draw call for this entity.
+            glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+        }
 
         // C. Swap buffers
         // GLFW uses double buffering. This swaps the front buffer (what we see)
