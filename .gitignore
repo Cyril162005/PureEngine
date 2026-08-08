@@ -7,3 +7,4 @@ build3/
 .vs/
 CMakeCache.txt
 CMakeFiles/
+.qoder/
