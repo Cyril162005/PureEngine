@@ -10,6 +10,11 @@
  * Goal: Measure how long each frame takes (delta time), so future
  *       movement and physics systems can run at a consistent speed
  *       regardless of the frame rate.
+ *
+ * Step 3: Input Handling
+ * Goal: Poll the keyboard inside the loop. ESC closes the window;
+ *       SPACE toggles the clear color between black and dark blue
+ *       (one toggle per press, not per held frame).
  */
 int main() {
     // 1. Initialize GLFW
@@ -56,6 +61,19 @@ int main() {
     // (uninitialized memory), potentially producing a huge or negative value.
     double lastFrameTime = glfwGetTime();
 
+    // --- Step 3: Input State Setup (before the loop) ---
+    // Tracks which clear color is currently active. false = black (the
+    // Step 1/2 default), true = dark blue. SPACE toggles this flag.
+    bool clearColorIsBlue = false;
+    // Remembers whether SPACE was already held down on the PREVIOUS frame.
+    // glfwGetKey() only tells us the key's state RIGHT NOW (pressed or not),
+    // so on its own a held key would look "pressed" on every single frame and
+    // would toggle the color hundreds of times per second. By comparing the
+    // previous frame's state to the current one we can detect the exact
+    // instant the key goes DOWN (edge detection) and toggle once per press.
+    // Initialized to false: before the program starts, SPACE is not pressed.
+    bool spaceWasPressedLastFrame = false;
+
     // 6. The Main Loop
     while (!glfwWindowShouldClose(window)) {
         // --- Step 2: Delta Time Calculation (top of the frame) ---
@@ -77,9 +95,40 @@ int main() {
         // A. Poll for events (input, window resize, etc.)
         glfwPollEvents();
 
-        // B. Clear the screen to black
-        // glClearColor sets the color to clear to (R, G, B, A)
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        // --- Step 3: Input Handling (polled every frame, after events) ---
+        // ESC: glfwGetKey() queries the current state of one key and returns
+        // GLFW_PRESS or GLFW_RELEASE. If ESC is currently pressed, we ask GLFW
+        // to flag the window for closing. glfwSetWindowShouldClose() does NOT
+        // destroy anything immediately — it just sets the flag that our while
+        // loop condition (!glfwWindowShouldClose(window)) checks, so the loop
+        // exits cleanly after this frame and the normal cleanup code runs.
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
+
+        // SPACE: read the key's state for THIS frame into a local variable.
+        bool spaceIsPressedNow = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
+        // Edge detection: toggle ONLY on the frame where the key transitions
+        // from "not pressed" (previous frame) to "pressed" (this frame).
+        // While the key is held, both values are true, so this stays false
+        // after the first frame — exactly one toggle per physical press.
+        if (spaceIsPressedNow && !spaceWasPressedLastFrame) {
+            // Flip the flag: black becomes blue, blue becomes black.
+            clearColorIsBlue = !clearColorIsBlue;
+        }
+        // Store this frame's state so the NEXT frame can compare against it.
+        spaceWasPressedLastFrame = spaceIsPressedNow;
+
+        // B. Clear the screen
+        // glClearColor sets the color to clear to (R, G, B, A).
+        // The values used depend on the toggle flag flipped by SPACE above.
+        if (clearColorIsBlue) {
+            // Dark blue (Step 3 toggle target)
+            glClearColor(0.0f, 0.0f, 0.25f, 1.0f);
+        } else {
+            // Original black — same values as Step 1/2
+            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        }
         // glClear actually performs the clear operation on the color buffer
         glClear(GL_COLOR_BUFFER_BIT);
 
