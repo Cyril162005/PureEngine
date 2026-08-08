@@ -68,9 +68,14 @@ No copy-pasted code you can't explain.
 - VERIFIED: Two triangles side by side spinning independently; camera movement correctly inverted (D->scene left, A->right, W->down, S->up); ESC/SPACE intact.
 
 ### Step 7 — Basic Object/ECS System
-**Status:** Not started
+**Status:** Completed
 **Notes:**
--
+- Design ruling: simple data-driven array of structs, NOT a full ECS — at three instances with one behavior, entity-ID registries / component pools / system schedulers would be indirection with zero payoff. Kept the one ECS idea that earns its place: entities are plain data in a contiguous container, processed by generic loops.
+- New header-only file src/entity.h: pe::Entity struct (position, rotationAngle, rotationSpeed, scale) with update(deltaTime) owning the state += rate * deltaTime pattern per entity, and modelMatrix() building translation * rotationZ * scale (spin-in-place order).
+- main.cpp: old global rotationAngle/rotationSpeed deleted; entities live in std::vector<pe::Entity>; ONE update loop and ONE draw loop (projection * view * entity.modelMatrix()) replaced the copy-pasted model1/mvp1/draw, model2/mvp2/draw blocks.
+- Third instance added purely as DATA — position (0, 1.5), speed -1.4 rad/s (clockwise, ~4.5 s/rev), scale 0.6 — proving the loop scales with zero new rendering code.
+- No CMakeLists.txt change needed (header-only; git status proved only src/main.cpp + src/entity.h changed).
+- VERIFIED: Three triangles — two original spin counter-clockwise together, smaller third one spins clockwise and faster (per-entity state proven independent); WASD camera pan, SPACE toggle, ESC close all intact.
 
 ### Step 8 — Collision Detection (AABB)
 **Status:** Not started

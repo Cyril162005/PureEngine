@@ -55,8 +55,9 @@
     {
       "id": 7,
       "name": "Basic Object/ECS System",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Game entities represented without hardcoding each one",
+      "notes": "Simple array-of-structs, not full ECS (design ruling: no payoff at this scale). Header-only src/entity.h: pe::Entity (position/rotationAngle/rotationSpeed/scale) with update(dt) and modelMatrix() = translation * rotationZ * scale. std::vector<pe::Entity> with one update loop and one draw loop replaced hardcoded model1/model2 blocks; third instance (clockwise -1.4 rad/s, 0.6 scale) added as pure data. Visually verified: independent per-entity spins, WASD/SPACE/ESC intact.",
       "depends_on": [6]
     },
     {
