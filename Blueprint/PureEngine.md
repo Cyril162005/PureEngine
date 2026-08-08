@@ -47,11 +47,15 @@ No copy-pasted code you can't explain.
 - VERIFIED: Solid orange triangle renders centered on the black background; Step 3 ESC close and SPACE background toggle still work.
 
 ### Step 5 — Math Layer
-**Status:** Not started
+**Status:** Completed
 **Goal:** Vectors, matrices, transforms.
 **Definition of done:** Can translate/rotate/scale the shape from Step 4 using your own math code (or a math lib you understand).
 **Notes:**
--
+- Wrote our own header-only math layer (no external math library): src/math/vec3.h (Vec3: dot, cross, length, normalized, + - * operators) and src/math/mat4.h (Mat4: column-major m[col][row] storage matching OpenGL, identity/translation/scale/rotationZ builders, matrix multiplication, transformPoint).
+- Wired into the vertex shader as 'uniform mat4 transform', uploaded each frame via glUniformMatrix4fv (transpose = GL_FALSE, storage already matches OpenGL); rotation angle advanced per frame by deltaTime at 0.9 rad/s (state += rate * deltaTime).
+- Five static_assert compile-time tests prove the math before the program runs.
+- No CMakeLists.txt change needed: header-only math resolves relative to main.cpp.
+- VERIFIED: Triangle rotates continuously counter-clockwise at constant speed (~one full revolution per 7 seconds); ESC close and SPACE background toggle still work.
 
 ### Step 6 — Sprite/Mesh Rendering + Camera
 **Status:** Not started

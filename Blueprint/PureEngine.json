@@ -39,8 +39,9 @@
     {
       "id": 5,
       "name": "Math Layer",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Can translate/rotate/scale shape using own or understood math code",
+      "notes": "Own header-only math layer, no external library: Vec3 (dot/cross/length/normalized/operators) and column-major Mat4 (identity/translation/scale/rotationZ, multiply, transformPoint) in src/math/. Uniform 'transform' uploaded per frame via glUniformMatrix4fv; rotation driven by deltaTime at 0.9 rad/s. Compile-time verified with static_asserts; visually verified: counter-clockwise rotation ~7s per revolution, ESC/SPACE intact.",
       "depends_on": [4]
     },
     {
