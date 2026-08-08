@@ -1,0 +1,94 @@
+{
+  "project": "PureEngine",
+  "method": "from_scratch",
+  "hardware_target": "i3, 8GB RAM",
+  "stack": ["C/C++", "GLFW or SDL", "OpenGL"],
+  "steps": [
+    {
+      "id": 1,
+      "name": "Window + Context Creation",
+      "status": "completed",
+      "definition_of_done": "Blank window opens, stays open, closes without crash",
+      "notes": "Fixed missing GL loader (GLAD) and clear/swap calls. Verified black window.",
+      "depends_on": []
+    },
+    {
+      "id": 2,
+      "name": "Render Loop",
+      "status": "not_started",
+      "definition_of_done": "Clears screen every frame, tracks delta time, closes cleanly",
+      "depends_on": [1]
+    },
+    {
+      "id": 3,
+      "name": "Input Handling",
+      "status": "not_started",
+      "definition_of_done": "Key press visibly changes something on screen",
+      "depends_on": [2]
+    },
+    {
+      "id": 4,
+      "name": "Draw One Shape",
+      "status": "not_started",
+      "definition_of_done": "Triangle or quad renders via a basic shader",
+      "depends_on": [2, 3]
+    },
+    {
+      "id": 5,
+      "name": "Math Layer",
+      "status": "not_started",
+      "definition_of_done": "Can translate/rotate/scale shape using own or understood math code",
+      "depends_on": [4]
+    },
+    {
+      "id": 6,
+      "name": "Sprite/Mesh Rendering + Camera",
+      "status": "not_started",
+      "definition_of_done": "Assets rendered in space, camera can move/view them",
+      "depends_on": [5]
+    },
+    {
+      "id": 7,
+      "name": "Basic Object/ECS System",
+      "status": "not_started",
+      "definition_of_done": "Game entities represented without hardcoding each one",
+      "depends_on": [6]
+    },
+    {
+      "id": 8,
+      "name": "Collision Detection (AABB)",
+      "status": "not_started",
+      "definition_of_done": "Two objects can be detected as overlapping",
+      "depends_on": [7]
+    },
+    {
+      "id": 9,
+      "name": "Audio Playback",
+      "status": "not_started",
+      "definition_of_done": "A sound file loads and plays on trigger",
+      "depends_on": [2]
+    },
+    {
+      "id": 10,
+      "name": "Asset Loading",
+      "status": "not_started",
+      "definition_of_done": "Textures/models load from files, not hardcoded",
+      "depends_on": [6]
+    },
+    {
+      "id": 11,
+      "name": "Scene/Level Structure",
+      "status": "not_started",
+      "definition_of_done": "Can load, hold, and switch between distinct game states",
+      "depends_on": [7, 10]
+    },
+    {
+      "id": 12,
+      "name": "Game Logic Layer",
+      "status": "not_started",
+      "definition_of_done": "Franchise-specific gameplay built on top of engine systems",
+      "depends_on": [8, 9, 11]
+    }
+  ],
+  "kill_criteria": "Stuck 2+ weeks on one step with no forward progress -> stop, defend/fix/kill before continuing"
+}
