@@ -23,11 +23,12 @@ No copy-pasted code you can't explain.
 - VERIFIED: Window renders solid black and closes cleanly on the 'X' button.
 
 ### Step 2 — Render Loop
-**Status:** Not started
+**Status:** Completed
 **Goal:** Loop that clears screen + swaps buffers every frame. Track delta time.
 **Definition of done:** Window shows a solid clear color, updates every frame, closes cleanly.
 **Notes:**
--
+- Added delta time tracking using glfwGetTime(): lastFrameTime initialized before the loop; deltaTime recalculated at the top of each frame iteration (seconds per frame).
+- VERIFIED: Window renders solid black, updates every frame, closes cleanly on 'X'.
 
 ### Step 3 — Input Handling
 **Status:** Not started

@@ -15,8 +15,9 @@
     {
       "id": 2,
       "name": "Render Loop",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Clears screen every frame, tracks delta time, closes cleanly",
+      "notes": "Added delta time tracking using glfwGetTime(); verified black window updates every frame and closes cleanly.",
       "depends_on": [1]
     },
     {
