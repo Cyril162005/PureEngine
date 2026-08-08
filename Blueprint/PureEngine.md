@@ -39,11 +39,12 @@ No copy-pasted code you can't explain.
 - VERIFIED: ESC closes the window cleanly; SPACE toggles black/dark blue exactly once per press with no flicker while held.
 
 ### Step 4 — Draw One Shape
-**Status:** Not started
+**Status:** Completed
 **Goal:** Triangle or quad on screen via a basic shader.
 **Definition of done:** Shape renders correctly, proves GPU pipeline works end to end.
 **Notes:**
--
+- Rendered a triangle via a basic shader program: inline GLSL strings (vertex shader passes position through to gl_Position; fragment shader outputs solid orange), compiled and linked with explicit compile/link error checking, vertex data uploaded once through a VBO with layout described by a VAO (attribute 0, 3 floats), drawn every frame with glDrawArrays after the clear and before the swap.
+- VERIFIED: Solid orange triangle renders centered on the black background; Step 3 ESC close and SPACE background toggle still work.
 
 ### Step 5 — Math Layer
 **Status:** Not started

@@ -31,8 +31,9 @@
     {
       "id": 4,
       "name": "Draw One Shape",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Triangle or quad renders via a basic shader",
+      "notes": "Triangle drawn via inline GLSL shader program (compile/link error-checked) with VAO/VBO vertex setup and glDrawArrays each frame. Verified: orange triangle centered on black; ESC/SPACE still work.",
       "depends_on": [2, 3]
     },
     {
