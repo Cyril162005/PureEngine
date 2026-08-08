@@ -53,6 +53,10 @@ int main() {
     // This must be done AFTER the context is created and made current.
     if (!gladLoadGL(glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
+        // The window already exists here, so clean it up before exiting —
+        // same consistent cleanup as every other error path below.
+        glfwDestroyWindow(window);
+        glfwTerminate();
         return -1;
     }
 
@@ -122,6 +126,12 @@ int main() {
     if (!success) {
         glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
         std::cerr << "Vertex shader compilation failed:\n" << infoLog << std::endl;
+        // Consistent cleanup on error: destroy the window and terminate GLFW
+        // before exiting, matching the window-creation error path.
+        // glfwTerminate() also destroys the OpenGL context and every GPU
+        // object owned by it (the compiled shader included), so nothing leaks.
+        glfwDestroyWindow(window);
+        glfwTerminate();
         return -1;
     }
 
@@ -133,6 +143,10 @@ int main() {
     if (!success) {
         glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
         std::cerr << "Fragment shader compilation failed:\n" << infoLog << std::endl;
+        // Same consistent cleanup; glfwTerminate() reclaims both shader
+        // objects through context destruction.
+        glfwDestroyWindow(window);
+        glfwTerminate();
         return -1;
     }
 
@@ -148,6 +162,10 @@ int main() {
     if (!success) {
         glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
         std::cerr << "Shader program linking failed:\n" << infoLog << std::endl;
+        // Same consistent cleanup; the unfinished program and both shaders
+        // are reclaimed when glfwTerminate() destroys the context.
+        glfwDestroyWindow(window);
+        glfwTerminate();
         return -1;
     }
     // The individual shader objects are now baked into the program; delete
