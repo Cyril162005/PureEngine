@@ -31,11 +31,12 @@ No copy-pasted code you can't explain.
 - VERIFIED: Window renders solid black, updates every frame, closes cleanly on 'X'.
 
 ### Step 3 — Input Handling
-**Status:** Not started
+**Status:** Completed
 **Goal:** Poll keyboard/mouse inside the loop.
 **Definition of done:** Pressing a key does something visible (e.g. changes clear color).
 **Notes:**
--
+- Added keyboard polling with glfwGetKey() inside the render loop: ESC sets glfwSetWindowShouldClose; SPACE toggles the clear color between black and dark blue using edge detection (previous-frame vs current-frame state) so a held key toggles exactly once per press.
+- VERIFIED: ESC closes the window cleanly; SPACE toggles black/dark blue exactly once per press with no flicker while held.
 
 ### Step 4 — Draw One Shape
 **Status:** Not started

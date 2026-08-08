@@ -23,8 +23,9 @@
     {
       "id": 3,
       "name": "Input Handling",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Key press visibly changes something on screen",
+      "notes": "Keyboard polled with glfwGetKey() each frame; ESC closes window, SPACE toggles clear color black/dark blue via edge detection (one toggle per press). Verified: no flicker on hold, ESC closes cleanly.",
       "depends_on": [2]
     },
     {
