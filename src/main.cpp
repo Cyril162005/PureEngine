@@ -2,6 +2,12 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+// --- Step 5: The Math Layer ---
+// Our OWN math code (src/math/), not an external library. Header-only:
+// all logic lives in these two files, so the CMake build is unchanged.
+#include "math/vec3.h"
+#include "math/mat4.h"
+
 /**
  * Step 1: Window + Context Creation
  * Goal: Open a window and create a valid OpenGL context.
@@ -20,7 +26,31 @@
  * Goal: Render a triangle through a basic shader program, proving
  *       the full GPU pipeline works: vertex data -> vertex shader ->
  *       rasterization -> fragment shader -> framebuffer.
+ *
+ * Step 5: Math Layer
+ * Goal: Transform geometry with our own math code. A Mat4 built on the
+ *       CPU (rotation driven by deltaTime) is uploaded to the vertex
+ *       shader as a uniform every frame, and the triangle visibly rotates.
  */
+
+// --- Step 5: Compile-time sanity tests for the math layer ---
+// static_assert conditions are evaluated BY THE COMPILER. If any line of
+// our math were wrong in a way visible at compile time, the build would
+// fail with a clear message — math errors caught before the program even
+// runs. These are tests that cost nothing at runtime.
+static_assert(pe::Vec3(1.0f, 2.0f, 3.0f) + pe::Vec3(4.0f, 5.0f, 6.0f) == pe::Vec3(5.0f, 7.0f, 9.0f),
+              "Vec3 addition is broken");
+static_assert(pe::Vec3(1.0f, 0.0f, 0.0f).dot(pe::Vec3(0.0f, 1.0f, 0.0f)) == 0.0f,
+              "Vec3 dot product is broken");
+// The 4th column of a translation matrix must hold the offset itself.
+static_assert(pe::Mat4::translation(pe::Vec3(3.0f, 4.0f, 5.0f)).m[3][1] == 4.0f,
+              "Mat4 translation builder is broken");
+// Identity must transform a point into exactly itself.
+static_assert(pe::Mat4().transformPoint(pe::Vec3(2.0f, 3.0f, 4.0f)) == pe::Vec3(2.0f, 3.0f, 4.0f),
+              "Mat4 identity/transformPoint is broken");
+// A translation applied through transformPoint must shift the point.
+static_assert(pe::Mat4::translation(pe::Vec3(1.0f, 1.0f, 1.0f)).transformPoint(pe::Vec3(1.0f, 2.0f, 3.0f)) == pe::Vec3(2.0f, 3.0f, 4.0f),
+              "Mat4 translation transform is broken");
 int main() {
     // 1. Initialize GLFW
     if (!glfwInit()) {
@@ -93,13 +123,18 @@ int main() {
     // VERTEX SHADER: runs once per vertex. "layout (location = 0)" binds the
     // input attribute aPos to attribute index 0 — the same index we will use
     // when describing our vertex data with glVertexAttribPointer below.
-    // gl_Position is the mandatory output: the vertex's final position in
-    // normalized device coordinates (-1..1 on each axis maps to the screen).
+    //
+    // STEP 5 ADDITION — "uniform mat4 transform;": a uniform is a global
+    // INPUT to the shader, identical for every vertex in the draw call, set
+    // from C++ with glUniformMatrix4fv. Every vertex is multiplied by it
+    // (w = 1 makes translation take effect), so ONE matrix transforms the
+    // whole triangle: rotate it, move it, scale it — from CPU-side math.
     const char* vertexShaderSource =
         "#version 330 core\n"
         "layout (location = 0) in vec3 aPos;\n"
+        "uniform mat4 transform;\n"
         "void main() {\n"
-        "    gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+        "    gl_Position = transform * vec4(aPos, 1.0);\n"
         "}\n";
 
     // FRAGMENT SHADER: runs once per pixel covered by the shape. Its output
@@ -172,6 +207,31 @@ int main() {
     // them to free resources. The program itself stays alive until cleanup.
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
+
+    // --- Step 5: Locate the transform uniform (after linking) ---
+    // glGetUniformLocation asks the linked program for the storage location
+    // of the uniform named "transform" and returns its handle. We need the
+    // handle to set its value per frame. -1 means it does not exist —
+    // usually a misspelled name, or the compiler optimized the uniform away
+    // because nothing feeds gl_Position through it. Without this check the
+    // upload below would fail SILENTLY and the triangle would sit still.
+    GLint transformLocation = glGetUniformLocation(shaderProgram, "transform");
+    if (transformLocation < 0) {
+        std::cerr << "Uniform 'transform' not found in shader program" << std::endl;
+        // Same consistent cleanup as the other error paths.
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+
+    // --- Step 5: Rotation State (before the loop) ---
+    // Current rotation angle in RADIANS. It accumulates every frame:
+    // angle += speed * deltaTime. Because deltaTime is in seconds, the
+    // factor below is a SPEED in radians per second — the triangle spins
+    // at the same rate whether the machine runs 30 FPS or 300 FPS.
+    // 0.9 rad/s ≈ one full revolution every 7 seconds: slow enough to see.
+    float rotationAngle = 0.0f;
+    const float rotationSpeed = 0.9f;
 
     // --- Step 4: Vertex Data + VAO/VBO (before the loop) ---
     // Three vertices (x, y, z) forming a triangle centered on screen.
@@ -255,6 +315,12 @@ int main() {
         // Store this frame's state so the NEXT frame can compare against it.
         spaceWasPressedLastFrame = spaceIsPressedNow;
 
+        // --- Step 5: Update the rotation angle (per-frame simulation) ---
+        // deltaTime (Step 2) finally gets a job: advance the angle by
+        // speed * elapsed-seconds. This is the universal game-loop pattern
+        // — state += rate * deltaTime — that movement and physics will use.
+        rotationAngle += rotationSpeed * static_cast<float>(deltaTime);
+
         // B. Clear the screen
         // glClearColor sets the color to clear to (R, G, B, A).
         // The values used depend on the toggle flag flipped by SPACE above.
@@ -271,6 +337,21 @@ int main() {
         // --- Step 4: Draw the Triangle (after clear, before swap) ---
         // Activate our shader program: all following draw calls use it.
         glUseProgram(shaderProgram);
+
+        // --- Step 5: Build this frame's transform and upload it ---
+        // Compose the matrix from our OWN math builders. Order matters —
+        // (rotation * scale) applies scale to the vertices FIRST, then
+        // rotation (matrices act right-to-left on the vertex). Scale is
+        // neutral (1,1,1) for now; translation could join the chain the
+        // same way — the builders are proven by the static_asserts above.
+        pe::Mat4 transform = pe::Mat4::rotationZ(rotationAngle)
+                           * pe::Mat4::scale(pe::Vec3(1.0f, 1.0f, 1.0f));
+        // Upload the 16 floats to the uniform. Arguments: the uniform's
+        // location, number of matrices (1), transpose flag (GL_FALSE — our
+        // Mat4 is ALREADY column-major, the layout OpenGL expects, so no
+        // conversion needed), and a pointer to the 16 floats.
+        glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &transform.m[0][0]);
+
         // Bind the VAO: restores the vertex data layout we configured once.
         glBindVertexArray(VAO);
         // Draw: GL_TRIANGLES = interpret vertices as triangles, start at
