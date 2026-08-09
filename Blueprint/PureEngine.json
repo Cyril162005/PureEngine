@@ -79,8 +79,9 @@
     {
       "id": 10,
       "name": "Asset Loading",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Textures/models load from files, not hardcoded",
+      "notes": "Step 9 seams refactored first: per-entity collision-edge detection (previous colliding vector, not a global scalar) and a 4-slot round-robin ma_sound pool. stb_image via FetchContent pinned to commit SHA (stb has no tags); implementation isolated in src/stb_impl.cpp (declare-everywhere/define-once). assets/checker.png generated in-tree by make_checker.ps1 (hand-written PNG, byte-exact). Interleaved position+UV vertex data, sampler2D uniform bound to texture unit 0, color uniform repurposed as tint (collision = red-tinted checkerboard). CMakeLists.txt gained the stb FetchContent block, new source file, and include dir. Verified: checkerboard on all triangles, red tint on collision, second beep fires while another collision is active, all prior inputs intact.",
       "depends_on": [6]
     },
     {

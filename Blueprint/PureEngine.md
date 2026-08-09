@@ -99,9 +99,15 @@ No copy-pasted code you can't explain.
 - VERIFIED: silent on launch; exactly ONE beep on the frame both entities turn red; no repeat beeping while staying inside the overlap (edge detection confirmed); silence on separation; WASD/SPACE/ESC all intact with audio running.
 
 ### Step 10 — Asset Loading
-**Status:** Not started
+**Status:** Completed
 **Notes:**
--
+- Step 9 seams fixed FIRST (refactors, not features): (1) collision-sound triggering moved from a global-OR scalar to per-entity edge detection — previous frame's full colliding VECTOR is compared entry by entry, so a new overlap starting while another is already active fires its own beep (the scalar level never dropped to false before, silencing the second event); (2) playback moved from ONE shared ma_sound to a round-robin POOL of 4 slots (Step 7's data-in-a-container pattern), each decoding the same beep.wav, so simultaneous triggers no longer fight over one playback slot.
+- Library ruling: stb_image (single header, public domain, one stbi_load call to raw pixels, readable implementation) over libpng (zlib dep + chunk-level ceremony), SDL_image (drags in SDL), FreeImage/DevIL (heavy frameworks, heavier licensing). stb publishes NO version tags, so FetchContent pins exact commit SHA 2c980bb59875b0d32144a71867fbdebb2f77cd20; the stb repo has no root CMakeLists, so MakeAvailable only populates headers.
+- Declare-everywhere/define-once: implementation compiles in dedicated src/stb_impl.cpp (STB_IMAGE_IMPLEMENTATION), keeping ~8,000 lines out of main.cpp — first new source file since Step 4, hence a real CMakeLists.txt change (FetchContent block + stb_impl.cpp in sources + ${stb_SOURCE_DIR} include dir).
+- Asset: assets/checker.png generated in-tree by make_checker.ps1 (64x64 RGB, 8x8-block checkerboard of Step 4 orange + Step 3 dark blue; PNG written byte-by-byte — signature, IHDR, zlib-wrapped deflate IDAT, IEND, big-endian fields, CRC32 per chunk). Loaded via 3-candidate relative-path search with HARD FAIL if missing.
+- Texture pipeline: interleaved vertex data (3 position + 2 UV floats, stride 5); vertex shader passes aTexCoord (location 1) to the fragment stage where rasterization interpolates it; fragment shader samples uniform sampler2D tex and multiplies by the Step 8 color uniform, now a TINT (white = untouched, red = zeroes G+B — collision feedback survives the switch to textures). Sampler holds a texture-UNIT index, set once with glUniform1i(texLocation, 0); per frame the texture binds to GL_TEXTURE0. CLAMP_TO_EDGE + LINEAR filters; glTexImage2D upload; stbi_image_free; glDeleteTextures in cleanup.
+- Build note: full build-folder delete + fresh configure (348 s, stb cloned) + build succeeded FIRST TRY, zero warnings in engine code; 5 s smoke test with empty stderr.
+- VERIFIED: checkerboard renders on all three triangles (upright, LINEAR-smoothed while spinning); collision shows red-TINTED checkerboard, not flat red; per-entity fix confirmed — second beep fires when a new collision starts while another is already active; pool lets two rapid beeps overlap; ESC/SPACE/WASD/arrows all intact.
 
 ### Step 11 — Scene/Level Structure
 **Status:** Not started
