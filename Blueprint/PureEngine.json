@@ -71,8 +71,9 @@
     {
       "id": 9,
       "name": "Audio Playback",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "A sound file loads and plays on trigger",
+      "notes": "miniaudio 0.11.25 via FetchContent (first real CMakeLists.txt change since Step 4). assets/beep.wav generated in-tree by make_beep.ps1 (0.15 s 880 Hz sine with fade envelope). ma_engine_init at startup, sound loaded via 3-candidate relative-path search (hard fail if missing); playback fires on the collision EDGE (anyCollidingNow && !wasCollidingLastFrame), never per-frame; cleanup in reverse creation order. Audibly verified: one beep on collision entry, no repeats while overlapping, silence on separation.",
       "depends_on": [2]
     },
     {

@@ -89,9 +89,14 @@ No copy-pasted code you can't explain.
 - VERIFIED: Driving into another triangle turns BOTH red instantly, backing off clears both to orange immediately; the red-trigger gap matches the rotation-safe AABB square; WASD camera, arrow movement, SPACE toggle, ESC close all work independently.
 
 ### Step 9 — Audio Playback
-**Status:** Not started
+**Status:** Completed
 **Notes:**
--
+- Library ruling: miniaudio 0.11.25 (single source file, zero deps, built-in WAV decoder, readable implementation) over OpenAL-soft (heavier infra), FMOD/Wwise (proprietary black boxes), SDL_mixer (imports SDL redundantly). Fetched via FetchContent exactly like GLFW — first REAL CMakeLists.txt change since Step 4 (Declare + MakeAvailable + added to target_link_libraries).
+- Build-it-ourselves exception clarified and recorded: own the logic, outsource the hardware. Math/entity/collision are provable pure logic (ours); audio terminates in WASAPI/device buffers and needs a real-time mixing thread (library, same role GLFW plays for windowing).
+- Asset: assets/beep.wav generated in-tree by make_beep.ps1 (0.15 s 880 Hz sine, 44.1 kHz 16-bit mono, 5 ms fade-in / 20 ms fade-out to kill click artifacts) — reproducible, no downloaded binary of unknown provenance.
+- Playback wiring: ma_engine_init after GL setup; sound loaded with a 3-candidate relative-path search (repo root / build/ / build/Release CWD) and HARD FAIL if none loads; trigger is the EDGE into collision (anyCollidingNow && !wasCollidingLastFrame — Step 3's SPACE edge pattern reused), never per-frame while overlapping; in-flight restart rewinds via ma_sound_seek_to_pcm_frame(0); cleanup in reverse creation order (sound then engine).
+- Build note: first fresh configure failed with 'Could not resolve host: github.com' (sandboxed git subprocess) — succeeded on re-run outside the sandbox; first compile caught two author errors (identifier typo, ma_sound_seek_to_pcm_frames vs the real singular form), both fixed; final build clean, exe links glfw3.lib + miniaudio.lib.
+- VERIFIED: silent on launch; exactly ONE beep on the frame both entities turn red; no repeat beeping while staying inside the overlap (edge detection confirmed); silence on separation; WASD/SPACE/ESC all intact with audio running.
 
 ### Step 10 — Asset Loading
 **Status:** Not started
