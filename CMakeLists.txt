@@ -35,6 +35,18 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(miniaudio)
 
+# stb - single-header utility libraries (we use stb_image for PNG loading).
+# The repo has NO CMakeLists.txt at its root, so MakeAvailable only
+# populates the source; we consume it as headers. Pinned to an exact
+# commit because stb publishes no version tags.
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG 2c980bb59875b0d32144a71867fbdebb2f77cd20
+)
+
+FetchContent_MakeAvailable(stb)
+
 # ---------------------------------------------------------------------------
 # Project Source
 # ---------------------------------------------------------------------------
@@ -43,10 +55,12 @@ FetchContent_MakeAvailable(miniaudio)
 # to keep the build minimal and avoid extra external downloads.
 add_executable(${PROJECT_NAME} 
     src/main.cpp
+    src/stb_impl.cpp
     "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(${PROJECT_NAME} PRIVATE "${stb_SOURCE_DIR}")
 
 # Link GLFW and miniaudio
 target_link_libraries(${PROJECT_NAME} glfw miniaudio)

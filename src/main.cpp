@@ -30,6 +30,14 @@
 // here is all main.cpp needs — no MINIAUDIO_IMPLEMENTATION define.
 #include <miniaudio.h>
 
+// --- Step 10: Asset Loading ---
+// stb_image — declarations ONLY. The actual implementation compiles in
+// exactly one translation unit: src/stb_impl.cpp (added to CMake's
+// source list), which defines STB_IMAGE_IMPLEMENTATION. Same
+// declare-everywhere / define-once pattern the C runtime uses, and it
+// keeps ~8,000 lines of generated code out of this file.
+#include <stb_image.h>
+
 /**
  * Step 1: Window + Context Creation
  * Goal: Open a window and create a valid OpenGL context.
@@ -78,6 +86,15 @@
  *       miniaudio; it plays exactly on the EDGE where collision starts
  *       (not-colliding -> colliding), never every frame while overlap
  *       continues — the same edge-detection principle as Step 3's SPACE.
+ *
+ * Step 10: Asset Loading
+ * Goal: Textures load from FILES instead of hardcoded data. A PNG
+ *       (assets/checker.png) is decoded by stb_image, uploaded to a GL
+ *       texture object, and sampled in the fragment shader through UV
+ *       coordinates added to the vertex data. Two Step 9 seams are
+ *       refactored first: collision-edge detection becomes per-entity
+ *       (previous colliding VECTOR, not a scalar), and playback uses a
+ *       round-robin POOL of ma_sound instances instead of one.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -187,18 +204,34 @@ int main() {
         "../assets/beep.wav",    // run from build/
         "../../assets/beep.wav"  // run from build/Release/ (exe's own folder)
     };
+    // --- Step 10 REFACTOR (Step 9 seam #2): a POOL of sound instances ---
+    // Step 9 used ONE ma_sound for every trigger, so two sounds that
+    // overlapped in time fought over the same playback slot (the restart
+    // branch had to rewind it). A pool fixes this the same way Step 7
+    // fixed per-object state: sounds become DATA in a container. Each
+    // pool slot is its own independent ma_sound decoding the same file;
+    // a trigger takes the NEXT slot (round-robin), so up to POOL_SIZE
+    // beeps can be audible simultaneously. 4 slots for a one-shot 150 ms
+    // beep is comfortably more than any realistic trigger rate.
+    // std::vector<ma_sound>(N) VALUE-initializes the C structs to zero,
+    // which is exactly the state ma_sound_init_from_file expects.
+    const size_t SOUND_POOL_SIZE = 4;
+    std::vector<ma_sound> collisionSounds(SOUND_POOL_SIZE);
+    // Round-robin cursor: which pool slot the NEXT trigger claims.
+    size_t nextCollisionSound = 0;
     // ma_sound_init_from_file DECODES the file (miniaudio has a built-in
     // WAV decoder) and registers the sound with the engine, ready to be
     // started with one call later. 0 = flags: default settings — no
     // looping (one shot), no 3D spatialization. The two NULLs skip an
-    // optional resource-manager group and fence. The loop keeps the first
-    // path that loads; if none does, the program refuses to start — a
-    // silent engine with its one sound missing is worse than an error.
-    ma_sound collisionSound;
+    // optional resource-manager group and fence. The probe loop finds the
+    // first loadable path and initializes pool slot 0 with it; the
+    // remaining slots are then filled from that known-good path.
     bool soundLoaded = false;
+    const char* loadedSoundPath = NULL;
     for (const char* candidate : soundPathCandidates) {
         if (ma_sound_init_from_file(&audioEngine, candidate, 0, NULL, NULL,
-                                    &collisionSound) == MA_SUCCESS) {
+                                    &collisionSounds[0]) == MA_SUCCESS) {
+            loadedSoundPath = candidate;
             soundLoaded = true;
             break;
         }
@@ -211,14 +244,31 @@ int main() {
         glfwTerminate();
         return -1;
     }
+    // Fill pool slots 1..N-1 from the path that just worked. If any slot
+    // fails to init (out of resources, etc.), uninit every slot that DID
+    // succeed and abort — a half-built pool is a bug factory.
+    for (size_t i = 1; i < collisionSounds.size(); ++i) {
+        if (ma_sound_init_from_file(&audioEngine, loadedSoundPath, 0, NULL, NULL,
+                                    &collisionSounds[i]) != MA_SUCCESS) {
+            std::cerr << "Failed to initialize collision sound pool slot " << i << std::endl;
+            for (size_t j = 0; j < i; ++j) {
+                ma_sound_uninit(&collisionSounds[j]);
+            }
+            ma_engine_uninit(&audioEngine);
+            glfwDestroyWindow(window);
+            glfwTerminate();
+            return -1;
+        }
+    }
 
-    // --- Step 9: Collision edge state (before the loop) ---
-    // Was ANY entity colliding on the PREVIOUS frame? Compared against
-    // this frame's result to detect the exact transition into collision —
-    // the same edge-detection pattern Step 3 uses for SPACE. Without it,
-    // staying inside an overlap would restart the beep every frame
-    // (~60 restarts/second) instead of playing it once per collision.
-    bool wasCollidingLastFrame = false;
+    // --- Step 10 REFACTOR (Step 9 seam #1): per-entity edge state ---
+    // Step 9 collapsed every collision into ONE scalar flag, so a NEW
+    // overlap starting while another was already active fired no sound
+    // (the global level never dropped to false). The fix tracks the
+    // previous frame's full collision VECTOR — one entry per entity —
+    // so each entity's 0->1 transition is its own edge. Declared empty
+    // here (entities don't exist yet); sized on first use in the loop.
+    std::vector<char> wasColliding;
 
     // --- Step 2: Delta Time Setup (before the loop) ---
     // glfwGetTime() returns the number of seconds (as a high-resolution double)
@@ -262,26 +312,39 @@ int main() {
     const char* vertexShaderSource =
         "#version 330 core\n"
         "layout (location = 0) in vec3 aPos;\n"
+        // STEP 10 ADDITION: a second vertex ATTRIBUTE carrying the UV
+        // texture coordinate of this vertex. 'location = 1' matches the
+        // glVertexAttribPointer index below. The shader does nothing with
+        // it except hand it to the fragment stage — rasterization
+        // INTERPOLATES it across the triangle automatically, so every
+        // pixel gets a smoothly blended UV between the three corners.
+        "layout (location = 1) in vec2 aTexCoord;\n"
         "uniform mat4 transform;\n"
+        "out vec2 TexCoord;\n"
         "void main() {\n"
         "    gl_Position = transform * vec4(aPos, 1.0);\n"
+        "    TexCoord = aTexCoord;\n"
         "}\n";
 
     // FRAGMENT SHADER: runs once per pixel covered by the shape. Its output
     // (FragColor, an RGBA vec4) becomes that pixel's color.
     //
-    // STEP 8 ADDITION — "uniform vec3 color;": the triangle's color is now
-    // a shader INPUT instead of the hardcoded orange from Step 4. Every
-    // draw call uploads its own color with glUniform3f: normal orange for
-    // a free entity, red for one caught colliding. The shader code path is
-    // identical for both — only the uniform's value differs per draw, the
-    // same trick the 'transform' uniform uses for per-entity matrices.
+    // STEP 10 — the flat color is replaced by a TEXTURE LOOKUP:
+    // 'uniform sampler2D tex' is a handle to the texture bound on a
+    // texture unit (set from C++ with glUniform1i); texture(tex, TexCoord)
+    // fetches the image color at the INTERPOLATED UV for this pixel.
+    // The Step 8 'color' uniform survives as a TINT multiplier: white
+    // (1,1,1) leaves the texture untouched, red (1,0,0) multiplies the
+    // green and blue channels to zero — the collision feedback is now a
+    // red-tinted texture instead of flat red. Same uniform, evolved role.
     const char* fragmentShaderSource =
         "#version 330 core\n"
+        "uniform sampler2D tex;\n"
         "uniform vec3 color;\n"
+        "in vec2 TexCoord;\n"
         "out vec4 FragColor;\n"
         "void main() {\n"
-        "    FragColor = vec4(color, 1.0f);\n"
+        "    FragColor = vec4(texture(tex, TexCoord).rgb * color, 1.0f);\n"
         "}\n";
 
     // Compile the vertex shader. glCreateShader creates an empty shader object
@@ -364,9 +427,9 @@ int main() {
 
     // --- Step 8: Locate the color uniform (after linking) ---
     // Same pattern as 'transform' above: get the handle once, check it,
-    // upload a per-draw value every frame below. Without the check a
-    // misspelled uniform name fails silently and EVERY entity renders
-    // black (vec3 default 0) — visible, but confusing.
+    // upload a per-draw value every frame below. Since Step 10 the color
+    // is a TINT multiplied with the texture — white normally, red when
+    // colliding — but the lookup and check are identical.
     GLint colorLocation = glGetUniformLocation(shaderProgram, "color");
     if (colorLocation < 0) {
         std::cerr << "Uniform 'color' not found in shader program" << std::endl;
@@ -418,12 +481,19 @@ int main() {
     const float entityMoveSpeed = 2.5f;
 
     // --- Step 4: Vertex Data + VAO/VBO (before the loop) ---
-    // Three vertices (x, y, z) forming a triangle centered on screen.
-    // NDC coordinates: x and y run from -1 (left/bottom) to +1 (right/top).
+    // Three vertices forming a triangle centered on screen.
+    // STEP 10: each vertex now carries TWO attributes interleaved in the
+    // same array — position (x, y, z) followed by its UV texture
+    // coordinate (u, v). UV space: (0,0) is the texture's BOTTOM-LEFT,
+    // (1,1) its top-right — the whole image maps into the 0..1 square
+    // regardless of the image's pixel size. The bottom corners get the
+    // bottom UV corners; the apex gets (0.5, 1), so the triangle shows
+    // the top-center of the image, upright.
     float vertices[] = {
-        -0.5f, -0.5f, 0.0f,   // bottom-left
-         0.5f, -0.5f, 0.0f,   // bottom-right
-         0.0f,  0.5f, 0.0f    // top
+        // position              // UV
+        -0.5f, -0.5f, 0.0f,     0.0f, 0.0f,   // bottom-left
+         0.5f, -0.5f, 0.0f,     1.0f, 0.0f,   // bottom-right
+         0.0f,  0.5f, 0.0f,     0.5f, 1.0f    // top
     };
 
     // VBO (Vertex Buffer Object): a buffer that lives in GPU memory.
@@ -446,13 +516,103 @@ int main() {
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
     // Tell OpenGL how to read the raw floats: attribute index 0 (matches
     // "layout (location = 0)" in the vertex shader), 3 floats per vertex,
-    // no normalization, stride = byte distance to the next vertex
-    // (3 floats), offset 0 (data starts at the buffer's beginning).
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    // no normalization, stride = byte distance to the NEXT vertex — now
+    // 5 floats (3 position + 2 UV) because the attributes are interleaved.
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     // Attribute arrays are disabled by default — enable index 0.
     glEnableVertexAttribArray(0);
+    // STEP 10: attribute index 1 = the UV pair. Same buffer, same stride,
+    // but the pointer starts 3 floats in (right after each position).
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
     // Unbind the VBO (optional safety measure); the VAO remembers the setup.
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    // --- Step 10: Texture loading (stb_image) + GL texture object ---
+    // Same 3-candidate CWD strategy as the sound file in Step 9.
+    const char* texturePathCandidates[] = {
+        "assets/checker.png",       // run from the repo root
+        "../assets/checker.png",    // run from build/
+        "../../assets/checker.png"  // run from build/Release/
+    };
+    // stbi_load DECODES the image file (PNG here; it also reads JPG/BMP/
+    // TGA) into a raw pixel array in memory. The three ints receive the
+    // decoded width, height, and channel count; the final argument 3
+    // FORCES the output to 3-channel RGB even if the file stores alpha.
+    // It returns NULL on failure — and it is OUR job to check, because a
+    // failed load followed by a silent black texture is the audio-missing
+    // problem all over again, visually.
+    int texWidth = 0, texHeight = 0, texChannels = 0;
+    unsigned char* pixels = NULL;
+    for (const char* candidate : texturePathCandidates) {
+        pixels = stbi_load(candidate, &texWidth, &texHeight, &texChannels, 3);
+        if (pixels) {
+            break;
+        }
+    }
+    if (!pixels) {
+        std::cerr << "Failed to load assets/checker.png (tried: assets/, ../assets/, ../../assets/)" << std::endl;
+        for (ma_sound& sound : collisionSounds) {
+            ma_sound_uninit(&sound);
+        }
+        ma_engine_uninit(&audioEngine);
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+        glDeleteProgram(shaderProgram);
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+
+    // Upload the decoded pixels into a GPU TEXTURE OBJECT.
+    // glGenTextures creates the object name; glBindTexture makes it the
+    // current target so the following calls configure IT.
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    // Sampling parameters, part of the object's state:
+    //  WRAP_S/WRAP_T: what happens for UVs outside 0..1 — CLAMP_TO_EDGE
+    //    freezes the border pixels (correct for our exactly-0..1 UVs;
+    //    GL_REPEAT would tile the image instead).
+    //  MIN/MAG_FILTER: how a pixel is computed when the texel-to-pixel
+    //    ratio is not 1:1 — LINEAR blends the 4 nearest texels, which
+    //    keeps a spinning, scaled triangle smooth instead of blocky.
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // The actual upload: level 0 (no mipmaps yet), internal format RGB,
+    // dimensions from stbi_load, border 0, source format RGB of unsigned
+    // bytes — our 64x64x3 pixel array moves to GPU memory in one call.
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texWidth, texHeight, 0,
+                 GL_RGB, GL_UNSIGNED_BYTE, pixels);
+    // The CPU copy has served its purpose — the GPU owns the data now.
+    stbi_image_free(pixels);
+
+    // --- Step 10: Bind the sampler uniform to TEXTURE UNIT 0 ---
+    // A sampler2D uniform does NOT hold image data — it holds the INDEX
+    // of a texture unit. Units are GL's binding slots (GL_TEXTURE0..N);
+    // each frame we bind a texture to a unit, and the shader's sampler
+    // must be told WHICH unit to read. Setting the uniform once is
+    // enough: uniform values persist in the program object. (Requires
+    // the program to be current — hence the glUseProgram first.)
+    glUseProgram(shaderProgram);
+    GLint texLocation = glGetUniformLocation(shaderProgram, "tex");
+    if (texLocation < 0) {
+        std::cerr << "Uniform 'tex' not found in shader program" << std::endl;
+        glDeleteTextures(1, &texture);
+        for (ma_sound& sound : collisionSounds) {
+            ma_sound_uninit(&sound);
+        }
+        ma_engine_uninit(&audioEngine);
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+        glDeleteProgram(shaderProgram);
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+    glUniform1i(texLocation, 0);   // sampler reads from GL_TEXTURE0
 
     // 6. The Main Loop
     while (!glfwWindowShouldClose(window)) {
@@ -571,32 +731,38 @@ int main() {
             }
         }
 
-        // --- Step 9: Collision EDGE detection + playback ---
-        // Level vs edge: 'anyCollidingNow' is the LEVEL (are we inside a
-        // collision this frame?). Sound triggers on the EDGE — the single
-        // frame where the level goes false -> true. Same structure as
-        // Step 3's SPACE toggle: compare this frame against the stored
-        // previous-frame state, then store this frame's state for next.
-        bool anyCollidingNow = false;
+        // --- Step 10: per-entity collision EDGE detection + sound pool ---
+        // Step 9's scalar OR-flag is gone. Now the previous frame's full
+        // collision VECTOR is compared entry by entry: an entity whose
+        // flag goes 0 -> 1 is a fresh edge EVEN IF other entities were
+        // already colliding. (First frame: the vector is sized here with
+        // all-zero entries — before the program starts, nothing collides.)
+        if (wasColliding.size() != colliding.size()) {
+            wasColliding.assign(colliding.size(), 0);
+        }
+        bool anyNewCollision = false;
         for (size_t i = 0; i < colliding.size(); ++i) {
-            if (colliding[i]) {
-                anyCollidingNow = true;
+            if (colliding[i] && !wasColliding[i]) {
+                anyNewCollision = true;
                 break;
             }
         }
-        if (anyCollidingNow && !wasCollidingLastFrame) {
-            // If a previous beep is somehow still audible (only possible
-            // on a very quick exit/re-entry), rewind it instead of letting
-            // two copies stack on top of each other.
-            if (ma_sound_is_playing(&collisionSound)) {
-                ma_sound_seek_to_pcm_frame(&collisionSound, 0);
+        if (anyNewCollision) {
+            // Take the NEXT pool slot (round-robin) so a beep still
+            // ringing from the previous trigger keeps playing untouched.
+            ma_sound& sound = collisionSounds[nextCollisionSound];
+            nextCollisionSound = (nextCollisionSound + 1) % collisionSounds.size();
+            // A slot recycled while still audible gets rewound first.
+            if (ma_sound_is_playing(&sound)) {
+                ma_sound_seek_to_pcm_frame(&sound, 0);
             }
             // ma_sound_start hands the sound to the engine's mixer; the
             // mixing THREAD plays it from here — this call returns
             // immediately and never blocks the render loop.
-            ma_sound_start(&collisionSound);
+            ma_sound_start(&sound);
         }
-        wasCollidingLastFrame = anyCollidingNow;
+        // Store THIS frame's vector for the next frame's edge test.
+        wasColliding = colliding;
 
         // B. Clear the screen
         // glClearColor sets the color to clear to (R, G, B, A).
@@ -630,6 +796,16 @@ int main() {
         // only the transform differs per instance.
         glBindVertexArray(VAO);
 
+        // --- Step 10: bind the texture to unit 0 for this frame ---
+        // glActiveTexture SELECTS the unit; glBindTexture attaches our
+        // texture object to it. The sampler uniform was told once at
+        // startup to read unit 0 — so every draw below samples the
+        // checkerboard. (One shared texture for all entities today;
+        // per-entity textures later are exactly the same one-line move
+        // the color uniform already does.)
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+
         // --- Step 7: ONE draw loop for ALL entities ---
         // This replaces Step 6's copy-pasted model1/mvp1/draw,
         // model2/mvp2/draw blocks. The pipeline math is unchanged —
@@ -649,12 +825,15 @@ int main() {
             // Upload to the same 'transform' uniform (GL_FALSE: our Mat4
             // is already column-major, the layout OpenGL expects).
             glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
-            // Step 8: per-draw color — red (1,0,0) while this entity's
-            // box overlaps another, the original Step 4 orange otherwise.
+            // Step 10: per-draw TINT — white (1,1,1) leaves the texture
+            // color untouched; red (1,0,0) zeroes its green and blue
+            // channels, so a colliding entity renders as a red-tinted
+            // checkerboard. The Step 8 collision feedback survives the
+            // switch from flat color to textured rendering.
             if (colliding[i]) {
                 glUniform3f(colorLocation, 1.0f, 0.0f, 0.0f);
             } else {
-                glUniform3f(colorLocation, 1.0f, 0.5f, 0.2f);
+                glUniform3f(colorLocation, 1.0f, 1.0f, 1.0f);
             }
             // One draw call for this entity.
             glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -671,12 +850,15 @@ int main() {
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(shaderProgram);
-    // --- Step 9: audio cleanup, reverse creation order ---
-    // The sound first (it is registered WITH the engine), then the engine
-    // itself — which stops the mixing thread and closes the OS audio
-    // device. Audio is independent of OpenGL, so its teardown order
-    // relative to the GL calls does not matter.
-    ma_sound_uninit(&collisionSound);
+    glDeleteTextures(1, &texture);   // Step 10: the GPU texture object
+    // --- Step 9/10: audio cleanup, reverse creation order ---
+    // Every pool slot first (each registered WITH the engine), then the
+    // engine itself — which stops the mixing thread and closes the OS
+    // audio device. Audio is independent of OpenGL, so its teardown
+    // order relative to the GL calls does not matter.
+    for (ma_sound& sound : collisionSounds) {
+        ma_sound_uninit(&sound);
+    }
     ma_engine_uninit(&audioEngine);
     glfwDestroyWindow(window);
     glfwTerminate();
