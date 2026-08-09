@@ -20,6 +20,16 @@
 // CMakeLists.txt change.
 #include "collision.h"
 
+// --- Step 9: Audio Playback ---
+// miniaudio — a single-file audio library fetched by CMake via
+// FetchContent (same pattern as GLFW). Unlike our math/entity/
+// collision code, audio touches OS audio devices and hardware
+// buffers; that is the one layer we deliberately do NOT write
+// ourselves. The CMake target 'miniaudio' compiles the library as
+// a static lib and exports its include path, so a plain include
+// here is all main.cpp needs — no MINIAUDIO_IMPLEMENTATION define.
+#include <miniaudio.h>
+
 /**
  * Step 1: Window + Context Creation
  * Goal: Open a window and create a valid OpenGL context.
@@ -61,6 +71,13 @@
  *       boxes. The player drives entities[0] with the ARROW keys into
  *       the others; overlapping entities turn red via a per-draw color
  *       uniform. The overlap test is constexpr and static_assert-proven.
+ *
+ * Step 9: Audio Playback
+ * Goal: A sound FILE loads and plays on trigger — audible proof. One
+ *       short WAV (assets/beep.wav) is loaded at startup through
+ *       miniaudio; it plays exactly on the EDGE where collision starts
+ *       (not-colliding -> colliding), never every frame while overlap
+ *       continues — the same edge-detection principle as Step 3's SPACE.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -144,6 +161,64 @@ int main() {
         glfwTerminate();
         return -1;
     }
+
+    // --- Step 9: Audio engine + sound loading (one-time setup) ---
+    // ma_engine_init starts miniaudio's high-level engine: it opens the
+    // OS playback device (WASAPI on Windows), creates the mixing thread,
+    // and gives us one object that owns every sound we play. NULL = use
+    // the default config (default device, default sample rate). It
+    // returns MA_SUCCESS (0) on success — checked like every other init
+    // in this program, with the same cleanup-then-exit pattern.
+    ma_engine audioEngine;
+    if (ma_engine_init(NULL, &audioEngine) != MA_SUCCESS) {
+        std::cerr << "Failed to initialize the audio engine (miniaudio)" << std::endl;
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+
+    // Locate assets/beep.wav. Relative paths resolve against the CURRENT
+    // WORKING DIRECTORY, which depends on how the exe is launched (from
+    // the repo root, from build/, or by double-clicking it next to the
+    // exe). We try candidates one level deeper each time so the same
+    // binary works in all three cases.
+    const char* soundPathCandidates[] = {
+        "assets/beep.wav",       // run from the repo root (d:\PureEngine)
+        "../assets/beep.wav",    // run from build/
+        "../../assets/beep.wav"  // run from build/Release/ (exe's own folder)
+    };
+    // ma_sound_init_from_file DECODES the file (miniaudio has a built-in
+    // WAV decoder) and registers the sound with the engine, ready to be
+    // started with one call later. 0 = flags: default settings — no
+    // looping (one shot), no 3D spatialization. The two NULLs skip an
+    // optional resource-manager group and fence. The loop keeps the first
+    // path that loads; if none does, the program refuses to start — a
+    // silent engine with its one sound missing is worse than an error.
+    ma_sound collisionSound;
+    bool soundLoaded = false;
+    for (const char* candidate : soundPathCandidates) {
+        if (ma_sound_init_from_file(&audioEngine, candidate, 0, NULL, NULL,
+                                    &collisionSound) == MA_SUCCESS) {
+            soundLoaded = true;
+            break;
+        }
+    }
+    if (!soundLoaded) {
+        std::cerr << "Failed to load assets/beep.wav (tried: assets/, ../assets/, ../../assets/)" << std::endl;
+        // The engine initialized, so it must be uninitialized before exit.
+        ma_engine_uninit(&audioEngine);
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+
+    // --- Step 9: Collision edge state (before the loop) ---
+    // Was ANY entity colliding on the PREVIOUS frame? Compared against
+    // this frame's result to detect the exact transition into collision —
+    // the same edge-detection pattern Step 3 uses for SPACE. Without it,
+    // staying inside an overlap would restart the beep every frame
+    // (~60 restarts/second) instead of playing it once per collision.
+    bool wasCollidingLastFrame = false;
 
     // --- Step 2: Delta Time Setup (before the loop) ---
     // glfwGetTime() returns the number of seconds (as a high-resolution double)
@@ -496,6 +571,33 @@ int main() {
             }
         }
 
+        // --- Step 9: Collision EDGE detection + playback ---
+        // Level vs edge: 'anyCollidingNow' is the LEVEL (are we inside a
+        // collision this frame?). Sound triggers on the EDGE — the single
+        // frame where the level goes false -> true. Same structure as
+        // Step 3's SPACE toggle: compare this frame against the stored
+        // previous-frame state, then store this frame's state for next.
+        bool anyCollidingNow = false;
+        for (size_t i = 0; i < colliding.size(); ++i) {
+            if (colliding[i]) {
+                anyCollidingNow = true;
+                break;
+            }
+        }
+        if (anyCollidingNow && !wasCollidingLastFrame) {
+            // If a previous beep is somehow still audible (only possible
+            // on a very quick exit/re-entry), rewind it instead of letting
+            // two copies stack on top of each other.
+            if (ma_sound_is_playing(&collisionSound)) {
+                ma_sound_seek_to_pcm_frame(&collisionSound, 0);
+            }
+            // ma_sound_start hands the sound to the engine's mixer; the
+            // mixing THREAD plays it from here — this call returns
+            // immediately and never blocks the render loop.
+            ma_sound_start(&collisionSound);
+        }
+        wasCollidingLastFrame = anyCollidingNow;
+
         // B. Clear the screen
         // glClearColor sets the color to clear to (R, G, B, A).
         // The values used depend on the toggle flag flipped by SPACE above.
@@ -569,6 +671,13 @@ int main() {
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(shaderProgram);
+    // --- Step 9: audio cleanup, reverse creation order ---
+    // The sound first (it is registered WITH the engine), then the engine
+    // itself — which stops the mixing thread and closes the OS audio
+    // device. Audio is independent of OpenGL, so its teardown order
+    // relative to the GL calls does not matter.
+    ma_sound_uninit(&collisionSound);
+    ma_engine_uninit(&audioEngine);
     glfwDestroyWindow(window);
     glfwTerminate();
 

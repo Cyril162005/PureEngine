@@ -24,6 +24,17 @@ set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(glfw)
 
+# miniaudio - Audio playback/capture, single-file library.
+# Its own CMakeLists builds a static library target named "miniaudio";
+# examples/tests/tools are OFF by default. Same FetchContent pattern as GLFW.
+FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG 0.11.25
+)
+
+FetchContent_MakeAvailable(miniaudio)
+
 # ---------------------------------------------------------------------------
 # Project Source
 # ---------------------------------------------------------------------------
@@ -37,8 +48,8 @@ add_executable(${PROJECT_NAME}
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${glfw_SOURCE_DIR}/deps")
 
-# Link GLFW
-target_link_libraries(${PROJECT_NAME} glfw)
+# Link GLFW and miniaudio
+target_link_libraries(${PROJECT_NAME} glfw miniaudio)
 
 # On Linux, we might need extra libs
 if(UNIX AND NOT APPLE)
