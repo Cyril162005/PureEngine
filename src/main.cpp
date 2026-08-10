@@ -126,6 +126,16 @@
  *       resets everything via Step 11's resetGame(). All Steps 1-11
  *       behavior — spinning triangles, camera, tint, beep, pause — is
  *       additive-adjacent and untouched.
+ *
+ * Game Build Phase 1: Multiple Hostiles
+ * Goal: Three hostiles instead of one — added purely as DATA (two more
+ *       push_backs before the initial snapshot), each with its own
+ *       chase speed and spin as per-entity data (Step 7's pattern).
+ *       The chase becomes a loop over the hostile range; the catch
+ *       test becomes a loop where ANY overlap ends the run identically
+ *       to v1. The 3-entity scenery loop and resetGame() are untouched
+ *       — the snapshot/restore pattern absorbs the new entities for
+ *       free. Reuse before you build new.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -513,6 +523,23 @@ int main() {
     // scenery-collision system stays byte-identical in behavior.
     entities.push_back(pe::Entity(pe::Vec3(0.0f, -2.0f, 0.0f), 1.8f,
                                   pe::Vec3(1.0f, 1.0f, 1.0f)));
+    // Instances 5 & 6 — Game Build Phase 1: TWO MORE hostiles, added
+    // the only way this project adds behavior — as DATA (two push_backs,
+    // Step 7's ruling). Each carries its OWN personality through the
+    // exact same fields Step 7 gave every triangle: position = spawn
+    // point, rotationSpeed = visual spin, scale = size (and collider).
+    // Spawn points split the compass around the player's (-1.5, 0)
+    // start — bottom (existing hostile), top-right, top-left — so the
+    // opening seconds are a genuine three-direction read, not an
+    // instant surround. Spins differ (one clockwise, like entity 3;
+    // one faster CCW) so the three threats are visually distinct.
+    // Both sit BEFORE the initialEntities snapshot below, which is the
+    // entire reason resetGame() needs NO changes: the snapshot simply
+    // contains all six entities at their start positions.
+    entities.push_back(pe::Entity(pe::Vec3(3.0f, 2.0f, 0.0f), -1.2f,
+                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
+    entities.push_back(pe::Entity(pe::Vec3(-3.0f, 2.0f, 0.0f), 2.2f,
+                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
     // --- Step 11: the INITIAL world, kept as DATA ---
     // A snapshot of the fresh entity list. Starting a game from the
     // menu restores it — reset is an ASSIGNMENT, not new code, which
@@ -546,12 +573,19 @@ int main() {
     // so driving into another triangle feels controlled, not twitchy.
     const float entityMoveSpeed = 2.5f;
 
-    // --- Step 12: Hostile chase speed (before the loop) ---
-    // World units per second for the hostile entity (entities[3]).
-    // Deliberately SLOWER than the player's 2.5: running straight away
-    // always wins, so being caught is a positioning mistake, not an
-    // instant-death script. This is meant to be avoidable.
-    const float hostileSpeed = 1.8f;
+    // --- Step 12 / Phase 1: hostile chase speeds (before the loop) ---
+    // World units per second, ONE PER HOSTILE, parallel to the hostile
+    // range of the entity vector: index 0 -> entities[3], index 1 ->
+    // entities[4], index 2 -> entities[5]. Data in a container — the
+    // same pattern as soundPathCandidates and the collision vectors,
+    // and the same per-entity-variance idea Step 7 gave the triangles'
+    // rotation speeds. Every value stays SLOWER than the player's 2.5:
+    // against pure pursuers a straight-line escape always wins, so
+    // being caught remains a positioning mistake, not a script — the
+    // Step 12 'avoidable by construction' principle, now for three
+    // threats. The spread (1.8 / 1.6 / 1.5) means they straggle rather
+    // than arrive as a wall — the player faces a pincer, not a fence.
+    const float hostileSpeeds[] = { 1.8f, 1.6f, 1.5f };
 
     // --- Step 4: Vertex Data + VAO/VBO (before the loop) ---
     // Three vertices forming a triangle centered on screen.
@@ -866,21 +900,26 @@ int main() {
                 entity.update(dt);
             }
 
-            // --- Step 12: the hostile chases the player ---
-            // direction = player - hostile (Vec3 operator-, Step 5),
-            // normalized() to a unit vector (Step 5), scaled by speed
-            // and deltaTime (Vec3 operator*, Step 5), then added with
-            // operator+ and assigned back to the position. ZERO new
-            // math — the entire chase is four existing Vec3 operations
-            // composed. The zero-length guard keeps the intent honest:
-            // normalized() itself already maps the zero vector to
-            // itself (no NaN), but if the hostile sits exactly ON the
-            // player there is no meaningful direction to move in — the
-            // catch test below ends the run on this same frame anyway.
-            pe::Entity& hostile = entities[3];
-            const pe::Vec3 toPlayer = entities[0].position - hostile.position;
-            if (toPlayer.length() > 0.0f) {
-                hostile.position = hostile.position + toPlayer.normalized() * hostileSpeed * dt;
+            // --- Step 12 / Phase 1: EVERY hostile chases the player ---
+            // The v1 chase, unchanged per hostile, wrapped in the only
+            // thing Phase 1 adds: a loop over the hostile range
+            // (index 3 to the end of the vector). direction = player -
+            // hostile (Vec3 operator-, Step 5), normalized() to a unit
+            // vector, scaled by THIS hostile's speed from the parallel
+            // hostileSpeeds array and deltaTime, assigned back. ZERO
+            // new math — the same four Step 5 Vec3 operations as v1,
+            // executed per hostile. Each hostile picks its own pursuit
+            // vector every frame (pure pursuers — no prediction, no
+            // flanking; the difficulty comes from NUMBERS, not AI).
+            // The zero-length guard keeps intent honest per hostile:
+            // a hostile sitting exactly ON the player has no direction
+            // to move in — the catch test ends the run this frame.
+            for (size_t h = 3; h < entities.size(); ++h) {
+                pe::Entity& hostile = entities[h];
+                const pe::Vec3 toPlayer = entities[0].position - hostile.position;
+                if (toPlayer.length() > 0.0f) {
+                    hostile.position = hostile.position + toPlayer.normalized() * hostileSpeeds[h - 3] * dt;
+                }
             }
 
             // --- Step 8: Collision pass (after movement, before drawing) ---
@@ -898,11 +937,13 @@ int main() {
             // (always true — useless); testing both orders doubles the work
             // for identical results. Overlap is symmetric: set BOTH flags.
             // Step 12: the loop bound is the ORIGINAL THREE, not
-            // entities.size() — the hostile is deliberately excluded so
-            // this loop stays exactly the Steps 8-11 scenery system
-            // (tint + beep between the three triangles). The hostile
-            // passes through scenery in v1; its only interaction is the
-            // player catch test immediately after the audio block.
+            // entities.size() — the hostiles are deliberately excluded
+            // so this loop stays exactly the Steps 8-11 scenery system
+            // (tint + beep between the three triangles). Phase 1 added
+            // two more hostiles at indices 4-5; this line did NOT
+            // change, which is the point — the hostiles pass through
+            // scenery, and their only interaction remains the player
+            // catch test immediately after the audio block.
             for (size_t i = 0; i < 3; ++i) {
                 for (size_t j = i + 1; j < 3; ++j) {
                     if (pe::aabbOverlap(entities[i], entities[j])) {
@@ -945,21 +986,27 @@ int main() {
             // Store THIS frame's vector for the next frame's edge test.
             wasColliding = colliding;
 
-            // --- Step 12: the catch test — player vs hostile ---
-            // Reuses Step 8's exact AABB machinery: pe::aabbOverlap on
-            // two Entity objects (position, scale-multiplied halfExtents)
-            // — the same function the scenery loop above calls, applied
-            // to ONE specific pair, kept separate so the Step 8 system
-            // and this lose condition never entangle. On catch: print
-            // the survival time (the console is the only output channel
-            // — no font system exists), reuse the sound POOL for an
-            // audible end-of-run signal (round-robin, rewind-if-busy,
-            // exactly the Steps 9/10 pattern), and transition. The run
-            // dies on the SAME frame it is caught — no dying animation,
-            // no grace period; v1 scope. The state flip happens at the
-            // very END of the simulation block, so every per-frame
-            // system above ran exactly once on the final frame.
-            if (pe::aabbOverlap(entities[0], hostile)) {
+            // --- Step 12 / Phase 1: the catch test — player vs ANY hostile ---
+            // v1 tested ONE pair; Phase 1 generalizes it the minimal
+            // way: a loop over the hostile range (index 3 onward)
+            // OR-ing Step 8's exact AABB test into a single bool.
+            // Touching ANY hostile ends the run — the lose condition
+            // does not care which one caught you. Everything ELSE is
+            // the identical Step 12 block: reuse Step 8's aabbOverlap
+            // machinery, print the survival time (console is the only
+            // output channel — no font system exists), reuse the sound
+            // POOL for the audible end-of-run signal (round-robin,
+            // rewind-if-busy, Steps 9/10 pattern), and flip the state
+            // LAST so every per-frame system above ran exactly once on
+            // the final frame. Same frame, same death, three threats.
+            bool caught = false;
+            for (size_t h = 3; h < entities.size(); ++h) {
+                if (pe::aabbOverlap(entities[0], entities[h])) {
+                    caught = true;
+                    break;   // one catcher is enough — stop testing
+                }
+            }
+            if (caught) {
                 std::cout << "GAME OVER — survived "
                           << survivalTime << " seconds" << std::endl;
                 ma_sound& endSound = collisionSounds[nextCollisionSound];
