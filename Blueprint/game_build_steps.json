@@ -1,0 +1,56 @@
+{
+  "project": "PureEngine - Game Build",
+  "depends_on_project": "PureEngine (12/12 complete, all steps verified and pushed)",
+  "game_identity": {
+    "title": "TBD",
+    "genre": "Top-down arena survival",
+    "core_loop": "Avoid/outlast hostile entities in a bounded arena; survive as long as possible",
+    "v1_status": "Shipped in engine Step 12 - one player, one hostile, AABB catch detection, survival timer (console only), MENU/PLAYING/PAUSED/GAME_OVER state machine"
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Multiple Hostiles",
+      "status": "not_started",
+      "definition_of_done": "2-3+ hostiles simultaneously chase the player, added as entity-vector data (push_back), reusing existing update/draw/collision loops with zero new code paths",
+      "depends_on_engine_steps": [7, 8, 12]
+    },
+    {
+      "id": 2,
+      "name": "Difficulty Scaling",
+      "status": "not_started",
+      "definition_of_done": "Hostile speed and/or spawn rate increases with survivalTime, using deltaTime-driven state rather than fixed constants",
+      "depends_on_engine_steps": [2, 12],
+      "depends_on_phase": [1]
+    },
+    {
+      "id": 3,
+      "name": "On-Screen Text (Score/Timer Display)",
+      "status": "not_started",
+      "definition_of_done": "Survival time visible on screen during PLAYING and on GAME_OVER, not console-only. First new engine capability required post-Step-12 (text/font rendering).",
+      "depends_on_engine_steps": [11, 12]
+    },
+    {
+      "id": 4,
+      "name": "Scoring Beyond Survival Time",
+      "status": "not_started",
+      "definition_of_done": "Either a defined additional scoring mechanic is implemented and displayed, or a deliberate decision is recorded that survival time alone is sufficient",
+      "depends_on_phase": [3]
+    },
+    {
+      "id": 5,
+      "name": "Content Pass",
+      "status": "not_started",
+      "definition_of_done": "Player, hostiles, and arena visually distinct from each other and from Step 4-10 placeholder checkerboard geometry",
+      "depends_on_engine_steps": [10]
+    },
+    {
+      "id": 6,
+      "name": "Packaging",
+      "status": "not_started",
+      "definition_of_done": "Exe + assets runnable on a clean machine without dev environment installed, or a documented clean-checkout build process",
+      "depends_on_phase": [1, 2, 3]
+    }
+  ],
+  "kill_criteria": "If any phase's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing."
+}
