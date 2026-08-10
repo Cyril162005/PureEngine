@@ -114,6 +114,18 @@
  *       the scene (drawn every frame, simulated on none); ESC resumes,
  *       SPACE returns to the menu. Starting from the menu RESETS the
  *       world to its initial data snapshot.
+ *
+ * Step 12: Game Logic Layer
+ * Goal: Franchise gameplay on top of everything — the v1 game loop.
+ *       A fifth entity, the HOSTILE, chases the player every PLAYING
+ *       frame (normalize(player - hostile) * speed * dt, reusing only
+ *       Step 5 math). Touching it ends the run: a new GameState
+ *       GAME_OVER freezes the scene on a dark-red screen and prints
+ *       the survival time (deltaTime accumulation, Step 2's pattern)
+ *       to the console. SPACE returns to the menu; the next SPACE
+ *       resets everything via Step 11's resetGame(). All Steps 1-11
+ *       behavior — spinning triangles, camera, tint, beep, pause — is
+ *       additive-adjacent and untouched.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -488,6 +500,19 @@ int main() {
     // required a single new rendering line — behavior comes from DATA.
     entities.push_back(pe::Entity(pe::Vec3(0.0f, 1.5f, 0.0f), -1.4f,
                                   pe::Vec3(0.6f, 0.6f, 1.0f)));
+    // Instance 4 — Step 12: the HOSTILE. Same pe::Entity type, same
+    // vector, added purely as DATA (Step 7's ruling): the existing
+    // update loop spins it (1.8 rad/s CCW), the existing draw loop
+    // renders it, its halfExtents come from the same Step 8 bounds.
+    // Starts at (0, -2) — bottom-center, away from the player's start
+    // at (-1.5, 0) — unit scale like entities 1 & 2, so its collider
+    // matches its rendered size exactly. It ignores the spinning
+    // triangles (scenery is not solid in v1) and hunts only the
+    // player — that chase and its catch test live in the simulation
+    // section below, deliberately OUTSIDE the pair loop so the Step 8
+    // scenery-collision system stays byte-identical in behavior.
+    entities.push_back(pe::Entity(pe::Vec3(0.0f, -2.0f, 0.0f), 1.8f,
+                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
     // --- Step 11: the INITIAL world, kept as DATA ---
     // A snapshot of the fresh entity list. Starting a game from the
     // menu restores it — reset is an ASSIGNMENT, not new code, which
@@ -520,6 +545,13 @@ int main() {
     // (entities[0]). Deliberately a bit slower than the camera's 3.0
     // so driving into another triangle feels controlled, not twitchy.
     const float entityMoveSpeed = 2.5f;
+
+    // --- Step 12: Hostile chase speed (before the loop) ---
+    // World units per second for the hostile entity (entities[3]).
+    // Deliberately SLOWER than the player's 2.5: running straight away
+    // always wins, so being caught is a positioning mistake, not an
+    // instant-death script. This is meant to be avoidable.
+    const float hostileSpeed = 1.8f;
 
     // --- Step 4: Vertex Data + VAO/VBO (before the loop) ---
     // Three vertices forming a triangle centered on screen.
@@ -655,17 +687,28 @@ int main() {
     }
     glUniform1i(texLocation, 0);   // sampler reads from GL_TEXTURE0
 
+    // --- Step 12: survival timer ---
+    // Seconds survived in the current run. Accumulated INSIDE the
+    // PLAYING gate only — pausing stops the clock, which is correct:
+    // the timer measures played time, not wall time. Same pattern as
+    // every other deltaTime consumer since Step 2: state += rate * dt,
+    // here with a rate of 1 second per second.
+    float survivalTime = 0.0f;
+
     // --- Step 11: reset the world to its initial data ---
     // Called when a game STARTS from the menu. Every piece of play
-    // state returns to its pre-game value: the entity snapshot, the
-    // camera home, the clear-color toggle off, and BOTH collision
-    // histories empty (nothing was colliding before the game began).
+    // state returns to its pre-game value: the entity snapshot (which
+    // INCLUDES the hostile at its start position — the snapshot was
+    // taken AFTER its push_back), the camera home, the clear-color
+    // toggle off, BOTH collision histories empty (nothing was colliding
+    // before the game began), and the survival timer back to zero.
     auto resetGame = [&]() {
         entities = initialEntities;
         cameraPos = pe::Vec3(0.0f, 0.0f, 0.0f);
         clearColorIsBlue = false;
         wasColliding.clear();
         colliding.assign(entities.size(), 0);
+        survivalTime = 0.0f;
     };
 
     // 6. The Main Loop
@@ -785,6 +828,18 @@ int main() {
                 currentState = pe::GameState::MENU;
             }
             break;
+        case pe::GameState::GAME_OVER:
+            // --- Step 12: the run is over ---
+            // SPACE returns to the menu — Step 11's navigation pattern
+            // verbatim, one-line assignment. ESC is deliberately DEAD
+            // here: ESC means pause/resume, and there is nothing to
+            // resume from a finished run. The frozen scene stays on
+            // screen (drawn below, never simulated) until SPACE moves
+            // us back to the purple menu.
+            if (spaceEdge) {
+                currentState = pe::GameState::MENU;
+            }
+            break;
         }
         // Store this frame's key states so the NEXT frame can detect edges.
         escWasPressedLastFrame = escIsPressedNow;
@@ -797,6 +852,11 @@ int main() {
         // branch: the state machine WRAPS the simulation, it never
         // touches it. That is why all Step 1-10 behavior survives.
         if (currentState == pe::GameState::PLAYING) {
+            // --- Step 12: survival timer accumulates ---
+            // deltaTime integration, Step 2's pattern: count up at a
+            // constant rate of 1 second per second of PLAYING time.
+            survivalTime += dt;
+
             // --- Step 7: Update every entity (per-frame simulation) ---
             // One loop replaces the old global rotationAngle update from
             // Steps 5/6. Each entity carries its OWN speed (and even its own
@@ -804,6 +864,23 @@ int main() {
             // state += rate * deltaTime pattern, now per-entity data.
             for (pe::Entity& entity : entities) {
                 entity.update(dt);
+            }
+
+            // --- Step 12: the hostile chases the player ---
+            // direction = player - hostile (Vec3 operator-, Step 5),
+            // normalized() to a unit vector (Step 5), scaled by speed
+            // and deltaTime (Vec3 operator*, Step 5), then added with
+            // operator+ and assigned back to the position. ZERO new
+            // math — the entire chase is four existing Vec3 operations
+            // composed. The zero-length guard keeps the intent honest:
+            // normalized() itself already maps the zero vector to
+            // itself (no NaN), but if the hostile sits exactly ON the
+            // player there is no meaningful direction to move in — the
+            // catch test below ends the run on this same frame anyway.
+            pe::Entity& hostile = entities[3];
+            const pe::Vec3 toPlayer = entities[0].position - hostile.position;
+            if (toPlayer.length() > 0.0f) {
+                hostile.position = hostile.position + toPlayer.normalized() * hostileSpeed * dt;
             }
 
             // --- Step 8: Collision pass (after movement, before drawing) ---
@@ -820,8 +897,14 @@ int main() {
             // tests — 3 for N = 3. Testing i == j would self-collide
             // (always true — useless); testing both orders doubles the work
             // for identical results. Overlap is symmetric: set BOTH flags.
-            for (size_t i = 0; i < entities.size(); ++i) {
-                for (size_t j = i + 1; j < entities.size(); ++j) {
+            // Step 12: the loop bound is the ORIGINAL THREE, not
+            // entities.size() — the hostile is deliberately excluded so
+            // this loop stays exactly the Steps 8-11 scenery system
+            // (tint + beep between the three triangles). The hostile
+            // passes through scenery in v1; its only interaction is the
+            // player catch test immediately after the audio block.
+            for (size_t i = 0; i < 3; ++i) {
+                for (size_t j = i + 1; j < 3; ++j) {
                     if (pe::aabbOverlap(entities[i], entities[j])) {
                         colliding[i] = 1;
                         colliding[j] = 1;
@@ -861,6 +944,32 @@ int main() {
             }
             // Store THIS frame's vector for the next frame's edge test.
             wasColliding = colliding;
+
+            // --- Step 12: the catch test — player vs hostile ---
+            // Reuses Step 8's exact AABB machinery: pe::aabbOverlap on
+            // two Entity objects (position, scale-multiplied halfExtents)
+            // — the same function the scenery loop above calls, applied
+            // to ONE specific pair, kept separate so the Step 8 system
+            // and this lose condition never entangle. On catch: print
+            // the survival time (the console is the only output channel
+            // — no font system exists), reuse the sound POOL for an
+            // audible end-of-run signal (round-robin, rewind-if-busy,
+            // exactly the Steps 9/10 pattern), and transition. The run
+            // dies on the SAME frame it is caught — no dying animation,
+            // no grace period; v1 scope. The state flip happens at the
+            // very END of the simulation block, so every per-frame
+            // system above ran exactly once on the final frame.
+            if (pe::aabbOverlap(entities[0], hostile)) {
+                std::cout << "GAME OVER — survived "
+                          << survivalTime << " seconds" << std::endl;
+                ma_sound& endSound = collisionSounds[nextCollisionSound];
+                nextCollisionSound = (nextCollisionSound + 1) % collisionSounds.size();
+                if (ma_sound_is_playing(&endSound)) {
+                    ma_sound_seek_to_pcm_frame(&endSound, 0);
+                }
+                ma_sound_start(&endSound);
+                currentState = pe::GameState::GAME_OVER;
+            }
         }
 
         // B. Clear the screen
@@ -872,6 +981,13 @@ int main() {
             // text system yet, the color IS the menu; the paint job is
             // Step 12 territory.
             glClearColor(0.16f, 0.0f, 0.24f, 1.0f);
+        } else if (currentState == pe::GameState::GAME_OVER) {
+            // GAME_OVER (Step 12): a fixed DARK RED — the engine's
+            // established danger channel (collision tint), distinct from
+            // menu purple and gameplay black/blue, so a loss reads at a
+            // glance. The frozen death scene renders on top (the draw
+            // gate below excludes only MENU), exactly like PAUSED.
+            glClearColor(0.28f, 0.0f, 0.0f, 1.0f);
         } else if (clearColorIsBlue) {
             // Dark blue (Step 3 toggle target)
             glClearColor(0.0f, 0.0f, 0.25f, 1.0f);
@@ -883,10 +999,11 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         // --- Step 11: gameplay rendering happens OUTSIDE the MENU ---
-        // MENU draws nothing but the clear color. PLAYING and PAUSED
-        // share this EXACT draw path — the only pause difference is
-        // that the simulation branch above stopped advancing the data
-        // being drawn here (frozen spin, frozen camera, frozen tint).
+        // MENU draws nothing but the clear color. PLAYING, PAUSED, and
+        // (Step 12) GAME_OVER share this EXACT draw path — the only
+        // difference between them is whether the simulation branch
+        // above advanced the data being drawn here (frozen spin, frozen
+        // camera, frozen tint, frozen hostile).
         if (currentState != pe::GameState::MENU) {
             // --- Step 4: Draw the Triangle (after clear, before swap) ---
             // Activate our shader program: all following draw calls use it.
