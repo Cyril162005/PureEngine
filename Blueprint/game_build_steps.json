@@ -11,8 +11,9 @@
     {
       "id": 1,
       "name": "Multiple Hostiles",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "2-3+ hostiles simultaneously chase the player, added as entity-vector data (push_back), reusing existing update/draw/collision loops with zero new code paths",
+      "notes": "Three hostiles total: two push_backs before the initialEntities snapshot (spawn points (3,2) CW spin and (-3,2) faster CCW spin beside the original (0,-2)), parallel const float hostileSpeeds[] {1.8, 1.6, 1.5} mapped by index h-3 — all slower than the player's 2.5 so escape stays possible (Step 12 principle). Chase generalized to a loop over indices 3..N-1 using the same four Step 5 Vec3 ops per hostile; catch test generalized to a loop OR-ing Step 8's aabbOverlap into one bool — ANY hostile ends the run through the identical Step 12 death block. Scenery pair loop bound untouched; resetGame() needed ZERO changes (snapshot/restore absorbs the new entities). CMakeLists.txt and gamestate.h unchanged (pure logic, no new states). Fresh clean rebuild passed first try, zero engine warnings. Verified by user: independent tracking at varied speeds, scenery/each-other pass-through, identical lose flow, all six entities freeze on pause, full reset correct.",
       "depends_on_engine_steps": [7, 8, 12]
     },
     {

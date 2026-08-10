@@ -19,11 +19,17 @@ and pushed. No feature added without checking whether it reuses an existing engi
 ## Phases
 
 ### Phase 1 — Multiple Hostiles
-**Status:** Not started
+**Status:** Completed
 **Goal:** More than one hostile entity, spawned as data (push_back), not new code paths.
 **Definition of done:** At least 2-3 hostiles simultaneously chase the player; losing to any one of them ends the run the same way v1's single hostile does.
 **Notes:**
--
+- Count ruling: THREE hostiles total (2 added). Every hostile stays slower than the player (1.8/1.6/1.5 vs 2.5 units/s), so a straight-line escape wins against pure pursuers regardless of count — the Step 12 'avoidable by construction' guarantee holds; three creates a pincer problem without compressing escape corridors into a spawn lottery. Performance: six extra trivial ops/frame — unmeasurable.
+- Variation via per-entity DATA only (Step 7 pattern): parallel const float hostileSpeeds[] {1.8, 1.6, 1.5} mapped to entities[3..5] by index h-3; individual spins (-1.2 rad/s CW, 2.2 rad/s CCW alongside the original 1.8 CCW); spawn points split the compass around the player — bottom (0,-2) unchanged, top-right (3,2), top-left (-3,2). The spread makes them straggle rather than arrive as a wall.
+- Container/collision exactly as Step 12 established: same entity vector (push_backs BEFORE the initialEntities snapshot); the 3-entity scenery pair loop bound stayed literally untouched (hostiles at indices 4-5 pass through scenery and each other); catch test generalized to a loop over the hostile range OR-ing Step 8's aabbOverlap into one bool — touching ANY hostile ends the run through the IDENTICAL Step 12 death block (console print, pool beep, state flip last).
+- resetGame() needed ZERO changes — the snapshot/restore pattern absorbed the two new entities for free (colliding/wasColliding are size-driven). Strongest demonstration yet of Step 7's 'entities as data' ruling.
+- No CMakeLists.txt change (git diff proved it byte-identical) — pure logic; gamestate.h also untouched (no new states needed, which is evidence Step 11 got the design right).
+- Build note: full build-folder delete + fresh configure (493.7 s, all deps re-cloned) + Release build clean FIRST TRY; forced main.cpp recompile confirmed zero warnings in engine code.
+- VERIFIED by the user directly: three hostiles spawn at distinct points, track independently at different speeds, pass through scenery and each other without interaction, losing to any hostile works identically to v1 (console print, beep, dark red freeze), all Step 1-12 behavior intact including all six entities freezing correctly during PAUSED and full reset restoring all three hostiles to spawn points.
 
 ### Phase 2 — Difficulty Scaling
 **Status:** Not started
