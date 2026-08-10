@@ -110,9 +110,16 @@ No copy-pasted code you can't explain.
 - VERIFIED: checkerboard renders on all three triangles (upright, LINEAR-smoothed while spinning); collision shows red-TINTED checkerboard, not flat red; per-entity fix confirmed — second beep fires when a new collision starts while another is already active; pool lets two rapid beeps overlap; ESC/SPACE/WASD/arrows all intact.
 
 ### Step 11 — Scene/Level Structure
-**Status:** Not started
+**Status:** Completed
 **Notes:**
--
+- Design ruling: enum class pe::GameState { MENU, PLAYING, PAUSED } + ONE currentState variable + single dispatch points in main.cpp (a switch for input semantics, state gates for simulation and drawing). A push-down state stack or scene-graph was rejected on the same 'don't over-engineer' principle as Step 7's ECS ruling — three states with linear transitions need no dynamic nesting or history; PAUSED already holds the world data intact, so a stack buys nothing.
+- Pure logic, built ourselves: new header-only src/gamestate.h (31 lines, scoped enum in namespace pe), same pattern as entity.h/collision.h. NO new external dependency — git diff proved CMakeLists.txt byte-identical to Step 10.
+- Input fork by state (first time a key's MEANING depends on state): MENU — ESC quits (level poll), SPACE starts (edge, calls resetGame). PLAYING — ESC pauses (NEW edge detector for ESC, same pattern as Step 3's SPACE), SPACE toggles clear color, WASD camera + arrow player movement gated to this state. PAUSED — ESC resumes, SPACE abandons the run back to MENU.
+- Simulation gated: entity update + collision + audio edge detection run ONLY in PLAYING — the state machine WRAPS the Step 7-10 simulation, never touches it, which is why all prior behavior survives. Collision flags hoisted to loop scope so PAUSED keeps drawing the frozen tint.
+- resetGame lambda restores the world to a pre-loop const initialEntities data snapshot (entities, camera home, clear color, both collision histories) — reset is an assignment, exactly what Step 7's 'entities as data' bought.
+- MENU rendering: plain dark-purple clear color (0.16, 0.0, 0.24) — deliberately outside gameplay's black/blue palette since no text system exists yet. Step 10 seam half-closed: the texture bind moved INSIDE the gameplay draw path so MENU never touches a texture unit; per-entity textures deferred to Step 12.
+- Build note: full build-folder delete + fresh configure (260.6 s, all three deps re-cloned) + Release build clean FIRST TRY; one upstream warning inside miniaudio's own C code, zero in engine code. Engine exe links glfw3.lib + miniaudio.lib as before.
+- VERIFIED by the user directly, full checklist passed: MENU shows dark purple with no triangles; SPACE starts correctly; WASD/arrows/collision/red tint/beep all identical to Steps 1-10 inside PLAYING; ESC pauses with the scene frozen including frozen collision tint; ESC resumes exactly where it left off; SPACE from PAUSED returns to MENU; fresh SPACE from MENU resets entities to original positions; ESC from MENU closes cleanly.
 
 ### Step 12 — Game Logic Layer (your franchise)
 **Status:** Not started

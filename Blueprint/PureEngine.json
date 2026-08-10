@@ -87,8 +87,9 @@
     {
       "id": 11,
       "name": "Scene/Level Structure",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Can load, hold, and switch between distinct game states",
+      "notes": "enum class pe::GameState { MENU, PLAYING, PAUSED } + one currentState variable + single dispatch points in main.cpp; push-down stack/scene-graph rejected (Step 7's don't-over-engineer ruling). Pure logic, header-only src/gamestate.h, CMakeLists.txt unchanged. Input forks per state: MENU ESC quits / SPACE starts (resetGame restores the const initialEntities snapshot); PLAYING ESC pauses via NEW ESC edge detector, SPACE toggles clear color, WASD/arrows gated here; PAUSED ESC resumes / SPACE quits to menu. Simulation (entity update + collision + audio edges) wrapped in a PLAYING-only gate, never modified — all Step 1-10 behavior intact. Collision flags hoisted so PAUSED keeps the frozen tint. MENU = dark-purple clear color (no text system yet); texture bind moved inside the gameplay draw path, closing half of Step 10's seam (per-entity textures deferred to Step 12). Fresh clean rebuild passed first try. Verified by user: full state-navigation checklist including frozen-tint pause, exact resume, and world reset.",
       "depends_on": [7, 10]
     },
     {
