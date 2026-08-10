@@ -95,8 +95,9 @@
     {
       "id": 12,
       "name": "Game Logic Layer",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Franchise-specific gameplay built on top of engine systems",
+      "notes": "v1 game loop: hostile (5th entity in the same vector, push_back before the initialEntities snapshot so resetGame restores it) chases the player each PLAYING frame via four existing Step 5 Vec3 ops (subtract, normalize, scale by 1.8 units/s * dt, add) with a zero-length guard; slower than the player's 2.5 so escape is always possible. Step 8 pair loop bound fixed at 3 so scenery tint/beep stays byte-identical and the hostile passes through triangles; catch is a separate aabbOverlap(entities[0], hostile) test that prints the survival time to the console, plays a pool beep, and flips to the NEW GAME_OVER state (PAUSED not overloaded; ESC dead there, SPACE -> MENU per Step 11's pattern). GAME_OVER = dark-red clear with the frozen death scene drawn on top. Survival timer = deltaTime accumulation at rate 1 inside the PLAYING gate, reset by one line in resetGame. CMakeLists.txt unchanged (pure logic). Fresh clean rebuild passed first try, zero engine warnings. Verified by user: hostile tracking, scenery pass-through, all Steps 1-11 behavior intact, lose/reset flow correct. All 12 blueprint steps complete.",
       "depends_on": [8, 9, 11]
     }
   ],

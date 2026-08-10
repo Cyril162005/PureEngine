@@ -122,9 +122,17 @@ No copy-pasted code you can't explain.
 - VERIFIED by the user directly, full checklist passed: MENU shows dark purple with no triangles; SPACE starts correctly; WASD/arrows/collision/red tint/beep all identical to Steps 1-10 inside PLAYING; ESC pauses with the scene frozen including frozen collision tint; ESC resumes exactly where it left off; SPACE from PAUSED returns to MENU; fresh SPACE from MENU resets entities to original positions; ESC from MENU closes cleanly.
 
 ### Step 12 — Game Logic Layer (your franchise)
-**Status:** Not started
+**Status:** Completed
 **Notes:**
--
+- v1 game loop, deliberately minimal: one hostile entity that hunts the player, touching it ends the run, a survival timer, and a return-to-menu/retry path. Everything else was reuse, not invention.
+- Hostile movement: toPlayer = player.position - hostile.position, normalized(), * hostileSpeed * dt, assigned back — four EXISTING Step 5 Vec3 operations (operator-, normalized, operator*, operator+), zero new math; verified against vec3.h (no operator+= exists; first draft corrected before compiling). hostileSpeed 1.8 vs player 2.5 — outrunning in a straight line always wins, death is a positioning mistake by design. Zero-length guard keeps intent honest (normalized already maps zero to zero, no NaN).
+- Container ruling: hostile lives in the SAME entities vector as a 5th push_back (Step 7 ruling: update loop, draw loop, AABB bounds all come free from data) — added BEFORE the initialEntities snapshot so resetGame() restores it for free. The Step 8 pair loop's bound changed from entities.size() to 3, so the scenery tint/beep system stays byte-identical and the hostile passes through the spinning triangles (scenery not solid in v1); its only interaction is a separate explicit player-vs-hostile aabbOverlap catch test after the audio block.
+- GAME_OVER ruling: NEW enumerator added, PAUSED NOT overloaded — "held, ESC resumes" vs "run is dead, ESC means nothing" are opposite semantics and Step 11's architecture says the state decides what a key means; overloading would need a hidden sub-flag. gamestate.h ruling comment updated three -> four states. ESC is deliberately DEAD in GAME_OVER; SPACE -> MENU reuses Step 11's one-line navigation pattern.
+- Lose feedback without text: dark-red clear color (0.28, 0, 0) under the frozen death scene (draw gate excludes only MENU, so GAME_OVER renders like PAUSED) — red is the engine's established danger channel, distinct from menu purple/gameplay black-blue. Survival time printed to console (no font system exists — the honest v1 channel); end-of-run beep reuses the Step 10 sound pool (round-robin, rewind-if-busy). State flip happens LAST in the simulation block so every system ran once on the final frame.
+- Survival timer: survivalTime += dt inside the PLAYING gate — Step 2's delta-time integration at rate 1 (played time, not wall time — pausing stops the clock). One line added to resetGame() zeroes it; snapshot restore resets the hostile position.
+- No CMakeLists.txt change (git diff proved it byte-identical) — pure logic like math/entity/collision/gamestate.
+- Build note: full build-folder delete + fresh configure (486.5 s, all three deps re-cloned) + Release build clean FIRST TRY; zero warnings in engine code (one upstream warning inside miniaudio's own C).
+- VERIFIED by the user directly: hostile tracks the player and passes through scenery without interfering; all Step 1-11 behavior intact (WASD, SPACE toggle, arrows, scenery tint+beep, pause/resume with hostile also freezing); losing prints survival time, plays the beep, freezes the scene in dark red; GAME_OVER ignores ESC, SPACE returns to MENU; new game resets everything including hostile position and timer. All 12 steps of the blueprint are now complete.
 
 ## Kill Criteria
 If you're stuck on one step for 2+ weeks with no forward progress and no clear next action —
