@@ -20,6 +20,13 @@
 // CMakeLists.txt change.
 #include "collision.h"
 
+// --- Step 11: Scene/Level Structure ---
+// The game-state enum: pure logic, header-only like entity.h and
+// collision.h — no CMakeLists.txt change. The DISPATCH that uses it
+// lives in main.cpp, because it needs every piece of per-frame state
+// (input flags, entities, camera, audio) in one place.
+#include "gamestate.h"
+
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
 // FetchContent (same pattern as GLFW). Unlike our math/entity/
@@ -95,6 +102,18 @@
  *       refactored first: collision-edge detection becomes per-entity
  *       (previous colliding VECTOR, not a scalar), and playback uses a
  *       round-robin POOL of ma_sound instances instead of one.
+ *
+ * Step 11: Scene/Level Structure
+ * Goal: The engine can LOAD, HOLD, and SWITCH between distinct game
+ *       states. A pe::GameState enum (MENU / PLAYING / PAUSED) and ONE
+ *       current-state variable drive a single dispatch point: what a
+ *       key MEANS, whether the world SIMULATES, and what gets DRAWN
+ *       all branch on the state. MENU is a plain dark-purple screen
+ *       (no text system exists yet) — SPACE starts, ESC quits.
+ *       PLAYING is Steps 1-10 untouched; ESC pauses. PAUSED freezes
+ *       the scene (drawn every frame, simulated on none); ESC resumes,
+ *       SPACE returns to the menu. Starting from the menu RESETS the
+ *       world to its initial data snapshot.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -269,6 +288,18 @@ int main() {
     // so each entity's 0->1 transition is its own edge. Declared empty
     // here (entities don't exist yet); sized on first use in the loop.
     std::vector<char> wasColliding;
+
+    // --- Step 11: Game state (before the loop) ---
+    // ONE variable holds which state the engine is in. Every per-frame
+    // decision — what input means, whether the world updates, what gets
+    // drawn — dispatches on it from a single point below. The engine
+    // boots to the MENU, not straight into gameplay.
+    pe::GameState currentState = pe::GameState::MENU;
+    // ESC edge state — same pattern as SPACE. Steps 1-10 used LEVEL
+    // polling for ESC (hold = close), fine when ESC only ever quits.
+    // Now ESC also PAUSES/RESUMES, where a held key must not flip the
+    // state 60 times a second — so ESC gets edge detection too.
+    bool escWasPressedLastFrame = false;
 
     // --- Step 2: Delta Time Setup (before the loop) ---
     // glfwGetTime() returns the number of seconds (as a high-resolution double)
@@ -457,6 +488,16 @@ int main() {
     // required a single new rendering line — behavior comes from DATA.
     entities.push_back(pe::Entity(pe::Vec3(0.0f, 1.5f, 0.0f), -1.4f,
                                   pe::Vec3(0.6f, 0.6f, 1.0f)));
+    // --- Step 11: the INITIAL world, kept as DATA ---
+    // A snapshot of the fresh entity list. Starting a game from the
+    // menu restores it — reset is an ASSIGNMENT, not new code, which
+    // is exactly what 'entities as data' (Step 7) was buying.
+    const std::vector<pe::Entity> initialEntities = entities;
+    // Collision flags hoisted OUT of the loop body (they lived inside
+    // it in Steps 8-10). The PAUSED state still DRAWS the scene but
+    // stops SIMULATING, so the last PLAYING frame's flags must survive
+    // the pause (frozen tint). Rebuilt from zero every PLAYING frame.
+    std::vector<char> colliding(entities.size(), 0);
 
     // --- Step 6: Camera + Projection State (before the loop) ---
     // The camera's position IN WORLD SPACE. WASD shifts it every frame and
@@ -614,6 +655,19 @@ int main() {
     }
     glUniform1i(texLocation, 0);   // sampler reads from GL_TEXTURE0
 
+    // --- Step 11: reset the world to its initial data ---
+    // Called when a game STARTS from the menu. Every piece of play
+    // state returns to its pre-game value: the entity snapshot, the
+    // camera home, the clear-color toggle off, and BOTH collision
+    // histories empty (nothing was colliding before the game began).
+    auto resetGame = [&]() {
+        entities = initialEntities;
+        cameraPos = pe::Vec3(0.0f, 0.0f, 0.0f);
+        clearColorIsBlue = false;
+        wasColliding.clear();
+        colliding.assign(entities.size(), 0);
+    };
+
     // 6. The Main Loop
     while (!glfwWindowShouldClose(window)) {
         // --- Step 2: Delta Time Calculation (top of the frame) ---
@@ -631,143 +685,194 @@ int main() {
         // relative to this frame. If we skipped this, every frame would be
         // measured against the original start time instead of the previous frame.
         lastFrameTime = currentFrameTime;
+        // --- Step 11: one shared float conversion for every consumer ---
+        // (input rates in the state dispatch below, entity updates in
+        // the simulation branch). Declared at loop scope on purpose.
+        float dt = static_cast<float>(deltaTime);
 
         // A. Poll for events (input, window resize, etc.)
         glfwPollEvents();
 
-        // --- Step 3: Input Handling (polled every frame, after events) ---
-        // ESC: glfwGetKey() queries the current state of one key and returns
-        // GLFW_PRESS or GLFW_RELEASE. If ESC is currently pressed, we ask GLFW
-        // to flag the window for closing. glfwSetWindowShouldClose() does NOT
-        // destroy anything immediately — it just sets the flag that our while
-        // loop condition (!glfwWindowShouldClose(window)) checks, so the loop
-        // exits cleanly after this frame and the normal cleanup code runs.
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
-        }
-
-        // SPACE: read the key's state for THIS frame into a local variable.
+        // --- Step 11: Input dispatch — what a KEY MEANS depends on the STATE ---
+        // The engine's first real input FORK: the same physical key has
+        // different semantics per state. ESC quits from MENU, PAUSES in
+        // PLAYING, resumes from PAUSED. SPACE starts from MENU, toggles
+        // the clear color in PLAYING, returns to MENU from PAUSED.
+        // Both keys are read ONCE here as level + EDGE (Step 3's
+        // pattern — ESC gains an edge detector now that it toggles),
+        // then the state switch below consumes the results. Every
+        // transition is a one-line assignment: states are values, and
+        // switching is nothing more dramatic than storing a new one.
+        bool escIsPressedNow = (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS);
+        bool escEdge = escIsPressedNow && !escWasPressedLastFrame;
         bool spaceIsPressedNow = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
-        // Edge detection: toggle ONLY on the frame where the key transitions
-        // from "not pressed" (previous frame) to "pressed" (this frame).
-        // While the key is held, both values are true, so this stays false
-        // after the first frame — exactly one toggle per physical press.
-        if (spaceIsPressedNow && !spaceWasPressedLastFrame) {
-            // Flip the flag: black becomes blue, blue becomes black.
-            clearColorIsBlue = !clearColorIsBlue;
-        }
-        // Store this frame's state so the NEXT frame can compare against it.
-        spaceWasPressedLastFrame = spaceIsPressedNow;
+        bool spaceEdge = spaceIsPressedNow && !spaceWasPressedLastFrame;
 
-        // --- Step 6: Camera Movement (WASD, polled every frame) ---
-        // Movement is a RATE, not a toggle: while a key is held it must act
-        // on EVERY frame. So — unlike SPACE's edge detection in Step 3 —
-        // there is NO previous-frame comparison here. speed * deltaTime
-        // turns a per-frame key state into frame-rate-independent units
-        // per second.
-        float dt = static_cast<float>(deltaTime);
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            cameraPos.y += cameraSpeed * dt;   // camera up    -> scene slides down
-        }
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            cameraPos.y -= cameraSpeed * dt;   // camera down  -> scene slides up
-        }
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            cameraPos.x -= cameraSpeed * dt;   // camera left  -> scene slides right
-        }
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            cameraPos.x += cameraSpeed * dt;   // camera right -> scene slides left
-        }
-
-        // --- Step 8: Player entity movement (ARROW keys, polled every frame) ---
-        // WASD belongs to the CAMERA (established Step 6 behavior, kept
-        // untouched). The ARROW keys — completely free — move entities[0]
-        // through the world, so the player can drive it into the other
-        // two triangles and trigger a collision on demand. Same pattern
-        // as camera panning: a RATE, polled every frame while held,
-        // multiplied by dt for frame-rate independence. The reference
-        // below points INTO the vector — writes land in the real entity.
-        pe::Entity& player = entities[0];
-        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-            player.position.y += entityMoveSpeed * dt;
-        }
-        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-            player.position.y -= entityMoveSpeed * dt;
-        }
-        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-            player.position.x -= entityMoveSpeed * dt;
-        }
-        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-            player.position.x += entityMoveSpeed * dt;
-        }
-
-        // --- Step 7: Update every entity (per-frame simulation) ---
-        // One loop replaces the old global rotationAngle update from
-        // Steps 5/6. Each entity carries its OWN speed (and even its own
-        // direction), so each advances at its own rate — the same
-        // state += rate * deltaTime pattern, now per-entity data.
-        for (pe::Entity& entity : entities) {
-            entity.update(dt);
-        }
-
-        // --- Step 8: Collision pass (after movement, before drawing) ---
-        // One flag per entity, rebuilt from ZERO every frame: collision
-        // state is derived fresh from positions, never remembered. A
-        // 'sticky' flag would need explicit reset logic and drift out of
-        // sync; deriving it needs nothing. char over bool: zero-init is
-        // unambiguous and it reads fine as a flag.
-        std::vector<char> colliding(entities.size(), 0);
-        // Test every UNIQUE pair exactly once: i runs each entity,
-        // j only the ones AFTER it. With N entities that is N*(N-1)/2
-        // tests — 3 for N = 3. Testing i == j would self-collide
-        // (always true — useless); testing both orders doubles the work
-        // for identical results. Overlap is symmetric: set BOTH flags.
-        for (size_t i = 0; i < entities.size(); ++i) {
-            for (size_t j = i + 1; j < entities.size(); ++j) {
-                if (pe::aabbOverlap(entities[i], entities[j])) {
-                    colliding[i] = 1;
-                    colliding[j] = 1;
+        switch (currentState) {
+        case pe::GameState::MENU:
+            // ESC quits. LEVEL polling is fine here: the only effect is
+            // setting the close flag — idempotent even while held, and
+            // glfwSetWindowShouldClose destroys nothing immediately (the
+            // loop condition checks it, cleanup runs as usual).
+            if (escIsPressedNow) {
+                glfwSetWindowShouldClose(window, GLFW_TRUE);
+            // SPACE starts a game: reset the world to its initial data,
+            // then enter PLAYING. EDGE — one start per press.
+            } else if (spaceEdge) {
+                resetGame();
+                currentState = pe::GameState::PLAYING;
+            }
+            break;
+        case pe::GameState::PLAYING:
+            // ESC pauses. EDGE — a held key must not flip pause on and
+            // off 60 times a second.
+            if (escEdge) {
+                currentState = pe::GameState::PAUSED;
+            } else {
+                // --- Step 3: SPACE clear-color toggle (EDGE, exactly one
+                // toggle per physical press; held key stays false after
+                // the first frame). Scope of PLAYING only now.
+                if (spaceEdge) {
+                    // Flip the flag: black becomes blue, blue becomes black.
+                    clearColorIsBlue = !clearColorIsBlue;
+                }
+                // --- Step 6: Camera Movement (WASD, polled every frame) ---
+                // Movement is a RATE, not a toggle: while a key is held it
+                // must act on EVERY frame. No previous-frame comparison —
+                // speed * deltaTime turns a per-frame key state into
+                // frame-rate-independent units per second.
+                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+                    cameraPos.y += cameraSpeed * dt;   // camera up    -> scene slides down
+                }
+                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+                    cameraPos.y -= cameraSpeed * dt;   // camera down  -> scene slides up
+                }
+                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+                    cameraPos.x -= cameraSpeed * dt;   // camera left  -> scene slides right
+                }
+                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+                    cameraPos.x += cameraSpeed * dt;   // camera right -> scene slides left
+                }
+                // --- Step 8: Player entity movement (ARROW keys) ---
+                // WASD belongs to the CAMERA (established Step 6 behavior,
+                // kept untouched). The ARROW keys move entities[0] through
+                // the world, so the player can drive it into the other two
+                // triangles and trigger a collision on demand. Same RATE
+                // pattern as camera panning. The reference below points
+                // INTO the vector — writes land in the real entity.
+                pe::Entity& player = entities[0];
+                if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+                    player.position.y += entityMoveSpeed * dt;
+                }
+                if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+                    player.position.y -= entityMoveSpeed * dt;
+                }
+                if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+                    player.position.x -= entityMoveSpeed * dt;
+                }
+                if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+                    player.position.x += entityMoveSpeed * dt;
                 }
             }
+            break;
+        case pe::GameState::PAUSED:
+            // ESC resumes; SPACE gives up the run and returns to the
+            // menu. The abandoned world stays in memory as-is; the NEXT
+            // start resets it via resetGame().
+            if (escEdge) {
+                currentState = pe::GameState::PLAYING;
+            } else if (spaceEdge) {
+                currentState = pe::GameState::MENU;
+            }
+            break;
         }
+        // Store this frame's key states so the NEXT frame can detect edges.
+        escWasPressedLastFrame = escIsPressedNow;
+        spaceWasPressedLastFrame = spaceIsPressedNow;
 
-        // --- Step 10: per-entity collision EDGE detection + sound pool ---
-        // Step 9's scalar OR-flag is gone. Now the previous frame's full
-        // collision VECTOR is compared entry by entry: an entity whose
-        // flag goes 0 -> 1 is a fresh edge EVEN IF other entities were
-        // already colliding. (First frame: the vector is sized here with
-        // all-zero entries — before the program starts, nothing collides.)
-        if (wasColliding.size() != colliding.size()) {
-            wasColliding.assign(colliding.size(), 0);
-        }
-        bool anyNewCollision = false;
-        for (size_t i = 0; i < colliding.size(); ++i) {
-            if (colliding[i] && !wasColliding[i]) {
-                anyNewCollision = true;
-                break;
+        // --- Step 11: Simulation runs ONLY in PLAYING ---
+        // PAUSED holds the world still — drawn every frame (below),
+        // simulated on none of them. MENU has no world to simulate.
+        // Everything Steps 7-10 do per frame is unchanged INSIDE this
+        // branch: the state machine WRAPS the simulation, it never
+        // touches it. That is why all Step 1-10 behavior survives.
+        if (currentState == pe::GameState::PLAYING) {
+            // --- Step 7: Update every entity (per-frame simulation) ---
+            // One loop replaces the old global rotationAngle update from
+            // Steps 5/6. Each entity carries its OWN speed (and even its own
+            // direction), so each advances at its own rate — the same
+            // state += rate * deltaTime pattern, now per-entity data.
+            for (pe::Entity& entity : entities) {
+                entity.update(dt);
             }
-        }
-        if (anyNewCollision) {
-            // Take the NEXT pool slot (round-robin) so a beep still
-            // ringing from the previous trigger keeps playing untouched.
-            ma_sound& sound = collisionSounds[nextCollisionSound];
-            nextCollisionSound = (nextCollisionSound + 1) % collisionSounds.size();
-            // A slot recycled while still audible gets rewound first.
-            if (ma_sound_is_playing(&sound)) {
-                ma_sound_seek_to_pcm_frame(&sound, 0);
+
+            // --- Step 8: Collision pass (after movement, before drawing) ---
+            // One flag per entity, rebuilt from ZERO every frame: collision
+            // state is derived fresh from positions, never remembered. A
+            // 'sticky' flag would need explicit reset logic and drift out of
+            // sync; deriving it needs nothing. char over bool: zero-init is
+            // unambiguous and it reads fine as a flag. (Step 11: the
+            // vector itself is hoisted to loop scope so PAUSED can keep
+            // drawing the last frame's tint; contents rebuilt here.)
+            colliding.assign(entities.size(), 0);
+            // Test every UNIQUE pair exactly once: i runs each entity,
+            // j only the ones AFTER it. With N entities that is N*(N-1)/2
+            // tests — 3 for N = 3. Testing i == j would self-collide
+            // (always true — useless); testing both orders doubles the work
+            // for identical results. Overlap is symmetric: set BOTH flags.
+            for (size_t i = 0; i < entities.size(); ++i) {
+                for (size_t j = i + 1; j < entities.size(); ++j) {
+                    if (pe::aabbOverlap(entities[i], entities[j])) {
+                        colliding[i] = 1;
+                        colliding[j] = 1;
+                    }
+                }
             }
-            // ma_sound_start hands the sound to the engine's mixer; the
-            // mixing THREAD plays it from here — this call returns
-            // immediately and never blocks the render loop.
-            ma_sound_start(&sound);
+
+            // --- Step 10: per-entity collision EDGE detection + sound pool ---
+            // Step 9's scalar OR-flag is gone. Now the previous frame's full
+            // collision VECTOR is compared entry by entry: an entity whose
+            // flag goes 0 -> 1 is a fresh edge EVEN IF other entities were
+            // already colliding. (First frame: the vector is sized here with
+            // all-zero entries — before the program starts, nothing collides.)
+            if (wasColliding.size() != colliding.size()) {
+                wasColliding.assign(colliding.size(), 0);
+            }
+            bool anyNewCollision = false;
+            for (size_t i = 0; i < colliding.size(); ++i) {
+                if (colliding[i] && !wasColliding[i]) {
+                    anyNewCollision = true;
+                    break;
+                }
+            }
+            if (anyNewCollision) {
+                // Take the NEXT pool slot (round-robin) so a beep still
+                // ringing from the previous trigger keeps playing untouched.
+                ma_sound& sound = collisionSounds[nextCollisionSound];
+                nextCollisionSound = (nextCollisionSound + 1) % collisionSounds.size();
+                // A slot recycled while still audible gets rewound first.
+                if (ma_sound_is_playing(&sound)) {
+                    ma_sound_seek_to_pcm_frame(&sound, 0);
+                }
+                // ma_sound_start hands the sound to the engine's mixer; the
+                // mixing THREAD plays it from here — this call returns
+                // immediately and never blocks the render loop.
+                ma_sound_start(&sound);
+            }
+            // Store THIS frame's vector for the next frame's edge test.
+            wasColliding = colliding;
         }
-        // Store THIS frame's vector for the next frame's edge test.
-        wasColliding = colliding;
 
         // B. Clear the screen
-        // glClearColor sets the color to clear to (R, G, B, A).
-        // The values used depend on the toggle flag flipped by SPACE above.
-        if (clearColorIsBlue) {
+        // --- Step 11: clear color is per-state ---
+        if (currentState == pe::GameState::MENU) {
+            // MENU: a fixed dark PURPLE — deliberately a color outside
+            // gameplay's black/dark-blue palette, so the menu can never
+            // be mistaken for a paused or toggled game screen. With no
+            // text system yet, the color IS the menu; the paint job is
+            // Step 12 territory.
+            glClearColor(0.16f, 0.0f, 0.24f, 1.0f);
+        } else if (clearColorIsBlue) {
             // Dark blue (Step 3 toggle target)
             glClearColor(0.0f, 0.0f, 0.25f, 1.0f);
         } else {
@@ -777,66 +882,73 @@ int main() {
         // glClear actually performs the clear operation on the color buffer
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // --- Step 4: Draw the Triangle (after clear, before swap) ---
-        // Activate our shader program: all following draw calls use it.
-        glUseProgram(shaderProgram);
+        // --- Step 11: gameplay rendering happens OUTSIDE the MENU ---
+        // MENU draws nothing but the clear color. PLAYING and PAUSED
+        // share this EXACT draw path — the only pause difference is
+        // that the simulation branch above stopped advancing the data
+        // being drawn here (frozen spin, frozen camera, frozen tint).
+        if (currentState != pe::GameState::MENU) {
+            // --- Step 4: Draw the Triangle (after clear, before swap) ---
+            // Activate our shader program: all following draw calls use it.
+            glUseProgram(shaderProgram);
 
-        // --- Step 6: Build the VIEW matrix from the camera position ---
-        // lookAt constructs the camera's INVERSE transform directly: the
-        // camera sits at cameraPos, aims straight down -Z (orientation is
-        // fixed for now), with world +Y as up. Because the view matrix is
-        // the inverse of the camera transform, shifting cameraPos moves
-        // every rendered vertex by the OPPOSITE amount — the camera pans
-        // across the world, the geometry stays put.
-        const pe::Mat4 view = pe::Mat4::lookAt(cameraPos,
-                                               cameraPos + pe::Vec3(0.0f, 0.0f, -1.0f),
-                                               pe::Vec3(0.0f, 1.0f, 0.0f));
+            // --- Step 6: Build the VIEW matrix from the camera position ---
+            // lookAt constructs the camera's INVERSE transform directly: the
+            // camera sits at cameraPos, aims straight down -Z (orientation is
+            // fixed for now), with world +Y as up. Because the view matrix is
+            // the inverse of the camera transform, shifting cameraPos moves
+            // every rendered vertex by the OPPOSITE amount — the camera pans
+            // across the world, the geometry stays put.
+            const pe::Mat4 view = pe::Mat4::lookAt(cameraPos,
+                                                   cameraPos + pe::Vec3(0.0f, 0.0f, -1.0f),
+                                                   pe::Vec3(0.0f, 1.0f, 0.0f));
 
-        // Bind the VAO ONCE: every entity shares this exact vertex data —
-        // only the transform differs per instance.
-        glBindVertexArray(VAO);
+            // Bind the VAO ONCE: every entity shares this exact vertex data —
+            // only the transform differs per instance.
+            glBindVertexArray(VAO);
 
-        // --- Step 10: bind the texture to unit 0 for this frame ---
-        // glActiveTexture SELECTS the unit; glBindTexture attaches our
-        // texture object to it. The sampler uniform was told once at
-        // startup to read unit 0 — so every draw below samples the
-        // checkerboard. (One shared texture for all entities today;
-        // per-entity textures later are exactly the same one-line move
-        // the color uniform already does.)
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
+            // --- Step 10: bind the texture to unit 0 for this frame ---
+            // glActiveTexture SELECTS the unit; glBindTexture attaches our
+            // texture object to it. The sampler uniform was told once at
+            // startup to read unit 0 — so every draw below samples the
+            // checkerboard. (Step 11: the bind moved INSIDE the gameplay
+            // draw path — the menu never touches a texture. Per-entity
+            // textures remain Step 12's seam, deliberately deferred.)
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texture);
 
-        // --- Step 7: ONE draw loop for ALL entities ---
-        // This replaces Step 6's copy-pasted model1/mvp1/draw,
-        // model2/mvp2/draw blocks. The pipeline math is unchanged —
-        // projection * view * model, acting RIGHT-TO-LEFT on the vertex:
-        //   model      : local coords  -> WORLD coords  (from entity DATA)
-        //   view       : world coords  -> CAMERA coords
-        //   projection : camera coords -> clip coords (-1..1 cube)
-        // The loop neither knows nor cares how many entities exist:
-        // three, thirty, or three hundred — same code, same three GL
-        // calls per entity. THAT is what "entities as data" buys you.
-        // (Step 8: the same index also selects the draw color, so a
-        // colliding entity turns red — the visible proof of detection.)
-        for (size_t i = 0; i < entities.size(); ++i) {
-            const pe::Entity& entity = entities[i];
-            // Build this entity's MVP from its own data.
-            pe::Mat4 mvp = projection * view * entity.modelMatrix();
-            // Upload to the same 'transform' uniform (GL_FALSE: our Mat4
-            // is already column-major, the layout OpenGL expects).
-            glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
-            // Step 10: per-draw TINT — white (1,1,1) leaves the texture
-            // color untouched; red (1,0,0) zeroes its green and blue
-            // channels, so a colliding entity renders as a red-tinted
-            // checkerboard. The Step 8 collision feedback survives the
-            // switch from flat color to textured rendering.
-            if (colliding[i]) {
-                glUniform3f(colorLocation, 1.0f, 0.0f, 0.0f);
-            } else {
-                glUniform3f(colorLocation, 1.0f, 1.0f, 1.0f);
+            // --- Step 7: ONE draw loop for ALL entities ---
+            // This replaces Step 6's copy-pasted model1/mvp1/draw,
+            // model2/mvp2/draw blocks. The pipeline math is unchanged —
+            // projection * view * model, acting RIGHT-TO-LEFT on the vertex:
+            //   model      : local coords  -> WORLD coords  (from entity DATA)
+            //   view       : world coords  -> CAMERA coords
+            //   projection : camera coords -> clip coords (-1..1 cube)
+            // The loop neither knows nor cares how many entities exist:
+            // three, thirty, or three hundred — same code, same three GL
+            // calls per entity. THAT is what "entities as data" buys you.
+            // (Step 8: the same index also selects the draw color, so a
+            // colliding entity turns red — the visible proof of detection.)
+            for (size_t i = 0; i < entities.size(); ++i) {
+                const pe::Entity& entity = entities[i];
+                // Build this entity's MVP from its own data.
+                pe::Mat4 mvp = projection * view * entity.modelMatrix();
+                // Upload to the same 'transform' uniform (GL_FALSE: our Mat4
+                // is already column-major, the layout OpenGL expects).
+                glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
+                // Step 10: per-draw TINT — white (1,1,1) leaves the texture
+                // color untouched; red (1,0,0) zeroes its green and blue
+                // channels, so a colliding entity renders as a red-tinted
+                // checkerboard. The Step 8 collision feedback survives the
+                // switch from flat color to textured rendering.
+                if (colliding[i]) {
+                    glUniform3f(colorLocation, 1.0f, 0.0f, 0.0f);
+                } else {
+                    glUniform3f(colorLocation, 1.0f, 1.0f, 1.0f);
+                }
+                // One draw call for this entity.
+                glDrawArrays(GL_TRIANGLES, 0, 3);
             }
-            // One draw call for this entity.
-            glDrawArrays(GL_TRIANGLES, 0, 3);
         }
 
         // C. Swap buffers
