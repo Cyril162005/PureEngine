@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <vector>   // Step 7: entities live in a std::vector
+#include <algorithm> // Phase 2: std::min clamps the difficulty scale
 
 // --- Step 5: The Math Layer ---
 // Our OWN math code (src/math/), not an external library. Header-only:
@@ -136,6 +137,28 @@
  *       to v1. The 3-entity scenery loop and resetGame() are untouched
  *       — the snapshot/restore pattern absorbs the new entities for
  *       free. Reuse before you build new.
+ *
+ * Balance tuning (post-Phase 1, not a phase): feel fixes.
+ * Goal: (1) WIDER ARENA — the ortho box widens from (-4..4, -3..3) to
+ *       (-6..6, -4.5..4.5). Still 4:3 (12:9 = 800:600), so nothing
+ *       stretches; a world unit simply covers fewer pixels. (2)
+ *       TIGHTER HOSTILE HITBOXES — the three hostiles pass explicit
+ *       halfExtents (0.5, 0.5) instead of the default 0.7071
+ *       rotation-safe bound: Step 8's bound exists so spinning SCENERY
+ *       has no blind spot at any angle, a guarantee a chasing hostile
+ *       does not need; a kill box matched to the triangle's base
+ *       half-width makes visible contact and actual death agree.
+ *       Player and scenery hitboxes stay untouched at 0.7071.
+ *
+ * Game Build Phase 2: Difficulty Scaling
+ * Goal: Existing hostiles get FASTER the longer you survive — no new
+ *       entities, no vector growth. The chase loop multiplies each
+ *       hostile's base speed by a difficulty scale derived from Step
+ *       12's survivalTime (1 + t*0.01, capped at 1.33, so the fastest
+ *       hostile tops out at 2.394 < the player's 2.5 — 'avoidable by
+ *       construction' holds at any run length). hostileSpeeds[] stays
+ *       a const BASE array; the scale is recomputed every frame and
+ *       resetGame() needs zero changes.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -513,16 +536,27 @@ int main() {
     // Instance 4 — Step 12: the HOSTILE. Same pe::Entity type, same
     // vector, added purely as DATA (Step 7's ruling): the existing
     // update loop spins it (1.8 rad/s CCW), the existing draw loop
-    // renders it, its halfExtents come from the same Step 8 bounds.
+    // renders it. Balance tuning: its hitbox is NO LONGER the Step 8
+    // default — see the explicit halfExtents argument below.
     // Starts at (0, -2) — bottom-center, away from the player's start
-    // at (-1.5, 0) — unit scale like entities 1 & 2, so its collider
-    // matches its rendered size exactly. It ignores the spinning
-    // triangles (scenery is not solid in v1) and hunts only the
-    // player — that chase and its catch test live in the simulation
-    // section below, deliberately OUTSIDE the pair loop so the Step 8
-    // scenery-collision system stays byte-identical in behavior.
+    // at (-1.5, 0) — unit scale like entities 1 & 2. It ignores the
+    // spinning triangles (scenery is not solid in v1) and hunts only
+    // the player — that chase and its catch test live in the
+    // simulation section below, deliberately OUTSIDE the pair loop so
+    // the Step 8 scenery-collision system stays byte-identical in
+    // behavior.
     entities.push_back(pe::Entity(pe::Vec3(0.0f, -2.0f, 0.0f), 1.8f,
-                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
+                                  pe::Vec3(1.0f, 1.0f, 1.0f),
+                                  // BALANCE TUNING (disclosed deviation from Step 8):
+                                  // 0.5 is the triangle's base half-width — the kill box
+                                  // matches the hostile's dominant footprint instead of the
+                                  // 0.7071 rotation-safe bound. Step 8's bound exists for
+                                  // FAIRNESS on rotating scenery (no blind spot at any spin
+                                  // angle); a chasing hostile does not need that guarantee,
+                                  // and its overreach reads as an invisible fat collider.
+                                  // The tighter box makes visual contact and actual death
+                                  // agree. Player and scenery keep 0.7071.
+                                  pe::Vec3(0.5f, 0.5f, 0.0f)));
     // Instances 5 & 6 — Game Build Phase 1: TWO MORE hostiles, added
     // the only way this project adds behavior — as DATA (two push_backs,
     // Step 7's ruling). Each carries its OWN personality through the
@@ -537,9 +571,11 @@ int main() {
     // entire reason resetGame() needs NO changes: the snapshot simply
     // contains all six entities at their start positions.
     entities.push_back(pe::Entity(pe::Vec3(3.0f, 2.0f, 0.0f), -1.2f,
-                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
+                                  pe::Vec3(1.0f, 1.0f, 1.0f),
+                                  pe::Vec3(0.5f, 0.5f, 0.0f)));   // tuning: tighter hitbox — see instance 4
     entities.push_back(pe::Entity(pe::Vec3(-3.0f, 2.0f, 0.0f), 2.2f,
-                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
+                                  pe::Vec3(1.0f, 1.0f, 1.0f),
+                                  pe::Vec3(0.5f, 0.5f, 0.0f)));   // tuning: tighter hitbox — see instance 4
     // --- Step 11: the INITIAL world, kept as DATA ---
     // A snapshot of the fresh entity list. Starting a game from the
     // menu restores it — reset is an ASSIGNMENT, not new code, which
@@ -561,11 +597,14 @@ int main() {
     // Step 5's rotation.
     const float cameraSpeed = 3.0f;
     // The PROJECTION matrix: maps the visible slice of world space onto the
-    // clip cube. An 8 x 6 world-unit box matches the 800x600 window's 4:3
-    // aspect ratio, so shapes keep their proportions (no stretching).
+    // clip cube. BALANCE TUNING: widened from Step 6's 8 x 6 box to a
+    // 12 x 9 box — more arena, more reaction time. The 4:3 aspect ratio
+    // is preserved (12:9 = 800:600), so shapes keep their proportions (no
+    // stretching); a world unit simply covers fewer pixels (66.7 instead
+    // of 100), which is why everything renders visually smaller.
     // Orthographic: apparent size never changes with depth — right for this
     // flat scene. Built ONCE: nothing about it changes per frame (yet).
-    const pe::Mat4 projection = pe::Mat4::orthographic(-4.0f, 4.0f, -3.0f, 3.0f, -1.0f, 1.0f);
+    const pe::Mat4 projection = pe::Mat4::orthographic(-6.0f, 6.0f, -4.5f, 4.5f, -1.0f, 1.0f);
 
     // --- Step 8: Player movement speed (before the loop) ---
     // World units per second for the ARROW-key-driven entity
@@ -573,19 +612,41 @@ int main() {
     // so driving into another triangle feels controlled, not twitchy.
     const float entityMoveSpeed = 2.5f;
 
-    // --- Step 12 / Phase 1: hostile chase speeds (before the loop) ---
+    // --- Step 12 / Phase 1 / Phase 2: hostile BASE speeds ---
     // World units per second, ONE PER HOSTILE, parallel to the hostile
     // range of the entity vector: index 0 -> entities[3], index 1 ->
     // entities[4], index 2 -> entities[5]. Data in a container — the
     // same pattern as soundPathCandidates and the collision vectors,
     // and the same per-entity-variance idea Step 7 gave the triangles'
-    // rotation speeds. Every value stays SLOWER than the player's 2.5:
-    // against pure pursuers a straight-line escape always wins, so
-    // being caught remains a positioning mistake, not a script — the
+    // rotation speeds. Every BASE value stays SLOWER than the player's
+    // 2.5, and Phase 2's cap keeps the scaled speeds below it too (see
+    // below): against pure pursuers a straight-line escape always wins,
+    // so being caught remains a positioning mistake, not a script — the
     // Step 12 'avoidable by construction' principle, now for three
-    // threats. The spread (1.8 / 1.6 / 1.5) means they straggle rather
-    // than arrive as a wall — the player faces a pincer, not a fence.
+    // threats at any run length. The spread (1.8 / 1.6 / 1.5) means
+    // they straggle rather than arrive as a wall — the player faces a
+    // pincer, not a fence. Phase 2: this array is const and NEVER
+    // mutated — it is the base the difficulty scale multiplies at
+    // usage time in the chase loop.
     const float hostileSpeeds[] = { 1.8f, 1.6f, 1.5f };
+
+    // --- Game Build Phase 2: difficulty scaling knobs ---
+    // Every PLAYING frame the chase loop multiplies each hostile's base
+    // speed by a difficulty scale derived from Step 12's survivalTime:
+    //     scale = min(1 + survivalTime * difficultyRate, maxDifficultyScale)
+    // The numbers: difficultyRate 0.01 = +1% per second of played time —
+    // at 10 s the hostiles are 10% faster (felt, survivable), and the
+    // cap binds at 33 s. maxDifficultyScale 1.33 is the Step 12
+    // principle in arithmetic: the fastest base (1.8) tops out at
+    // 1.8 * 1.33 = 2.394 u/s, STILL below the player's 2.5, so a
+    // straight-line escape wins at ANY run length — the endgame tests
+    // routing skill against a constant ceiling, not an impossible
+    // speed spiral. Because the scale is computed FROM survivalTime
+    // (already reset by resetGame(), accumulated only while PLAYING, so
+    // pausing freezes difficulty exactly like the clock), neither this
+    // phase nor its reset needs any new state.
+    const float difficultyRate = 0.01f;
+    const float maxDifficultyScale = 1.33f;
 
     // --- Step 4: Vertex Data + VAO/VBO (before the loop) ---
     // Three vertices forming a triangle centered on screen.
@@ -900,17 +961,28 @@ int main() {
                 entity.update(dt);
             }
 
+            // --- Phase 2: this frame's difficulty scale ---
+            // Computed ONCE per frame (all hostiles share the same clock):
+            // linear ramp from 1.0 at t = 0, clamped by std::min at the cap
+            // so long runs hold a constant ceiling instead of diverging.
+            // Pure function of survivalTime — no stored state, nothing to
+            // reset.
+            const float difficultyScale =
+                std::min(1.0f + survivalTime * difficultyRate, maxDifficultyScale);
+
             // --- Step 12 / Phase 1: EVERY hostile chases the player ---
             // The v1 chase, unchanged per hostile, wrapped in the only
             // thing Phase 1 adds: a loop over the hostile range
             // (index 3 to the end of the vector). direction = player -
             // hostile (Vec3 operator-, Step 5), normalized() to a unit
-            // vector, scaled by THIS hostile's speed from the parallel
-            // hostileSpeeds array and deltaTime, assigned back. ZERO
+            // vector, scaled by THIS hostile's BASE speed from the
+            // parallel hostileSpeeds array TIMES Phase 2's
+            // difficultyScale, and by deltaTime, assigned back. ZERO
             // new math — the same four Step 5 Vec3 operations as v1,
             // executed per hostile. Each hostile picks its own pursuit
             // vector every frame (pure pursuers — no prediction, no
-            // flanking; the difficulty comes from NUMBERS, not AI).
+            // flanking; the difficulty comes from NUMBERS and, since
+            // Phase 2, from the shared speed ramp).
             // The zero-length guard keeps intent honest per hostile:
             // a hostile sitting exactly ON the player has no direction
             // to move in — the catch test ends the run this frame.
@@ -918,7 +990,7 @@ int main() {
                 pe::Entity& hostile = entities[h];
                 const pe::Vec3 toPlayer = entities[0].position - hostile.position;
                 if (toPlayer.length() > 0.0f) {
-                    hostile.position = hostile.position + toPlayer.normalized() * hostileSpeeds[h - 3] * dt;
+                    hostile.position = hostile.position + toPlayer.normalized() * (hostileSpeeds[h - 3] * difficultyScale) * dt;
                 }
             }
 
