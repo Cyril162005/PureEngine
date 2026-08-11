@@ -19,8 +19,9 @@
     {
       "id": 2,
       "name": "Difficulty Scaling",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Hostile speed and/or spawn rate increases with survivalTime, using deltaTime-driven state rather than fixed constants",
+      "notes": "Low-risk flavor: existing hostiles speed up, no new entities. effectiveSpeed = baseSpeed * min(1 + survivalTime * 0.01, 1.33) applied at usage time in the chase loop; hostileSpeeds[] stays a const base array (never mutated), cap binds at 33 s with fastest hostile topping out at 2.394 < player 2.5 (Step 12 avoidable-by-construction holds at any run length). Driver is Step 12's survivalTime reused — PLAYING-gated so pausing freezes difficulty (no wall-clock leak); resetGame() needed ZERO changes. Same commit also shipped balance tuning (not a separate phase): arena widened to ortho (-6..6, -4.5..4.5) keeping exact 4:3 (no stretching, 66.7 px per world unit), and the three hostiles pass explicit halfExtents (0.5, 0.5) — disclosed deviation from Step 8's 0.7071 rotation-safe bound (that guarantee serves spinning scenery, not chasing hostiles); player and scenery hitboxes untouched at 0.7071. Only new include <algorithm>; CMakeLists.txt/gamestate.h/entity.h/collision.h unchanged. Fresh clean rebuild, zero engine warnings. Verified by user: correct 4:3 arena, near-misses survive while scenery tint/beep unchanged, ramp correct over ~30 s and capped, pause leak-free, reset restores base speed.",
       "depends_on_engine_steps": [2, 12],
       "depends_on_phase": [1]
     },

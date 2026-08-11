@@ -32,11 +32,17 @@ and pushed. No feature added without checking whether it reuses an existing engi
 - VERIFIED by the user directly: three hostiles spawn at distinct points, track independently at different speeds, pass through scenery and each other without interaction, losing to any hostile works identically to v1 (console print, beep, dark red freeze), all Step 1-12 behavior intact including all six entities freezing correctly during PAUSED and full reset restoring all three hostiles to spawn points.
 
 ### Phase 2 — Difficulty Scaling
-**Status:** Not started
+**Status:** Completed
 **Goal:** The game gets harder the longer you survive — hostile speed increases over time, and/or new hostiles spawn periodically.
 **Definition of done:** A run that lasts 30+ seconds is measurably harder than the first 5 seconds, driven by deltaTime-based state, not fixed per-frame constants.
 **Notes:**
--
+- Flavor ruling: the LOW-RISK variant — existing hostiles speed up; no new entities, no vector growth mid-run, no stress on the snapshot pattern. hostileSpeeds[] became a const BASE array; scaling is applied at usage time in the chase loop, never written back.
+- Formula: effectiveSpeed = baseSpeed * min(1 + survivalTime * difficultyRate, maxDifficultyScale) with difficultyRate = 0.01 (+1%/s of PLAYED time) and maxDifficultyScale = 1.33. Ramp: 10 s -> +10%, cap binds at 33 s; fastest hostile tops out at 1.8 * 1.33 = 2.394 < the player's 2.5 — the Step 12 'avoidable by construction' guarantee holds at ANY run length (endgame = routing skill vs a constant ceiling, not a death spiral).
+- Driver: Step 12's survivalTime reused — no new timer. Accumulated only inside the PLAYING gate, so pausing freezes difficulty exactly like the clock (no wall-clock leak); resetGame() needed ZERO changes (its existing survivalTime = 0 reset is the complete fix — the scale is a pure function recomputed each frame, no stored state).
+- Only new include: <algorithm> for std::min. CMakeLists.txt, gamestate.h, entity.h, collision.h all unchanged (empty git diff proved it) — pure logic.
+- BALANCE TUNING shipped in the same commit (not a separate phase — feel fixes to Phase 1, bundled into one build/verify cycle): (1) arena widened — ortho box (-4..4, -3..3) -> (-6..6, -4.5..4.5); still exactly 4:3 (12:9 = 800:600), no stretching, world unit drops 100 -> 66.7 px so everything renders at 2/3 pixel size. (2) hostile hitboxes tightened — the three hostiles pass explicit halfExtents (0.5, 0.5) (the triangle's base half-width) instead of the Step 8 default 0.7071: DISCLOSED DEVIATION — 0.7071 exists for fairness on rotating scenery (no blind spot at any spin angle), a guarantee chasing hostiles don't need; the tighter box makes visual contact and actual death agree (kill distance 1.4142 -> 1.2071, ~15% grace). Player and the 3 scenery hitboxes stay untouched at 0.7071 — scenery tint/beep confirmed unchanged. No hostile speed change, no proximity warning — deliberately deferred pending this test.
+- Build note: full build-folder delete + fresh configure (495.1 s, all deps re-cloned) + Release build clean; zero warnings in engine code (single C4244 inside third-party miniaudio, known since Step 9).
+- VERIFIED by the user directly: wider arena with correct 4:3 proportions and no stretching; tighter hostile hitboxes correlate visual near-misses with survival while the original 3 scenery hitboxes remain untouched (still tint/beep correctly); difficulty ramps hostile speed correctly over the first ~30 seconds and caps as designed; pausing does not leak extra difficulty from wall-clock time; a new game resets hostiles to base speed.
 
 ### Phase 3 — On-Screen Text (Score/Timer Display)
 **Status:** Not started
