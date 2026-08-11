@@ -3,6 +3,8 @@
 #include <iostream>
 #include <vector>   // Step 7: entities live in a std::vector
 #include <algorithm> // Phase 2: std::min clamps the difficulty scale
+#include <sstream>   // Phase 3: survival timer -> decimal string
+#include <iomanip>   // Phase 3: fixed one-decimal-place formatting
 
 // --- Step 5: The Math Layer ---
 // Our OWN math code (src/math/), not an external library. Header-only:
@@ -159,6 +161,22 @@
  *       construction' holds at any run length). hostileSpeeds[] stays
  *       a const BASE array; the scale is recomputed every frame and
  *       resetGame() needs zero changes.
+ *
+ * Game Build Phase 3: On-Screen Text (Score/Timer Display)
+ * Goal: The engine's FIRST new capability since Step 12 — digit-only
+ *       bitmap text, the smallest real slice of text rendering. An
+ *       in-tree script (make_font.ps1, same discipline as the checker
+ *       and beep generators) rasters 5x7 dot-matrix patterns for
+ *       0-9 and '.' into a transparent 176x16 RGBA atlas (eleven
+ *       16x16 cells). Every frame the survival timer formats to one
+ *       decimal place; each character draws as a textured QUAD whose
+ *       UVs select its atlas cell — SAME shader program, SAME vertex
+ *       layout, SAME texture-sampling path as the world (Step 4's
+ *       pipeline, Step 10's sampling), no second render system. The
+ *       one architectural first: UI quads skip the CAMERA matrix —
+ *       projection * model with no view — so the number stays fixed
+ *       to the window while the world pans. Blending turns ON for
+ *       text only; every world pixel renders exactly as before.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -413,6 +431,14 @@ int main() {
     // (1,1,1) leaves the texture untouched, red (1,0,0) multiplies the
     // green and blue channels to zero — the collision feedback is now a
     // red-tinted texture instead of flat red. Same uniform, evolved role.
+    //
+    // PHASE 3 ADDITION — the output ALPHA now comes from the texture:
+    // text needs transparent glyph quads blended over the scene. The
+    // checker texture is uploaded as RGB, whose samples always carry
+    // alpha 1.0, and blending is DISABLED while the world draws — so
+    // every world pixel computes exactly as it did before this line
+    // changed. Only the font atlas (RGBA, transparent background)
+    // makes the new channel do anything.
     const char* fragmentShaderSource =
         "#version 330 core\n"
         "uniform sampler2D tex;\n"
@@ -420,7 +446,8 @@ int main() {
         "in vec2 TexCoord;\n"
         "out vec4 FragColor;\n"
         "void main() {\n"
-        "    FragColor = vec4(texture(tex, TexCoord).rgb * color, 1.0f);\n"
+        "    vec4 texel = texture(tex, TexCoord);\n"
+        "    FragColor = vec4(texel.rgb * color, texel.a);\n"
         "}\n";
 
     // Compile the vertex shader. glCreateShader creates an empty shader object
@@ -757,6 +784,87 @@ int main() {
     // The CPU copy has served its purpose — the GPU owns the data now.
     stbi_image_free(pixels);
 
+    // --- Phase 3: FONT ATLAS loading (bitmap digit font) ---
+    // assets/font_digits.png, generated IN-TREE by make_font.ps1: ONE
+    // ROW of eleven 16x16 cells — cells 0..9 hold digits '0'..'9',
+    // cell 10 holds '.' — white 5x7 dot-matrix glyphs scaled 2x on a
+    // TRANSPARENT background (RGBA). Because the exact pixels are data
+    // in the generator script, the atlas is reproducible byte-for-byte
+    // and needs no font-rendering library — glyph RASTERIZATION was
+    // the hardware/OS boundary we avoided by pre-baking, and glyph
+    // LAYOUT stays our own logic (same build-it-ourselves category as
+    // math, entities, and collision). The load mirrors the checker's:
+    // same 3-candidate CWD probe — but 4 FORCED CHANNELS, because the
+    // transparency is what lets glyphs blend over the scene instead of
+    // painting solid backing rectangles.
+    const char* fontPathCandidates[] = {
+        "assets/font_digits.png",       // run from the repo root
+        "../assets/font_digits.png",    // run from build/
+        "../../assets/font_digits.png"  // run from build/Release/
+    };
+    int fontWidth = 0, fontHeight = 0, fontChannels = 0;
+    unsigned char* fontPixels = NULL;
+    for (const char* candidate : fontPathCandidates) {
+        fontPixels = stbi_load(candidate, &fontWidth, &fontHeight, &fontChannels, 4);
+        if (fontPixels) {
+            break;
+        }
+    }
+    if (!fontPixels) {
+        std::cerr << "Failed to load assets/font_digits.png (tried: assets/, ../assets/, ../../assets/)" << std::endl;
+        // The checker texture already exists at this point — it joins
+        // the reverse-creation cleanup chain.
+        glDeleteTextures(1, &texture);
+        for (ma_sound& sound : collisionSounds) {
+            ma_sound_uninit(&sound);
+        }
+        ma_engine_uninit(&audioEngine);
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+        glDeleteProgram(shaderProgram);
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+    // Upload exactly like the checker, two deliberate differences:
+    // internal/source format RGBA (the alpha channel is the point),
+    // and the same CLAMP/LINEAR sampling parameters.
+    GLuint fontTexture;
+    glGenTextures(1, &fontTexture);
+    glBindTexture(GL_TEXTURE_2D, fontTexture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fontWidth, fontHeight, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, fontPixels);
+    stbi_image_free(fontPixels);
+    // The atlas's geometry, known FROM THE GENERATOR (not queried):
+    // eleven equal cells across fontWidth pixels.
+    const int FONT_CELL_COUNT = 11;
+
+    // --- Phase 3: quad geometry for text glyphs ---
+    // Step 4's triangle VAO/VBO pattern repeated for a unit QUAD — two
+    // triangles covering a centered square, SAME interleaved layout
+    // (position xyz + UV st, attributes 0 and 1), so the SAME shader
+    // consumes it with zero changes. The UVs here are per-corner
+    // placeholders (cell 0, upright); the real per-glyph cell UVs ride
+    // in with the vertex data re-uploaded every draw below, so this
+    // initial upload only needs to establish the buffer's SIZE.
+    // GL_DYNAMIC_DRAW: re-uploaded every text draw — tiny (six
+    // vertices), honest about its use.
+    GLuint textVAO, textVBO;
+    glGenVertexArrays(1, &textVAO);
+    glGenBuffers(1, &textVBO);
+    glBindVertexArray(textVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+    glBufferData(GL_ARRAY_BUFFER, 6 * 5 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     // --- Step 10: Bind the sampler uniform to TEXTURE UNIT 0 ---
     // A sampler2D uniform does NOT hold image data — it holds the INDEX
     // of a texture unit. Units are GL's binding slots (GL_TEXTURE0..N);
@@ -769,6 +877,7 @@ int main() {
     if (texLocation < 0) {
         std::cerr << "Uniform 'tex' not found in shader program" << std::endl;
         glDeleteTextures(1, &texture);
+        glDeleteTextures(1, &fontTexture);   // Phase 3 texture exists by here
         for (ma_sound& sound : collisionSounds) {
             ma_sound_uninit(&sound);
         }
@@ -1185,6 +1294,103 @@ int main() {
                 // One draw call for this entity.
                 glDrawArrays(GL_TRIANGLES, 0, 3);
             }
+
+            // --- Game Build Phase 3: UI layer — the survival timer ---
+            // SCREEN-SPACE text, the engine's first UI: everything above
+            // went through projection * view * model — the VIEW matrix is
+            // the camera, and WASD moves it. The text below uses
+            // projection * model ONLY: no view, so the number cannot
+            // pan, spin, or scale with the world — it is fixed to the
+            // WINDOW. No second projection is needed: the game's ortho
+            // box IS the screen rectangle, so skipping the camera turns
+            // that same box into UI coordinates (see the design notes
+            // in the tracker). Drawn LAST with blending ON, so glyphs
+            // sit on top of the finished scene; both are switched back
+            // off before the frame ends (the world never renders with
+            // blending — its pixels are exactly what they always were).
+            // Shown in every non-menu state: live during PLAYING,
+            // frozen during PAUSED (the simulation gate stopped the
+            // clock, so the number stops with it — consistent), and the
+            // FINAL time on GAME_OVER.
+
+            // The number itself: survivalTime (Step 12's deltaTime
+            // accumulator) formatted to exactly one decimal place —
+            // "12.3". std::fixed pins the decimal-point style;
+            // setprecision(1) keeps one digit after it. The console
+            // print at game over STAYS as a redundant backup.
+            std::ostringstream timerText;
+            timerText << std::fixed << std::setprecision(1) << survivalTime;
+            const std::string timerStr = timerText.str();
+
+            // The last entity draw may have left the tint uniform RED
+            // (collision feedback) — text must start from white.
+            glUniform3f(colorLocation, 1.0f, 1.0f, 1.0f);
+            // Alpha blending: fragment alpha (the atlas is transparent
+            // between glyph pixels) mixes the glyph over whatever the
+            // scene already drew. Enabled HERE, not globally.
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            // The atlas on the sampler's unit — the sampler uniform
+            // still points at unit 0, so rebinding the unit's contents
+            // is the ENTIRE texture switch (the world rebinds the
+            // checker above on every frame's next pass).
+            glBindTexture(GL_TEXTURE_2D, fontTexture);
+            glBindVertexArray(textVAO);
+
+            // Screen-space layout: top-left of the ortho box (x -6,
+            // y +4.5). Glyph quad 0.7 units square (~47 px at 66.7
+            // px/unit — comfortably readable); advance 0.52 leaves a
+            // small gap between cells.
+            const float glyphSize = 0.7f;
+            const float glyphAdvance = 0.52f;
+            const float textOriginX = -5.75f;
+            const float textOriginY = 4.05f;
+
+            for (size_t c = 0; c < timerStr.size(); ++c) {
+                // Character -> atlas CELL: '0'..'9' -> 0..9, '.' -> 10.
+                int cell = -1;
+                if (timerStr[c] >= '0' && timerStr[c] <= '9') {
+                    cell = timerStr[c] - '0';
+                } else if (timerStr[c] == '.') {
+                    cell = 10;
+                }
+                if (cell < 0) {
+                    continue;   // digit-only font: anything else is skipped
+                }
+                // This cell's horizontal slice of the atlas. V FLIP:
+                // stb_image decodes PNG rows TOP-down and GL texel row 0
+                // is v = 0, so v = 0 addresses the image's TOP edge —
+                // the bottom corners of the quad take v = 1, or the
+                // glyphs would render upside down. (The checker never
+                // revealed this: its pattern is flip-symmetric.)
+                const float u0 = static_cast<float>(cell) / FONT_CELL_COUNT;
+                const float u1 = static_cast<float>(cell + 1) / FONT_CELL_COUNT;
+                // Six vertices: unit quad as two triangles, UVs set for
+                // THIS cell. Re-uploaded per glyph — six vertices, and
+                // clarity beats a cleverer mechanism at this scale.
+                float quadVertices[6][5] = {
+                    { -0.5f, -0.5f, 0.0f, u0, 1.0f },
+                    {  0.5f, -0.5f, 0.0f, u1, 1.0f },
+                    {  0.5f,  0.5f, 0.0f, u1, 0.0f },
+                    { -0.5f, -0.5f, 0.0f, u0, 1.0f },
+                    {  0.5f,  0.5f, 0.0f, u1, 0.0f },
+                    { -0.5f,  0.5f, 0.0f, u0, 0.0f }
+                };
+                glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_DYNAMIC_DRAW);
+                // projection * model — NO VIEW (the screen-space rule).
+                // Model = translate to this character's slot, then scale
+                // the unit quad to glyph size (right-to-left, Steps 5/6).
+                const pe::Mat4 uiMvp = projection
+                    * pe::Mat4::translation(pe::Vec3(textOriginX + static_cast<float>(c) * glyphAdvance,
+                                                     textOriginY, 0.0f))
+                    * pe::Mat4::scale(pe::Vec3(glyphSize, glyphSize, 1.0f));
+                glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &uiMvp.m[0][0]);
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+            }
+            // UI state back off — the next frame's world pass expects
+            // the pipeline exactly as Steps 1-12 left it.
+            glDisable(GL_BLEND);
         }
 
         // C. Swap buffers
@@ -1195,9 +1401,12 @@ int main() {
 
     // 7. Cleanup
     // Free GPU resources in reverse order of creation, before GLFW teardown.
+    glDeleteVertexArrays(1, &textVAO);   // Phase 3: text quad geometry
+    glDeleteBuffers(1, &textVBO);
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(shaderProgram);
+    glDeleteTextures(1, &fontTexture);   // Phase 3: the digit atlas
     glDeleteTextures(1, &texture);   // Step 10: the GPU texture object
     // --- Step 9/10: audio cleanup, reverse creation order ---
     // Every pool slot first (each registered WITH the engine), then the
