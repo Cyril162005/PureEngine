@@ -28,8 +28,9 @@
     {
       "id": 3,
       "name": "On-Screen Text (Score/Timer Display)",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Survival time visible on screen during PLAYING and on GAME_OVER, not console-only. First new engine capability required post-Step-12 (text/font rendering).",
+      "notes": "Digit-only bitmap font (glyphs 0-9 + '.'), built ourselves — eleven hand-coded 5x7 patterns beat a text library for this scope. Atlas: 176x16 RGBA PNG, one row of eleven 16x16 cells, generated in-tree by make_font.ps1 using make_checker.ps1's exact hand-written PNG machinery (only difference: IHDR color type 6 RGBA for per-pixel alpha). Rendering: NO second render system — same Step 4/10 shader, same interleaved layout, one new VAO/VBO (GL_DYNAMIC_DRAW, six vertices re-uploaded per glyph with cell UV baked); blending scoped to the text block; sole shader change is fragment alpha passthrough vec4(texel.rgb*color, texel.a) (checker alpha always 1.0, so all existing draws unaffected). Screen-space = projection x model WITHOUT the view matrix; no second projection needed (existing ortho box doubles as the screen rectangle); deliberate v-flip on cell UVs (stb decodes top-down); color uniform reset to white before text. Timer formatted via ostringstream/fixed/setprecision(1); live on PLAYING, frozen on GAME_OVER, hidden on MENU; console backup retained. No CMakeLists.txt change (empty git diff). Fresh clean rebuild (configure 627.8 s), zero engine warnings, exe 813,056 bytes, main.cpp 1,216 -> 1,425 lines. Verified by user: MENU clean, live readable digits top-left (not upside-down), window-fixed during WASD pan, pause freezes the number, stays white during collision tint, on-screen and console final times match, reset returns to '0.0'.",
       "depends_on_engine_steps": [11, 12]
     },
     {
