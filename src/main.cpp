@@ -5,6 +5,8 @@
 #include <algorithm> // Phase 2: std::min clamps the difficulty scale
 #include <sstream>   // Phase 3: survival timer -> decimal string
 #include <iomanip>   // Phase 3: fixed one-decimal-place formatting
+#include <fstream>   // Phase 4: high-score save file — the engine's FIRST disk write
+#include <filesystem> // Phase 4: create savedata/ before saving, without ever throwing
 
 // --- Step 5: The Math Layer ---
 // Our OWN math code (src/math/), not an external library. Header-only:
@@ -177,6 +179,23 @@
  *       projection * model with no view — so the number stays fixed
  *       to the window while the world pans. Blending turns ON for
  *       text only; every world pixel renders exactly as before.
+ *
+ * Game Build Phase 4: Scoring Beyond Survival Time
+ * Goal: Survival time REMAINS the score metric — the phase's ruling.
+ *       What changes is PERSISTENCE: the best survival time must
+ *       outlive the process. The engine's first disk-WRITE capability
+ *       (Steps 9/10 only READ pre-made assets): a plain-text file,
+ *       savedata/highscore.txt, holding one decimal number. At startup
+ *       it is probed through the SAME 3-candidate CWD pattern as the
+ *       assets — but a missing save is the normal first-run case
+ *       (default 0.0), never a hard failure like a missing asset. On
+ *       GAME_OVER a strict new record updates the in-memory high score
+ *       FIRST (the display is always right even if disk I/O fails) and
+ *       then writes the file — checked open AND checked output; a
+ *       failed save logs a warning and never crashes. The record
+ *       displays as a second number one row below the live timer,
+ *       through Phase 3's exact font/quad pipeline — zero new
+ *       rendering mechanics.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -891,6 +910,59 @@ int main() {
     }
     glUniform1i(texLocation, 0);   // sampler reads from GL_TEXTURE0
 
+    // --- Game Build Phase 4: high score — loaded ONCE at startup ---
+    // The engine's FIRST persistent state: everything since Step 1
+    // exists only as long as the process does. The record lives in a
+    // PLAIN-TEXT file — one decimal number, nothing else. Plain text is
+    // sufficient because the payload is a single float: there is no
+    // STRUCTURE for JSON to describe, no size or speed problem for a
+    // binary format to solve, and a file you can open in Notepad and
+    // verify by eye beats any opaque encoding in a learning engine.
+    // Same 3-candidate CWD probe as Steps 9/10 (the pattern exists for
+    // exactly this: relative paths resolve against wherever the exe was
+    // launched from) — but with a crucially different FAILURE MODE: a
+    // missing ASSET aborts startup (the game cannot run without it),
+    // while a missing SAVE is the normal state of a first run. It
+    // defaults to 0.0 and is created by the first record. Garbage
+    // content is handled the same way: the stream parse fails, the
+    // default stands, nothing crashes.
+    const char* highScorePathCandidates[] = {
+        "savedata/highscore.txt",       // run from the repo root
+        "../savedata/highscore.txt",    // run from build/
+        "../../savedata/highscore.txt"  // run from build/Release/
+    };
+    // The in-memory record: the SINGLE source of truth while the game
+    // runs. The file is only the place it survives the process in.
+    float highScore = 0.0f;
+    // Where the file was FOUND (if it was): the save writes back to the
+    // SAME path the load read from, so the record can never fork into
+    // two files. A first run (nothing found) falls back to candidate 0.
+    std::string highScorePath = highScorePathCandidates[0];
+    {
+        bool highScoreFound = false;
+        for (const char* candidate : highScorePathCandidates) {
+            std::ifstream in(candidate);   // opening a missing file just
+            if (!in) {                     // leaves the stream in a fail
+                continue;                  // state — NO exception, no crash
+            }
+            highScoreFound = true;
+            highScorePath = candidate;     // remember for the save below
+            float stored = 0.0f;
+            // '>>' parses one float and sets the stream's fail state on
+            // garbage; the >= 0 guard also rejects NaN, because every
+            // comparison with NaN is false. Either failure keeps 0.0.
+            if (in >> stored && stored >= 0.0f) {
+                highScore = stored;
+            }
+            break;
+        }
+        if (!highScoreFound) {
+            std::cout << "No high score saved yet - starting at 0.0 (first record creates the file)" << std::endl;
+        } else {
+            std::cout << "Loaded high score: " << highScore << " s (from " << highScorePath << ")" << std::endl;
+        }
+    }
+
     // --- Step 12: survival timer ---
     // Seconds survived in the current run. Accumulated INSIDE the
     // PLAYING gate only — pausing stops the clock, which is correct:
@@ -906,6 +978,9 @@ int main() {
     // taken AFTER its push_back), the camera home, the clear-color
     // toggle off, BOTH collision histories empty (nothing was colliding
     // before the game began), and the survival timer back to zero.
+    // Phase 4: the high score is DELIBERATELY NOT reset here — it is
+    // meta-game state that outlives every individual run, exactly the
+    // distinction the snapshot pattern makes explicit by omission.
     auto resetGame = [&]() {
         entities = initialEntities;
         cameraPos = pe::Vec3(0.0f, 0.0f, 0.0f);
@@ -913,6 +988,63 @@ int main() {
         wasColliding.clear();
         colliding.assign(entities.size(), 0);
         survivalTime = 0.0f;
+    };
+
+    // --- Game Build Phase 3/4: draw a digit string in screen space ---
+    // Phase 3's per-glyph loop, extracted UNCHANGED into one callable so
+    // Phase 4 can draw a SECOND number (the high score) without
+    // duplicating any quad/UV/matrix mechanics. The CALLER owns the UI
+    // state setup (white tint, blending on, font texture bound, textVAO
+    // bound) — exactly what the draw path below performs before calling.
+    // Character -> atlas cell: '0'..'9' -> 0..9, '.' -> 10; anything
+    // else is skipped (digit-only font).
+    auto drawDigitString = [&](const std::string& text, float originX, float originY) {
+        // Screen-space layout constants: glyph quad 0.7 units square
+        // (~47 px at 66.7 px/unit — comfortably readable); advance 0.52
+        // leaves a small gap between cells.
+        const float glyphSize = 0.7f;
+        const float glyphAdvance = 0.52f;
+        for (size_t c = 0; c < text.size(); ++c) {
+            int cell = -1;
+            if (text[c] >= '0' && text[c] <= '9') {
+                cell = text[c] - '0';
+            } else if (text[c] == '.') {
+                cell = 10;
+            }
+            if (cell < 0) {
+                continue;   // digit-only font: anything else is skipped
+            }
+            // This cell's horizontal slice of the atlas. V FLIP:
+            // stb_image decodes PNG rows TOP-down and GL texel row 0
+            // is v = 0, so v = 0 addresses the image's TOP edge —
+            // the bottom corners of the quad take v = 1, or the
+            // glyphs would render upside down. (The checker never
+            // revealed this: its pattern is flip-symmetric.)
+            const float u0 = static_cast<float>(cell) / FONT_CELL_COUNT;
+            const float u1 = static_cast<float>(cell + 1) / FONT_CELL_COUNT;
+            // Six vertices: unit quad as two triangles, UVs set for
+            // THIS cell. Re-uploaded per glyph — six vertices, and
+            // clarity beats a cleverer mechanism at this scale.
+            float quadVertices[6][5] = {
+                { -0.5f, -0.5f, 0.0f, u0, 1.0f },
+                {  0.5f, -0.5f, 0.0f, u1, 1.0f },
+                {  0.5f,  0.5f, 0.0f, u1, 0.0f },
+                { -0.5f, -0.5f, 0.0f, u0, 1.0f },
+                {  0.5f,  0.5f, 0.0f, u1, 0.0f },
+                { -0.5f,  0.5f, 0.0f, u0, 0.0f }
+            };
+            glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_DYNAMIC_DRAW);
+            // projection * model — NO VIEW (the screen-space rule).
+            // Model = translate to this character's slot, then scale
+            // the unit quad to glyph size (right-to-left, Steps 5/6).
+            const pe::Mat4 uiMvp = projection
+                * pe::Mat4::translation(pe::Vec3(originX + static_cast<float>(c) * glyphAdvance,
+                                                 originY, 0.0f))
+                * pe::Mat4::scale(pe::Vec3(glyphSize, glyphSize, 1.0f));
+            glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &uiMvp.m[0][0]);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
     };
 
     // 6. The Main Loop
@@ -1196,6 +1328,47 @@ int main() {
                     ma_sound_seek_to_pcm_frame(&endSound, 0);
                 }
                 ma_sound_start(&endSound);
+                // --- Game Build Phase 4: record check + save ---
+                // The run's final time is complete RIGHT NOW (the timer
+                // stops with the state flip below), so this is the exact
+                // moment to compare. STRICT greater-than: an equal time
+                // is not a new record and rewrites nothing. The
+                // in-memory record updates FIRST — even if the disk
+                // write fails below, the on-screen number stays correct
+                // for the rest of this session.
+                if (survivalTime > highScore) {
+                    highScore = survivalTime;
+                    // create_directories makes savedata/ if it does not
+                    // exist yet (a first run never has it); the
+                    // error_code overload can NEVER throw — a save must
+                    // not crash the game — and the call is a silent
+                    // no-op when the directory already exists.
+                    const std::filesystem::path savePath(highScorePath);
+                    std::error_code fsError;
+                    std::filesystem::create_directories(savePath.parent_path(), fsError);
+                    // CHECKED write, both halves: the OPEN (ofstream's
+                    // conversion to bool fails on permissions or a
+                    // bad path) and the OUTPUT state after flush (a
+                    // full disk or read-only folder surfaces here).
+                    // Failure is a console warning, never fatal — a
+                    // lost save costs one record, not the game. The
+                    // death flow below proceeds either way.
+                    std::ofstream out(savePath);
+                    bool saved = false;
+                    if (out) {
+                        out << std::fixed << std::setprecision(1) << highScore << '\n';
+                        out.flush();
+                        saved = static_cast<bool>(out);
+                    }
+                    if (saved) {
+                        std::cout << "NEW HIGH SCORE: " << highScore
+                                  << " s (saved to " << highScorePath << ")" << std::endl;
+                    } else {
+                        std::cerr << "Warning: could not save the high score to "
+                                  << highScorePath
+                                  << " - it stays in memory for this session only" << std::endl;
+                    }
+                }
                 currentState = pe::GameState::GAME_OVER;
             }
         }
@@ -1295,7 +1468,7 @@ int main() {
                 glDrawArrays(GL_TRIANGLES, 0, 3);
             }
 
-            // --- Game Build Phase 3: UI layer — the survival timer ---
+            // --- Game Build Phase 3/4: UI layer — survival timer + high score ---
             // SCREEN-SPACE text, the engine's first UI: everything above
             // went through projection * view * model — the VIEW matrix is
             // the camera, and WASD moves it. The text below uses
@@ -1311,16 +1484,22 @@ int main() {
             // Shown in every non-menu state: live during PLAYING,
             // frozen during PAUSED (the simulation gate stopped the
             // clock, so the number stops with it — consistent), and the
-            // FINAL time on GAME_OVER.
+            // FINAL time on GAME_OVER. Phase 4 adds the all-time record
+            // on a second row below — same gate, same states, same
+            // pipeline.
 
-            // The number itself: survivalTime (Step 12's deltaTime
-            // accumulator) formatted to exactly one decimal place —
-            // "12.3". std::fixed pins the decimal-point style;
-            // setprecision(1) keeps one digit after it. The console
-            // print at game over STAYS as a redundant backup.
+            // The numbers themselves: survivalTime (Step 12's deltaTime
+            // accumulator) and Phase 4's highScore, each formatted to
+            // exactly one decimal place — "12.3". std::fixed pins the
+            // decimal-point style; setprecision(1) keeps one digit
+            // after it. The console print at game over STAYS as a
+            // redundant backup.
             std::ostringstream timerText;
             timerText << std::fixed << std::setprecision(1) << survivalTime;
             const std::string timerStr = timerText.str();
+            std::ostringstream bestText;
+            bestText << std::fixed << std::setprecision(1) << highScore;
+            const std::string bestStr = bestText.str();
 
             // The last entity draw may have left the tint uniform RED
             // (collision feedback) — text must start from white.
@@ -1337,57 +1516,18 @@ int main() {
             glBindTexture(GL_TEXTURE_2D, fontTexture);
             glBindVertexArray(textVAO);
 
-            // Screen-space layout: top-left of the ortho box (x -6,
-            // y +4.5). Glyph quad 0.7 units square (~47 px at 66.7
-            // px/unit — comfortably readable); advance 0.52 leaves a
-            // small gap between cells.
-            const float glyphSize = 0.7f;
-            const float glyphAdvance = 0.52f;
-            const float textOriginX = -5.75f;
-            const float textOriginY = 4.05f;
-
-            for (size_t c = 0; c < timerStr.size(); ++c) {
-                // Character -> atlas CELL: '0'..'9' -> 0..9, '.' -> 10.
-                int cell = -1;
-                if (timerStr[c] >= '0' && timerStr[c] <= '9') {
-                    cell = timerStr[c] - '0';
-                } else if (timerStr[c] == '.') {
-                    cell = 10;
-                }
-                if (cell < 0) {
-                    continue;   // digit-only font: anything else is skipped
-                }
-                // This cell's horizontal slice of the atlas. V FLIP:
-                // stb_image decodes PNG rows TOP-down and GL texel row 0
-                // is v = 0, so v = 0 addresses the image's TOP edge —
-                // the bottom corners of the quad take v = 1, or the
-                // glyphs would render upside down. (The checker never
-                // revealed this: its pattern is flip-symmetric.)
-                const float u0 = static_cast<float>(cell) / FONT_CELL_COUNT;
-                const float u1 = static_cast<float>(cell + 1) / FONT_CELL_COUNT;
-                // Six vertices: unit quad as two triangles, UVs set for
-                // THIS cell. Re-uploaded per glyph — six vertices, and
-                // clarity beats a cleverer mechanism at this scale.
-                float quadVertices[6][5] = {
-                    { -0.5f, -0.5f, 0.0f, u0, 1.0f },
-                    {  0.5f, -0.5f, 0.0f, u1, 1.0f },
-                    {  0.5f,  0.5f, 0.0f, u1, 0.0f },
-                    { -0.5f, -0.5f, 0.0f, u0, 1.0f },
-                    {  0.5f,  0.5f, 0.0f, u1, 0.0f },
-                    { -0.5f,  0.5f, 0.0f, u0, 0.0f }
-                };
-                glBindBuffer(GL_ARRAY_BUFFER, textVBO);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_DYNAMIC_DRAW);
-                // projection * model — NO VIEW (the screen-space rule).
-                // Model = translate to this character's slot, then scale
-                // the unit quad to glyph size (right-to-left, Steps 5/6).
-                const pe::Mat4 uiMvp = projection
-                    * pe::Mat4::translation(pe::Vec3(textOriginX + static_cast<float>(c) * glyphAdvance,
-                                                     textOriginY, 0.0f))
-                    * pe::Mat4::scale(pe::Vec3(glyphSize, glyphSize, 1.0f));
-                glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &uiMvp.m[0][0]);
-                glDrawArrays(GL_TRIANGLES, 0, 6);
-            }
+            // Screen-space layout: TWO rows, top-left of the ortho box
+            // (x -6, y +4.5). The current run's timer on top; Phase 4's
+            // all-time record one row below it (glyph height 0.7 plus a
+            // visible gap separates the rows). Position alone
+            // distinguishes them — the digit font has no letters for
+            // labels, and no color-coding is needed: the top number
+            // counts up while the bottom one never moves during a run.
+            // Both are window-fixed by the same view-less math, and
+            // both go through drawDigitString — Phase 3's per-glyph
+            // mechanics extracted once, called twice.
+            drawDigitString(timerStr, -5.75f, 4.05f);   // current run
+            drawDigitString(bestStr, -5.75f, 3.2f);     // all-time record
             // UI state back off — the next frame's world pass expects
             // the pipeline exactly as Steps 1-12 left it.
             glDisable(GL_BLEND);
