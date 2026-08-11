@@ -4,6 +4,31 @@ project(PureEngine LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- Game Build Phase 6: fully standalone executable ---
+# MSVC defaults to /MD (dynamic C runtime): the built exe would depend on
+# VCRUNTIME140.dll / MSVCP140.dll, which a CLEAN machine without Visual
+# Studio does not have. Everything else was already static (GLFW,
+# miniaudio, stb, GLAD), so statically linking the runtime too leaves
+# the shipped exe needing only Windows' own system DLLs.
+#
+# Mechanism, chosen after an honest first attempt failed: the modern
+# CMAKE_MSVC_RUNTIME_LIBRARY property did NOT take effect here — the
+# fetched dependencies (GLFW, miniaudio) declare their own
+# cmake_minimum_required, which resets the CMP0091 policy scope in their
+# directories (the generated project files proved they still carried
+# /MD). The old-school method below is generator- and scope-proof: it
+# rewrites the flag VARIABLES every target inherits, before any
+# dependency is configured.
+foreach(flagVar
+        CMAKE_C_FLAGS                CMAKE_C_FLAGS_DEBUG    CMAKE_C_FLAGS_RELEASE
+        CMAKE_C_FLAGS_MINSIZEREL     CMAKE_C_FLAGS_RELWITHDEBINFO
+        CMAKE_CXX_FLAGS              CMAKE_CXX_FLAGS_DEBUG  CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_MINSIZEREL   CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+    if(${flagVar} MATCHES "/MD")
+        string(REGEX REPLACE "/MD" "/MT" ${flagVar} "${${flagVar}}")
+    endif()
+endforeach()
+
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------

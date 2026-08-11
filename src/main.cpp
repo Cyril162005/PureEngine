@@ -196,6 +196,20 @@
  *       displays as a second number one row below the live timer,
  *       through Phase 3's exact font/quad pipeline — zero new
  *       rendering mechanics.
+ *
+ * Game Build Phase 5: Content Pass
+ * Goal: The Step 4-10 placeholder checkerboard gives way to a
+ *       PER-ENTITY-TYPE look — the seam Step 12's comment deliberately
+ *       deferred. Three 16x16 RGB textures generated IN-TREE by
+ *       make_textures.ps1 (same hand-written PNG machinery as the
+ *       checker): warm green for the PLAYER, steel blue for SCENERY,
+ *       crimson for HOSTILES — threat readable from decoration at a
+ *       glance. The draw loop selects one of them per entity index;
+ *       no shader, sampler, or pipeline change. One palette rule:
+ *       every color keeps red-channel content, because the Step 8
+ *       collision tint MULTIPLIES the texel by (1,0,0) — a texture
+ *       with zero red would render black on collision. The checker
+ *       stays loaded (legacy asset, sampled by no entity anymore).
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -803,6 +817,73 @@ int main() {
     // The CPU copy has served its purpose — the GPU owns the data now.
     stbi_image_free(pixels);
 
+    // --- Game Build Phase 5: per-type entity textures ---
+    // Three 16x16 RGB PNGs generated in-tree by make_textures.ps1,
+    // loaded and uploaded through the EXACT same machinery as the
+    // checker above: same 3-candidate CWD probe, same forced-channel
+    // stbi_load, same CLAMP_TO_EDGE + LINEAR sampling parameters. The
+    // one new idea is the HELPER: the checker's load/upload code was
+    // the third copy of an identical pattern by Phase 3, so Phase 5
+    // extracts it once and calls it three times. A texture with zero
+    // red in its palette would render BLACK under Step 8's red
+    // collision tint — so every palette color keeps red-channel
+    // content (hostiles are never tinted, crimson is free for them).
+    auto loadRgbTexture = [](const char* candidates[3]) -> GLuint {
+        int w = 0, h = 0, c = 0;
+        unsigned char* px = NULL;
+        for (int k = 0; k < 3; ++k) {
+            px = stbi_load(candidates[k], &w, &h, &c, 3);
+            if (px) {
+                break;
+            }
+        }
+        if (!px) {
+            return 0;
+        }
+        GLuint id;
+        glGenTextures(1, &id);
+        glBindTexture(GL_TEXTURE_2D, id);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, px);
+        stbi_image_free(px);
+        return id;
+    };
+    const char* playerTexCandidates[] = {
+        "assets/tex_player.png", "../assets/tex_player.png", "../../assets/tex_player.png"
+    };
+    const char* sceneryTexCandidates[] = {
+        "assets/tex_scenery.png", "../assets/tex_scenery.png", "../../assets/tex_scenery.png"
+    };
+    const char* hostileTexCandidates[] = {
+        "assets/tex_hostile.png", "../assets/tex_hostile.png", "../../assets/tex_hostile.png"
+    };
+    GLuint playerTexture = loadRgbTexture(playerTexCandidates);
+    GLuint sceneryTexture = loadRgbTexture(sceneryTexCandidates);
+    GLuint hostileTexture = loadRgbTexture(hostileTexCandidates);
+    if (playerTexture == 0 || sceneryTexture == 0 || hostileTexture == 0) {
+        std::cerr << "Failed to load Phase 5 entity textures (tried: assets/, ../assets/, ../../assets/)" << std::endl;
+        // Delete whichever of the three succeeded (deleting GL name 0 is
+        // a safe no-op), then the checker, then walk the rest of the
+        // reverse-creation cleanup chain.
+        glDeleteTextures(1, &playerTexture);
+        glDeleteTextures(1, &sceneryTexture);
+        glDeleteTextures(1, &hostileTexture);
+        glDeleteTextures(1, &texture);
+        for (ma_sound& sound : collisionSounds) {
+            ma_sound_uninit(&sound);
+        }
+        ma_engine_uninit(&audioEngine);
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+        glDeleteProgram(shaderProgram);
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+
     // --- Phase 3: FONT ATLAS loading (bitmap digit font) ---
     // assets/font_digits.png, generated IN-TREE by make_font.ps1: ONE
     // ROW of eleven 16x16 cells — cells 0..9 hold digits '0'..'9',
@@ -831,8 +912,12 @@ int main() {
     }
     if (!fontPixels) {
         std::cerr << "Failed to load assets/font_digits.png (tried: assets/, ../assets/, ../../assets/)" << std::endl;
-        // The checker texture already exists at this point — it joins
-        // the reverse-creation cleanup chain.
+        // The checker and the three Phase 5 entity textures already
+        // exist at this point — they join the reverse-creation cleanup
+        // chain.
+        glDeleteTextures(1, &playerTexture);
+        glDeleteTextures(1, &sceneryTexture);
+        glDeleteTextures(1, &hostileTexture);
         glDeleteTextures(1, &texture);
         for (ma_sound& sound : collisionSounds) {
             ma_sound_uninit(&sound);
@@ -895,6 +980,9 @@ int main() {
     GLint texLocation = glGetUniformLocation(shaderProgram, "tex");
     if (texLocation < 0) {
         std::cerr << "Uniform 'tex' not found in shader program" << std::endl;
+        glDeleteTextures(1, &playerTexture);   // Phase 5 textures exist by here
+        glDeleteTextures(1, &sceneryTexture);
+        glDeleteTextures(1, &hostileTexture);
         glDeleteTextures(1, &texture);
         glDeleteTextures(1, &fontTexture);   // Phase 3 texture exists by here
         for (ma_sound& sound : collisionSounds) {
@@ -1425,15 +1513,17 @@ int main() {
             // only the transform differs per instance.
             glBindVertexArray(VAO);
 
-            // --- Step 10: bind the texture to unit 0 for this frame ---
-            // glActiveTexture SELECTS the unit; glBindTexture attaches our
-            // texture object to it. The sampler uniform was told once at
-            // startup to read unit 0 — so every draw below samples the
-            // checkerboard. (Step 11: the bind moved INSIDE the gameplay
-            // draw path — the menu never touches a texture. Per-entity
-            // textures remain Step 12's seam, deliberately deferred.)
+            // --- Step 10: bind the texture unit for this frame ---
+            // glActiveTexture SELECTS the unit; the sampler uniform was
+            // told once at startup to read unit 0 — so whichever texture
+            // is bound below is what every draw samples. (Step 11: the
+            // bind moved INSIDE the gameplay draw path — the menu never
+            // touches a texture.)
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texture);
+            // The legacy checker stays bound here as the default; the
+            // Phase 5 draw loop below overrides it with the per-entity
+            // texture before EVERY draw call, so no entity samples it
+            // anymore.
 
             // --- Step 7: ONE draw loop for ALL entities ---
             // This replaces Step 6's copy-pasted model1/mvp1/draw,
@@ -1449,6 +1539,23 @@ int main() {
             // colliding entity turns red — the visible proof of detection.)
             for (size_t i = 0; i < entities.size(); ++i) {
                 const pe::Entity& entity = entities[i];
+                // --- Game Build Phase 5: per-entity texture selection ---
+                // The seam Step 12's comment deferred: bind THIS entity's
+                // texture before its draw. Index 0 is the player, 1..2 are
+                // the scenery pair, 3 onward are hostiles — the exact same
+                // index convention the collision loops already use. One
+                // bind per entity is cheap (six tiny textures, no state
+                // thrash), and the sampler/shader/unit setup above needs
+                // zero changes.
+                GLuint entityTexture = texture;   // legacy default, never sampled now
+                if (i == 0) {
+                    entityTexture = playerTexture;
+                } else if (i < 3) {
+                    entityTexture = sceneryTexture;
+                } else {
+                    entityTexture = hostileTexture;
+                }
+                glBindTexture(GL_TEXTURE_2D, entityTexture);
                 // Build this entity's MVP from its own data.
                 pe::Mat4 mvp = projection * view * entity.modelMatrix();
                 // Upload to the same 'transform' uniform (GL_FALSE: our Mat4
@@ -1547,6 +1654,9 @@ int main() {
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(shaderProgram);
     glDeleteTextures(1, &fontTexture);   // Phase 3: the digit atlas
+    glDeleteTextures(1, &playerTexture);   // Phase 5: per-type entity textures
+    glDeleteTextures(1, &sceneryTexture);
+    glDeleteTextures(1, &hostileTexture);
     glDeleteTextures(1, &texture);   // Step 10: the GPU texture object
     // --- Step 9/10: audio cleanup, reverse creation order ---
     // Every pool slot first (each registered WITH the engine), then the
