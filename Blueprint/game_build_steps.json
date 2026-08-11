@@ -44,15 +44,17 @@
     {
       "id": 5,
       "name": "Content Pass",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Player, hostiles, and arena visually distinct from each other and from Step 4-10 placeholder checkerboard geometry",
+      "notes": "Approach (a): per-type in-tree textures over tint-only. make_textures.ps1 (same hand-written PNG machinery as make_checker.ps1) generates three 16x16 RGB PNGs — tex_player.png warm green, tex_scenery.png steel blue, tex_hostile.png crimson; threat readable from decoration at a glance. TINT RULE: every color keeps red-channel content or it would render black under the Step 8 red tint (hostiles never tinted, crimson free). loadRgbTexture lambda extracts the checker's load/upload pattern, called 3x with the 3-candidate probe; textures join all cleanup chains; draw loop binds per entity index (0=player, 1..2=scenery, 3+=hostiles) — the seam Step 12's comment deferred, zero shader/sampler/pipeline change; checker kept loaded as unsampled legacy. Collision tint, beep edges, difficulty ramp, Phase 3/4 UI untouched.",
       "depends_on_engine_steps": [10]
     },
     {
       "id": 6,
       "name": "Packaging",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Exe + assets runnable on a clean machine without dev environment installed, or a documented clean-checkout build process",
+      "notes": "Both halves of the definition of done met: README.md at repo root (project intro, EXACT two CMake commands, run instructions, controls, asset-generator table, standalone layout) AND a truly standalone exe. Honest DLL audit: everything static except MSVC /MD runtime DLLs (VCRUNTIME140/MSVCP140) — fixed by static CRT. First attempt (CMAKE_MSVC_RUNTIME_LIBRARY+CMP0091) failed silently because fetched deps reset the policy scope; replaced with scope-proof /MD->/MT flag-variable rewrite (25 lines in CMakeLists.txt). Verified: dumpbin /DEPENDENTS lists only KERNEL32/USER32/GDI32/SHELL32; exe launched from a bare folder with only itself + assets/ (no savedata/) and passed every startup check. Exe 838,144 -> 1,170,432 bytes. Package = exe + assets/; savedata/ ships empty (fresh installs start at 0.0). Fresh configure 757.9 s, clean build first try, zero engine warnings; main.cpp 1,565 -> 1,675 lines. Shipped with Phase 5 in one combined pass — GAME BUILD COMPLETE, 6/6 phases.",
       "depends_on_phase": [1, 2, 3]
     }
   ],
