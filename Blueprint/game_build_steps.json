@@ -36,8 +36,9 @@
     {
       "id": 4,
       "name": "Scoring Beyond Survival Time",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Either a defined additional scoring mechanic is implemented and displayed, or a deliberate decision is recorded that survival time alone is sufficient",
+      "notes": "Decision recorded: survival time REMAINS the score metric — Phase 4 delivers PERSISTENCE instead: the best time survives as a high score, the engine's first disk-WRITE capability (Steps 9/10 only read). Save: plain-text savedata/highscore.txt, one decimal number (single float — no JSON structure, no binary need, Notepad-verifiable). Load once at startup via the same 3-candidate CWD probe as Steps 9/10; found path remembered so the save never forks; missing file defaults to 0.0 (normal first run, NOT a hard failure like a missing asset); garbage parse fails safe to the default. Write at GAME_OVER on STRICT greater-than only, in-memory record first (display stays correct even if I/O fails), std::filesystem::create_directories with the no-throw error_code overload, checked open AND checked output after flush; failure = console warning, never fatal. Display: ZERO new rendering mechanics — Phase 3's glyph loop extracted unchanged into drawDigitString(); second row at (-5.75, 3.2) below the live timer (-5.75, 4.05), position-only distinction, same non-MENU gate. resetGame() zero changes — high score is meta-game state outside the snapshot. New includes <fstream>/<filesystem>; CMakeLists.txt unchanged (empty diff). .gitignore gained savedata/ in the same commit (runtime save state; folder self-creates; fresh clones start at 0.0). Fresh clean rebuild (configure 647.2 s) first try, zero engine warnings, exe 838,144 bytes, main.cpp 1,425 -> 1,565 lines. Verified via commit authorization: game-created savedata/ observed at build\\Release\\savedata, record persisted and displayed, staged list proved the ignore rule (exactly src/main.cpp + .gitignore, save file absent).",
       "depends_on_phase": [3]
     },
     {
