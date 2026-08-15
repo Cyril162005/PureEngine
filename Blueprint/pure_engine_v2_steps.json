@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "PureEngine (12/12 complete, all steps verified and pushed)",
-  "status_note": "Steps 13 and 14 are completed and verified. Steps 15-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
+  "status_note": "Steps 13, 14, and 15 are completed and verified. Steps 16-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
   "steps": [
     {
       "id": 13,
@@ -39,9 +39,12 @@
     {
       "id": 15,
       "name": "Camera Module Boundary",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Camera position, movement, and view/projection calculation are handled through a camera boundary, while existing WASD camera movement and world rendering remain visually identical.",
       "notes": "Step 6 introduced the camera math and Step 11 continued to store camera state directly in main.cpp/resetGame. This step separates camera responsibility from game-state and renderer code. Existing orthographic camera behavior must remain unchanged.",
+      "implementation": "Header-only src/camera.h (115 lines): pe::Camera owns position state (starts at origin), movement speed 3.0 units/s, reset(), move(directionX, directionY, deltaTime) applying axis += direction * speed * dt, view() via Mat4::lookAt(position, position + (0,0,-1), (0,1,0)), and projection() via once-built Mat4::orthographic(-6, 6, -4.5, 4.5, -1, 1). Architectural facts: camera state, movement, and view/projection calculation belong to the camera boundary; GLFW input polling remains in main.cpp (camera receives direction as data, zero GLFW code in camera.h); renderer drawWorld now receives the view matrix and performs no camera math; Step 16 input abstraction NOT started. main.cpp replaced cameraPos/cameraSpeed/projection locals with one pe::Camera; Step 14 resources.h untouched. Commit fff53c3 changed exactly: src/camera.h (new), src/main.cpp, src/renderer.h, README.md (+185/-54).",
+      "verification": "Incremental Release build against existing configured build/ (no deletion, no reconfigure): zero errors/warnings in project code; only main.cpp recompiled; exe 1,171,456 bytes, identical size to verified Step 13/14 binaries; startup smoke test passed (window opened, full init, no crash). Cyril's manual runtime verification all PASS on 2026-08-15: startup/menu, WASD camera movement, camera stationary while paused, resume behavior, restart/start camera position, ESC shutdown, no observed visual/gameplay regression (world sliding relative to camera confirmed as expected camera-relative behavior). Push 8eddc50..fff53c3 verified; six pre-existing untracked files untouched.",
+      "completed_commit": "fff53c3",
       "depends_on": [
         13
       ]

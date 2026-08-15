@@ -1,9 +1,9 @@
 # PureEngine — Build Continuation (v2)
 
 ## Context
-PureEngine Steps 1-12 are complete, verified, and pushed. Steps 13 and 14 are now also
-implemented, verified by Cyril, committed, and pushed (see their notes below).
-Steps 15-24 below remain **not completed**. They are a blueprint only and make no claims
+PureEngine Steps 1-12 are complete, verified, and pushed. Steps 13, 14, and 15 are now
+also implemented, verified by Cyril, committed, and pushed (see their notes below).
+Steps 16-24 below remain **not completed**. They are a blueprint only and make no claims
 about implementation, build success, or verification.
 
 The current game already exposes several responsibilities directly through `main.cpp`:
@@ -97,13 +97,48 @@ provide a concrete reason for the boundary.
   identified during the checkpoint (game V2 trackers, `nn.md`, throwaway build scripts).
 
 ### Step 15 — Camera Module Boundary
-**Status:** Not started
+**Status:** Completed (verified by Cyril 2026-08-15, committed `fff53c3`, pushed)
 **Goal:** Separate camera state and camera math from game logic/render submission.
 **Definition of done:** Camera position, movement, and view/projection calculation are handled through a camera boundary, while existing WASD camera movement and world rendering remain visually identical.
 **Notes:**
 - Step 6 introduced the current orthographic camera behavior.
 - Step 11 continued to store camera state directly in the game loop/reset path.
 - Existing projection and movement behavior must remain unchanged.
+
+**Implementation (verified):**
+- Header-only `src/camera.h` (115 lines), the engine's third system boundary —
+  zero CMakeLists.txt change, consistent with the project's header-only discipline.
+- `pe::Camera` owns: the position state (starts at the origin), the movement speed
+  (3.0 world units/second), `reset()` (back to origin, called by `resetGame()`),
+  `move(directionX, directionY, deltaTime)` applying `axis += direction * speed * dt`,
+  the view matrix (`Mat4::lookAt` from position, target = position + (0,0,-1),
+  up (0,1,0)), and the once-built projection
+  (`Mat4::orthographic(-6, 6, -4.5, 4.5, -1, 1)`).
+- Architectural facts established by this step: camera STATE, camera MOVEMENT, and
+  view/projection CALCULATION all belong to the camera boundary; GLFW input polling
+  remains in `main.cpp` (the camera receives direction as data and contains zero GLFW
+  code); `renderer.h`'s `drawWorld` now receives the view matrix
+  (`drawWorld(projection, view, entities, colliding)`) and performs no camera math.
+  The Step 16 input abstraction has NOT started.
+- `src/main.cpp` replaced the cameraPos/cameraSpeed/projection locals with one
+  `pe::Camera` object and routes WASD through `camera.move()` (polling and the
+  PLAYING-only gate stay in main.cpp). The Step 14 resource boundary was untouched.
+- Commit `fff53c3` changed exactly four files: `src/camera.h` (new), `src/main.cpp`,
+  `src/renderer.h`, `README.md` (+185/-54).
+
+**Verification evidence:**
+- Incremental Release build against the existing configured `build/` (no deletion,
+  no reconfigure): zero errors/warnings in project code; only `main.cpp` recompiled.
+  Executable 1,171,456 bytes — identical size to the verified Step 13/14 binaries.
+  Startup smoke test: window opened, process alive past full init (all five textures
+  loaded), no crash.
+- Cyril's manual runtime verification, all PASS (2026-08-15): startup/menu, WASD
+  camera movement, camera stationary while paused, resume behavior, restart/start
+  camera position, ESC shutdown, and no observed visual/gameplay regression. The
+  observed world-sliding-relative-to-camera effect confirmed as expected
+  camera-relative behavior, not a movement regression.
+- GitHub checkpoint verified: push `8eddc50..fff53c3 main -> main`; after the push
+  HEAD == origin/main; the six pre-existing untracked files remained untouched.
 
 ### Step 16 — Input Module Boundary
 **Status:** Not started
