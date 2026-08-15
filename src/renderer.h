@@ -25,8 +25,9 @@
  * One concrete shader, one concrete triangle, one concrete digit font.
  *
  * Seams that intentionally stay INSIDE for later continuation steps:
- *   - texture LOADING lives here with its textures (Step 14 will split
- *     resource loading into its own boundary);
+ *   - texture LOADING was split into its own boundary by Step 14
+ *     (src/resources.h — this class now OBTAINS textures through it
+ *     and never touches a file itself);
  *   - the view matrix is built from a cameraPos passed in (Step 15
  *     will own camera state and math);
  *   - the digit path is a renderer method (Step 21 will give the UI
@@ -51,14 +52,14 @@
 // Include guard, same pattern as entity.h and the math headers.
 
 #include <glad/gl.h>     // every GL call below goes through the GLAD loader
-#include <stb_image.h>   // declarations only — the ONE implementation lives
-                         // in src/stb_impl.cpp (Step 10's declare-everywhere
-                         // / define-once pattern), so PNG decoding compiles
-                         // exactly once in the whole program.
 #include <iostream>      // the same stderr diagnostics main.cpp always used
 #include <string>        // drawDigitString takes formatted game text
 #include <vector>        // entity list + collision flags arrive by reference
 
+#include "resources.h"   // Step 14: texture LOADING lives in the resource
+                         // boundary now — this class obtains textures from
+                         // it and never calls stb_image itself (stb's ONE
+                         // implementation stays in src/stb_impl.cpp).
 #include "math/vec3.h"   // camera position, lookAt inputs
 #include "math/mat4.h"   // view/MVP construction
 #include "entity.h"      // drawWorld reads pe::Entity data
@@ -197,11 +198,12 @@ public:
         // --- Step 10: the checker texture (legacy asset since Phase 5) ---
         // Same 3-candidate CWD probe every asset uses: relative paths
         // resolve against wherever the exe was launched from (repo root,
-        // build/, or build/Release/).
+        // build/, or build/Release/). Step 14: the load/upload pattern
+        // itself moved to the resource boundary (pe::loadRgbTexture).
         const char* checkerCandidates[3] = {
             "assets/checker.png", "../assets/checker.png", "../../assets/checker.png"
         };
-        checkerTexture = loadRgbTexture(checkerCandidates);
+        checkerTexture = pe::loadRgbTexture(checkerCandidates);
         if (checkerTexture == 0) {
             std::cerr << "Failed to load assets/checker.png (tried: assets/, ../assets/, ../../assets/)" << std::endl;
             destroyAll();
@@ -209,8 +211,9 @@ public:
         }
 
         // --- Game Build Phase 5: the three per-type entity textures ---
-        // loadRgbTexture is the extracted third copy of the checker's
-        // load/upload pattern (Phase 5's ruling). Tint rule reminder:
+        // pe::loadRgbTexture is the extracted third copy of the checker's
+        // load/upload pattern (Phase 5's ruling), relocated to the
+        // resource boundary by Step 14. Tint rule reminder:
         // every palette color keeps red-channel content, or it would
         // render BLACK under the collision tint.
         const char* playerCandidates[3] = {
@@ -222,9 +225,9 @@ public:
         const char* hostileCandidates[3] = {
             "assets/tex_hostile.png", "../assets/tex_hostile.png", "../../assets/tex_hostile.png"
         };
-        playerTexture = loadRgbTexture(playerCandidates);
-        sceneryTexture = loadRgbTexture(sceneryCandidates);
-        hostileTexture = loadRgbTexture(hostileCandidates);
+        playerTexture = pe::loadRgbTexture(playerCandidates);
+        sceneryTexture = pe::loadRgbTexture(sceneryCandidates);
+        hostileTexture = pe::loadRgbTexture(hostileCandidates);
         if (playerTexture == 0 || sceneryTexture == 0 || hostileTexture == 0) {
             std::cerr << "Failed to load Phase 5 entity textures (tried: assets/, ../assets/, ../../assets/)" << std::endl;
             destroyAll();
@@ -236,33 +239,17 @@ public:
         // eleven 16x16 cells (digits 0-9 then '.'), white 5x7 glyphs on
         // a TRANSPARENT background. Four FORCED CHANNELS — the alpha is
         // what lets glyphs blend over the scene instead of painting solid
-        // backing rectangles.
+        // backing rectangles. Step 14: the load/upload moved to the
+        // resource boundary (pe::loadRgbaTexture).
         const char* fontCandidates[3] = {
             "assets/font_digits.png", "../assets/font_digits.png", "../../assets/font_digits.png"
         };
-        int fontWidth = 0, fontHeight = 0, fontChannels = 0;
-        unsigned char* fontPixels = NULL;
-        for (int k = 0; k < 3; ++k) {
-            fontPixels = stbi_load(fontCandidates[k], &fontWidth, &fontHeight, &fontChannels, 4);
-            if (fontPixels) {
-                break;
-            }
-        }
-        if (!fontPixels) {
+        fontTexture = pe::loadRgbaTexture(fontCandidates);
+        if (fontTexture == 0) {
             std::cerr << "Failed to load assets/font_digits.png (tried: assets/, ../assets/, ../../assets/)" << std::endl;
             destroyAll();
             return false;
         }
-        glGenTextures(1, &fontTexture);
-        glBindTexture(GL_TEXTURE_2D, fontTexture);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        // RGBA, not RGB: the alpha channel is the point of this texture.
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fontWidth, fontHeight, 0,
-                     GL_RGBA, GL_UNSIGNED_BYTE, fontPixels);
-        stbi_image_free(fontPixels);
 
         // --- Phase 3: quad geometry for text glyphs ---
         // The triangle's pattern repeated for a unit QUAD (two triangles),
@@ -468,35 +455,6 @@ public:
     }
 
 private:
-    // --- The shared load/upload pattern (extracted in Phase 5) ---
-    // 3-candidate CWD probe, forced 3-channel stbi_load, CLAMP_TO_EDGE
-    // + LINEAR sampling, RGB upload. Returns the GL texture name, or 0
-    // on failure (0 is never a valid texture name, and deleting it is a
-    // safe no-op — which is exactly what the cleanup path relies on).
-    static GLuint loadRgbTexture(const char* candidates[3]) {
-        int w = 0, h = 0, c = 0;
-        unsigned char* px = NULL;
-        for (int k = 0; k < 3; ++k) {
-            px = stbi_load(candidates[k], &w, &h, &c, 3);
-            if (px) {
-                break;
-            }
-        }
-        if (!px) {
-            return 0;
-        }
-        GLuint id;
-        glGenTextures(1, &id);
-        glBindTexture(GL_TEXTURE_2D, id);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, px);
-        stbi_image_free(px);
-        return id;
-    }
-
     // Delete every owned GL object. All names default to 0 and GL
     // delete calls on 0 are no-ops, so this is safe at ANY point of a
     // partial init — the property that replaces main.cpp's four

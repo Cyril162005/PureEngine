@@ -98,6 +98,8 @@ src/main.cpp            the game: window, audio, entities, state machine,
                         simulation, camera, timing, high score (step by step)
 src/renderer.h          the renderer boundary (Step 13): shader, VAO/VBOs,
                         textures, world draw loop, screen-space digit UI
+src/resources.h         the resource-loading boundary (Step 14): texture
+                        load/upload (3-candidate path probe, stb_image)
 src/math/               own math layer (Vec3, Mat4)
 src/entity.h            entity data
 src/collision.h         AABB collision

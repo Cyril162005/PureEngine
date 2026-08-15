@@ -42,8 +42,9 @@
 // and the high score; it asks the renderer to initialize once and to
 // submit frames. Header-only like the math layer and entity.h — no
 // CMakeLists.txt change. The seams the next continuation steps will
-// split further stay deliberately inside it: texture loading (Step 14),
-// camera math (Step 15), and the UI path (Step 21).
+// split further stay deliberately inside it: camera math (Step 15)
+// and the UI path (Step 21) — texture loading was split out by
+// Step 14 itself (src/resources.h, included via renderer.h).
 #include "renderer.h"
 
 // --- Step 9: Audio Playback ---
@@ -56,9 +57,11 @@
 // here is all main.cpp needs — no MINIAUDIO_IMPLEMENTATION define.
 #include <miniaudio.h>
 
-// Step 13 moved every stb_image call into src/renderer.h (the one
-// place that still decodes images); the implementation translation
-// unit remains src/stb_impl.cpp, exactly as Step 10 established.
+// Step 13 moved every stb_image call into src/renderer.h, and Step 14
+// moved them ONCE MORE into src/resources.h (the resource-loading
+// boundary — the one place that still decodes images); the
+// implementation translation unit remains src/stb_impl.cpp, exactly
+// as Step 10 established.
 
 /**
  * Step 1: Window + Context Creation
@@ -242,6 +245,22 @@
  *       incidental fix on a fatal error path: renderer-init failure
  *       now uninitializes audio before window teardown, matching the
  *       discipline the texture-load failure paths always had.
+ *
+ * Step 14: Resource Loading Boundary
+ * Goal: Separate asset loading from the renderer. The load/upload
+ *       patterns the renderer inherited (the RGB pattern extracted
+ *       in Phase 5, and the RGBA font-atlas block from Phase 3) move
+ *       into src/resources.h as two free functions — pe::loadRgbTexture
+ *       and pe::loadRgbaTexture — same 3-candidate CWD path probe,
+ *       same forced-channel stbi_load, same CLAMP_TO_EDGE + LINEAR
+ *       sampling, same RGB/RGBA upload, same 0-on-failure contract.
+ *       Ownership is unchanged: the renderer keeps all five texture
+ *       names and deletes them in destroyAll(). Header-only, zero
+ *       CMake change, zero asset change, zero visual change expected.
+ *       No cache or asset database — the blueprint rules them out
+ *       until the project gains more assets. No gameplay or
+ *       rendering behavior is touched at all: main.cpp sees none of
+ *       this directly.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
