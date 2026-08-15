@@ -25,11 +25,17 @@
 // CMakeLists.txt change.
 #include "collision.h"
 
-// --- Step 11: Scene/Level Structure ---
+// --- Step 11 / Step 19: Scene/Level Structure ---
 // The game-state enum: pure logic, header-only like entity.h and
-// collision.h — no CMakeLists.txt change. The DISPATCH that uses it
-// lives in main.cpp, because it needs every piece of per-frame state
-// (input flags, entities, camera, audio) in one place.
+// collision.h — no CMakeLists.txt change. Step 19 grew the same
+// header into the game-state BOUNDARY: pure constexpr predicates and
+// lookups (simulates, drawsWorld, clearColorFor) join the enum.
+// The DISPATCH that uses them still lives in main.cpp, because it
+// needs every piece of per-frame state (input flags, entities,
+// camera, audio) in one place — and every transition carries side
+// effects (resetGame, window close, clear-color toggle) that belong
+// here. The boundary answers QUESTIONS about a state; main.cpp keeps
+// the CONSEQUENCES.
 #include "gamestate.h"
 
 // --- Step 13: Renderer Module Boundary ---
@@ -103,15 +109,58 @@
 // no CMakeLists.txt change.
 #include "lifecycle.h"
 
+// --- Step 20: Audio Boundary ---
+// Every miniaudio MECHANISM moved out of this file into pe::Audio
+// (src/audio.h): the engine init, the 3-candidate beep.wav probe,
+// the four-slot pool clone, the ONE shared round-robin cursor, the
+// rewind-if-busy playback, and the slots-then-engine teardown.
+// What STAYS here: the DECISIONS — when a beep happens (the
+// collision-edge test, the catch), that a failed init is fatal (same
+// policy as renderer.init()), and the teardown ordering relative to
+// window/GLFW. Same asset, same trigger semantics: the collision
+// beep and the GAME_OVER beep still rotate through the same four
+// slots via one cursor. Header-only: no CMakeLists.txt change.
+#include "audio.h"
+
+// --- Step 21: UI Rendering Boundary ---
+// The thinnest boundary in the engine (B5-A ruling). What moved
+// here: the one-decimal number formatting shared by both HUD rows,
+// the two layout constants (timer row -5.75, 4.05; record row
+// -5.75, 3.2), and the two-call draw sequence in its established
+// order — current run first, all-time record second. What STAYS
+// here: ALL glyph GL (text VAO/VBO, font atlas, shader program,
+// blending) stays in pe::Renderer; the DISPLAY GATE (the HUD shows
+// in every non-menu state) stays in this file; and the numbers
+// themselves (survivalTime, highScore) plus the high-score SAVE
+// FILE's own formatting stay here too — persistence is not UI.
+// No letters, no menus, no widgets, no layout system.
+// Header-only: no CMakeLists.txt change.
+#include "ui.h"
+
+// --- Step 22: World/Game Separation (simulation mechanics) ---
+// Three pure MECHANICS moved out of this file into free functions in
+// src/simulation.h: the rotation update (advanceRotations), the
+// hostile chase (chasePlayer), and the scenery collision scan
+// (scanSceneryCollisions). What STAYS here: the complete frame-order
+// chain — timer -> rotation -> difficulty -> chase -> collision
+// rebuild -> collision scan -> edge detection -> catch — and every
+// gameplay side effect on it: the timer accumulation, the difficulty
+// calculation, the colliding-vector rebuild from zero, the edge
+// detection, the audio trigger, the catch decision, the state flip,
+// the high-score write. The helpers take data, move it, return
+// nothing — no scheduler, no pipeline, no run() wearing an
+// architectural hat. Header-only: no CMakeLists.txt change.
+#include "simulation.h"
+
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
 // FetchContent (same pattern as GLFW). Unlike our math/entity/
 // collision code, audio touches OS audio devices and hardware
 // buffers; that is the one layer we deliberately do NOT write
 // ourselves. The CMake target 'miniaudio' compiles the library as
-// a static lib and exports its include path, so a plain include
-// here is all main.cpp needs — no MINIAUDIO_IMPLEMENTATION define.
-#include <miniaudio.h>
+// a static lib and exports its include path. Step 20: main.cpp no
+// longer includes it directly — only src/audio.h does now.
+// #include <miniaudio.h>  (moved into src/audio.h by Step 20)
 
 // Step 13 moved every stb_image call into src/renderer.h, and Step 14
 // moved them ONCE MORE into src/resources.h (the resource-loading
@@ -375,6 +424,65 @@
  *       No ECS, no registry, no container ownership, no invented
  *       lifecycle machinery. Free functions in src/lifecycle.h,
  *       header-only — no CMake change.
+ *
+ * Step 19: Game State Boundary
+ * Goal: Separate state transitions and state-specific rules from
+ *       unrelated engine systems without changing behavior. The
+ *       existing gamestate.h gains pure constexpr helpers alongside
+ *       the enum: simulates(state), drawsWorld(state), and
+ *       clearColorFor(state, blueToggled) — the rules about a state,
+ *       relocated whole (same values, same priority order). What
+ *       STAYS here: the dispatch switch and every transition (they
+ *       carry side effects — resetGame before the MENU->PLAYING flip,
+ *       the window close flag, the clear-color toggle), the toggle
+ *       flag itself, and all state meaning. The simple enum + one
+ *       currentState variable model is preserved — no state stack, no
+ *       scene graph, no transition tables, no callbacks.
+ *
+ * Step 20: Audio Boundary
+ * Goal: Separate game events from direct miniaudio calls. src/audio.h
+ *       gains pe::Audio owning the mechanism: ma_engine init, the
+ *       3-candidate beep.wav probe, the four-slot pool clone, the ONE
+ *       shared round-robin cursor, rewind-if-busy playback via
+ *       playNext(), and the slots-then-engine shutdown(). main.cpp
+ *       keeps the decisions: the collision-edge test and the catch
+ *       decide WHEN a beep happens, a failed init stays fatal (same
+ *       policy as renderer.init()), and window/GLFW teardown order
+ *       stays here. Trigger semantics preserved exactly — the
+ *       collision beep and the GAME_OVER beep advance the SAME
+ *       cursor, so they keep rotating through the same four slots.
+ *       No volume controls, no streaming, no second asset, no sound
+ *       naming system. Header-only — no CMake change.
+ *
+ * Step 21: UI Rendering Boundary
+ * Goal: Give the HUD's number formatting and layout one named home.
+ *       src/ui.h gains formatDecimal1() (the shared fixed-one-decimal
+ *       rule), the layout constants (timer row at (-5.75, 4.05),
+ *       record row at (-5.75, 3.2)), and drawHud() — the two-call
+ *       sequence, current run first, record second. ALL glyph GL
+ *       stays in pe::Renderer (B5-A): ui.h owns no GL objects at
+ *       all, it formats DATA and hands it to the renderer's glyph
+ *       path. The display gate (HUD in every non-menu state) and the
+ *       high-score save file's formatting stay in main.cpp. No
+ *       letters, no menus, no widgets, no layout system.
+ *       Header-only — no CMake change.
+ *
+ * Step 22: World/Game Separation (simulation mechanics)
+ * Goal: Extract the pure mechanics out of the PLAYING branch without
+ *       touching the frame order. src/simulation.h gains three free
+ *       functions: advanceRotations() (the per-entity rotation loop),
+ *       chasePlayer() (the hostile pursuit loop, zero-length guard
+ *       included, speeds handed in as the raw const float[3]), and
+ *       scanSceneryCollisions() (the unique-pair scan over the
+ *       original three, both flags set on overlap). main.cpp keeps
+ *       the complete chain — timer -> rotation -> difficulty ->
+ *       chase -> collision rebuild -> collision scan -> edge
+ *       detection -> catch — plus every side effect: timer, difficulty,
+ *       flag rebuild, edge detection, audio trigger, catch decision,
+ *       state flip, high-score write. No scheduler, no pipeline,
+ *       no execution order inside the boundary — the order is the
+ *       game's meaning and stays here.
+ *       Header-only — no CMake change.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -459,86 +567,20 @@ int main() {
         return -1;
     }
 
-    // --- Step 9: Audio engine + sound loading (one-time setup) ---
-    // ma_engine_init starts miniaudio's high-level engine: it opens the
-    // OS playback device (WASAPI on Windows), creates the mixing thread,
-    // and gives us one object that owns every sound we play. NULL = use
-    // the default config (default device, default sample rate). It
-    // returns MA_SUCCESS (0) on success — checked like every other init
-    // in this program, with the same cleanup-then-exit pattern.
-    ma_engine audioEngine;
-    if (ma_engine_init(NULL, &audioEngine) != MA_SUCCESS) {
-        std::cerr << "Failed to initialize the audio engine (miniaudio)" << std::endl;
+    // --- Step 9 / Step 20: Audio engine + sound loading (one-time setup) ---
+    // The MECHANISM — ma_engine_init, the 3-candidate CWD probe for
+    // assets/beep.wav, decoding into slot 0, cloning the known-good
+    // path into slots 1-3 — moved whole into pe::Audio::init()
+    // (src/audio.h). The DECISIONS stay here: a failed init is FATAL
+    // (same policy as renderer.init() below), and only the window/GLFW
+    // teardown belongs to main.cpp — audio.init() has already cleaned
+    // up any partial allocation before returning false.
+    pe::Audio audio;
+    if (!audio.init()) {
+        std::cerr << "Failed to initialize audio (miniaudio engine or assets/beep.wav)" << std::endl;
         glfwDestroyWindow(window);
         glfwTerminate();
         return -1;
-    }
-
-    // Locate assets/beep.wav. Relative paths resolve against the CURRENT
-    // WORKING DIRECTORY, which depends on how the exe is launched (from
-    // the repo root, from build/, or by double-clicking it next to the
-    // exe). We try candidates one level deeper each time so the same
-    // binary works in all three cases.
-    const char* soundPathCandidates[] = {
-        "assets/beep.wav",       // run from the repo root (d:\PureEngine)
-        "../assets/beep.wav",    // run from build/
-        "../../assets/beep.wav"  // run from build/Release/ (exe's own folder)
-    };
-    // --- Step 10 REFACTOR (Step 9 seam #2): a POOL of sound instances ---
-    // Step 9 used ONE ma_sound for every trigger, so two sounds that
-    // overlapped in time fought over the same playback slot (the restart
-    // branch had to rewind it). A pool fixes this the same way Step 7
-    // fixed per-object state: sounds become DATA in a container. Each
-    // pool slot is its own independent ma_sound decoding the same file;
-    // a trigger takes the NEXT slot (round-robin), so up to POOL_SIZE
-    // beeps can be audible simultaneously. 4 slots for a one-shot 150 ms
-    // beep is comfortably more than any realistic trigger rate.
-    // std::vector<ma_sound>(N) VALUE-initializes the C structs to zero,
-    // which is exactly the state ma_sound_init_from_file expects.
-    const size_t SOUND_POOL_SIZE = 4;
-    std::vector<ma_sound> collisionSounds(SOUND_POOL_SIZE);
-    // Round-robin cursor: which pool slot the NEXT trigger claims.
-    size_t nextCollisionSound = 0;
-    // ma_sound_init_from_file DECODES the file (miniaudio has a built-in
-    // WAV decoder) and registers the sound with the engine, ready to be
-    // started with one call later. 0 = flags: default settings — no
-    // looping (one shot), no 3D spatialization. The two NULLs skip an
-    // optional resource-manager group and fence. The probe loop finds the
-    // first loadable path and initializes pool slot 0 with it; the
-    // remaining slots are then filled from that known-good path.
-    bool soundLoaded = false;
-    const char* loadedSoundPath = NULL;
-    for (const char* candidate : soundPathCandidates) {
-        if (ma_sound_init_from_file(&audioEngine, candidate, 0, NULL, NULL,
-                                    &collisionSounds[0]) == MA_SUCCESS) {
-            loadedSoundPath = candidate;
-            soundLoaded = true;
-            break;
-        }
-    }
-    if (!soundLoaded) {
-        std::cerr << "Failed to load assets/beep.wav (tried: assets/, ../assets/, ../../assets/)" << std::endl;
-        // The engine initialized, so it must be uninitialized before exit.
-        ma_engine_uninit(&audioEngine);
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-    // Fill pool slots 1..N-1 from the path that just worked. If any slot
-    // fails to init (out of resources, etc.), uninit every slot that DID
-    // succeed and abort — a half-built pool is a bug factory.
-    for (size_t i = 1; i < collisionSounds.size(); ++i) {
-        if (ma_sound_init_from_file(&audioEngine, loadedSoundPath, 0, NULL, NULL,
-                                    &collisionSounds[i]) != MA_SUCCESS) {
-            std::cerr << "Failed to initialize collision sound pool slot " << i << std::endl;
-            for (size_t j = 0; j < i; ++j) {
-                ma_sound_uninit(&collisionSounds[j]);
-            }
-            ma_engine_uninit(&audioEngine);
-            glfwDestroyWindow(window);
-            glfwTerminate();
-            return -1;
-        }
     }
 
     // --- Step 10 REFACTOR (Step 9 seam #1): per-entity edge state ---
@@ -602,10 +644,10 @@ int main() {
     // engine on a fatal exit; this path closes that.)
     pe::Renderer renderer;
     if (!renderer.init()) {
-        for (ma_sound& sound : collisionSounds) {
-            ma_sound_uninit(&sound);
-        }
-        ma_engine_uninit(&audioEngine);
+        // Step 20: audio teardown through the boundary — the renderer
+        // already deleted its GL objects before returning false, so
+        // here only audio, window, and GLFW remain to clean up.
+        audio.shutdown();
         glfwDestroyWindow(window);
         glfwTerminate();
         return -1;
@@ -927,26 +969,34 @@ int main() {
         // would kill every edge this frame.
         input.update(window);
 
-        // --- Step 11: Simulation runs ONLY in PLAYING ---
+        // --- Step 11 / Step 19: Simulation runs ONLY in PLAYING ---
         // PAUSED holds the world still — drawn every frame (below),
         // simulated on none of them. MENU has no world to simulate.
         // Everything Steps 7-10 do per frame is unchanged INSIDE this
         // branch: the state machine WRAPS the simulation, it never
         // touches it. That is why all Step 1-10 behavior survives.
-        if (currentState == pe::GameState::PLAYING) {
+        // Step 19: the question is asked through the game-state
+        // boundary (pe::simulates); the answer is identical.
+        if (pe::simulates(currentState)) {
+            // --- Step 22: THE FRAME-ORDER CHAIN (this file owns it) ---
+            // timer -> rotation -> difficulty -> chase -> collision
+            // rebuild -> collision scan -> edge detection -> catch.
+            // The three pure MECHANICS live in src/simulation.h; the
+            // ORDER and every gameplay side effect live below, in this
+            // order, every PLAYING frame. Read this block top to
+            // bottom and you are reading the contract.
+
             // --- Step 12: survival timer accumulates ---
             // deltaTime integration, Step 2's pattern: count up at a
             // constant rate of 1 second per second of PLAYING time.
             survivalTime += dt;
 
-            // --- Step 7: Update every entity (per-frame simulation) ---
-            // One loop replaces the old global rotationAngle update from
-            // Steps 5/6. Each entity carries its OWN speed (and even its own
-            // direction), so each advances at its own rate — the same
-            // state += rate * deltaTime pattern, now per-entity data.
-            for (pe::Entity& entity : entities) {
-                entity.update(dt);
-            }
+            // --- Step 7 / Step 22: rotation update ---
+            // The per-entity loop (each entity advancing at its own
+            // rate via the state += rate * deltaTime pattern) moved
+            // into pe::advanceRotations (src/simulation.h); the
+            // per-frame semantics are byte-identical.
+            pe::advanceRotations(entities, dt);
 
             // --- Phase 2: this frame's difficulty scale ---
             // Computed ONCE per frame (all hostiles share the same clock):
@@ -957,29 +1007,18 @@ int main() {
             const float difficultyScale =
                 std::min(1.0f + survivalTime * difficultyRate, maxDifficultyScale);
 
-            // --- Step 12 / Phase 1: EVERY hostile chases the player ---
-            // The v1 chase, unchanged per hostile, wrapped in the only
-            // thing Phase 1 adds: a loop over the hostile range
-            // (index 3 to the end of the vector). direction = player -
-            // hostile (Vec3 operator-, Step 5), normalized() to a unit
-            // vector, scaled by THIS hostile's BASE speed from the
-            // parallel hostileSpeeds array TIMES Phase 2's
-            // difficultyScale, and by deltaTime, assigned back. ZERO
-            // new math — the same four Step 5 Vec3 operations as v1,
-            // executed per hostile. Each hostile picks its own pursuit
-            // vector every frame (pure pursuers — no prediction, no
-            // flanking; the difficulty comes from NUMBERS and, since
-            // Phase 2, from the shared speed ramp).
-            // The zero-length guard keeps intent honest per hostile:
-            // a hostile sitting exactly ON the player has no direction
-            // to move in — the catch test ends the run this frame.
-            for (size_t h = 3; h < entities.size(); ++h) {
-                pe::Entity& hostile = entities[h];
-                const pe::Vec3 toPlayer = entities[0].position - hostile.position;
-                if (toPlayer.length() > 0.0f) {
-                    hostile.position = hostile.position + toPlayer.normalized() * (hostileSpeeds[h - 3] * difficultyScale) * dt;
-                }
-            }
+            // --- Step 12 / Phase 1 / Step 22: hostile chase ---
+            // The mechanics moved into pe::chasePlayer (src/
+            // simulation.h): the v1 chase unchanged per hostile,
+            // looped over the hostile range (index 3 to the end),
+            // direction = player - hostile normalized, scaled by the
+            // hostile's base speed TIMES this frame's difficultyScale
+            // TIMES deltaTime, zero-length guard included. Pure
+            // pursuers — no prediction, no flanking; the difficulty
+            // comes from NUMBERS. The decision of WHEN this runs
+            // (this frame, in this order, only in PLAYING) stays
+            // here.
+            pe::chasePlayer(entities, hostileSpeeds, difficultyScale, dt);
 
             // --- Step 8: Collision pass (after movement, before drawing) ---
             // One flag per entity, rebuilt from ZERO every frame: collision
@@ -990,27 +1029,15 @@ int main() {
             // vector itself is hoisted to loop scope so PAUSED can keep
             // drawing the last frame's tint; contents rebuilt here.)
             colliding.assign(entities.size(), 0);
-            // Test every UNIQUE pair exactly once: i runs each entity,
-            // j only the ones AFTER it. With N entities that is N*(N-1)/2
-            // tests — 3 for N = 3. Testing i == j would self-collide
-            // (always true — useless); testing both orders doubles the work
-            // for identical results. Overlap is symmetric: set BOTH flags.
-            // Step 12: the loop bound is the ORIGINAL THREE, not
-            // entities.size() — the hostiles are deliberately excluded
-            // so this loop stays exactly the Steps 8-11 scenery system
-            // (tint + beep between the three triangles). Phase 1 added
-            // two more hostiles at indices 4-5; this line did NOT
-            // change, which is the point — the hostiles pass through
-            // scenery, and their only interaction remains the player
-            // catch test immediately after the audio block.
-            for (size_t i = 0; i < 3; ++i) {
-                for (size_t j = i + 1; j < 3; ++j) {
-                    if (pe::aabbOverlap(entities[i], entities[j])) {
-                        colliding[i] = 1;
-                        colliding[j] = 1;
-                    }
-                }
-            }
+            // The scan itself moved into pe::scanSceneryCollisions
+            // (src/simulation.h): every unique pair among the
+            // original three tested once, BOTH flags set on overlap.
+            // The bound stays the literal 3 inside the helper — the
+            // hostiles remain excluded, their only interaction the
+            // catch test below. The rebuild line ABOVE stays here,
+            // because the rebuild is the collision-state POLICY
+            // (derived fresh, never remembered).
+            pe::scanSceneryCollisions(entities, colliding);
 
             // --- Step 10: per-entity collision EDGE detection + sound pool ---
             // Step 9's scalar OR-flag is gone. Now the previous frame's full
@@ -1029,18 +1056,11 @@ int main() {
                 }
             }
             if (anyNewCollision) {
-                // Take the NEXT pool slot (round-robin) so a beep still
-                // ringing from the previous trigger keeps playing untouched.
-                ma_sound& sound = collisionSounds[nextCollisionSound];
-                nextCollisionSound = (nextCollisionSound + 1) % collisionSounds.size();
-                // A slot recycled while still audible gets rewound first.
-                if (ma_sound_is_playing(&sound)) {
-                    ma_sound_seek_to_pcm_frame(&sound, 0);
-                }
-                // ma_sound_start hands the sound to the engine's mixer; the
-                // mixing THREAD plays it from here — this call returns
-                // immediately and never blocks the render loop.
-                ma_sound_start(&sound);
+                // Step 20: the round-robin claim, rewind-if-busy, and
+                // start moved into pe::Audio::playNext() — same cursor,
+                // same semantics; main.cpp keeps the EDGE DECISION that
+                // gets us here.
+                audio.playNext();
             }
             // Store THIS frame's vector for the next frame's edge test.
             wasColliding = colliding;
@@ -1068,12 +1088,12 @@ int main() {
             if (caught) {
                 std::cout << "GAME OVER — survived "
                           << survivalTime << " seconds" << std::endl;
-                ma_sound& endSound = collisionSounds[nextCollisionSound];
-                nextCollisionSound = (nextCollisionSound + 1) % collisionSounds.size();
-                if (ma_sound_is_playing(&endSound)) {
-                    ma_sound_seek_to_pcm_frame(&endSound, 0);
-                }
-                ma_sound_start(&endSound);
+                // Step 20: the end-of-run beep goes through the SAME
+                // playNext() as the collision beep — one shared cursor,
+                // exactly as the single nextCollisionSound variable
+                // always did, so the two events keep rotating through
+                // the same four slots.
+                audio.playNext();
                 // --- Game Build Phase 4: record check + save ---
                 // The run's final time is complete RIGHT NOW (the timer
                 // stops with the state flip below), so this is the exact
@@ -1120,32 +1140,16 @@ int main() {
         }
 
         // B. Clear the screen
-        // --- Step 11: clear color is per-state ---
-        if (currentState == pe::GameState::MENU) {
-            // MENU: a fixed dark PURPLE — deliberately a color outside
-            // gameplay's black/dark-blue palette, so the menu can never
-            // be mistaken for a paused or toggled game screen. With no
-            // text system yet, the color IS the menu; the paint job is
-            // Step 12 territory.
-            // Step 13: the clear itself is a renderer call now; the
-            // state-dependent color CHOICE above stays in main.cpp.
-            renderer.clear(0.16f, 0.0f, 0.24f);
-        } else if (currentState == pe::GameState::GAME_OVER) {
-            // GAME_OVER (Step 12): a fixed DARK RED — the engine's
-            // established danger channel (collision tint), distinct from
-            // menu purple and gameplay black/blue, so a loss reads at a
-            // glance. The frozen death scene renders on top (the draw
-            // gate below excludes only MENU), exactly like PAUSED.
-            renderer.clear(0.28f, 0.0f, 0.0f);
-        } else if (clearColorIsBlue) {
-            // Dark blue (Step 3 toggle target)
-            renderer.clear(0.0f, 0.0f, 0.25f);
-        } else {
-            // Original black — same values as Step 1/2
-            renderer.clear(0.0f, 0.0f, 0.0f);
-        }
+        // --- Step 11 / Step 19: clear color is per-state ---
+        // The palette RULES moved to the game-state boundary in Step 19
+        // (pe::clearColorFor in src/gamestate.h): MENU dark purple,
+        // GAME_OVER dark red, gameplay black — or dark blue when Step
+        // 3's toggle flag (still owned HERE) is set. Same values, same
+        // priority order; main.cpp asks and the renderer clears.
+        const pe::ClearColor frameClear = pe::clearColorFor(currentState, clearColorIsBlue);
+        renderer.clear(frameClear.r, frameClear.g, frameClear.b);
 
-        // --- Step 11: gameplay rendering happens OUTSIDE the MENU ---
+        // --- Step 11 / Step 19: gameplay rendering happens OUTSIDE the MENU ---
         // MENU draws nothing but the clear color. PLAYING, PAUSED, and
         // (Step 12) GAME_OVER share this EXACT draw path — the only
         // difference between them is whether the simulation branch
@@ -1153,8 +1157,9 @@ int main() {
         // camera, frozen tint, frozen hostile). Step 13 changed HOW the
         // path is spelled, not WHAT it draws: the same view matrix,
         // per-entity texture select, collision tint, and screen-space
-        // digits now submit through pe::Renderer.
-        if (currentState != pe::GameState::MENU) {
+        // digits now submit through pe::Renderer. Step 19 asks the
+        // question through the boundary (pe::drawsWorld).
+        if (pe::drawsWorld(currentState)) {
             // --- Steps 4-10 + Phase 5: the world pass, through the
             // renderer boundary ---
             // Inside drawWorld, unchanged: glUseProgram, the shared
@@ -1167,24 +1172,18 @@ int main() {
             renderer.drawWorld(camera.projection(), camera.view(), entities, colliding);
 
             // --- Game Build Phase 3/4: UI layer — survival timer + high score ---
-            // The NUMBERS are formatted here (game data); the GLYPHS
-            // are drawn by the renderer — screen-space (projection *
-            // model, NO VIEW, so they stay fixed to the window while
-            // WASD pans the world), blending ON for text only, white
-            // tint, same atlas. Shown in every non-menu state: live
-            // during PLAYING, frozen during PAUSED (the simulation gate
-            // stopped the clock, so the number stops with it), and the
-            // FINAL time on GAME_OVER. Phase 4's all-time record on
-            // the second row below — same gate, same states, same
-            // pipeline, same layout constants.
-            std::ostringstream timerText;
-            timerText << std::fixed << std::setprecision(1) << survivalTime;
-            const std::string timerStr = timerText.str();
-            std::ostringstream bestText;
-            bestText << std::fixed << std::setprecision(1) << highScore;
-            const std::string bestStr = bestText.str();
-            renderer.drawDigitString(timerStr, -5.75f, 4.05f, camera.projection());   // current run
-            renderer.drawDigitString(bestStr, -5.75f, 3.2f, camera.projection());     // all-time record
+            // Step 21: the number formatting and the two layout
+            // constants moved into the UI boundary (src/ui.h);
+            // drawHud() runs the same two-call sequence in the same
+            // order. The GLYPHS are still drawn by the renderer —
+            // screen-space (projection * model, NO VIEW, so they stay
+            // fixed to the window while WASD pans the world),
+            // blending ON for text only, white tint, same atlas.
+            // The DISPLAY GATE stays here: shown in every non-menu
+            // state — live during PLAYING, frozen during PAUSED (the
+            // simulation gate stopped the clock, so the number stops
+            // with it), and the FINAL time on GAME_OVER.
+            pe::drawHud(renderer, camera.projection(), survivalTime, highScore);
         }
 
         // C. Swap buffers
@@ -1200,15 +1199,13 @@ int main() {
     // pe::Renderer::shutdown(). Audio was never rendering, so its
     // teardown stays in main.cpp below.
     renderer.shutdown();
-    // --- Step 9/10: audio cleanup, reverse creation order ---
-    // Every pool slot first (each registered WITH the engine), then the
-    // engine itself — which stops the mixing thread and closes the OS
+    // --- Step 9/10 / Step 20: audio cleanup, through the boundary ---
+    // pe::Audio::shutdown() keeps the reverse creation order — every
+    // pool slot first (each registered WITH the engine), then the
+    // engine itself, which stops the mixing thread and closes the OS
     // audio device. Audio is independent of OpenGL, so its teardown
     // order relative to the GL calls does not matter.
-    for (ma_sound& sound : collisionSounds) {
-        ma_sound_uninit(&sound);
-    }
-    ma_engine_uninit(&audioEngine);
+    audio.shutdown();
     glfwDestroyWindow(window);
     glfwTerminate();
 

@@ -108,10 +108,17 @@ src/time.h              the time boundary (Step 17): frame-time acquisition,
                         delta calculation, previous-timestamp state
 src/lifecycle.h         the entity lifecycle boundary (Step 18): initial
                         entity construction, snapshot restore, flag sizing
+src/audio.h             the audio boundary (Step 20): miniaudio engine,
+                        four-slot pool, shared round-robin playback
+src/ui.h                the UI boundary (Step 21): HUD number formatting,
+                        layout constants, two-row draw sequence
+src/simulation.h        the simulation boundary (Step 22): pure mechanics —
+                        rotation update, hostile chase, scenery collision scan
 src/math/               own math layer (Vec3, Mat4)
 src/entity.h            entity data
 src/collision.h         AABB collision
-src/gamestate.h         game-state enum
+src/gamestate.h         game-state enum + the game-state boundary (Step 19):
+                        pure predicates and per-state lookups
 src/stb_impl.cpp        stb_image implementation unit
 assets/                 committed, script-generated assets
 Blueprint/              project blueprint + Game Build tracker

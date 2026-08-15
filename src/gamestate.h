@@ -38,4 +38,59 @@ enum class GameState {
               // resume); SPACE returns to the menu.
 };
 
+// --- Step 19: pure state predicates and lookups ---
+// The game-state BOUNDARY addition: stateless facts about a state.
+// The dispatch SWITCH and every TRANSITION stay in main.cpp (Step 16's
+// ruling, reaffirmed by Step 19): transitions carry side effects that
+// belong there — resetGame() before the MENU->PLAYING flip, the window
+// close flag, the clear-color toggle — and the boundary must never
+// absorb them. These helpers replace the scattered currentState
+// comparisons with named questions, so the rules about a state live in
+// one place while the consequences of them stay where they always were.
+// constexpr and side-effect-free: asking costs nothing and can happen
+// anywhere, any number of times.
+
+// Does this state SIMULATE the world this frame? Only PLAYING does —
+// PAUSED and GAME_OVER hold the world still (drawn, not simulated),
+// MENU has no world at all. This is the gate the survival timer, the
+// entity updates, the chase, the collision scan, and the catch test
+// all sit behind.
+constexpr bool simulates(GameState state) {
+    return state == GameState::PLAYING;
+}
+
+// Does this state DRAW the world this frame? Everything except MENU —
+// PLAYING, PAUSED, and GAME_OVER share the exact draw path; only MENU
+// shows nothing but the clear color.
+constexpr bool drawsWorld(GameState state) {
+    return state != GameState::MENU;
+}
+
+// The per-state clear color (Step 11's palette, relocated whole from
+// main.cpp's if-chain — same values, same priority order):
+//   MENU      -> dark PURPLE (0.16, 0, 0.24): deliberately outside
+//                gameplay's black/dark-blue palette, so the menu can
+//                never be mistaken for a paused or toggled game screen;
+//   GAME_OVER -> dark RED (0.28, 0, 0): the engine's established danger
+//                channel (collision tint), so a loss reads at a glance;
+//   otherwise -> gameplay black, or dark blue (0, 0, 0.25) when Step 3's
+//                toggle flag is set. The toggle flag is GAMEPLAY STATE —
+//                it stays owned by main.cpp and is merely HANDED IN.
+struct ClearColor {
+    float r, g, b;
+};
+
+constexpr ClearColor clearColorFor(GameState state, bool blueToggled) {
+    if (state == GameState::MENU) {
+        return ClearColor{0.16f, 0.0f, 0.24f};
+    }
+    if (state == GameState::GAME_OVER) {
+        return ClearColor{0.28f, 0.0f, 0.0f};
+    }
+    if (blueToggled) {
+        return ClearColor{0.0f, 0.0f, 0.25f};
+    }
+    return ClearColor{0.0f, 0.0f, 0.0f};
+}
+
 } // namespace pe
