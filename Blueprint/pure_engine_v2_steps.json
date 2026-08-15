@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "PureEngine (12/12 complete, all steps verified and pushed)",
-  "status_note": "Steps 13, 14, and 15 are completed and verified. Steps 16-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
+  "status_note": "Steps 13, 14, 15, and 16 are completed and verified. Steps 17-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
   "steps": [
     {
       "id": 13,
@@ -52,9 +52,12 @@
     {
       "id": 16,
       "name": "Input Module Boundary",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Keyboard polling and the existing edge-detection behavior can be accessed through an input boundary without changing the meaning of MENU, PLAYING, PAUSED, or GAME_OVER controls.",
       "notes": "Step 3 established direct glfwGetKey polling and edge detection; Step 11 added state-dependent input meaning. The goal is separation, not a full action-mapping system. Existing controls must remain identical.",
+      "implementation": "Header-only src/input.h (107 lines): pe::Input constructed with the edge-tracked keys {GLFW_KEY_ESCAPE, GLFW_KEY_SPACE}; isDown() is the ONLY glfwGetKey call site in the codebase (level polling for ESC, SPACE, WASD, arrows); isEdge() is read-only against the previous-frame snapshot; update() is the snapshot's single writer, called once per frame after edge consumption — one edge per physical press, even while held. Architectural facts: keyboard polling and edge state belong to the input boundary; the entire state-specific meaning switch stays in main.cpp; glfwPollEvents and window lifecycle stay in main.cpp; raw GLFW key codes cross the boundary — no enum, no action-mapping system, no callbacks. main.cpp routes all level reads through pe::Input and replaces the old esc/spaceWasPressedLastFrame bookkeeping with input.update(window) at the exact former position; temporal order preserved (poll events, level + edge reads, state switch, snapshot update). Build fix during implementation: GLFW 3.3.8 glfwGetKey takes a non-const GLFWwindow*, so the boundary parameters are non-const. Commit 7749600 changed exactly: src/input.h (new), src/main.cpp, README.md (+190/-45).",
+      "verification": "Release build clean (incremental, no reconfigure): zero errors/warnings in project code; only main.cpp recompiled; exe 1,172,480 bytes. Architectural greps: glfwGetKey in code only in src/input.h; edge snapshot has a single writer; required temporal ordering confirmed by line-order inspection; no game meaning, deltaTime, or camera/player logic in input.h. Startup smoke test passed (window opened, full init, no crash). Cyril's manual physical-keyboard verification all PASS on 2026-08-15: SPACE starts from MENU once per press with no repeat while held, ESC pause/resume one edge per press, SPACE toggles clear color and navigates PAUSED/GAME_OVER to MENU, WASD camera pan and arrow-key player movement unchanged, ESC quits from MENU, no regression in timer/high score/textures/collision tint/beeps. The assistant performed the startup smoke test only and cannot provide physical keyboard input; all keyboard behavior was verified by Cyril personally. Push 24ca3ce..7749600 verified; six pre-existing untracked files untouched.",
+      "completed_commit": "7749600",
       "depends_on": [
         12
       ]

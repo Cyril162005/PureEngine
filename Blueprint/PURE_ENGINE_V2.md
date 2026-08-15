@@ -1,9 +1,9 @@
 # PureEngine — Build Continuation (v2)
 
 ## Context
-PureEngine Steps 1-12 are complete, verified, and pushed. Steps 13, 14, and 15 are now
-also implemented, verified by Cyril, committed, and pushed (see their notes below).
-Steps 16-24 below remain **not completed**. They are a blueprint only and make no claims
+PureEngine Steps 1-12 are complete, verified, and pushed. Steps 13, 14, 15, and 16 are
+now also implemented, verified by Cyril, committed, and pushed (see their notes below).
+Steps 17-24 below remain **not completed**. They are a blueprint only and make no claims
 about implementation, build success, or verification.
 
 The current game already exposes several responsibilities directly through `main.cpp`:
@@ -141,13 +141,54 @@ provide a concrete reason for the boundary.
   HEAD == origin/main; the six pre-existing untracked files remained untouched.
 
 ### Step 16 — Input Module Boundary
-**Status:** Not started
+**Status:** Completed (verified by Cyril 2026-08-15, committed `7749600`, pushed)
 **Goal:** Separate keyboard polling and edge detection from state-specific game meaning.
 **Definition of done:** Keyboard polling and the existing edge-detection behavior can be accessed through an input boundary without changing the meaning of MENU, PLAYING, PAUSED, or GAME_OVER controls.
 **Notes:**
 - Step 3 established direct `glfwGetKey()` polling and edge detection.
 - Step 11 established state-dependent key meaning.
 - Do not create a full action-mapping system without a concrete requirement.
+
+**Implementation (verified):**
+- Header-only `src/input.h` (107 lines), the engine's fourth system boundary —
+  zero CMakeLists.txt change, consistent with the project's header-only discipline.
+- `pe::Input` owns: keyboard level polling (its `isDown()` is now the ONLY `glfwGetKey`
+  call site in the codebase), ESC/SPACE edge detection (`isEdge()`, read-only against
+  the snapshot), and the previous-frame snapshot with a single writer (`update()`,
+  called once per frame after edge consumption) — one edge per physical press, even
+  while held.
+- Architectural facts established by this step: keyboard polling and edge state
+  belong to the input boundary; state-specific key MEANING (the entire MENU /
+  PLAYING / PAUSED / GAME_OVER switch) stays in `main.cpp`; `glfwPollEvents()` and
+  the window lifecycle (`glfwWindowShouldClose` / `glfwSetWindowShouldClose`) stay
+  in `main.cpp`; raw GLFW key codes cross the boundary — no enum, no action-mapping
+  system, no callbacks.
+- `src/main.cpp` routes every level read (ESC, SPACE, WASD, arrows) through
+  `pe::Input`, constructs `pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE}` before
+  the loop, and replaces the old esc/spaceWasPressedLastFrame bookkeeping with
+  `input.update(window)` at the exact former position. Temporal order preserved:
+  poll events → level + edge reads → state switch → snapshot update.
+- Commit `7749600` changed exactly three files: `src/input.h` (new), `src/main.cpp`,
+  `README.md` (+190/-45).
+
+**Verification evidence:**
+- Release build clean (incremental, no reconfigure): zero errors/warnings in project
+  code; only `main.cpp` recompiled. Executable 1,172,480 bytes.
+- Architectural greps: `glfwGetKey` exists in code only in `src/input.h`; the edge
+  snapshot has a single writer (`update()`); required temporal ordering confirmed by
+  line-order inspection (poll → reads → switch → update); no game meaning, deltaTime,
+  or camera/player logic in `input.h`.
+- Startup smoke test passed: window opened, process alive past full init (all five
+  textures loaded), no crash.
+- Cyril's manual physical-keyboard verification, all PASS (2026-08-15): SPACE starts
+  from MENU (once per press, no repeat while held), ESC pauses/resumes with one edge
+  per press, SPACE toggles clear color and navigates PAUSED/GAME_OVER to MENU, WASD
+  camera pan and arrow-key player movement unchanged, ESC quits from MENU, no
+  regression in timer/high score/textures/collision tint/beeps. Note: the assistant
+  performed the startup smoke test only — it cannot provide physical keyboard input;
+  all keyboard behavior above was verified by Cyril personally.
+- GitHub checkpoint verified: push `24ca3ce..7749600 main -> main`; after the push
+  HEAD == origin/main; the six pre-existing untracked files remained untouched.
 
 ### Step 17 — Time/Timestep Boundary
 **Status:** Not started
