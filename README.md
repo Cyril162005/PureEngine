@@ -102,6 +102,8 @@ src/resources.h         the resource-loading boundary (Step 14): texture
                         load/upload (3-candidate path probe, stb_image)
 src/camera.h            the camera boundary (Step 15): position state,
                         movement, lookAt view, orthographic projection
+src/input.h             the input boundary (Step 16): key-state polling,
+                        edge detection, previous-frame snapshot
 src/math/               own math layer (Vec3, Mat4)
 src/entity.h            entity data
 src/collision.h         AABB collision

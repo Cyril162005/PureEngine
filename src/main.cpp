@@ -43,8 +43,9 @@
 // submit frames. Header-only like the math layer and entity.h — no
 // CMakeLists.txt change. The seams the next continuation steps will
 // split further stay deliberately inside it: the UI path (Step 21) —
-// texture loading was split out by Step 14 (src/resources.h) and
-// camera state/math by Step 15 (src/camera.h).
+// texture loading was split out by Step 14 (src/resources.h),
+// camera state/math by Step 15 (src/camera.h), and keyboard
+// polling/edge detection by Step 16 (src/input.h).
 #include "renderer.h"
 
 // --- Step 15: Camera Module Boundary ---
@@ -52,11 +53,23 @@
 // the movement application, and BOTH matrices (the lookAt view and
 // the balance-tuned orthographic projection) moved out of this file
 // and out of the renderer into pe::Camera (src/camera.h). main.cpp
-// still OWNS the key polling and the PLAYING-only movement gate —
-// Step 16's input boundary is a later split — and hands the camera
-// plain direction data. Header-only like every project module: no
-// CMakeLists.txt change, and camera.h never touches GLFW.
+// still OWNS the PLAYING-only movement gate and hands the camera
+// plain direction data — the KEY POLLING itself moved to the input
+// boundary in Step 16 (src/input.h). Header-only like every project
+// module: no CMakeLists.txt change, and camera.h never touches GLFW.
 #include "camera.h"
+
+// --- Step 16: Input Module Boundary ---
+// Every glfwGetKey LEVEL read (ESC, SPACE, WASD, arrows) and the
+// ESC/SPACE EDGE detection — including the previous-frame snapshot
+// that edges require — moved out of this file into pe::Input
+// (src/input.h). What STAYS here: glfwPollEvents() and the window
+// lifecycle (shouldClose/setWindowShouldClose), and the ENTIRE state
+// switch — the meaning of each key in each state. The boundary hands
+// booleans in; main.cpp decides. Header-only: no CMakeLists.txt
+// change. Raw GLFW key codes cross the boundary — no enum, no
+// action mapping.
+#include "input.h"
 
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
@@ -287,6 +300,19 @@
  *       matrix and constructs nothing camera-related. Zero behavior
  *       change: same values, same arithmetic order, same per-frame
  *       view rebuild cadence. No GLFW in camera.h.
+ *
+ * Step 16: Input Module Boundary
+ * Goal: Separate keyboard polling and edge detection from
+ *       state-specific game meaning. src/input.h gains pe::Input
+ *       owning every glfwGetKey level read, the ESC/SPACE edge
+ *       detection, and the previous-frame snapshot that edges need
+ *       (single owner). main.cpp keeps glfwPollEvents() and the
+ *       window lifecycle, reads booleans through the boundary, and
+ *       keeps the ENTIRE state switch — what each key means in each
+ *       state. Temporal order preserved exactly: poll events, read
+ *       level + edges, switch consumes them, then input.update()
+ *       stores the new previous-frame snapshot. One edge per physical
+ *       press, even while held. No action mapping, no callbacks.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -468,11 +494,10 @@ int main() {
     // drawn — dispatches on it from a single point below. The engine
     // boots to the MENU, not straight into gameplay.
     pe::GameState currentState = pe::GameState::MENU;
-    // ESC edge state — same pattern as SPACE. Steps 1-10 used LEVEL
-    // polling for ESC (hold = close), fine when ESC only ever quits.
-    // Now ESC also PAUSES/RESUMES, where a held key must not flip the
-    // state 60 times a second — so ESC gets edge detection too.
-    bool escWasPressedLastFrame = false;
+    // --- Step 16: ESC/SPACE edge state moved to the input boundary ---
+    // The old escWasPressedLastFrame bool lived here; the previous-frame
+    // snapshot each edge needs now lives inside pe::Input (declared
+    // below, before the loop), with a single owner.
 
     // --- Step 2: Delta Time Setup (before the loop) ---
     // glfwGetTime() returns the number of seconds (as a high-resolution double)
@@ -488,14 +513,13 @@ int main() {
     // Tracks which clear color is currently active. false = black (the
     // Step 1/2 default), true = dark blue. SPACE toggles this flag.
     bool clearColorIsBlue = false;
-    // Remembers whether SPACE was already held down on the PREVIOUS frame.
-    // glfwGetKey() only tells us the key's state RIGHT NOW (pressed or not),
-    // so on its own a held key would look "pressed" on every single frame and
-    // would toggle the color hundreds of times per second. By comparing the
-    // previous frame's state to the current one we can detect the exact
-    // instant the key goes DOWN (edge detection) and toggle once per press.
-    // Initialized to false: before the program starts, SPACE is not pressed.
-    bool spaceWasPressedLastFrame = false;
+    // Step 16: the spaceWasPressedLastFrame bool that used to live here
+    // moved into pe::Input. Why edges need memory is unchanged:
+    // glfwGetKey() only reports RIGHT NOW, so a held key would otherwise
+    // look "pressed" every frame and fire hundreds of toggles per
+    // second; comparing against the previous frame detects the exact
+    // instant the key goes DOWN — one edge per physical press. That
+    // comparison and its snapshot are now the boundary's job.
 
     // --- Step 13: Renderer initialization ---
     // Everything GPU-side that Steps 4-10 and Phases 3/5 used to create
@@ -606,6 +630,13 @@ int main() {
     // 66.7 px per world unit at 800x600 — see camera.h for the full
     // tuning note), built once; nothing about it changes per frame.
     pe::Camera camera;
+
+    // --- Step 16: the input boundary (before the loop) ---
+    // ESC and SPACE are the only keys with EDGE semantics, so they are
+    // the only keys registered for previous-frame tracking (snapshot
+    // starts all-false: before the program starts, nothing is pressed).
+    // WASD and the arrows stay level-only reads — no tracking needed.
+    pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE};
 
     // --- Step 8: Player movement speed (before the loop) ---
     // World units per second for the ARROW-key-driven entity
@@ -770,20 +801,20 @@ int main() {
         // A. Poll for events (input, window resize, etc.)
         glfwPollEvents();
 
-        // --- Step 11: Input dispatch — what a KEY MEANS depends on the STATE ---
+        // --- Step 11 / Step 16: Input dispatch — what a KEY MEANS
+        // depends on the STATE ---
         // The engine's first real input FORK: the same physical key has
         // different semantics per state. ESC quits from MENU, PAUSES in
         // PLAYING, resumes from PAUSED. SPACE starts from MENU, toggles
         // the clear color in PLAYING, returns to MENU from PAUSED.
-        // Both keys are read ONCE here as level + EDGE (Step 3's
-        // pattern — ESC gains an edge detector now that it toggles),
-        // then the state switch below consumes the results. Every
-        // transition is a one-line assignment: states are values, and
-        // switching is nothing more dramatic than storing a new one.
-        bool escIsPressedNow = (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS);
-        bool escEdge = escIsPressedNow && !escWasPressedLastFrame;
-        bool spaceIsPressedNow = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
-        bool spaceEdge = spaceIsPressedNow && !spaceWasPressedLastFrame;
+        // Step 16: the raw key READS (level + edge, Step 3's pattern)
+        // now come through pe::Input; the state switch below still
+        // owns the MEANING and consumes the results. Every transition
+        // is a one-line assignment: states are values, and switching
+        // is nothing more dramatic than storing a new one.
+        bool escIsPressedNow = pe::Input::isDown(window, GLFW_KEY_ESCAPE);
+        bool escEdge = input.isEdge(window, GLFW_KEY_ESCAPE);
+        bool spaceEdge = input.isEdge(window, GLFW_KEY_SPACE);
 
         switch (currentState) {
         case pe::GameState::MENU:
@@ -813,24 +844,25 @@ int main() {
                     // Flip the flag: black becomes blue, blue becomes black.
                     clearColorIsBlue = !clearColorIsBlue;
                 }
-                // --- Step 6 / Step 15: Camera Movement (WASD, polled
-                // every frame) ---
+                // --- Step 6 / Steps 15-16: Camera Movement (WASD,
+                // polled every frame) ---
                 // Movement is a RATE, not a toggle: while a key is held it
                 // must act on EVERY frame. No previous-frame comparison —
                 // speed * deltaTime turns a per-frame key state into
-                // frame-rate-independent units per second. Step 15: the
-                // POLLING stays here (Step 16 will separate input); the
-                // arithmetic moved into camera.move(), direction as data.
-                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+                // frame-rate-independent units per second. Step 15 moved
+                // the ARITHMETIC into camera.move(); Step 16 moved the
+                // KEY READ into pe::Input::isDown. The direction choice
+                // and the PLAYING-only gate stay here.
+                if (pe::Input::isDown(window, GLFW_KEY_W)) {
                     camera.move(0.0f, 1.0f, dt);   // camera up    -> scene slides down
                 }
-                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+                if (pe::Input::isDown(window, GLFW_KEY_S)) {
                     camera.move(0.0f, -1.0f, dt);  // camera down  -> scene slides up
                 }
-                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+                if (pe::Input::isDown(window, GLFW_KEY_A)) {
                     camera.move(-1.0f, 0.0f, dt);  // camera left  -> scene slides right
                 }
-                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+                if (pe::Input::isDown(window, GLFW_KEY_D)) {
                     camera.move(1.0f, 0.0f, dt);   // camera right -> scene slides left
                 }
                 // --- Step 8: Player entity movement (ARROW keys) ---
@@ -841,16 +873,16 @@ int main() {
                 // pattern as camera panning. The reference below points
                 // INTO the vector — writes land in the real entity.
                 pe::Entity& player = entities[0];
-                if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+                if (pe::Input::isDown(window, GLFW_KEY_UP)) {
                     player.position.y += entityMoveSpeed * dt;
                 }
-                if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+                if (pe::Input::isDown(window, GLFW_KEY_DOWN)) {
                     player.position.y -= entityMoveSpeed * dt;
                 }
-                if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+                if (pe::Input::isDown(window, GLFW_KEY_LEFT)) {
                     player.position.x -= entityMoveSpeed * dt;
                 }
-                if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+                if (pe::Input::isDown(window, GLFW_KEY_RIGHT)) {
                     player.position.x += entityMoveSpeed * dt;
                 }
             }
@@ -878,9 +910,13 @@ int main() {
             }
             break;
         }
-        // Store this frame's key states so the NEXT frame can detect edges.
-        escWasPressedLastFrame = escIsPressedNow;
-        spaceWasPressedLastFrame = spaceIsPressedNow;
+        // --- Step 16: frame-end snapshot update, through the boundary ---
+        // Same POSITION as the old escWasPressedLastFrame /
+        // spaceWasPressedLastFrame stores: AFTER the switch consumed the
+        // edges, the tracked keys' current levels become next frame's
+        // "previous" state. Order is load-bearing — updating earlier
+        // would kill every edge this frame.
+        input.update(window);
 
         // --- Step 11: Simulation runs ONLY in PLAYING ---
         // PAUSED holds the world still — drawn every frame (below),
