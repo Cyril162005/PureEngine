@@ -1,0 +1,147 @@
+{
+  "project": "PureEngine",
+  "method": "from_scratch",
+  "hardware_target": "i3, 8GB RAM",
+  "stack": [
+    "C/C++",
+    "GLFW or SDL",
+    "OpenGL"
+  ],
+  "continuation_of": "PureEngine (12/12 complete, all steps verified and pushed)",
+  "status_note": "Step 13 is completed and verified. Steps 14-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
+  "steps": [
+    {
+      "id": 13,
+      "name": "Renderer Module Boundary",
+      "status": "completed",
+      "definition_of_done": "Rendering setup and per-frame draw submission can be called through a renderer boundary instead of being directly organized as one monolithic rendering section in main.cpp, while existing Step 12 behavior remains unchanged.",
+      "notes": "Derived from the current architecture: Steps 4-10 established the OpenGL shader, VAO/VBO, texture, transform, and draw flow directly in main.cpp. Phase 3 then added text rendering using the same shader/render path. This step should separate renderer responsibilities without changing rendering behavior. Exact class/function design is intentionally not prescribed before implementation.",
+      "implementation": "Header-only pe::Renderer in src/renderer.h (513 lines): init/shutdown/clear/drawWorld/drawDigitString, owns shader program, uniform locations, world and text VAO/VBOs, and all five textures; destroyAll() replaces four duplicated cleanup chains. main.cpp 1675 -> 1082 lines (+115/-656). Zero CMakeLists.txt change. Known seams left inside for later steps: asset loading (14), camera/view math (15), UI digit path (21). Two disclosed deltas: audio cleanup on renderer-init failure path (leak fix, unreachable in normal play); blending toggles per drawDigitString call (visually identical).",
+      "verification": "In-place configure (524.0s) + Release build: zero errors/warnings in project code (pre-existing third-party C4244 in miniaudio.h unchanged); exe 1,171,456 bytes, fully static. Cyril ran build/Release/PureEngine.exe on 2026-08-15 and confirmed the full regression checklist: MENU/PLAYING/PAUSED/GAME_OVER, player movement, camera pan, three scenery (spin/tint/beep), three hostiles (chase/difficulty ramp/distinct Phase 5 textures), timer + high-score display, high-score persistence across relaunch.",
+      "completed_commit": "fa80a91",
+      "depends_on": [
+        12
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Resource Loading Boundary",
+      "status": "not_started",
+      "definition_of_done": "Texture and other currently loaded render assets can be obtained through a small resource-loading boundary without changing the existing asset files or their visual result.",
+      "notes": "Derived from Step 10 and Phase 3. Current asset loading includes relative-path probing, stb_image loading, texture creation, and cleanup. This step should isolate ownership/loading responsibility before the project gains more assets. No resource cache or generalized asset database is required unless implementation proves it necessary.",
+      "depends_on": [
+        13
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Camera Module Boundary",
+      "status": "not_started",
+      "definition_of_done": "Camera position, movement, and view/projection calculation are handled through a camera boundary, while existing WASD camera movement and world rendering remain visually identical.",
+      "notes": "Step 6 introduced the camera math and Step 11 continued to store camera state directly in main.cpp/resetGame. This step separates camera responsibility from game-state and renderer code. Existing orthographic camera behavior must remain unchanged.",
+      "depends_on": [
+        13
+      ]
+    },
+    {
+      "id": 16,
+      "name": "Input Module Boundary",
+      "status": "not_started",
+      "definition_of_done": "Keyboard polling and the existing edge-detection behavior can be accessed through an input boundary without changing the meaning of MENU, PLAYING, PAUSED, or GAME_OVER controls.",
+      "notes": "Step 3 established direct glfwGetKey polling and edge detection; Step 11 added state-dependent input meaning. The goal is separation, not a full action-mapping system. Existing controls must remain identical.",
+      "depends_on": [
+        12
+      ]
+    },
+    {
+      "id": 17,
+      "name": "Time/Timestep Boundary",
+      "status": "not_started",
+      "definition_of_done": "Frame delta time is supplied through a timing boundary while preserving the existing deltaTime-driven movement, rotation, survival timer, and difficulty scaling behavior.",
+      "notes": "Step 2 introduced deltaTime, Step 12 uses it for survival time and hostile movement, and Phase 2 derives difficulty from survivalTime. This step isolates timing acquisition from gameplay calculations. No fixed timestep is prescribed.",
+      "depends_on": [
+        12
+      ]
+    },
+    {
+      "id": 18,
+      "name": "Entity Lifecycle Boundary",
+      "status": "not_started",
+      "definition_of_done": "Entity creation/reset/removal responsibilities have an explicit boundary, while the current vector-based entity representation and reset behavior remain correct.",
+      "notes": "Step 7 established std::vector<pe::Entity> as the project's simple data-driven entity container. Step 12 and Phase 1 use push_back before the initialEntities snapshot. This step must not introduce a full ECS, registry, or component scheduler unless a concrete requirement appears.",
+      "depends_on": [
+        12
+      ]
+    },
+    {
+      "id": 19,
+      "name": "Game State Boundary",
+      "status": "not_started",
+      "definition_of_done": "MENU, PLAYING, PAUSED, and GAME_OVER state transitions and state-specific input/simulation rules are organized behind a game-state boundary without changing their current behavior.",
+      "notes": "Step 11 deliberately used one enum and one currentState variable instead of a state stack. Step 12 added GAME_OVER. This continuation should preserve that simple model unless the implementation exposes a concrete need for more structure.",
+      "depends_on": [
+        16,
+        17
+      ]
+    },
+    {
+      "id": 20,
+      "name": "Audio Boundary",
+      "status": "not_started",
+      "definition_of_done": "The existing miniaudio engine and four-slot sound pool can be triggered through an audio boundary while preserving collision-edge and GAME_OVER beep behavior.",
+      "notes": "Step 9 introduced miniaudio; Step 10 added per-entity collision edges and a four-slot pool. This step separates game events from direct miniaudio calls. It must not change the existing sound assets or trigger semantics.",
+      "depends_on": [
+        18,
+        19
+      ]
+    },
+    {
+      "id": 21,
+      "name": "UI Rendering Boundary",
+      "status": "not_started",
+      "definition_of_done": "The existing digit-only timer/high-score rendering can be invoked through a UI boundary while preserving screen-space behavior, formatting, placement, blending, and camera independence.",
+      "notes": "Phase 3 introduced the digit-only bitmap font and Phase 4 extracted drawDigitString(). This step recognizes the existing UI path as a separate responsibility without expanding the font system. No letters, menus, widgets, or general UI framework are required by this definition.",
+      "depends_on": [
+        13,
+        14
+      ]
+    },
+    {
+      "id": 22,
+      "name": "World/Game Separation",
+      "status": "not_started",
+      "definition_of_done": "The engine-facing systems and game-specific rules have a clearer boundary, while the current top-down survival loop still behaves identically.",
+      "notes": "Step 12 intentionally placed franchise-specific gameplay on top of engine systems, but much of the implementation remains in main.cpp. This step should separate responsibilities only where the existing code demonstrates a real boundary. It must not become a rewrite of the game.",
+      "depends_on": [
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21
+      ]
+    },
+    {
+      "id": 23,
+      "name": "Engine/Game Integration Pass",
+      "status": "not_started",
+      "definition_of_done": "The refactored engine boundaries and the current game can be built and run together with all previously verified gameplay behavior preserved.",
+      "notes": "Integration verification step. No new gameplay feature is required. The existing v1 loop, three hostiles, difficulty scaling, timer, high score persistence, state machine, collision feedback, audio, reset, and camera behavior are regression targets.",
+      "depends_on": [
+        22
+      ]
+    },
+    {
+      "id": 24,
+      "name": "Clean Build and Architecture Verification",
+      "status": "not_started",
+      "definition_of_done": "A fresh clean build succeeds, the current game passes its regression checklist, and the resulting engine/game boundaries are documented without introducing unnecessary systems.",
+      "notes": "Final continuation checkpoint. The source material establishes fresh clean builds and direct verification as the project's existing standard. This step records the same discipline for the continuation rather than claiming a result before it happens.",
+      "depends_on": [
+        23
+      ]
+    }
+  ],
+  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
+}
