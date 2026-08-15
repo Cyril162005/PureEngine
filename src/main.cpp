@@ -46,8 +46,9 @@
 // split further stay deliberately inside it: the UI path (Step 21) —
 // texture loading was split out by Step 14 (src/resources.h),
 // camera state/math by Step 15 (src/camera.h), keyboard
-// polling/edge detection by Step 16 (src/input.h), and frame-time
-// acquisition by Step 17 (src/time.h).
+// polling/edge detection by Step 16 (src/input.h), frame-time
+// acquisition by Step 17 (src/time.h), and entity lifecycle
+// operations by Step 18 (src/lifecycle.h).
 #include "renderer.h"
 
 // --- Step 15: Camera Module Boundary ---
@@ -85,6 +86,22 @@
 // still spans the entire previous frame. Header-only: no
 // CMakeLists.txt change. glfwGetTime() is now exclusive to time.h.
 #include "time.h"
+
+// --- Step 18: Entity Lifecycle Boundary ---
+// Entity CREATION and RESET-RESTORATION moved out of this file into
+// free functions in pe (src/lifecycle.h): buildInitialEntities()
+// carries the six constructions in their exact order and values,
+// resetEntities() carries the snapshot assignment, and
+// flagsForCount() carries the collision-flag sizing expression.
+// What STAYS here: the collections themselves (entities,
+// initialEntities, colliding), resetGame()'s one-block atomicity and
+// its call policy, and everything entities MEAN — player/scenery/
+// hostile roles, the chase, the catch test, texture-by-index. No
+// manager, no container ownership, no spawning or destruction
+// machinery: the engine has never added or removed an entity at
+// runtime, and restoration IS its removal semantics. Header-only:
+// no CMakeLists.txt change.
+#include "lifecycle.h"
 
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
@@ -342,6 +359,22 @@
  *       TIME MEANING stays here: survivalTime, difficulty scaling,
  *       timer display, high score, the PLAYING gate. No fixed
  *       timestep, no clamping, no accumulator, no frame limiter.
+ *
+ * Step 18: Entity Lifecycle Boundary
+ * Goal: Make entity creation/reset/removal responsibility explicit
+ *       without replacing the vector-based entity design. The six
+ *       push_back constructions (exact order, exact values — the
+ *       index conventions 0 = player, 1-2 = scenery, 3+ = hostiles
+ *       are load-bearing) move into pe::buildInitialEntities(); the
+ *       snapshot-restoration assignment moves into pe::resetEntities
+ *       (the engine's only "removal" — it never erases or spawns at
+ *       runtime); the collision-flag sizing becomes pe::flagsForCount.
+ *       main.cpp keeps the collections, keeps resetGame() as ONE
+ *       atomic block (now delegating only the entity restore), and
+ *       keeps every game meaning: chase, catch, textures, states.
+ *       No ECS, no registry, no container ownership, no invented
+ *       lifecycle machinery. Free functions in src/lifecycle.h,
+ *       header-only — no CMake change.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -578,68 +611,16 @@ int main() {
         return -1;
     }
 
-    // --- Step 7: Entities as DATA (before the loop) ---
+    // --- Step 7 / Step 18: Entities as DATA (before the loop) ---
     // Every triangle instance is one entry in this vector. The Step 5/6
     // globals rotationAngle/rotationSpeed no longer exist — that state
-    // now lives INSIDE each entity, per instance. Adding an entity is
-    // one push_back; the update loop and draw loop below never change.
-    std::vector<pe::Entity> entities;
-    // Instances 1 & 2 — the Step 6 pair, exactly preserved: same world
-    // positions, same 0.9 rad/s counter-clockwise spin (~7 s/revolution),
-    // same unit scale.
-    entities.push_back(pe::Entity(pe::Vec3(-1.5f, 0.0f, 0.0f), 0.9f,
-                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
-    entities.push_back(pe::Entity(pe::Vec3( 1.5f, 0.0f, 0.0f), 0.9f,
-                                  pe::Vec3(1.0f, 1.0f, 1.0f)));
-    // Instance 3 — the proof that the loop scales without code
-    // duplication: new position, new speed AND DIRECTION (-1.4 rad/s =
-    // clockwise, ~4.5 s/revolution), new scale (60% size). None of this
-    // required a single new rendering line — behavior comes from DATA.
-    entities.push_back(pe::Entity(pe::Vec3(0.0f, 1.5f, 0.0f), -1.4f,
-                                  pe::Vec3(0.6f, 0.6f, 1.0f)));
-    // Instance 4 — Step 12: the HOSTILE. Same pe::Entity type, same
-    // vector, added purely as DATA (Step 7's ruling): the existing
-    // update loop spins it (1.8 rad/s CCW), the existing draw loop
-    // renders it. Balance tuning: its hitbox is NO LONGER the Step 8
-    // default — see the explicit halfExtents argument below.
-    // Starts at (0, -2) — bottom-center, away from the player's start
-    // at (-1.5, 0) — unit scale like entities 1 & 2. It ignores the
-    // spinning triangles (scenery is not solid in v1) and hunts only
-    // the player — that chase and its catch test live in the
-    // simulation section below, deliberately OUTSIDE the pair loop so
-    // the Step 8 scenery-collision system stays byte-identical in
-    // behavior.
-    entities.push_back(pe::Entity(pe::Vec3(0.0f, -2.0f, 0.0f), 1.8f,
-                                  pe::Vec3(1.0f, 1.0f, 1.0f),
-                                  // BALANCE TUNING (disclosed deviation from Step 8):
-                                  // 0.5 is the triangle's base half-width — the kill box
-                                  // matches the hostile's dominant footprint instead of the
-                                  // 0.7071 rotation-safe bound. Step 8's bound exists for
-                                  // FAIRNESS on rotating scenery (no blind spot at any spin
-                                  // angle); a chasing hostile does not need that guarantee,
-                                  // and its overreach reads as an invisible fat collider.
-                                  // The tighter box makes visual contact and actual death
-                                  // agree. Player and scenery keep 0.7071.
-                                  pe::Vec3(0.5f, 0.5f, 0.0f)));
-    // Instances 5 & 6 — Game Build Phase 1: TWO MORE hostiles, added
-    // the only way this project adds behavior — as DATA (two push_backs,
-    // Step 7's ruling). Each carries its OWN personality through the
-    // exact same fields Step 7 gave every triangle: position = spawn
-    // point, rotationSpeed = visual spin, scale = size (and collider).
-    // Spawn points split the compass around the player's (-1.5, 0)
-    // start — bottom (existing hostile), top-right, top-left — so the
-    // opening seconds are a genuine three-direction read, not an
-    // instant surround. Spins differ (one clockwise, like entity 3;
-    // one faster CCW) so the three threats are visually distinct.
-    // Both sit BEFORE the initialEntities snapshot below, which is the
-    // entire reason resetGame() needs NO changes: the snapshot simply
-    // contains all six entities at their start positions.
-    entities.push_back(pe::Entity(pe::Vec3(3.0f, 2.0f, 0.0f), -1.2f,
-                                  pe::Vec3(1.0f, 1.0f, 1.0f),
-                                  pe::Vec3(0.5f, 0.5f, 0.0f)));   // tuning: tighter hitbox — see instance 4
-    entities.push_back(pe::Entity(pe::Vec3(-3.0f, 2.0f, 0.0f), 2.2f,
-                                  pe::Vec3(1.0f, 1.0f, 1.0f),
-                                  pe::Vec3(0.5f, 0.5f, 0.0f)));   // tuning: tighter hitbox — see instance 4
+    // now lives INSIDE each entity, per instance. Step 18 moved the
+    // six CONSTRUCTIONS into pe::buildInitialEntities() (src/lifecycle.h)
+    // — same order, same values, comments relocated with them — so
+    // entity CREATION has one named owner. The index conventions built
+    // there are load-bearing: 0 = player, 1-2 = scenery, 3+ = hostiles
+    // (chased at hostileSpeeds[h - 3], textured by index).
+    std::vector<pe::Entity> entities = pe::buildInitialEntities();
     // --- Step 11: the INITIAL world, kept as DATA ---
     // A snapshot of the fresh entity list. Starting a game from the
     // menu restores it — reset is an ASSIGNMENT, not new code, which
@@ -649,7 +630,9 @@ int main() {
     // it in Steps 8-10). The PAUSED state still DRAWS the scene but
     // stops SIMULATING, so the last PLAYING frame's flags must survive
     // the pause (frozen tint). Rebuilt from zero every PLAYING frame.
-    std::vector<char> colliding(entities.size(), 0);
+    // Step 18: the sizing expression lives with creation in the
+    // lifecycle boundary (pe::flagsForCount); main.cpp owns the buffer.
+    std::vector<char> colliding = pe::flagsForCount(entities.size());
 
     // --- Step 6 / Step 15: Camera + Projection State (before the loop) ---
     // The camera's position IN WORLD SPACE, its movement speed, and
@@ -792,11 +775,11 @@ int main() {
     // meta-game state that outlives every individual run, exactly the
     // distinction the snapshot pattern makes explicit by omission.
     auto resetGame = [&]() {
-        entities = initialEntities;
+        pe::resetEntities(entities, initialEntities);   // Step 18: the snapshot restore, via the lifecycle boundary
         camera.reset();   // Step 15: back to the world origin, via the boundary
         clearColorIsBlue = false;
         wasColliding.clear();
-        colliding.assign(entities.size(), 0);
+        colliding = pe::flagsForCount(entities.size());
         survivalTime = 0.0f;
     };
 

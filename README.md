@@ -106,6 +106,8 @@ src/input.h             the input boundary (Step 16): key-state polling,
                         edge detection, previous-frame snapshot
 src/time.h              the time boundary (Step 17): frame-time acquisition,
                         delta calculation, previous-timestamp state
+src/lifecycle.h         the entity lifecycle boundary (Step 18): initial
+                        entity construction, snapshot restore, flag sizing
 src/math/               own math layer (Vec3, Mat4)
 src/entity.h            entity data
 src/collision.h         AABB collision
