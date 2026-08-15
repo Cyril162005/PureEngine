@@ -32,6 +32,20 @@
 // (input flags, entities, camera, audio) in one place.
 #include "gamestate.h"
 
+// --- Step 13: Renderer Module Boundary ---
+// The engine's first SYSTEM boundary. Everything GPU-side that Steps
+// 4-10 and Phases 3/5 grew directly inside this file — shader compile
+// and link, uniform lookups, the triangle and text VAO/VBO pairs, all
+// five textures, the entity draw loop, and the digit UI path — now
+// lives in pe::Renderer (src/renderer.h). main.cpp OWNS the window,
+// audio, entities, game state, camera position, projection, timing,
+// and the high score; it asks the renderer to initialize once and to
+// submit frames. Header-only like the math layer and entity.h — no
+// CMakeLists.txt change. The seams the next continuation steps will
+// split further stay deliberately inside it: texture loading (Step 14),
+// camera math (Step 15), and the UI path (Step 21).
+#include "renderer.h"
+
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
 // FetchContent (same pattern as GLFW). Unlike our math/entity/
@@ -42,13 +56,9 @@
 // here is all main.cpp needs — no MINIAUDIO_IMPLEMENTATION define.
 #include <miniaudio.h>
 
-// --- Step 10: Asset Loading ---
-// stb_image — declarations ONLY. The actual implementation compiles in
-// exactly one translation unit: src/stb_impl.cpp (added to CMake's
-// source list), which defines STB_IMAGE_IMPLEMENTATION. Same
-// declare-everywhere / define-once pattern the C runtime uses, and it
-// keeps ~8,000 lines of generated code out of this file.
-#include <stb_image.h>
+// Step 13 moved every stb_image call into src/renderer.h (the one
+// place that still decodes images); the implementation translation
+// unit remains src/stb_impl.cpp, exactly as Step 10 established.
 
 /**
  * Step 1: Window + Context Creation
@@ -210,6 +220,28 @@
  *       collision tint MULTIPLIES the texel by (1,0,0) — a texture
  *       with zero red would render black on collision. The checker
  *       stays loaded (legacy asset, sampled by no entity anymore).
+ *
+ * Step 13: Renderer Module Boundary
+ * Goal: The engine's first SYSTEM boundary. Everything GPU-side —
+ *       the Step 4 shader, the Step 5/8 uniform locations, the two
+ *       VAO/VBO pairs, all five textures (checker legacy, the three
+ *       Phase 5 entity textures, the Phase 3 font atlas), the Step 7
+ *       entity draw loop with its Phase 5 per-entity texture select
+ *       and Step 8 collision tint, and the Phase 3/4 screen-space
+ *       digit path — moves OUT of this file into pe::Renderer
+ *       (src/renderer.h, header-only like entity.h: no CMake change).
+ *       main.cpp now initializes the renderer once, selects the
+ *       state-dependent clear color, and submits frames through
+ *       three calls (clear / drawWorld / drawDigitString). What
+ *       stays: the window, audio, entities, state machine, input,
+ *       simulation, camera position, projection, timer, high score.
+ *       The relocation is byte-compatible — same shader sources,
+ *       same vertex layout, same sampling parameters, same tint
+ *       values, same digit layout constants — so every visual
+ *       result of Steps 1-12 and Phases 1-5 is preserved. One
+ *       incidental fix on a fatal error path: renderer-init failure
+ *       now uninitializes audio before window teardown, matching the
+ *       discipline the texture-load failure paths always had.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -420,155 +452,27 @@ int main() {
     // Initialized to false: before the program starts, SPACE is not pressed.
     bool spaceWasPressedLastFrame = false;
 
-    // --- Step 4: Shader Setup (before the loop) ---
-    // Shaders are tiny programs that run ON THE GPU. OpenGL's fixed-function
-    // pipeline is gone in core profile 3.3 — we MUST supply at least a vertex
-    // shader (positions vertices) and a fragment shader (colors pixels).
-    // They are written in GLSL and compiled at runtime from these strings.
-    // "#version 330 core" matches the OpenGL 3.3 Core context from Step 1.
-    //
-    // VERTEX SHADER: runs once per vertex. "layout (location = 0)" binds the
-    // input attribute aPos to attribute index 0 — the same index we will use
-    // when describing our vertex data with glVertexAttribPointer below.
-    //
-    // STEP 5 ADDITION — "uniform mat4 transform;": a uniform is a global
-    // INPUT to the shader, identical for every vertex in the draw call, set
-    // from C++ with glUniformMatrix4fv. Every vertex is multiplied by it
-    // (w = 1 makes translation take effect), so ONE matrix transforms the
-    // whole triangle: rotate it, move it, scale it — from CPU-side math.
-    const char* vertexShaderSource =
-        "#version 330 core\n"
-        "layout (location = 0) in vec3 aPos;\n"
-        // STEP 10 ADDITION: a second vertex ATTRIBUTE carrying the UV
-        // texture coordinate of this vertex. 'location = 1' matches the
-        // glVertexAttribPointer index below. The shader does nothing with
-        // it except hand it to the fragment stage — rasterization
-        // INTERPOLATES it across the triangle automatically, so every
-        // pixel gets a smoothly blended UV between the three corners.
-        "layout (location = 1) in vec2 aTexCoord;\n"
-        "uniform mat4 transform;\n"
-        "out vec2 TexCoord;\n"
-        "void main() {\n"
-        "    gl_Position = transform * vec4(aPos, 1.0);\n"
-        "    TexCoord = aTexCoord;\n"
-        "}\n";
-
-    // FRAGMENT SHADER: runs once per pixel covered by the shape. Its output
-    // (FragColor, an RGBA vec4) becomes that pixel's color.
-    //
-    // STEP 10 — the flat color is replaced by a TEXTURE LOOKUP:
-    // 'uniform sampler2D tex' is a handle to the texture bound on a
-    // texture unit (set from C++ with glUniform1i); texture(tex, TexCoord)
-    // fetches the image color at the INTERPOLATED UV for this pixel.
-    // The Step 8 'color' uniform survives as a TINT multiplier: white
-    // (1,1,1) leaves the texture untouched, red (1,0,0) multiplies the
-    // green and blue channels to zero — the collision feedback is now a
-    // red-tinted texture instead of flat red. Same uniform, evolved role.
-    //
-    // PHASE 3 ADDITION — the output ALPHA now comes from the texture:
-    // text needs transparent glyph quads blended over the scene. The
-    // checker texture is uploaded as RGB, whose samples always carry
-    // alpha 1.0, and blending is DISABLED while the world draws — so
-    // every world pixel computes exactly as it did before this line
-    // changed. Only the font atlas (RGBA, transparent background)
-    // makes the new channel do anything.
-    const char* fragmentShaderSource =
-        "#version 330 core\n"
-        "uniform sampler2D tex;\n"
-        "uniform vec3 color;\n"
-        "in vec2 TexCoord;\n"
-        "out vec4 FragColor;\n"
-        "void main() {\n"
-        "    vec4 texel = texture(tex, TexCoord);\n"
-        "    FragColor = vec4(texel.rgb * color, texel.a);\n"
-        "}\n";
-
-    // Compile the vertex shader. glCreateShader creates an empty shader object
-    // of the given type; glShaderSource attaches our GLSL text; glCompileShader
-    // compiles it on the GPU driver.
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-    // Error check: if compilation failed (typo in GLSL, unsupported feature),
-    // the info log contains the driver's error message. Without this check a
-    // broken shader fails SILENTLY and you just get a black screen.
-    int success;
-    char infoLog[512];
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-        std::cerr << "Vertex shader compilation failed:\n" << infoLog << std::endl;
-        // Consistent cleanup on error: destroy the window and terminate GLFW
-        // before exiting, matching the window-creation error path.
-        // glfwTerminate() also destroys the OpenGL context and every GPU
-        // object owned by it (the compiled shader included), so nothing leaks.
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-
-    // Compile the fragment shader — same three calls, same error check.
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-        std::cerr << "Fragment shader compilation failed:\n" << infoLog << std::endl;
-        // Same consistent cleanup; glfwTerminate() reclaims both shader
-        // objects through context destruction.
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-
-    // Link both compiled shaders into one shader PROGRAM: the complete
-    // executable pipeline the GPU will run. Linking can also fail (e.g. the
-    // vertex shader's outputs don't match the fragment shader's inputs), so
-    // we check GL_LINK_STATUS with glGetProgramiv the same way.
-    GLuint shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-        std::cerr << "Shader program linking failed:\n" << infoLog << std::endl;
-        // Same consistent cleanup; the unfinished program and both shaders
-        // are reclaimed when glfwTerminate() destroys the context.
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-    // The individual shader objects are now baked into the program; delete
-    // them to free resources. The program itself stays alive until cleanup.
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    // --- Step 5: Locate the transform uniform (after linking) ---
-    // glGetUniformLocation asks the linked program for the storage location
-    // of the uniform named "transform" and returns its handle. We need the
-    // handle to set its value per frame. -1 means it does not exist —
-    // usually a misspelled name, or the compiler optimized the uniform away
-    // because nothing feeds gl_Position through it. Without this check the
-    // upload below would fail SILENTLY and the triangle would sit still.
-    GLint transformLocation = glGetUniformLocation(shaderProgram, "transform");
-    if (transformLocation < 0) {
-        std::cerr << "Uniform 'transform' not found in shader program" << std::endl;
-        // Same consistent cleanup as the other error paths.
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-
-    // --- Step 8: Locate the color uniform (after linking) ---
-    // Same pattern as 'transform' above: get the handle once, check it,
-    // upload a per-draw value every frame below. Since Step 10 the color
-    // is a TINT multiplied with the texture — white normally, red when
-    // colliding — but the lookup and check are identical.
-    GLint colorLocation = glGetUniformLocation(shaderProgram, "color");
-    if (colorLocation < 0) {
-        std::cerr << "Uniform 'color' not found in shader program" << std::endl;
+    // --- Step 13: Renderer initialization ---
+    // Everything GPU-side that Steps 4-10 and Phases 3/5 used to create
+    // directly in this file — shader compile and link, the 'transform'
+    // and 'color' uniform lookups, the triangle VAO/VBO, the checker
+    // texture, the three Phase 5 entity textures, the Phase 3 font
+    // atlas plus text VAO/VBO, and the sampler-to-unit-0 bind — moved
+    // into pe::Renderer::init() (src/renderer.h). The GL work is
+    // byte-for-byte the same; what changed is OWNERSHIP. main.cpp
+    // keeps the fatal-error DECISION and the non-rendering teardown
+    // that follows it: the renderer already deleted every GL object it
+    // had created before returning false, so here only audio, window,
+    // and GLFW remain to clean up. (Honest note recorded in the
+    // tracker: the OLD shader failure paths predated the audio-cleanup
+    // discipline the texture paths established and leaked the audio
+    // engine on a fatal exit; this path closes that.)
+    pe::Renderer renderer;
+    if (!renderer.init()) {
+        for (ma_sound& sound : collisionSounds) {
+            ma_sound_uninit(&sound);
+        }
+        ma_engine_uninit(&audioEngine);
         glfwDestroyWindow(window);
         glfwTerminate();
         return -1;
@@ -708,295 +612,14 @@ int main() {
     const float difficultyRate = 0.01f;
     const float maxDifficultyScale = 1.33f;
 
-    // --- Step 4: Vertex Data + VAO/VBO (before the loop) ---
-    // Three vertices forming a triangle centered on screen.
-    // STEP 10: each vertex now carries TWO attributes interleaved in the
-    // same array — position (x, y, z) followed by its UV texture
-    // coordinate (u, v). UV space: (0,0) is the texture's BOTTOM-LEFT,
-    // (1,1) its top-right — the whole image maps into the 0..1 square
-    // regardless of the image's pixel size. The bottom corners get the
-    // bottom UV corners; the apex gets (0.5, 1), so the triangle shows
-    // the top-center of the image, upright.
-    float vertices[] = {
-        // position              // UV
-        -0.5f, -0.5f, 0.0f,     0.0f, 0.0f,   // bottom-left
-         0.5f, -0.5f, 0.0f,     1.0f, 0.0f,   // bottom-right
-         0.0f,  0.5f, 0.0f,     0.5f, 1.0f    // top
-    };
-
-    // VBO (Vertex Buffer Object): a buffer that lives in GPU memory.
-    // We upload our vertex data once so the GPU doesn't need it re-sent
-    // every frame.
-    // VAO (Vertex Array Object): a small state container that REMEMBERS how
-    // to interpret the VBO (which attribute index, how many floats, stride,
-    // offset). Binding the VAO later restores all of that in one call.
-    GLuint VAO, VBO;
-    glGenVertexArrays(1, &VAO);   // generate names/IDs for 1 VAO and 1 VBO
-    glGenBuffers(1, &VBO);
-
-    // In core-profile OpenGL, most calls act on whatever object is currently
-    // BOUND. Bind the VAO first: everything we configure now is recorded
-    // inside it.
-    glBindVertexArray(VAO);
-    // Bind the VBO as the current GL_ARRAY_BUFFER target, then upload data.
-    // GL_STATIC_DRAW hints the data is set once and drawn many times.
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    // Tell OpenGL how to read the raw floats: attribute index 0 (matches
-    // "layout (location = 0)" in the vertex shader), 3 floats per vertex,
-    // no normalization, stride = byte distance to the NEXT vertex — now
-    // 5 floats (3 position + 2 UV) because the attributes are interleaved.
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    // Attribute arrays are disabled by default — enable index 0.
-    glEnableVertexAttribArray(0);
-    // STEP 10: attribute index 1 = the UV pair. Same buffer, same stride,
-    // but the pointer starts 3 floats in (right after each position).
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    // Unbind the VBO (optional safety measure); the VAO remembers the setup.
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // --- Step 10: Texture loading (stb_image) + GL texture object ---
-    // Same 3-candidate CWD strategy as the sound file in Step 9.
-    const char* texturePathCandidates[] = {
-        "assets/checker.png",       // run from the repo root
-        "../assets/checker.png",    // run from build/
-        "../../assets/checker.png"  // run from build/Release/
-    };
-    // stbi_load DECODES the image file (PNG here; it also reads JPG/BMP/
-    // TGA) into a raw pixel array in memory. The three ints receive the
-    // decoded width, height, and channel count; the final argument 3
-    // FORCES the output to 3-channel RGB even if the file stores alpha.
-    // It returns NULL on failure — and it is OUR job to check, because a
-    // failed load followed by a silent black texture is the audio-missing
-    // problem all over again, visually.
-    int texWidth = 0, texHeight = 0, texChannels = 0;
-    unsigned char* pixels = NULL;
-    for (const char* candidate : texturePathCandidates) {
-        pixels = stbi_load(candidate, &texWidth, &texHeight, &texChannels, 3);
-        if (pixels) {
-            break;
-        }
-    }
-    if (!pixels) {
-        std::cerr << "Failed to load assets/checker.png (tried: assets/, ../assets/, ../../assets/)" << std::endl;
-        for (ma_sound& sound : collisionSounds) {
-            ma_sound_uninit(&sound);
-        }
-        ma_engine_uninit(&audioEngine);
-        glDeleteVertexArrays(1, &VAO);
-        glDeleteBuffers(1, &VBO);
-        glDeleteProgram(shaderProgram);
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-
-    // Upload the decoded pixels into a GPU TEXTURE OBJECT.
-    // glGenTextures creates the object name; glBindTexture makes it the
-    // current target so the following calls configure IT.
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    // Sampling parameters, part of the object's state:
-    //  WRAP_S/WRAP_T: what happens for UVs outside 0..1 — CLAMP_TO_EDGE
-    //    freezes the border pixels (correct for our exactly-0..1 UVs;
-    //    GL_REPEAT would tile the image instead).
-    //  MIN/MAG_FILTER: how a pixel is computed when the texel-to-pixel
-    //    ratio is not 1:1 — LINEAR blends the 4 nearest texels, which
-    //    keeps a spinning, scaled triangle smooth instead of blocky.
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // The actual upload: level 0 (no mipmaps yet), internal format RGB,
-    // dimensions from stbi_load, border 0, source format RGB of unsigned
-    // bytes — our 64x64x3 pixel array moves to GPU memory in one call.
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texWidth, texHeight, 0,
-                 GL_RGB, GL_UNSIGNED_BYTE, pixels);
-    // The CPU copy has served its purpose — the GPU owns the data now.
-    stbi_image_free(pixels);
-
-    // --- Game Build Phase 5: per-type entity textures ---
-    // Three 16x16 RGB PNGs generated in-tree by make_textures.ps1,
-    // loaded and uploaded through the EXACT same machinery as the
-    // checker above: same 3-candidate CWD probe, same forced-channel
-    // stbi_load, same CLAMP_TO_EDGE + LINEAR sampling parameters. The
-    // one new idea is the HELPER: the checker's load/upload code was
-    // the third copy of an identical pattern by Phase 3, so Phase 5
-    // extracts it once and calls it three times. A texture with zero
-    // red in its palette would render BLACK under Step 8's red
-    // collision tint — so every palette color keeps red-channel
-    // content (hostiles are never tinted, crimson is free for them).
-    auto loadRgbTexture = [](const char* candidates[3]) -> GLuint {
-        int w = 0, h = 0, c = 0;
-        unsigned char* px = NULL;
-        for (int k = 0; k < 3; ++k) {
-            px = stbi_load(candidates[k], &w, &h, &c, 3);
-            if (px) {
-                break;
-            }
-        }
-        if (!px) {
-            return 0;
-        }
-        GLuint id;
-        glGenTextures(1, &id);
-        glBindTexture(GL_TEXTURE_2D, id);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, px);
-        stbi_image_free(px);
-        return id;
-    };
-    const char* playerTexCandidates[] = {
-        "assets/tex_player.png", "../assets/tex_player.png", "../../assets/tex_player.png"
-    };
-    const char* sceneryTexCandidates[] = {
-        "assets/tex_scenery.png", "../assets/tex_scenery.png", "../../assets/tex_scenery.png"
-    };
-    const char* hostileTexCandidates[] = {
-        "assets/tex_hostile.png", "../assets/tex_hostile.png", "../../assets/tex_hostile.png"
-    };
-    GLuint playerTexture = loadRgbTexture(playerTexCandidates);
-    GLuint sceneryTexture = loadRgbTexture(sceneryTexCandidates);
-    GLuint hostileTexture = loadRgbTexture(hostileTexCandidates);
-    if (playerTexture == 0 || sceneryTexture == 0 || hostileTexture == 0) {
-        std::cerr << "Failed to load Phase 5 entity textures (tried: assets/, ../assets/, ../../assets/)" << std::endl;
-        // Delete whichever of the three succeeded (deleting GL name 0 is
-        // a safe no-op), then the checker, then walk the rest of the
-        // reverse-creation cleanup chain.
-        glDeleteTextures(1, &playerTexture);
-        glDeleteTextures(1, &sceneryTexture);
-        glDeleteTextures(1, &hostileTexture);
-        glDeleteTextures(1, &texture);
-        for (ma_sound& sound : collisionSounds) {
-            ma_sound_uninit(&sound);
-        }
-        ma_engine_uninit(&audioEngine);
-        glDeleteVertexArrays(1, &VAO);
-        glDeleteBuffers(1, &VBO);
-        glDeleteProgram(shaderProgram);
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-
-    // --- Phase 3: FONT ATLAS loading (bitmap digit font) ---
-    // assets/font_digits.png, generated IN-TREE by make_font.ps1: ONE
-    // ROW of eleven 16x16 cells — cells 0..9 hold digits '0'..'9',
-    // cell 10 holds '.' — white 5x7 dot-matrix glyphs scaled 2x on a
-    // TRANSPARENT background (RGBA). Because the exact pixels are data
-    // in the generator script, the atlas is reproducible byte-for-byte
-    // and needs no font-rendering library — glyph RASTERIZATION was
-    // the hardware/OS boundary we avoided by pre-baking, and glyph
-    // LAYOUT stays our own logic (same build-it-ourselves category as
-    // math, entities, and collision). The load mirrors the checker's:
-    // same 3-candidate CWD probe — but 4 FORCED CHANNELS, because the
-    // transparency is what lets glyphs blend over the scene instead of
-    // painting solid backing rectangles.
-    const char* fontPathCandidates[] = {
-        "assets/font_digits.png",       // run from the repo root
-        "../assets/font_digits.png",    // run from build/
-        "../../assets/font_digits.png"  // run from build/Release/
-    };
-    int fontWidth = 0, fontHeight = 0, fontChannels = 0;
-    unsigned char* fontPixels = NULL;
-    for (const char* candidate : fontPathCandidates) {
-        fontPixels = stbi_load(candidate, &fontWidth, &fontHeight, &fontChannels, 4);
-        if (fontPixels) {
-            break;
-        }
-    }
-    if (!fontPixels) {
-        std::cerr << "Failed to load assets/font_digits.png (tried: assets/, ../assets/, ../../assets/)" << std::endl;
-        // The checker and the three Phase 5 entity textures already
-        // exist at this point — they join the reverse-creation cleanup
-        // chain.
-        glDeleteTextures(1, &playerTexture);
-        glDeleteTextures(1, &sceneryTexture);
-        glDeleteTextures(1, &hostileTexture);
-        glDeleteTextures(1, &texture);
-        for (ma_sound& sound : collisionSounds) {
-            ma_sound_uninit(&sound);
-        }
-        ma_engine_uninit(&audioEngine);
-        glDeleteVertexArrays(1, &VAO);
-        glDeleteBuffers(1, &VBO);
-        glDeleteProgram(shaderProgram);
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-    // Upload exactly like the checker, two deliberate differences:
-    // internal/source format RGBA (the alpha channel is the point),
-    // and the same CLAMP/LINEAR sampling parameters.
-    GLuint fontTexture;
-    glGenTextures(1, &fontTexture);
-    glBindTexture(GL_TEXTURE_2D, fontTexture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fontWidth, fontHeight, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, fontPixels);
-    stbi_image_free(fontPixels);
-    // The atlas's geometry, known FROM THE GENERATOR (not queried):
-    // eleven equal cells across fontWidth pixels.
-    const int FONT_CELL_COUNT = 11;
-
-    // --- Phase 3: quad geometry for text glyphs ---
-    // Step 4's triangle VAO/VBO pattern repeated for a unit QUAD — two
-    // triangles covering a centered square, SAME interleaved layout
-    // (position xyz + UV st, attributes 0 and 1), so the SAME shader
-    // consumes it with zero changes. The UVs here are per-corner
-    // placeholders (cell 0, upright); the real per-glyph cell UVs ride
-    // in with the vertex data re-uploaded every draw below, so this
-    // initial upload only needs to establish the buffer's SIZE.
-    // GL_DYNAMIC_DRAW: re-uploaded every text draw — tiny (six
-    // vertices), honest about its use.
-    GLuint textVAO, textVBO;
-    glGenVertexArrays(1, &textVAO);
-    glGenBuffers(1, &textVBO);
-    glBindVertexArray(textVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, textVBO);
-    glBufferData(GL_ARRAY_BUFFER, 6 * 5 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // --- Step 10: Bind the sampler uniform to TEXTURE UNIT 0 ---
-    // A sampler2D uniform does NOT hold image data — it holds the INDEX
-    // of a texture unit. Units are GL's binding slots (GL_TEXTURE0..N);
-    // each frame we bind a texture to a unit, and the shader's sampler
-    // must be told WHICH unit to read. Setting the uniform once is
-    // enough: uniform values persist in the program object. (Requires
-    // the program to be current — hence the glUseProgram first.)
-    glUseProgram(shaderProgram);
-    GLint texLocation = glGetUniformLocation(shaderProgram, "tex");
-    if (texLocation < 0) {
-        std::cerr << "Uniform 'tex' not found in shader program" << std::endl;
-        glDeleteTextures(1, &playerTexture);   // Phase 5 textures exist by here
-        glDeleteTextures(1, &sceneryTexture);
-        glDeleteTextures(1, &hostileTexture);
-        glDeleteTextures(1, &texture);
-        glDeleteTextures(1, &fontTexture);   // Phase 3 texture exists by here
-        for (ma_sound& sound : collisionSounds) {
-            ma_sound_uninit(&sound);
-        }
-        ma_engine_uninit(&audioEngine);
-        glDeleteVertexArrays(1, &VAO);
-        glDeleteBuffers(1, &VBO);
-        glDeleteProgram(shaderProgram);
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-    glUniform1i(texLocation, 0);   // sampler reads from GL_TEXTURE0
+    // --- Step 13: GPU geometry, textures, and sampler setup moved out ---
+    // Everything that used to follow here — Step 4's triangle vertex
+    // data + VAO/VBO, Step 10's checker load and upload, Phase 5's
+    // three per-type entity textures, Phase 3's font atlas plus text
+    // quad VAO/VBO, and the sampler-to-unit-0 bind — now lives in
+    // pe::Renderer::init() (src/renderer.h), byte-compatible. The
+    // educational comments that explained each GL call moved with the
+    // code they describe.
 
     // --- Game Build Phase 4: high score — loaded ONCE at startup ---
     // The engine's FIRST persistent state: everything since Step 1
@@ -1078,62 +701,12 @@ int main() {
         survivalTime = 0.0f;
     };
 
-    // --- Game Build Phase 3/4: draw a digit string in screen space ---
-    // Phase 3's per-glyph loop, extracted UNCHANGED into one callable so
-    // Phase 4 can draw a SECOND number (the high score) without
-    // duplicating any quad/UV/matrix mechanics. The CALLER owns the UI
-    // state setup (white tint, blending on, font texture bound, textVAO
-    // bound) — exactly what the draw path below performs before calling.
-    // Character -> atlas cell: '0'..'9' -> 0..9, '.' -> 10; anything
-    // else is skipped (digit-only font).
-    auto drawDigitString = [&](const std::string& text, float originX, float originY) {
-        // Screen-space layout constants: glyph quad 0.7 units square
-        // (~47 px at 66.7 px/unit — comfortably readable); advance 0.52
-        // leaves a small gap between cells.
-        const float glyphSize = 0.7f;
-        const float glyphAdvance = 0.52f;
-        for (size_t c = 0; c < text.size(); ++c) {
-            int cell = -1;
-            if (text[c] >= '0' && text[c] <= '9') {
-                cell = text[c] - '0';
-            } else if (text[c] == '.') {
-                cell = 10;
-            }
-            if (cell < 0) {
-                continue;   // digit-only font: anything else is skipped
-            }
-            // This cell's horizontal slice of the atlas. V FLIP:
-            // stb_image decodes PNG rows TOP-down and GL texel row 0
-            // is v = 0, so v = 0 addresses the image's TOP edge —
-            // the bottom corners of the quad take v = 1, or the
-            // glyphs would render upside down. (The checker never
-            // revealed this: its pattern is flip-symmetric.)
-            const float u0 = static_cast<float>(cell) / FONT_CELL_COUNT;
-            const float u1 = static_cast<float>(cell + 1) / FONT_CELL_COUNT;
-            // Six vertices: unit quad as two triangles, UVs set for
-            // THIS cell. Re-uploaded per glyph — six vertices, and
-            // clarity beats a cleverer mechanism at this scale.
-            float quadVertices[6][5] = {
-                { -0.5f, -0.5f, 0.0f, u0, 1.0f },
-                {  0.5f, -0.5f, 0.0f, u1, 1.0f },
-                {  0.5f,  0.5f, 0.0f, u1, 0.0f },
-                { -0.5f, -0.5f, 0.0f, u0, 1.0f },
-                {  0.5f,  0.5f, 0.0f, u1, 0.0f },
-                { -0.5f,  0.5f, 0.0f, u0, 0.0f }
-            };
-            glBindBuffer(GL_ARRAY_BUFFER, textVBO);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_DYNAMIC_DRAW);
-            // projection * model — NO VIEW (the screen-space rule).
-            // Model = translate to this character's slot, then scale
-            // the unit quad to glyph size (right-to-left, Steps 5/6).
-            const pe::Mat4 uiMvp = projection
-                * pe::Mat4::translation(pe::Vec3(originX + static_cast<float>(c) * glyphAdvance,
-                                                 originY, 0.0f))
-                * pe::Mat4::scale(pe::Vec3(glyphSize, glyphSize, 1.0f));
-            glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &uiMvp.m[0][0]);
-            glDrawArrays(GL_TRIANGLES, 0, 6);
-        }
-    };
+    // --- Step 13: the digit-string glyph path moved to the renderer ---
+    // The lambda that used to live here — per-glyph atlas UVs, quad
+    // re-upload, projection * model with NO VIEW — is now
+    // pe::Renderer::drawDigitString (src/renderer.h), same mechanics,
+    // same layout constants. main.cpp formats the NUMBERS (game data)
+    // and the renderer draws the GLYPHS (rendering).
 
     // 6. The Main Loop
     while (!glfwWindowShouldClose(window)) {
@@ -1469,175 +1042,63 @@ int main() {
             // be mistaken for a paused or toggled game screen. With no
             // text system yet, the color IS the menu; the paint job is
             // Step 12 territory.
-            glClearColor(0.16f, 0.0f, 0.24f, 1.0f);
+            // Step 13: the clear itself is a renderer call now; the
+            // state-dependent color CHOICE above stays in main.cpp.
+            renderer.clear(0.16f, 0.0f, 0.24f);
         } else if (currentState == pe::GameState::GAME_OVER) {
             // GAME_OVER (Step 12): a fixed DARK RED — the engine's
             // established danger channel (collision tint), distinct from
             // menu purple and gameplay black/blue, so a loss reads at a
             // glance. The frozen death scene renders on top (the draw
             // gate below excludes only MENU), exactly like PAUSED.
-            glClearColor(0.28f, 0.0f, 0.0f, 1.0f);
+            renderer.clear(0.28f, 0.0f, 0.0f);
         } else if (clearColorIsBlue) {
             // Dark blue (Step 3 toggle target)
-            glClearColor(0.0f, 0.0f, 0.25f, 1.0f);
+            renderer.clear(0.0f, 0.0f, 0.25f);
         } else {
             // Original black — same values as Step 1/2
-            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            renderer.clear(0.0f, 0.0f, 0.0f);
         }
-        // glClear actually performs the clear operation on the color buffer
-        glClear(GL_COLOR_BUFFER_BIT);
 
         // --- Step 11: gameplay rendering happens OUTSIDE the MENU ---
         // MENU draws nothing but the clear color. PLAYING, PAUSED, and
         // (Step 12) GAME_OVER share this EXACT draw path — the only
         // difference between them is whether the simulation branch
         // above advanced the data being drawn here (frozen spin, frozen
-        // camera, frozen tint, frozen hostile).
+        // camera, frozen tint, frozen hostile). Step 13 changed HOW the
+        // path is spelled, not WHAT it draws: the same view matrix,
+        // per-entity texture select, collision tint, and screen-space
+        // digits now submit through pe::Renderer.
         if (currentState != pe::GameState::MENU) {
-            // --- Step 4: Draw the Triangle (after clear, before swap) ---
-            // Activate our shader program: all following draw calls use it.
-            glUseProgram(shaderProgram);
-
-            // --- Step 6: Build the VIEW matrix from the camera position ---
-            // lookAt constructs the camera's INVERSE transform directly: the
-            // camera sits at cameraPos, aims straight down -Z (orientation is
-            // fixed for now), with world +Y as up. Because the view matrix is
-            // the inverse of the camera transform, shifting cameraPos moves
-            // every rendered vertex by the OPPOSITE amount — the camera pans
-            // across the world, the geometry stays put.
-            const pe::Mat4 view = pe::Mat4::lookAt(cameraPos,
-                                                   cameraPos + pe::Vec3(0.0f, 0.0f, -1.0f),
-                                                   pe::Vec3(0.0f, 1.0f, 0.0f));
-
-            // Bind the VAO ONCE: every entity shares this exact vertex data —
-            // only the transform differs per instance.
-            glBindVertexArray(VAO);
-
-            // --- Step 10: bind the texture unit for this frame ---
-            // glActiveTexture SELECTS the unit; the sampler uniform was
-            // told once at startup to read unit 0 — so whichever texture
-            // is bound below is what every draw samples. (Step 11: the
-            // bind moved INSIDE the gameplay draw path — the menu never
-            // touches a texture.)
-            glActiveTexture(GL_TEXTURE0);
-            // The legacy checker stays bound here as the default; the
-            // Phase 5 draw loop below overrides it with the per-entity
-            // texture before EVERY draw call, so no entity samples it
-            // anymore.
-
-            // --- Step 7: ONE draw loop for ALL entities ---
-            // This replaces Step 6's copy-pasted model1/mvp1/draw,
-            // model2/mvp2/draw blocks. The pipeline math is unchanged —
-            // projection * view * model, acting RIGHT-TO-LEFT on the vertex:
-            //   model      : local coords  -> WORLD coords  (from entity DATA)
-            //   view       : world coords  -> CAMERA coords
-            //   projection : camera coords -> clip coords (-1..1 cube)
-            // The loop neither knows nor cares how many entities exist:
-            // three, thirty, or three hundred — same code, same three GL
-            // calls per entity. THAT is what "entities as data" buys you.
-            // (Step 8: the same index also selects the draw color, so a
-            // colliding entity turns red — the visible proof of detection.)
-            for (size_t i = 0; i < entities.size(); ++i) {
-                const pe::Entity& entity = entities[i];
-                // --- Game Build Phase 5: per-entity texture selection ---
-                // The seam Step 12's comment deferred: bind THIS entity's
-                // texture before its draw. Index 0 is the player, 1..2 are
-                // the scenery pair, 3 onward are hostiles — the exact same
-                // index convention the collision loops already use. One
-                // bind per entity is cheap (six tiny textures, no state
-                // thrash), and the sampler/shader/unit setup above needs
-                // zero changes.
-                GLuint entityTexture = texture;   // legacy default, never sampled now
-                if (i == 0) {
-                    entityTexture = playerTexture;
-                } else if (i < 3) {
-                    entityTexture = sceneryTexture;
-                } else {
-                    entityTexture = hostileTexture;
-                }
-                glBindTexture(GL_TEXTURE_2D, entityTexture);
-                // Build this entity's MVP from its own data.
-                pe::Mat4 mvp = projection * view * entity.modelMatrix();
-                // Upload to the same 'transform' uniform (GL_FALSE: our Mat4
-                // is already column-major, the layout OpenGL expects).
-                glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
-                // Step 10: per-draw TINT — white (1,1,1) leaves the texture
-                // color untouched; red (1,0,0) zeroes its green and blue
-                // channels, so a colliding entity renders as a red-tinted
-                // checkerboard. The Step 8 collision feedback survives the
-                // switch from flat color to textured rendering.
-                if (colliding[i]) {
-                    glUniform3f(colorLocation, 1.0f, 0.0f, 0.0f);
-                } else {
-                    glUniform3f(colorLocation, 1.0f, 1.0f, 1.0f);
-                }
-                // One draw call for this entity.
-                glDrawArrays(GL_TRIANGLES, 0, 3);
-            }
+            // --- Steps 4-10 + Phase 5: the world pass, through the
+            // renderer boundary ---
+            // Inside drawWorld, unchanged: glUseProgram, the lookAt
+            // view matrix from cameraPos, the shared triangle VAO,
+            // texture unit 0, per-entity texture by index convention
+            // (0 = player, 1..2 = scenery, 3+ = hostiles), the
+            // projection * view * model upload, the white/red tint from
+            // the colliding flags, and one draw call per entity.
+            renderer.drawWorld(projection, cameraPos, entities, colliding);
 
             // --- Game Build Phase 3/4: UI layer — survival timer + high score ---
-            // SCREEN-SPACE text, the engine's first UI: everything above
-            // went through projection * view * model — the VIEW matrix is
-            // the camera, and WASD moves it. The text below uses
-            // projection * model ONLY: no view, so the number cannot
-            // pan, spin, or scale with the world — it is fixed to the
-            // WINDOW. No second projection is needed: the game's ortho
-            // box IS the screen rectangle, so skipping the camera turns
-            // that same box into UI coordinates (see the design notes
-            // in the tracker). Drawn LAST with blending ON, so glyphs
-            // sit on top of the finished scene; both are switched back
-            // off before the frame ends (the world never renders with
-            // blending — its pixels are exactly what they always were).
-            // Shown in every non-menu state: live during PLAYING,
-            // frozen during PAUSED (the simulation gate stopped the
-            // clock, so the number stops with it — consistent), and the
-            // FINAL time on GAME_OVER. Phase 4 adds the all-time record
-            // on a second row below — same gate, same states, same
-            // pipeline.
-
-            // The numbers themselves: survivalTime (Step 12's deltaTime
-            // accumulator) and Phase 4's highScore, each formatted to
-            // exactly one decimal place — "12.3". std::fixed pins the
-            // decimal-point style; setprecision(1) keeps one digit
-            // after it. The console print at game over STAYS as a
-            // redundant backup.
+            // The NUMBERS are formatted here (game data); the GLYPHS
+            // are drawn by the renderer — screen-space (projection *
+            // model, NO VIEW, so they stay fixed to the window while
+            // WASD pans the world), blending ON for text only, white
+            // tint, same atlas. Shown in every non-menu state: live
+            // during PLAYING, frozen during PAUSED (the simulation gate
+            // stopped the clock, so the number stops with it), and the
+            // FINAL time on GAME_OVER. Phase 4's all-time record on
+            // the second row below — same gate, same states, same
+            // pipeline, same layout constants.
             std::ostringstream timerText;
             timerText << std::fixed << std::setprecision(1) << survivalTime;
             const std::string timerStr = timerText.str();
             std::ostringstream bestText;
             bestText << std::fixed << std::setprecision(1) << highScore;
             const std::string bestStr = bestText.str();
-
-            // The last entity draw may have left the tint uniform RED
-            // (collision feedback) — text must start from white.
-            glUniform3f(colorLocation, 1.0f, 1.0f, 1.0f);
-            // Alpha blending: fragment alpha (the atlas is transparent
-            // between glyph pixels) mixes the glyph over whatever the
-            // scene already drew. Enabled HERE, not globally.
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            // The atlas on the sampler's unit — the sampler uniform
-            // still points at unit 0, so rebinding the unit's contents
-            // is the ENTIRE texture switch (the world rebinds the
-            // checker above on every frame's next pass).
-            glBindTexture(GL_TEXTURE_2D, fontTexture);
-            glBindVertexArray(textVAO);
-
-            // Screen-space layout: TWO rows, top-left of the ortho box
-            // (x -6, y +4.5). The current run's timer on top; Phase 4's
-            // all-time record one row below it (glyph height 0.7 plus a
-            // visible gap separates the rows). Position alone
-            // distinguishes them — the digit font has no letters for
-            // labels, and no color-coding is needed: the top number
-            // counts up while the bottom one never moves during a run.
-            // Both are window-fixed by the same view-less math, and
-            // both go through drawDigitString — Phase 3's per-glyph
-            // mechanics extracted once, called twice.
-            drawDigitString(timerStr, -5.75f, 4.05f);   // current run
-            drawDigitString(bestStr, -5.75f, 3.2f);     // all-time record
-            // UI state back off — the next frame's world pass expects
-            // the pipeline exactly as Steps 1-12 left it.
-            glDisable(GL_BLEND);
+            renderer.drawDigitString(timerStr, -5.75f, 4.05f, projection);   // current run
+            renderer.drawDigitString(bestStr, -5.75f, 3.2f, projection);     // all-time record
         }
 
         // C. Swap buffers
@@ -1647,17 +1108,12 @@ int main() {
     }
 
     // 7. Cleanup
-    // Free GPU resources in reverse order of creation, before GLFW teardown.
-    glDeleteVertexArrays(1, &textVAO);   // Phase 3: text quad geometry
-    glDeleteBuffers(1, &textVBO);
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteProgram(shaderProgram);
-    glDeleteTextures(1, &fontTexture);   // Phase 3: the digit atlas
-    glDeleteTextures(1, &playerTexture);   // Phase 5: per-type entity textures
-    glDeleteTextures(1, &sceneryTexture);
-    glDeleteTextures(1, &hostileTexture);
-    glDeleteTextures(1, &texture);   // Step 10: the GPU texture object
+    // --- Step 13: GPU resources belong to the renderer now ---
+    // One call replaces the ten hand-written delete calls that used to
+    // live here; the reverse-creation order is preserved inside
+    // pe::Renderer::shutdown(). Audio was never rendering, so its
+    // teardown stays in main.cpp below.
+    renderer.shutdown();
     // --- Step 9/10: audio cleanup, reverse creation order ---
     // Every pool slot first (each registered WITH the engine), then the
     // engine itself — which stops the mixing thread and closes the OS
