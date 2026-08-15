@@ -38,14 +38,16 @@
 // and link, uniform lookups, the triangle and text VAO/VBO pairs, all
 // five textures, the entity draw loop, and the digit UI path — now
 // lives in pe::Renderer (src/renderer.h). main.cpp OWNS the window,
-// audio, entities, game state, camera position, projection, timing,
-// and the high score; it asks the renderer to initialize once and to
+// audio, entities, game state, camera position, projection, and the
+// high score — frame timing moved to pe::FrameTime (src/time.h) in
+// Step 17; it asks the renderer to initialize once and to
 // submit frames. Header-only like the math layer and entity.h — no
 // CMakeLists.txt change. The seams the next continuation steps will
 // split further stay deliberately inside it: the UI path (Step 21) —
 // texture loading was split out by Step 14 (src/resources.h),
-// camera state/math by Step 15 (src/camera.h), and keyboard
-// polling/edge detection by Step 16 (src/input.h).
+// camera state/math by Step 15 (src/camera.h), keyboard
+// polling/edge detection by Step 16 (src/input.h), and frame-time
+// acquisition by Step 17 (src/time.h).
 #include "renderer.h"
 
 // --- Step 15: Camera Module Boundary ---
@@ -70,6 +72,19 @@
 // change. Raw GLFW key codes cross the boundary — no enum, no
 // action mapping.
 #include "input.h"
+
+// --- Step 17: Time/Timestep Boundary ---
+// Frame-time ACQUISITION moved out of this file into pe::FrameTime
+// (src/time.h): the previous-timestamp state, the pre-loop seed, the
+// once-per-frame glfwGetTime() read, current-minus-previous, the
+// timestamp advance, and the float conversion. What STAYS here: what
+// the seconds MEAN — survivalTime, the difficulty scale, the timer
+// display, the high score, and the PLAYING-only simulation gate.
+// The boundary is ticked at the SAME position the old code sampled
+// (top of the loop body, before glfwPollEvents), so every delta
+// still spans the entire previous frame. Header-only: no
+// CMakeLists.txt change. glfwGetTime() is now exclusive to time.h.
+#include "time.h"
 
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
@@ -313,6 +328,20 @@
  *       level + edges, switch consumes them, then input.update()
  *       stores the new previous-frame snapshot. One edge per physical
  *       press, even while held. No action mapping, no callbacks.
+ *
+ * Step 17: Time/Timestep Boundary
+ * Goal: Separate frame-time acquisition from systems that consume
+ *       delta time. src/time.h gains pe::FrameTime owning the
+ *       previous-timestamp state: start() seeds it pre-loop (the old
+ *       lastFrameTime init), tick() reads glfwGetTime() once, computes
+ *       current-minus-previous, advances the stored timestamp, and
+ *       returns the float delta (Step 11's shared conversion,
+ *       relocated). main.cpp calls tick() at the SAME top-of-loop
+ *       position the old code sampled — before glfwPollEvents — so
+ *       each delta still spans the entire previous frame. GAMEPLAY
+ *       TIME MEANING stays here: survivalTime, difficulty scaling,
+ *       timer display, high score, the PLAYING gate. No fixed
+ *       timestep, no clamping, no accumulator, no frame limiter.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -499,15 +528,17 @@ int main() {
     // snapshot each edge needs now lives inside pe::Input (declared
     // below, before the loop), with a single owner.
 
-    // --- Step 2: Delta Time Setup (before the loop) ---
+    // --- Step 2 / Step 17: Frame-time seed (before the loop) ---
     // glfwGetTime() returns the number of seconds (as a high-resolution double)
     // that have elapsed since glfwInit() was called. It is a monotonic clock,
-    // perfect for measuring intervals between frames.
-    // We initialize lastFrameTime ONCE, before the loop starts, so that the
-    // very first frame has a valid reference point to subtract from. Without
-    // this initialization, the first frame's delta would be garbage
-    // (uninitialized memory), potentially producing a huge or negative value.
-    double lastFrameTime = glfwGetTime();
+    // perfect for measuring intervals between frames. Step 17 moved the
+    // previous-timestamp STATE and its seeding into pe::FrameTime: start()
+    // runs ONCE, before the loop, so the very first frame has a valid
+    // reference point to subtract from. Without this initialization, the
+    // first frame's delta would be garbage (uninitialized memory),
+    // potentially producing a huge or negative value.
+    pe::FrameTime frameTime;
+    frameTime.start();
 
     // --- Step 3: Input State Setup (before the loop) ---
     // Tracks which clear color is currently active. false = black (the
@@ -778,25 +809,20 @@ int main() {
 
     // 6. The Main Loop
     while (!glfwWindowShouldClose(window)) {
-        // --- Step 2: Delta Time Calculation (top of the frame) ---
+        // --- Step 2 / Step 17: Delta Time Calculation (top of the frame) ---
         // Placed at the very top of the loop body so the timing covers the
-        // entire frame: events, rendering, and buffer swap.
-        // Grab the current timestamp for this frame.
-        double currentFrameTime = glfwGetTime();
-        // Subtract the previous frame's timestamp from the current one.
-        // The result, deltaTime, is the duration of the last frame in SECONDS.
-        // Future movement/physics systems will multiply velocities by this
-        // value so objects move the same distance per second whether the
-        // game runs at 30 FPS or 300 FPS.
-        double deltaTime = currentFrameTime - lastFrameTime;
-        // Update lastFrameTime so the NEXT frame can compute its own delta
-        // relative to this frame. If we skipped this, every frame would be
-        // measured against the original start time instead of the previous frame.
-        lastFrameTime = currentFrameTime;
-        // --- Step 11: one shared float conversion for every consumer ---
-        // (input rates in the state dispatch below, entity updates in
-        // the simulation branch). Declared at loop scope on purpose.
-        float dt = static_cast<float>(deltaTime);
+        // entire frame: events, rendering, and buffer swap. Step 17 moved
+        // the ACQUISITION into pe::FrameTime::tick() — read the clock,
+        // subtract the previous frame's timestamp, advance the stored
+        // timestamp so the NEXT frame measures against THIS one, narrow
+        // to float (Step 11's shared conversion). The RESULT, dt, is the
+        // duration of the last frame in SECONDS; movement/physics systems
+        // multiply velocities by this value so objects move the same
+        // distance per second whether the game runs at 30 FPS or 300 FPS.
+        // The SAMPLING POSITION is unchanged — before glfwPollEvents,
+        // before everything — because what a delta measures depends on
+        // exactly where it is taken.
+        const float dt = frameTime.tick();
 
         // A. Poll for events (input, window resize, etc.)
         glfwPollEvents();
