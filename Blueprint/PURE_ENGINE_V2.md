@@ -1,10 +1,10 @@
 # PureEngine — Build Continuation (v2)
 
 ## Context
-PureEngine Steps 1-12 are complete, verified, and pushed. Steps 13, 14, 15, 16, and 17
-are now also implemented, verified by Cyril, committed, and pushed (see their notes
-below). Steps 18-24 below remain **not completed**. They are a blueprint only and make
-no claims about implementation, build success, or verification.
+PureEngine Steps 1-12 are complete, verified, and pushed. Steps 13, 14, 15, 16, 17,
+and 18 are now also implemented, verified by Cyril, committed, and pushed (see their
+notes below). Steps 19-24 below remain **not completed**. They are a blueprint only
+and make no claims about implementation, build success, or verification.
 
 The current game already exposes several responsibilities directly through `main.cpp`:
 rendering, asset loading, camera state, input polling, timing, entity data/reset, game-state
@@ -248,13 +248,63 @@ provide a concrete reason for the boundary.
   HEAD == origin/main; the six pre-existing untracked files remained untouched.
 
 ### Step 18 — Entity Lifecycle Boundary
-**Status:** Not started
+**Status:** Completed (verified by Cyril 2026-08-15, committed `aa9fae7`, pushed)
 **Goal:** Make entity creation/reset/removal responsibility explicit without replacing the current entity-vector design.
 **Definition of done:** Entity creation/reset/removal responsibilities have an explicit boundary, while the current vector-based entity representation and reset behavior remain correct.
 **Notes:**
 - Step 7 established `std::vector<pe::Entity>`.
 - Step 12 and Game Phase 1 use `push_back` before the initial snapshot.
 - Do not introduce a full ECS, registry, or component scheduler unless a concrete need appears.
+
+**Implementation (verified):**
+- Header-only `src/lifecycle.h` (151 lines), the engine's sixth system boundary — zero
+  CMakeLists.txt change, consistent with the project's header-only discipline. Free
+  functions in namespace `pe` (the `resources.h` precedent), no class, no container
+  ownership.
+- `pe::buildInitialEntities()` carries the six entity constructions relocated whole
+  from `main.cpp` — identical order and values, comments included. Order is contract:
+  0 = player, 1-2 = scenery, 3+ = hostiles (chased at `hostileSpeeds[h - 3]`,
+  caught by the `h >= 3` loop, textured by index).
+- `pe::resetEntities(entities, snapshot)` carries the snapshot-restoration
+  assignment — the engine's ONLY "removal": it never erases or spawns an entity at
+  runtime, so no destruction or spawning machinery was invented.
+- `pe::flagsForCount(count)` carries the per-entity collision-flag sizing expression
+  that previously appeared inline at construction and inside `resetGame()`.
+- Architectural facts established by this step: lifecycle OPERATIONS belong to the
+  boundary; the COLLECTIONS (`entities`, `initialEntities`, `colliding`) and all game
+  MEANING stay in `main.cpp` — `resetGame()` remains ONE atomic lambda at one call
+  site (now delegating only the entity restore and flag sizing), and `hostileSpeeds[]`,
+  the chase loop, the catch test, and texture selection are untouched. No ECS, no
+  registry, no component scheduler, no manager.
+- Commit `aa9fae7` changed exactly three files: `src/lifecycle.h` (new),
+  `src/main.cpp`, `README.md` (+201/-65).
+
+**Verification evidence:**
+- Release build passed: incremental, no reconfigure, zero errors/warnings; executable
+  1,172,480 bytes — identical size to the Cyril-verified Step 16/17 binaries.
+- Startup smoke test passed: window opened, process alive past full init, no crash.
+- Static checks: the six construction values grep-verified byte-identical to the
+  pre-Step-18 committed baseline in identical order; `push_back` removed from
+  `main.cpp` code; the `entities = initialEntities` assignment exists only inside
+  `pe::resetEntities`; `resetGame()` confirmed one atomic block at one call site;
+  `h = 3` / `h - 3` / `entities[0]` index conventions intact; renderer receives the
+  same vector in the same order through the unchanged `drawWorld` contract; all
+  other source headers and CMake untouched (empty diff).
+- Cyril's manual runtime verification, all PASS (2026-08-15): all six entities at
+  their original positions with player = index 0, scenery = 1-2, hostiles = 3-5;
+  entity rotation, hostile chase speeds, difficulty ramp, collision tint, collision
+  beeps, and catch -> GAME_OVER (sound, console output, high-score behavior)
+  unchanged; restart via MENU restores all entities to original positions/rotations
+  with camera home, timer 0.0, and no surviving state from the previous run;
+  pause freezes the scene with correct collision state/tint and resume continues
+  normally; ESC quits, digits and entity textures unchanged, no visual corruption;
+  high score survives a complete relaunch. Note: the assistant performed the build,
+  static checks, and the startup smoke test only — it cannot provide physical
+  keyboard input; all runtime behavior above was verified by Cyril personally.
+- The vector-based entity representation and reset behavior remain exactly as
+  before; no ECS or lifecycle machinery was introduced.
+- GitHub checkpoint verified: push `e171535..aa9fae7 main -> main`; after the push
+  HEAD == origin/main; the six pre-existing untracked files remained untouched.
 
 ### Step 19 — Game State Boundary
 **Status:** Not started

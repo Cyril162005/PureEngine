@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "PureEngine (12/12 complete, all steps verified and pushed)",
-  "status_note": "Steps 13, 14, 15, 16, and 17 are completed and verified. Steps 18-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
+  "status_note": "Steps 13, 14, 15, 16, 17, and 18 are completed and verified. Steps 19-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
   "steps": [
     {
       "id": 13,
@@ -78,9 +78,12 @@
     {
       "id": 18,
       "name": "Entity Lifecycle Boundary",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Entity creation/reset/removal responsibilities have an explicit boundary, while the current vector-based entity representation and reset behavior remain correct.",
       "notes": "Step 7 established std::vector<pe::Entity> as the project's simple data-driven entity container. Step 12 and Phase 1 use push_back before the initialEntities snapshot. This step must not introduce a full ECS, registry, or component scheduler unless a concrete requirement appears.",
+      "implementation": "Header-only src/lifecycle.h (151 lines): free functions in namespace pe (the resources.h precedent), no class, no container ownership. buildInitialEntities() carries the six entity constructions relocated whole from main.cpp in identical order and values (order is contract: 0 = player, 1-2 = scenery, 3+ = hostiles chased at hostileSpeeds[h - 3] and textured by index); resetEntities(entities, snapshot) carries the snapshot-restoration assignment, the engine's only removal (it never erases or spawns at runtime, so no destruction or spawning machinery was invented); flagsForCount(count) carries the per-entity collision-flag sizing expression. Architectural facts: lifecycle operations belong to the boundary; the collections (entities, initialEntities, colliding) and all game meaning stay in main.cpp — resetGame() remains one atomic lambda at one call site now delegating only the entity restore and flag sizing, and hostileSpeeds[], the chase loop, the catch test, and texture selection are untouched. No ECS, no registry, no component scheduler, no manager. Commit aa9fae7 changed exactly: src/lifecycle.h (new), src/main.cpp, README.md (+201/-65).",
+      "verification": "Release build passed (incremental, no reconfigure): zero errors/warnings; exe 1,172,480 bytes, identical size to the Cyril-verified Step 16/17 binaries. Startup smoke test passed (window opened, full init, no crash). Static checks: the six construction values grep-verified byte-identical to the pre-Step-18 baseline in identical order; push_back removed from main.cpp code; the snapshot assignment exists only inside pe::resetEntities; resetGame() one atomic block at one call site; h = 3 / h - 3 / entities[0] index conventions intact; renderer receives the same vector in the same order via the unchanged drawWorld contract; all other source headers and CMake untouched. Cyril's manual runtime verification all PASS on 2026-08-15: all six entities at original positions (player 0, scenery 1-2, hostiles 3-5); rotation, chase speeds, difficulty ramp, collision tint, beeps, and catch to GAME_OVER unchanged; restart restores positions/rotations, camera home, timer 0.0 with no surviving run state; pause freezes with correct tint and resume continues; ESC quits, digits/textures unchanged, no visual corruption; high score survives relaunch. The assistant performed build, static checks, and the startup smoke test only and cannot provide physical keyboard input; all runtime behavior was verified by Cyril personally. Vector-based representation and reset behavior preserved exactly; no ECS introduced. Push e171535..aa9fae7 verified; six pre-existing untracked files untouched.",
+      "completed_commit": "aa9fae7",
       "depends_on": [
         12
       ]
