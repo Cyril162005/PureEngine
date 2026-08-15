@@ -1,10 +1,10 @@
 # PureEngine — Build Continuation (v2)
 
 ## Context
-PureEngine Steps 1-12 are complete, verified, and pushed. Steps 13, 14, 15, and 16 are
-now also implemented, verified by Cyril, committed, and pushed (see their notes below).
-Steps 17-24 below remain **not completed**. They are a blueprint only and make no claims
-about implementation, build success, or verification.
+PureEngine Steps 1-12 are complete, verified, and pushed. Steps 13, 14, 15, 16, and 17
+are now also implemented, verified by Cyril, committed, and pushed (see their notes
+below). Steps 18-24 below remain **not completed**. They are a blueprint only and make
+no claims about implementation, build success, or verification.
 
 The current game already exposes several responsibilities directly through `main.cpp`:
 rendering, asset loading, camera state, input polling, timing, entity data/reset, game-state
@@ -191,13 +191,61 @@ provide a concrete reason for the boundary.
   HEAD == origin/main; the six pre-existing untracked files remained untouched.
 
 ### Step 17 — Time/Timestep Boundary
-**Status:** Not started
+**Status:** Completed (verified by Cyril 2026-08-15, committed `d598ffa`, pushed)
 **Goal:** Separate frame-time acquisition from systems that consume delta time.
 **Definition of done:** Frame delta time is supplied through a timing boundary while preserving existing deltaTime-driven movement, rotation, survival timer, and difficulty scaling behavior.
 **Notes:**
 - Step 2 introduced deltaTime.
 - Step 12 and Game Phase 2 depend on it.
 - No fixed timestep is prescribed by this blueprint.
+
+**Implementation (verified):**
+- Header-only `src/time.h` (90 lines), the engine's fifth system boundary — zero
+  CMakeLists.txt change, consistent with the project's header-only discipline.
+- `pe::FrameTime` owns ONLY the frame-time mechanism: the previous-timestamp state,
+  `start()` seeding it pre-loop (the old `lastFrameTime` init), `tick()` reading
+  `glfwGetTime()` once per frame, computing current-minus-previous, advancing the
+  stored timestamp, and returning the delta through Step 11's shared float
+  conversion (relocated inside the boundary, so every consumer keeps the same type
+  and value).
+- Architectural facts established by this step: frame-time ACQUISITION belongs to
+  the time boundary (`glfwGetTime()` is now exclusive to `src/time.h`, the same
+  containment Step 16 gives `glfwGetKey` to `input.h`); gameplay time MEANING stays
+  in `main.cpp` — `survivalTime`, the difficulty scale, the timer display, the high
+  score, and the PLAYING-only simulation gate. The critical invariant is preserved:
+  `tick()` is called at the SAME top-of-loop position the old code sampled — before
+  `glfwPollEvents()` — so each delta still spans the entire previous frame.
+- No fixed timestep, no accumulator, no delta clamping, no frame limiter, no
+  pause-aware timing, no elapsed-time API — none were prescribed and none were added.
+- Commit `d598ffa` changed exactly three files: `src/time.h` (new), `src/main.cpp`,
+  `README.md` (+147/-29).
+
+**Verification evidence:**
+- Release build passed: incremental, no reconfigure, zero errors/warnings in project
+  code; only `main.cpp` recompiled. Executable 1,172,480 bytes — identical size to
+  the verified Step 16 binary.
+- Startup smoke test passed: window opened, process alive past full init, no crash.
+- Static checks: `glfwGetTime` exists in code only in `src/time.h`; the old
+  `lastFrameTime`/`currentFrameTime`/`deltaTime` locals are gone from `main.cpp`;
+  temporal ordering confirmed by line-order inspection (seed pre-loop, tick at loop
+  top, then event polling, input reads, state switch); all four deltaTime consumers
+  (camera movement, entity rotation, survival timer, hostile chase × difficulty
+  scale) intact and receiving the same float values.
+- Cyril's manual runtime verification, all PASS (2026-08-15): timer counts only
+  during PLAYING, freezes during PAUSED, resets correctly on a new game, and stops
+  at GAME_OVER; WASD camera movement, arrow-key player movement, entity rotation,
+  and hostile chase speed behaviorally unchanged; survival-time difficulty scaling
+  remains functional; first-frame timing showed no visible spike (no timer,
+  movement, hostile displacement, or rotation jump); high-score persistence across
+  a relaunch passed; regression sweep (textures, collision, collision tint,
+  collision audio, state transitions, timer UI, rendering) passed. Note: the
+  assistant performed build, static checks, and the startup smoke test only — it
+  cannot provide physical keyboard input; all runtime behavior above was verified
+  by Cyril personally.
+- The time boundary preserves the existing deltaTime behavior end-to-end; no fixed
+  timestep was introduced.
+- GitHub checkpoint verified: push `2ea29a5..d598ffa main -> main`; after the push
+  HEAD == origin/main; the six pre-existing untracked files remained untouched.
 
 ### Step 18 — Entity Lifecycle Boundary
 **Status:** Not started
