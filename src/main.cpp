@@ -42,10 +42,21 @@
 // and the high score; it asks the renderer to initialize once and to
 // submit frames. Header-only like the math layer and entity.h — no
 // CMakeLists.txt change. The seams the next continuation steps will
-// split further stay deliberately inside it: camera math (Step 15)
-// and the UI path (Step 21) — texture loading was split out by
-// Step 14 itself (src/resources.h, included via renderer.h).
+// split further stay deliberately inside it: the UI path (Step 21) —
+// texture loading was split out by Step 14 (src/resources.h) and
+// camera state/math by Step 15 (src/camera.h).
 #include "renderer.h"
+
+// --- Step 15: Camera Module Boundary ---
+// Camera STATE (position), the movement SPEED, the reset-to-origin,
+// the movement application, and BOTH matrices (the lookAt view and
+// the balance-tuned orthographic projection) moved out of this file
+// and out of the renderer into pe::Camera (src/camera.h). main.cpp
+// still OWNS the key polling and the PLAYING-only movement gate —
+// Step 16's input boundary is a later split — and hands the camera
+// plain direction data. Header-only like every project module: no
+// CMakeLists.txt change, and camera.h never touches GLFW.
+#include "camera.h"
 
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
@@ -261,6 +272,21 @@
  *       until the project gains more assets. No gameplay or
  *       rendering behavior is touched at all: main.cpp sees none of
  *       this directly.
+ *
+ * Step 15: Camera Module Boundary
+ * Goal: Separate camera state and camera math from game logic and
+ *       render submission. src/camera.h gains pe::Camera owning the
+ *       position (starts at the origin), the 3.0 units/second speed,
+ *       reset(), move(direction, dt), the lookAt view (target =
+ *       position + (0,0,-1), up (0,1,0)), and the once-built
+ *       orthographic(-6, 6, -4.5, 4.5, -1, 1) projection. main.cpp
+ *       replaces the cameraPos/cameraSpeed/projection locals, routes
+ *       WASD through camera.move (KEY POLLING stays here), resets
+ *       through camera.reset(), and feeds camera.projection()/view()
+ *       to the renderer. renderer.h's drawWorld now RECEIVES the view
+ *       matrix and constructs nothing camera-related. Zero behavior
+ *       change: same values, same arithmetic order, same per-frame
+ *       view rebuild cadence. No GLFW in camera.h.
  */
 
 // --- Step 5: Compile-time sanity tests for the math layer ---
@@ -570,24 +596,16 @@ int main() {
     // the pause (frozen tint). Rebuilt from zero every PLAYING frame.
     std::vector<char> colliding(entities.size(), 0);
 
-    // --- Step 6: Camera + Projection State (before the loop) ---
-    // The camera's position IN WORLD SPACE. WASD shifts it every frame and
-    // the view matrix is rebuilt from it, so the whole scene appears to
-    // slide the opposite way — that IS camera movement.
-    pe::Vec3 cameraPos(0.0f, 0.0f, 0.0f);
-    // Camera speed in WORLD UNITS PER SECOND. Multiplied by deltaTime in
-    // the loop, so panning is frame-rate independent — same pattern as
-    // Step 5's rotation.
-    const float cameraSpeed = 3.0f;
-    // The PROJECTION matrix: maps the visible slice of world space onto the
-    // clip cube. BALANCE TUNING: widened from Step 6's 8 x 6 box to a
-    // 12 x 9 box — more arena, more reaction time. The 4:3 aspect ratio
-    // is preserved (12:9 = 800:600), so shapes keep their proportions (no
-    // stretching); a world unit simply covers fewer pixels (66.7 instead
-    // of 100), which is why everything renders visually smaller.
-    // Orthographic: apparent size never changes with depth — right for this
-    // flat scene. Built ONCE: nothing about it changes per frame (yet).
-    const pe::Mat4 projection = pe::Mat4::orthographic(-6.0f, 6.0f, -4.5f, 4.5f, -1.0f, 1.0f);
+    // --- Step 6 / Step 15: Camera + Projection State (before the loop) ---
+    // The camera's position IN WORLD SPACE, its movement speed, and
+    // the once-built orthographic PROJECTION matrix. Step 15 moved all
+    // three into pe::Camera: WASD shifts the position every frame via
+    // camera.move(), the view matrix is rebuilt from it there, so the
+    // whole scene appears to slide the opposite way — that IS camera
+    // movement. The projection is the BALANCE-TUNED 12 x 9 box (4:3,
+    // 66.7 px per world unit at 800x600 — see camera.h for the full
+    // tuning note), built once; nothing about it changes per frame.
+    pe::Camera camera;
 
     // --- Step 8: Player movement speed (before the loop) ---
     // World units per second for the ARROW-key-driven entity
@@ -713,7 +731,7 @@ int main() {
     // distinction the snapshot pattern makes explicit by omission.
     auto resetGame = [&]() {
         entities = initialEntities;
-        cameraPos = pe::Vec3(0.0f, 0.0f, 0.0f);
+        camera.reset();   // Step 15: back to the world origin, via the boundary
         clearColorIsBlue = false;
         wasColliding.clear();
         colliding.assign(entities.size(), 0);
@@ -795,22 +813,25 @@ int main() {
                     // Flip the flag: black becomes blue, blue becomes black.
                     clearColorIsBlue = !clearColorIsBlue;
                 }
-                // --- Step 6: Camera Movement (WASD, polled every frame) ---
+                // --- Step 6 / Step 15: Camera Movement (WASD, polled
+                // every frame) ---
                 // Movement is a RATE, not a toggle: while a key is held it
                 // must act on EVERY frame. No previous-frame comparison —
                 // speed * deltaTime turns a per-frame key state into
-                // frame-rate-independent units per second.
+                // frame-rate-independent units per second. Step 15: the
+                // POLLING stays here (Step 16 will separate input); the
+                // arithmetic moved into camera.move(), direction as data.
                 if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-                    cameraPos.y += cameraSpeed * dt;   // camera up    -> scene slides down
+                    camera.move(0.0f, 1.0f, dt);   // camera up    -> scene slides down
                 }
                 if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-                    cameraPos.y -= cameraSpeed * dt;   // camera down  -> scene slides up
+                    camera.move(0.0f, -1.0f, dt);  // camera down  -> scene slides up
                 }
                 if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-                    cameraPos.x -= cameraSpeed * dt;   // camera left  -> scene slides right
+                    camera.move(-1.0f, 0.0f, dt);  // camera left  -> scene slides right
                 }
                 if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-                    cameraPos.x += cameraSpeed * dt;   // camera right -> scene slides left
+                    camera.move(1.0f, 0.0f, dt);   // camera right -> scene slides left
                 }
                 // --- Step 8: Player entity movement (ARROW keys) ---
                 // WASD belongs to the CAMERA (established Step 6 behavior,
@@ -1091,13 +1112,14 @@ int main() {
         if (currentState != pe::GameState::MENU) {
             // --- Steps 4-10 + Phase 5: the world pass, through the
             // renderer boundary ---
-            // Inside drawWorld, unchanged: glUseProgram, the lookAt
-            // view matrix from cameraPos, the shared triangle VAO,
-            // texture unit 0, per-entity texture by index convention
-            // (0 = player, 1..2 = scenery, 3+ = hostiles), the
-            // projection * view * model upload, the white/red tint from
-            // the colliding flags, and one draw call per entity.
-            renderer.drawWorld(projection, cameraPos, entities, colliding);
+            // Inside drawWorld, unchanged: glUseProgram, the shared
+            // triangle VAO, texture unit 0, per-entity texture by index
+            // convention (0 = player, 1..2 = scenery, 3+ = hostiles),
+            // the projection * view * model upload, the white/red tint
+            // from the colliding flags, and one draw call per entity.
+            // Step 15: the VIEW matrix now comes prebuilt from the
+            // camera boundary; the renderer performs no camera math.
+            renderer.drawWorld(camera.projection(), camera.view(), entities, colliding);
 
             // --- Game Build Phase 3/4: UI layer — survival timer + high score ---
             // The NUMBERS are formatted here (game data); the GLYPHS
@@ -1116,8 +1138,8 @@ int main() {
             std::ostringstream bestText;
             bestText << std::fixed << std::setprecision(1) << highScore;
             const std::string bestStr = bestText.str();
-            renderer.drawDigitString(timerStr, -5.75f, 4.05f, projection);   // current run
-            renderer.drawDigitString(bestStr, -5.75f, 3.2f, projection);     // all-time record
+            renderer.drawDigitString(timerStr, -5.75f, 4.05f, camera.projection());   // current run
+            renderer.drawDigitString(bestStr, -5.75f, 3.2f, camera.projection());     // all-time record
         }
 
         // C. Swap buffers

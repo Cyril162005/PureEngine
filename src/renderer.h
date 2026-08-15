@@ -28,8 +28,9 @@
  *   - texture LOADING was split into its own boundary by Step 14
  *     (src/resources.h — this class now OBTAINS textures through it
  *     and never touches a file itself);
- *   - the view matrix is built from a cameraPos passed in (Step 15
- *     will own camera state and math);
+ *   - camera STATE and MATH were split into their own boundary by
+ *     Step 15 (src/camera.h — drawWorld now RECEIVES the view matrix
+ *     and constructs nothing camera-related);
  *   - the digit path is a renderer method (Step 21 will give the UI
  *     its own boundary).
  *
@@ -60,7 +61,7 @@
                          // boundary now — this class obtains textures from
                          // it and never calls stb_image itself (stb's ONE
                          // implementation stays in src/stb_impl.cpp).
-#include "math/vec3.h"   // camera position, lookAt inputs
+#include "math/vec3.h"   // Vec3 types used by the entity/math interfaces
 #include "math/mat4.h"   // view/MVP construction
 #include "entity.h"      // drawWorld reads pe::Entity data
 
@@ -306,23 +307,14 @@ public:
     }
 
     // --- Per-frame: the world pass (PLAYING, PAUSED, GAME_OVER) ---
-    // The Step 7 draw loop, relocated whole. projection and cameraPos
-    // arrive as DATA from main.cpp: the camera's STATE is still owned
-    // there (Step 15 will separate it); the renderer only does camera
-    // MATH (the view matrix) and submission.
-    void drawWorld(const Mat4& projection, const Vec3& cameraPos,
+    // The Step 7 draw loop, relocated whole. projection AND view
+    // arrive as DATA from main.cpp — since Step 15 the view comes
+    // prebuilt from pe::Camera, and this method performs no camera
+    // math at all; it only submits.
+    void drawWorld(const Mat4& projection, const Mat4& view,
                    const std::vector<Entity>& entities,
                    const std::vector<char>& colliding) {
         glUseProgram(shaderProgram);
-
-        // --- Step 6: view matrix from the camera position ---
-        // lookAt builds the camera's INVERSE transform: camera at
-        // cameraPos, aiming down -Z, world +Y up. Shifting cameraPos
-        // moves every rendered vertex by the OPPOSITE amount — the
-        // camera pans, the geometry stays put.
-        const Mat4 view = Mat4::lookAt(cameraPos,
-                                       cameraPos + Vec3(0.0f, 0.0f, -1.0f),
-                                       Vec3(0.0f, 1.0f, 0.0f));
 
         // Bind the world VAO ONCE: every entity shares this vertex data —
         // only the transform differs per instance.
