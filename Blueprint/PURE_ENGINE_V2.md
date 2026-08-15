@@ -1,10 +1,10 @@
 # PureEngine — Build Continuation (v2)
 
 ## Context
-PureEngine Steps 1-12 are complete, verified, and pushed. Step 13 is now also implemented,
-verified by Cyril, committed, and pushed (see its notes below). Steps 14-24 below remain
-**not completed**. They are a blueprint only and make no claims about implementation, build
-success, or verification.
+PureEngine Steps 1-12 are complete, verified, and pushed. Steps 13 and 14 are now also
+implemented, verified by Cyril, committed, and pushed (see their notes below).
+Steps 15-24 below remain **not completed**. They are a blueprint only and make no claims
+about implementation, build success, or verification.
 
 The current game already exposes several responsibilities directly through `main.cpp`:
 rendering, asset loading, camera state, input polling, timing, entity data/reset, game-state
@@ -61,13 +61,40 @@ provide a concrete reason for the boundary.
   persistence across relaunch.
 
 ### Step 14 — Resource Loading Boundary
-**Status:** Not started
+**Status:** Completed (independently verified by Cyril 2026-08-15, committed `4bf7027`, pushed)
 **Goal:** Separate asset loading/ownership from game logic.
 **Definition of done:** Texture and other currently loaded render assets can be obtained through a small resource-loading boundary without changing the existing asset files or their visual result.
 **Notes:**
 - Derived from Step 10 and Phase 3.
 - Preserve the existing relative-path probing and stb_image loading behavior.
 - No resource cache or generalized asset database is required unless implementation proves it necessary.
+
+**Implementation (verified):**
+- Header-only `src/resources.h` (116 lines), the engine's second system boundary —
+  zero CMakeLists.txt change, consistent with the project's header-only discipline.
+- Two free functions, relocated byte-compatible from `pe::Renderer`: `pe::loadRgbTexture`
+  (the Phase 5 RGB pattern) and `pe::loadRgbaTexture` (the Phase 3 font-atlas RGBA
+  block). Same 3-candidate CWD path probe, same forced-channel `stbi_load`, same
+  CLAMP_TO_EDGE + LINEAR sampling, same RGB/RGBA upload, same 0-on-failure contract.
+- Ownership unchanged: the renderer keeps all five texture names and deletes them in
+  `destroyAll()`; `renderer.h` now contains zero `stb_image` calls (grep-verified).
+- No cache or asset database — the blueprint's constraint honored.
+- `src/main.cpp` changes were comments/doc-block only; the renderer API and all call
+  sites are untouched. Commit `4bf7027` changed exactly four files: `src/resources.h`
+  (new), `src/renderer.h`, `src/main.cpp`, `README.md` (+162/-67).
+
+**Verification evidence:**
+- Incremental Release build against the existing configured `build/` (no deletion,
+  no reconfigure): zero errors and zero warnings in project code; only `main.cpp`
+  recompiled. Executable 1,171,456 bytes — identical size to the verified Step 13
+  binary, fully static.
+- Cyril independently ran `build\Release\PureEngine.exe` and reported Step 14 PASSED
+  (2026-08-15): entity textures visually identical, RGBA digit font rendering intact
+  (no solid backing rectangles), collision tint, states, and high-score persistence
+  unchanged.
+- GitHub checkpoint verified: push `561e446..4bf7027 main -> main`; after the push
+  HEAD == origin/main, working tree clean except the pre-existing untracked files
+  identified during the checkpoint (game V2 trackers, `nn.md`, throwaway build scripts).
 
 ### Step 15 — Camera Module Boundary
 **Status:** Not started

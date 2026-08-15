@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "PureEngine (12/12 complete, all steps verified and pushed)",
-  "status_note": "Step 13 is completed and verified. Steps 14-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
+  "status_note": "Steps 13 and 14 are completed and verified. Steps 15-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
   "steps": [
     {
       "id": 13,
@@ -26,9 +26,12 @@
     {
       "id": 14,
       "name": "Resource Loading Boundary",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "Texture and other currently loaded render assets can be obtained through a small resource-loading boundary without changing the existing asset files or their visual result.",
       "notes": "Derived from Step 10 and Phase 3. Current asset loading includes relative-path probing, stb_image loading, texture creation, and cleanup. This step should isolate ownership/loading responsibility before the project gains more assets. No resource cache or generalized asset database is required unless implementation proves it necessary.",
+      "implementation": "Header-only src/resources.h (116 lines): two free functions pe::loadRgbTexture and pe::loadRgbaTexture, relocated byte-compatible from pe::Renderer (Phase 5 RGB pattern and Phase 3 RGBA font-atlas block). Same 3-candidate CWD probe, same forced-channel stbi_load, same CLAMP_TO_EDGE + LINEAR sampling, same 0-on-failure contract. Ownership unchanged: renderer keeps and deletes all five texture names via destroyAll(); renderer.h contains zero stb_image calls. main.cpp changes comments/doc-block only. No cache or asset database per blueprint constraint. Zero CMake change. Commit 4bf7027 changed exactly: src/resources.h (new), src/renderer.h, src/main.cpp, README.md (+162/-67).",
+      "verification": "Incremental Release build against existing configured build/ (no deletion, no reconfigure): zero errors/warnings in project code; only main.cpp recompiled; exe 1,171,456 bytes, identical size to the verified Step 13 binary, fully static. Cyril independently ran build/Release/PureEngine.exe on 2026-08-15 and reported Step 14 PASSED: entity textures visually identical, RGBA digit font intact, collision tint/states/high-score persistence unchanged. Push 561e446..4bf7027 verified; working tree clean except pre-existing untracked files identified at the checkpoint.",
+      "completed_commit": "4bf7027",
       "depends_on": [
         13
       ]
