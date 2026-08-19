@@ -31,8 +31,9 @@
  *   - camera STATE and MATH were split into their own boundary by
  *     Step 15 (src/camera.h — drawWorld now RECEIVES the view matrix
  *     and constructs nothing camera-related);
- *   - the digit path is a renderer method (Step 21 will give the UI
- *     its own boundary).
+ *   - the digit path stays a renderer method; Step 21 gave the UI
+ *     its own boundary (src/ui.h — it formats the numbers and hands
+ *     them to drawDigitString, owning no GL objects itself).
  *
  * Header-only, same as src/math/, entity.h, collision.h, gamestate.h:
  * every method is defined here, no renderer.cpp exists, and
@@ -373,8 +374,9 @@ public:
     // OFF again after) now lives HERE with the only code that needs
     // it. Behavior is identical: the world never renders with blending,
     // and the digits are projection * model with NO VIEW, so they stay
-    // fixed to the window while the camera pans. Step 21 will give
-    // this path its own boundary; Step 13 only moves it intact.
+    // fixed to the window while the camera pans. Step 21 gave this
+    // path its UI boundary (src/ui.h formats the numbers and calls
+    // here); Step 13 moved the glyph mechanics intact.
     void drawDigitString(const std::string& text, float originX, float originY,
                          const Mat4& projection) {
         // Screen-space layout constants: glyph quad 0.7 units square

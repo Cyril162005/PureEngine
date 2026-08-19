@@ -48,13 +48,14 @@
 // high score — frame timing moved to pe::FrameTime (src/time.h) in
 // Step 17; it asks the renderer to initialize once and to
 // submit frames. Header-only like the math layer and entity.h — no
-// CMakeLists.txt change. The seams the next continuation steps will
-// split further stay deliberately inside it: the UI path (Step 21) —
-// texture loading was split out by Step 14 (src/resources.h),
-// camera state/math by Step 15 (src/camera.h), keyboard
-// polling/edge detection by Step 16 (src/input.h), frame-time
-// acquisition by Step 17 (src/time.h), and entity lifecycle
-// operations by Step 18 (src/lifecycle.h).
+// CMakeLists.txt change. Every seam the continuation steps split
+// out of it is now its own boundary: texture loading by Step 14
+// (src/resources.h), camera state/math by Step 15 (src/camera.h),
+// keyboard polling/edge detection by Step 16 (src/input.h),
+// frame-time acquisition by Step 17 (src/time.h), entity lifecycle
+// operations by Step 18 (src/lifecycle.h), and the UI digit path by
+// Step 21 (src/ui.h — glyph GL stays here, the numbers are formatted
+// there).
 #include "renderer.h"
 
 // --- Step 15: Camera Module Boundary ---
