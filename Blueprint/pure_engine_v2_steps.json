@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "PureEngine (12/12 complete, all steps verified and pushed)",
-  "status_note": "Steps 13, 14, 15, 16, 17, and 18 are completed and verified. Steps 19-24 are the proposed continuation blueprint. They are NOT completed or verified. No implementation claims are made for them below.",
+  "status_note": "Steps 13 through 23 are completed and verified (Batch 1 Steps 19-23 committed together at 2651778). Step 24 is the proposed final continuation checkpoint. It is NOT completed or verified. No implementation claims are made for it below.",
   "steps": [
     {
       "id": 13,
@@ -91,9 +91,12 @@
     {
       "id": 19,
       "name": "Game State Boundary",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "MENU, PLAYING, PAUSED, and GAME_OVER state transitions and state-specific input/simulation rules are organized behind a game-state boundary without changing their current behavior.",
       "notes": "Step 11 deliberately used one enum and one currentState variable instead of a state stack. Step 12 added GAME_OVER. This continuation should preserve that simple model unless the implementation exposes a concrete need for more structure.",
+      "implementation": "Extended the existing src/gamestate.h (42 -> 97 lines) as the game-state boundary (rulings B1/B2: no new state.h, dispatch switch stays in main.cpp). Three pure constexpr helpers join the enum: simulates() (only PLAYING), drawsWorld() (everything except MENU), and clearColorFor(state, blueToggled) returning a small ClearColor struct carrying Step 11's palette relocated whole (MENU dark purple 0.16/0/0.24, GAME_OVER dark red 0.28/0/0, otherwise gameplay black or Step 3's dark blue 0/0/0.25). main.cpp rewires its simulation gate, draw gate, and clear-color chain through the helpers; the four-case dispatch switch and every transition (resetGame before the MENU->PLAYING flip, the window close flag, the toggle flag itself) stay in main.cpp. No state stack, no transition tables, no callbacks. Part of the single Batch 1 checkpoint commit 2651778 (six files, +655/-213 across the batch); zero CMake change.",
+      "verification": "Per-step automated gate: clean Release build, zero errors/warnings in project code; static checks confirmed the helpers are used in main.cpp (six call sites), all four switch cases intact, and gamestate.h free of GLFW/miniaudio/IO references. Cyril's manual runtime verification PASSED (2026-08-15) as the single consolidated Batch 1 checklist covering Steps 19-23 together: all state transitions, simulation/draw gating, and per-state clear colors behaved exactly as before. The assistant performed builds, static checks, and startup smoke tests only and cannot provide physical keyboard input; all runtime behavior was verified by Cyril personally. Push 37c5b3f..2651778 verified.",
+      "completed_commit": "2651778",
       "depends_on": [
         16,
         17
@@ -102,9 +105,12 @@
     {
       "id": 20,
       "name": "Audio Boundary",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "The existing miniaudio engine and four-slot sound pool can be triggered through an audio boundary while preserving collision-edge and GAME_OVER beep behavior.",
       "notes": "Step 9 introduced miniaudio; Step 10 added per-entity collision edges and a four-slot pool. This step separates game events from direct miniaudio calls. It must not change the existing sound assets or trigger semantics.",
+      "implementation": "New header-only src/audio.h (8132 bytes), the engine's seventh system boundary (rulings B3/B4): pe::Audio owns the MECHANISM - ma_engine init, the 3-candidate assets/beep.wav probe, the four-slot pool clone, the ONE shared round-robin cursor, rewind-if-busy playback via playNext(), and slots-then-engine shutdown(). init() returns bool; the fatal-exit policy stays in main.cpp (same policy as renderer.init()). main.cpp keeps the DECISIONS: the collision-edge test and the catch decide when a beep happens, and window/GLFW teardown order stays there. Trigger semantics preserved exactly: the collision beep and the GAME_OVER beep advance the SAME cursor, rotating through the same four slots as the single nextCollisionSound variable always did. Part of the single Batch 1 checkpoint commit 2651778; zero CMake change.",
+      "verification": "Per-step automated gate: clean Release build, zero errors/warnings in project code; static checks confirmed zero ma_* calls and zero old identifiers (collisionSounds/nextCollisionSound/audioEngine) remain in main.cpp code, and miniaudio.h is included only by src/audio.h. Cyril's manual runtime verification PASSED (2026-08-15) as the single consolidated Batch 1 checklist: collision beeps rotate through the pool without cutting a ringing beep, and the GAME_OVER beep shares the same rotating cursor. The assistant performed builds, static checks, and startup smoke tests only and cannot provide physical keyboard input; all runtime behavior was verified by Cyril personally. Push 37c5b3f..2651778 verified.",
+      "completed_commit": "2651778",
       "depends_on": [
         18,
         19
@@ -113,9 +119,12 @@
     {
       "id": 21,
       "name": "UI Rendering Boundary",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "The existing digit-only timer/high-score rendering can be invoked through a UI boundary while preserving screen-space behavior, formatting, placement, blending, and camera independence.",
       "notes": "Phase 3 introduced the digit-only bitmap font and Phase 4 extracted drawDigitString(). This step recognizes the existing UI path as a separate responsibility without expanding the font system. No letters, menus, widgets, or general UI framework are required by this definition.",
+      "implementation": "New header-only src/ui.h (4132 bytes), deliberately the thinnest boundary (ruling B5-A): formatDecimal1() (the shared fixed-one-decimal rule), the layout constants (timer row at (-5.75, 4.05), record row at (-5.75, 3.2)), and drawHud() - the two-call sequence in its established order, current run first, all-time record second. ALL glyph GL stays in pe::Renderer: ui.h owns no GL objects at all, it formats DATA and hands it to the renderer's glyph path (renderer.h:drawDigitString unchanged). main.cpp's inline ostringstream formatting and the two drawDigitString literals became one pe::drawHud call; the display gate (HUD in every non-menu state) and the high-score save file's own formatting stay in main.cpp - persistence is not UI. No letters, menus, widgets, or layout system. Part of the single Batch 1 checkpoint commit 2651778; zero CMake change.",
+      "verification": "Per-step automated gate: clean Release build, zero errors/warnings in project code, executable 1,172,480 bytes - identical size to the Cyril-verified Step 16-18 binaries; static checks confirmed no ostringstream remains in main.cpp code, the layout literals are comment-only there, and ui.h contains no GL calls (the only renderer reference is the use-don't-own renderer.h include). Cyril's manual runtime verification PASSED (2026-08-15) as the single consolidated Batch 1 checklist: timer counts at one decimal on the top row, record row one row below, HUD frozen during PAUSED and final on GAME_OVER, screen-space under camera panning. The assistant performed builds, static checks, and startup smoke tests only and cannot provide physical keyboard input; all runtime behavior was verified by Cyril personally. Push 37c5b3f..2651778 verified.",
+      "completed_commit": "2651778",
       "depends_on": [
         13,
         14
@@ -124,9 +133,12 @@
     {
       "id": 22,
       "name": "World/Game Separation",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "The engine-facing systems and game-specific rules have a clearer boundary, while the current top-down survival loop still behaves identically.",
       "notes": "Step 12 intentionally placed franchise-specific gameplay on top of engine systems, but much of the implementation remains in main.cpp. This step should separate responsibilities only where the existing code demonstrates a real boundary. It must not become a rewrite of the game.",
+      "implementation": "New header-only src/simulation.h (5549 bytes): three pure free functions relocated byte-equivalent from their Steps 7/12/8 loops (ruling B6 + correction): advanceRotations() (the per-entity rotation loop), chasePlayer() (the hostile pursuit loop, zero-length guard included, speeds handed in as the raw const float[3] the caller declares), and scanSceneryCollisions() (the unique-pair scan over the ORIGINAL THREE, both flags set on overlap, bound stays the literal 3 so hostiles keep passing through scenery). main.cpp retains the complete frame-order chain - timer -> rotation -> difficulty -> chase -> collision rebuild -> collision scan -> edge detection -> catch - and every gameplay side effect on it: timer accumulation, difficulty calculation, the colliding-vector rebuild from zero, edge detection, audio triggering, the catch decision, the state flip, the high-score write. No scheduler, no pipeline, no run()/tick()/step() - three helpers that take data, move it, return nothing. One disclosed defect found and fixed during implementation: a duplicated colliding.assign line introduced by the edit was removed before build (idempotent but misleading). Part of the single Batch 1 checkpoint commit 2651778; zero CMake change.",
+      "verification": "Per-step automated gate: clean Release build, zero errors/warnings in project code, executable 1,172,992 bytes; strict before/after ordering proof - the chain's eight stages verified strictly ascending by line number inside the PLAYING branch (992, 999, 1007, 1021, 1031, 1040, 1051, 1081 at commit time), exactly one colliding.assign in code, zero inline loops left in main.cpp, and simulation.h free of GLFW/miniaudio/IO/state-machine references. Cyril's manual runtime verification PASSED (2026-08-15) as the single consolidated Batch 1 checklist: entity spins, hostile chase with difficulty ramp, scenery-only collision tint/beeps, catch -> GAME_OVER, restart, and persistence all unchanged. The assistant performed builds, static checks, and startup smoke tests only and cannot provide physical keyboard input; all runtime behavior was verified by Cyril personally. Push 37c5b3f..2651778 verified.",
+      "completed_commit": "2651778",
       "depends_on": [
         15,
         16,
@@ -140,9 +152,12 @@
     {
       "id": 23,
       "name": "Engine/Game Integration Pass",
-      "status": "not_started",
+      "status": "completed",
       "definition_of_done": "The refactored engine boundaries and the current game can be built and run together with all previously verified gameplay behavior preserved.",
       "notes": "Integration verification step. No new gameplay feature is required. The existing v1 loop, three hostiles, difficulty scaling, timer, high score persistence, state machine, collision feedback, audio, reset, and camera behavior are regression targets.",
+      "implementation": "Verification-and-documentation-only step (ruling B7): zero code and zero architecture change. The containment sweep across all nine boundaries, the startup smoke test, and the README boundary-list alignment were performed against the post-Step-22 source; no documentation change was required beyond the per-step README lines already added in Steps 19-22. Part of the single Batch 1 checkpoint commit 2651778 (documentation alignment only).",
+      "verification": "Automated integration evidence: containment greps re-run across the whole tree - glfwGetKey exclusive to src/input.h, glfwGetTime exclusive to src/time.h, ma_* exclusive to src/audio.h, stbi_* exclusive to src/resources.h (+stb_impl.cpp), zero GL calls in any non-renderer boundary header, every glfw/gl reference in main.cpp is a comment or a window-lifecycle call main.cpp legitimately owns; startup smoke test passed (window opened, alive past 6 s, clean stop); README lists all nine boundaries. Cyril's manual runtime verification PASSED (2026-08-15) as the single consolidated Batch 1 checklist covering every regression target: menu/start, movement and camera, chase with difficulty ramp, scenery collision tint/beeps, pause/resume, catch/GAME_OVER with shared audio cursor, restart, and high-score persistence across relaunch. The assistant performed builds, static checks, and startup smoke tests only and cannot provide physical keyboard input; all runtime behavior was verified by Cyril personally. Push 37c5b3f..2651778 verified.",
+      "completed_commit": "2651778",
       "depends_on": [
         22
       ]
