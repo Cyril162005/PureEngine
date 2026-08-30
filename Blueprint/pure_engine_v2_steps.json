@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "PureEngine (12/12 complete, all steps verified and pushed)",
-  "status_note": "Steps 13 through 24 are completed and verified (Batch 1 Steps 19-23 committed together at 2651778; Step 24 committed as checkpoint fa76f58 on top of Batch 1's tracker commit 4f8c08c and pushed). The continuation is complete.",
+  "status_note": "Steps 13 through 25 are completed and verified (Batch 1 Steps 19-23 committed together at 2651778; Step 24 committed as checkpoint fa76f58 on top of Batch 1's tracker commit 4f8c08c and pushed; Step 25 manually built and launched after its one-line GLFW cleanup).",
   "steps": [
     {
       "id": 13,
@@ -174,6 +174,15 @@
       "depends_on": [
         23
       ]
+    },
+    {
+      "id": 25,
+      "name": "GLFW Forward-Compatibility Hint Cleanup",
+      "status": "completed",
+      "definition_of_done": "The macOS-only GLFW forward-compatibility window hint uses GLFW's boolean constant without changing the GLAD loader dependency or runtime behavior.",
+      "notes": "The original Step 25 proposal included removing <glad/gl.h>, but source inspection established that main.cpp directly calls gladLoadGL(glfwGetProcAddress), so the GLAD header remains required. The scoped step changes only GL_TRUE to GLFW_TRUE in glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, ...) under the existing __APPLE__ guard; no architecture, build configuration, or loader code changed.",
+      "implementation": "src/main.cpp:545 now passes GLFW_TRUE rather than GL_TRUE to glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, ...).",
+      "verification": "Manual verification supplied by Cyril after the source edit: \"MSBuild completed, PureEngine.vcxproj -> PureEngine.exe built with no errors. Exe launched and ran when run manually.\" The assistant did not run the build because its spawned process has a duplicate PATH/Path environment collision."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
