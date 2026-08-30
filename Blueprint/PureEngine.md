@@ -4,6 +4,10 @@
 Learn engine architecture by building from scratch. No Frankenstein. No skipping steps.
 Target: i3 / 8GB RAM. Language: C/C++. Libs: GLFW/SDL + OpenGL (no Vulkan yet).
 
+## Continuation
+
+Steps 13-24 continue in `Blueprint/pure_engine_v2_steps.json`; the matching narrative tracker is `Blueprint/PURE_ENGINE_V2.md`.
+
 ## Rule
 Do not start a step until the previous one runs and you understand every line you wrote.
 No copy-pasted code you can't explain.

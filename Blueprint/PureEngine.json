@@ -3,6 +3,7 @@
   "method": "from_scratch",
   "hardware_target": "i3, 8GB RAM",
   "stack": ["C/C++", "GLFW or SDL", "OpenGL"],
+  "continuation_tracker": "Steps 13-24 continue in Blueprint/pure_engine_v2_steps.json (with the matching narrative in Blueprint/PURE_ENGINE_V2.md).",
   "steps": [
     {
       "id": 1,
