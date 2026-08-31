@@ -183,6 +183,15 @@
       "notes": "The original Step 25 proposal included removing <glad/gl.h>, but source inspection established that main.cpp directly calls gladLoadGL(glfwGetProcAddress), so the GLAD header remains required. The scoped step changes only GL_TRUE to GLFW_TRUE in glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, ...) under the existing __APPLE__ guard; no architecture, build configuration, or loader code changed.",
       "implementation": "src/main.cpp:545 now passes GLFW_TRUE rather than GL_TRUE to glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, ...).",
       "verification": "Manual verification supplied by Cyril after the source edit: \"MSBuild completed, PureEngine.vcxproj -> PureEngine.exe built with no errors. Exe launched and ran when run manually.\" The assistant did not run the build because its spawned process has a duplicate PATH/Path environment collision."
+    },
+    {
+      "id": 26,
+      "name": "Unused <sstream> Include Cleanup",
+      "status": "completed",
+      "definition_of_done": "The unused <sstream> include is removed from src/main.cpp while keeping <iomanip> because std::fixed and std::setprecision are still used, and no remaining std::ostringstream usage exists in main.cpp.",
+      "notes": "This change is intentionally narrow: the ostringstream usage was moved to ui.h, and the remaining fixed-one-decimal formatting in main.cpp still depends on <iomanip>. The goal is to remove stale includes without changing game logic or the build configuration.",
+      "implementation": "src/main.cpp: the stale #include <sstream> line was removed, and <iomanip> remained in place for the surviving std::fixed << std::setprecision(1) use near the high-score save path.",
+      "verification": "Build confirmed: succeeded. Actual output: \"MSBuild version 17.14.40+3e7442088 for .NET Framework\n  glfw.vcxproj -> D:\\PureEngine\\build\\_deps\\glfw-build\\src\\Release\\glfw3.lib\n  miniaudio.vcxproj -> D:\\PureEngine\\build\\_deps\\miniaudio-build\\Release\\miniaudio.lib\n  main.cpp\n  PureEngine.vcxproj -> D:\\PureEngine\\build\\Release\\PureEngine.exe\n  (plus miniaudio node libs, no errors)\" Exe: launched fine — ran, created/loaded savedata/highscore.txt, played a session, recorded a new high score. No crash."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

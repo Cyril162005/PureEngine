@@ -3,7 +3,6 @@
 #include <iostream>
 #include <vector>   // Step 7: entities live in a std::vector
 #include <algorithm> // Phase 2: std::min clamps the difficulty scale
-#include <sstream>   // Phase 3: survival timer -> decimal string
 #include <iomanip>   // Phase 3: fixed one-decimal-place formatting
 #include <fstream>   // Phase 4: high-score save file — the engine's FIRST disk write
 #include <filesystem> // Phase 4: create savedata/ before saving, without ever throwing
