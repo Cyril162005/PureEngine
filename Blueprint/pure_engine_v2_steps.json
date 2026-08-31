@@ -227,6 +227,19 @@
       "depends_on": [
         28
       ]
+    },
+    {
+      "id": 30,
+      "name": "Strict Hostile Config Validation",
+      "status": "completed",
+      "definition_of_done": "Malformed hostile configuration lines and unknown keys produce warnings and cause the complete file to fall back to built-in defaults instead of being silently accepted.",
+      "notes": "Step 28's loader already rejected malformed values, but it silently ignored lines without '=' and unknown keys. This step makes the accepted key=value format strict: any future configuration key requires a parser update first, otherwise the entire file falls back to built-in defaults. Valid hostile_default.txt content and existing fallback semantics remain unchanged.",
+      "implementation": "src/hostile_data.h: lines without '=' now emit a malformed-line warning and abort parsing; an explicit final parser branch now emits an unknown-key warning and aborts parsing. The existing malformed-file warning then selects the built-in HostileDefaults values. No new configuration keys or format were added.",
+      "verification": "Candidate 30 malformed-line test confirmed working with real output after adding the typo'd key \"diffficulty_rate=0.02\" to hostile_default.txt: \"Warning: hostile defaults file contained an unknown key; using built-in defaults.\\nWarning: hostile defaults file was malformed; using built-in defaults.\\nLoaded high score: 36.1 s (from savedata/highscore.txt)\\nGAME OVER — survived 2.72485 seconds\". The file was restored to its original valid state afterward and confirmed via Copy-Item/Remove-Item.",
+      "completed_commit": "paired commit",
+      "depends_on": [
+        29
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

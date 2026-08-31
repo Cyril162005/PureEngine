@@ -117,7 +117,9 @@ inline HostileDefaults loadHostileDefaults() {
 
             const std::size_t equalsPos = trimmed.find('=');
             if (equalsPos == std::string::npos) {
-                continue;
+                std::cerr << "Warning: hostile defaults file contained a malformed line; using built-in defaults." << std::endl;
+                ok = false;
+                break;
             }
 
             const std::string key = trim(trimmed.substr(0, equalsPos));
@@ -167,6 +169,10 @@ inline HostileDefaults loadHostileDefaults() {
                     break;
                 }
                 parsedCap = parsed;
+            } else {
+                std::cerr << "Warning: hostile defaults file contained an unknown key; using built-in defaults." << std::endl;
+                ok = false;
+                break;
             }
         }
 
