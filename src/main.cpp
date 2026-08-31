@@ -160,7 +160,6 @@
 // ourselves. The CMake target 'miniaudio' compiles the library as
 // a static lib and exports its include path. Step 20: main.cpp no
 // longer includes it directly — only src/audio.h does now.
-// #include <miniaudio.h>  (moved into src/audio.h by Step 20)
 
 // Step 13 moved every stb_image call into src/renderer.h, and Step 14
 // moved them ONCE MORE into src/resources.h (the resource-loading

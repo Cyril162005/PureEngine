@@ -192,6 +192,15 @@
       "notes": "This change is intentionally narrow: the ostringstream usage was moved to ui.h, and the remaining fixed-one-decimal formatting in main.cpp still depends on <iomanip>. The goal is to remove stale includes without changing game logic or the build configuration.",
       "implementation": "src/main.cpp: the stale #include <sstream> line was removed, and <iomanip> remained in place for the surviving std::fixed << std::setprecision(1) use near the high-score save path.",
       "verification": "Build confirmed: succeeded. Actual output: \"MSBuild version 17.14.40+3e7442088 for .NET Framework\n  glfw.vcxproj -> D:\\PureEngine\\build\\_deps\\glfw-build\\src\\Release\\glfw3.lib\n  miniaudio.vcxproj -> D:\\PureEngine\\build\\_deps\\miniaudio-build\\Release\\miniaudio.lib\n  main.cpp\n  PureEngine.vcxproj -> D:\\PureEngine\\build\\Release\\PureEngine.exe\n  (plus miniaudio node libs, no errors)\" Exe: launched fine — ran, created/loaded savedata/highscore.txt, played a session, recorded a new high score. No crash."
+    },
+    {
+      "id": 27,
+      "name": "Stale Commented Include Cleanup",
+      "status": "completed",
+      "definition_of_done": "The stale commented-out miniaudio include remains removed from the main.cpp documentation block, and the actual include path remains centralized in src/audio.h without changing behavior or build configuration.",
+      "notes": "This is a comment-only cleanup after the actual include moved to the audio boundary. The project already established the architecture in Step 20; the leftover commented line was obsolete and misleading, so we remove only that stale note and leave the surrounding explanatory text intact.",
+      "implementation": "src/main.cpp: removed the obsolete commented line \"// #include <miniaudio.h>  (moved into src/audio.h by Step 20)\" while keeping the explanatory text around the audio boundary notes intact.",
+      "verification": "Build confirmed: succeeded. Actual output: \"MSBuild version 17.14.40+3e7442088 for .NET Framework\n  glfw.vcxproj -> ...\\glfw3.lib\n  miniaudio.vcxproj -> ...\\miniaudio.lib\n  main.cpp\n  PureEngine.vcxproj -> D:\\PureEngine\\build\\Release\\PureEngine.exe\n  (plus miniaudio node libs, no errors)\" Exe: launched fine — loaded existing high score (3s), played two sessions, no crash."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
