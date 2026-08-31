@@ -214,6 +214,19 @@
       "depends_on": [
         27
       ]
+    },
+    {
+      "id": 29,
+      "name": "Type-Safe Hostile Speed Boundary",
+      "status": "completed",
+      "definition_of_done": "The hostile chase boundary accepts the caller's fixed-size std::array speed data by const reference, preserving chase behavior while removing the raw-pointer conversion requirement.",
+      "notes": "Step 28 introduced hostileSpeeds as std::array<float, 3> but chasePlayer() still accepted const float*, requiring hostileSpeeds.data() at the call site. This step aligns the boundary signature with the owning type without changing the chase loop, hostile values, difficulty scaling, or hostile count.",
+      "implementation": "src/simulation.h: chasePlayer() now accepts const std::array<float, 3>& and includes <array>; its comment documents the fixed-size reference contract. src/main.cpp passes hostileSpeeds directly instead of calling .data(). No chase mechanics or gameplay values changed.",
+      "verification": "Candidate 29 normal run confirmed identical to the Step 28 baseline with real output: \"Loaded high score: 36.1 s (from savedata/highscore.txt)\\nGAME OVER — survived 3.63357 seconds\\nGAME OVER — survived 4.6341 seconds\". No crash and no behavior change from the signature fix.",
+      "completed_commit": "paired commit",
+      "depends_on": [
+        28
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

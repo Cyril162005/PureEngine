@@ -1000,7 +1000,7 @@ int main() {
             // comes from NUMBERS. The decision of WHEN this runs
             // (this frame, in this order, only in PLAYING) stays
             // here.
-            pe::chasePlayer(entities, hostileSpeeds.data(), difficultyScale, dt);
+            pe::chasePlayer(entities, hostileSpeeds, difficultyScale, dt);
 
             // --- Step 8: Collision pass (after movement, before drawing) ---
             // One flag per entity, rebuilt from ZERO every frame: collision
