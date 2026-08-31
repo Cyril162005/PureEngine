@@ -655,13 +655,15 @@ int main() {
     // --- Step 7 / Step 18: Entities as DATA (before the loop) ---
     // Every triangle instance is one entry in this vector. The Step 5/6
     // globals rotationAngle/rotationSpeed no longer exist — that state
-    // now lives INSIDE each entity, per instance. Step 18 moved the
-    // six CONSTRUCTIONS into pe::buildInitialEntities() (src/lifecycle.h)
-    // — same order, same values, comments relocated with them — so
-    // entity CREATION has one named owner. The index conventions built
-    // there are load-bearing: 0 = player, 1-2 = scenery, 3+ = hostiles
-    // (chased at hostileSpeeds[h - 3], textured by index).
-    std::vector<pe::Entity> entities = pe::buildInitialEntities();
+    // now lives INSIDE each entity, per instance. The current hostile
+    // archetype starts as a tiny file-backed profile (hostile_data.h),
+    // but the build order still belongs to pe::buildInitialEntities
+    // (src/lifecycle.h) so the initial world remains a single named
+    // responsibility. The index conventions are still load-bearing:
+    // 0 = player, 1-2 = scenery, 3+ = hostiles, chased at the base
+    // speed array and textured by index.
+    const pe::HostileDefaults hostileDefaults = pe::loadHostileDefaults();
+    std::vector<pe::Entity> entities = pe::buildInitialEntities(hostileDefaults);
     // --- Step 11: the INITIAL world, kept as DATA ---
     // A snapshot of the fresh entity list. Starting a game from the
     // menu restores it — reset is an ASSIGNMENT, not new code, which
@@ -700,40 +702,21 @@ int main() {
     const float entityMoveSpeed = 2.5f;
 
     // --- Step 12 / Phase 1 / Phase 2: hostile BASE speeds ---
-    // World units per second, ONE PER HOSTILE, parallel to the hostile
-    // range of the entity vector: index 0 -> entities[3], index 1 ->
-    // entities[4], index 2 -> entities[5]. Data in a container — the
-    // same pattern as soundPathCandidates and the collision vectors,
-    // and the same per-entity-variance idea Step 7 gave the triangles'
-    // rotation speeds. Every BASE value stays SLOWER than the player's
-    // 2.5, and Phase 2's cap keeps the scaled speeds below it too (see
-    // below): against pure pursuers a straight-line escape always wins,
-    // so being caught remains a positioning mistake, not a script — the
-    // Step 12 'avoidable by construction' principle, now for three
-    // threats at any run length. The spread (1.8 / 1.6 / 1.5) means
-    // they straggle rather than arrive as a wall — the player faces a
-    // pincer, not a fence. Phase 2: this array is const and NEVER
-    // mutated — it is the base the difficulty scale multiplies at
-    // usage time in the chase loop.
-    const float hostileSpeeds[] = { 1.8f, 1.6f, 1.5f };
+    // These are the current defaults for the one hostile archetype,
+    // loaded from a tiny startup file if present. The runtime chase
+    // semantics remain unchanged; only the source of the values moves
+    // out of the compiled-in literal array. The data remains three
+    // hostiles, one base speed per hostile.
+    const std::array<float, 3> hostileSpeeds = hostileDefaults.baseSpeeds;
 
     // --- Game Build Phase 2: difficulty scaling knobs ---
-    // Every PLAYING frame the chase loop multiplies each hostile's base
-    // speed by a difficulty scale derived from Step 12's survivalTime:
+    // The scale formula stays identical to the current gameplay:
     //     scale = min(1 + survivalTime * difficultyRate, maxDifficultyScale)
-    // The numbers: difficultyRate 0.01 = +1% per second of played time —
-    // at 10 s the hostiles are 10% faster (felt, survivable), and the
-    // cap binds at 33 s. maxDifficultyScale 1.33 is the Step 12
-    // principle in arithmetic: the fastest base (1.8) tops out at
-    // 1.8 * 1.33 = 2.394 u/s, STILL below the player's 2.5, so a
-    // straight-line escape wins at ANY run length — the endgame tests
-    // routing skill against a constant ceiling, not an impossible
-    // speed spiral. Because the scale is computed FROM survivalTime
-    // (already reset by resetGame(), accumulated only while PLAYING, so
-    // pausing freezes difficulty exactly like the clock), neither this
-    // phase nor its reset needs any new state.
-    const float difficultyRate = 0.01f;
-    const float maxDifficultyScale = 1.33f;
+    // The file loader falls back to the current built-in values if it is
+    // missing or malformed, which keeps the game playable and avoids
+    // crashing. The actual runtime expression is unchanged.
+    const float difficultyRate = hostileDefaults.difficultyRate;
+    const float maxDifficultyScale = hostileDefaults.maxDifficultyScale;
 
     // --- Step 13: GPU geometry, textures, and sampler setup moved out ---
     // Everything that used to follow here — Step 4's triangle vertex
@@ -1017,7 +1000,7 @@ int main() {
             // comes from NUMBERS. The decision of WHEN this runs
             // (this frame, in this order, only in PLAYING) stays
             // here.
-            pe::chasePlayer(entities, hostileSpeeds, difficultyScale, dt);
+            pe::chasePlayer(entities, hostileSpeeds.data(), difficultyScale, dt);
 
             // --- Step 8: Collision pass (after movement, before drawing) ---
             // One flag per entity, rebuilt from ZERO every frame: collision

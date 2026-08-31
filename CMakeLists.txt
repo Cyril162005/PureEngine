@@ -90,6 +90,16 @@ target_include_directories(${PROJECT_NAME} PRIVATE "${stb_SOURCE_DIR}")
 # Link GLFW and miniaudio
 target_link_libraries(${PROJECT_NAME} glfw miniaudio)
 
+# Copy the current hostile-default data file next to the executable so the
+# game can still find it when launched from build/Release/ without relying
+# on the repo root working directory.
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/hostile_default.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_default.txt"
+)
+
 # On Linux, we might need extra libs
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)

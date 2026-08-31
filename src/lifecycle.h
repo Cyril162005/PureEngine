@@ -54,7 +54,8 @@
 #include <cstddef>   // std::size_t — the flag-sizing parameter
 #include <vector>    // the entity container type (owned by the CALLER)
 
-#include "entity.h"  // the pure data type — untouched by Step 18
+#include "entity.h"       // the pure data type — untouched by Step 18
+#include "hostile_data.h"  // the one-current-archetype defaults used at startup
 
 namespace pe {
 
@@ -63,7 +64,10 @@ namespace pe {
 // balance tuning). Order is CONTRACT: 0 = player, 1-2 = scenery,
 // 3+ = hostiles — chased at hostileSpeeds[h - 3], caught by the
 // h >= 3 loop, textured by index, collision-bounded by the literal 3.
-inline std::vector<Entity> buildInitialEntities() {
+// The current hostile archetype values can now be loaded from a tiny
+// text file at startup; the default profile is the original values as a
+// fallback when the file is absent or malformed.
+inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile = HostileDefaults()) {
     std::vector<Entity> entities;
     // Instances 1 & 2 — the Step 6 pair, exactly preserved: same world
     // positions, same 0.9 rad/s counter-clockwise spin (~7 s/revolution),
@@ -78,49 +82,17 @@ inline std::vector<Entity> buildInitialEntities() {
     // required a single new rendering line — behavior comes from DATA.
     entities.push_back(Entity(pe::Vec3(0.0f, 1.5f, 0.0f), -1.4f,
                               pe::Vec3(0.6f, 0.6f, 1.0f)));
-    // Instance 4 — Step 12: the HOSTILE. Same pe::Entity type, same
-    // vector, added purely as DATA (Step 7's ruling): the existing
-    // update loop spins it (1.8 rad/s CCW), the existing draw loop
-    // renders it. Balance tuning: its hitbox is NO LONGER the Step 8
-    // default — see the explicit halfExtents argument below.
-    // Starts at (0, -2) — bottom-center, away from the player's start
-    // at (-1.5, 0) — unit scale like entities 1 & 2. It ignores the
-    // spinning triangles (scenery is not solid in v1) and hunts only
-    // the player — that chase and its catch test live in the
-    // simulation section below, deliberately OUTSIDE the pair loop so
-    // the Step 8 scenery-collision system stays byte-identical in
-    // behavior.
-    entities.push_back(Entity(pe::Vec3(0.0f, -2.0f, 0.0f), 1.8f,
+    // The current hostile archetype is still one small fixed set of
+    // values, but it now comes from the startup loader default/profile.
+    entities.push_back(Entity(hostile.spawnPositions[0], hostile.rotationSpeeds[0],
                               pe::Vec3(1.0f, 1.0f, 1.0f),
-                              // BALANCE TUNING (disclosed deviation from Step 8):
-                              // 0.5 is the triangle's base half-width — the kill box
-                              // matches the hostile's dominant footprint instead of the
-                              // 0.7071 rotation-safe bound. Step 8's bound exists for
-                              // FAIRNESS on rotating scenery (no blind spot at any spin
-                              // angle); a chasing hostile does not need that guarantee,
-                              // and its overreach reads as an invisible fat collider.
-                              // The tighter box makes visual contact and actual death
-                              // agree. Player and scenery keep 0.7071.
                               pe::Vec3(0.5f, 0.5f, 0.0f)));
-    // Instances 5 & 6 — Game Build Phase 1: TWO MORE hostiles, added
-    // the only way this project adds behavior — as DATA (two push_backs,
-    // Step 7's ruling). Each carries its OWN personality through the
-    // exact same fields Step 7 gave every triangle: position = spawn
-    // point, rotationSpeed = visual spin, scale = size (and collider).
-    // Spawn points split the compass around the player's (-1.5, 0)
-    // start — bottom (existing hostile), top-right, top-left — so the
-    // opening seconds are a genuine three-direction read, not an
-    // instant surround. Spins differ (one clockwise, like entity 3;
-    // one faster CCW) so the three threats are visually distinct.
-    // Both sit BEFORE the initialEntities snapshot below, which is the
-    // entire reason resetGame() needs NO changes: the snapshot simply
-    // contains all six entities at their start positions.
-    entities.push_back(Entity(pe::Vec3(3.0f, 2.0f, 0.0f), -1.2f,
+    entities.push_back(Entity(hostile.spawnPositions[1], hostile.rotationSpeeds[1],
                               pe::Vec3(1.0f, 1.0f, 1.0f),
-                              pe::Vec3(0.5f, 0.5f, 0.0f)));   // tuning: tighter hitbox — see instance 4
-    entities.push_back(Entity(pe::Vec3(-3.0f, 2.0f, 0.0f), 2.2f,
+                              pe::Vec3(0.5f, 0.5f, 0.0f)));
+    entities.push_back(Entity(hostile.spawnPositions[2], hostile.rotationSpeeds[2],
                               pe::Vec3(1.0f, 1.0f, 1.0f),
-                              pe::Vec3(0.5f, 0.5f, 0.0f)));   // tuning: tighter hitbox — see instance 4
+                              pe::Vec3(0.5f, 0.5f, 0.0f)));
     return entities;
 }
 
