@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "PureEngine (12/12 complete, all steps verified and pushed)",
-  "status_note": "Steps 13 through 25 are completed and verified (Batch 1 Steps 19-23 committed together at 2651778; Step 24 committed as checkpoint fa76f58 on top of Batch 1's tracker commit 4f8c08c and pushed; Step 25 manually built and launched after its one-line GLFW cleanup).",
+  "status_note": "Steps 13 through 25 are completed and verified (Batch 1 Steps 19-23 committed together at 2651778; Step 24 committed as checkpoint fa76f58 on top of Batch 1's tracker commit 4f8c08c and pushed; Step 25 manually built and launched after its one-line GLFW cleanup). This v2 tracker is now superseded by Blueprint/pure_engine_v3_steps.json for future work.",
   "steps": [
     {
       "id": 13,

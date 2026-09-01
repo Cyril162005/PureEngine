@@ -1,0 +1,14 @@
+{
+  "project": "PureEngine",
+  "method": "from_scratch",
+  "hardware_target": "i3, 8GB RAM",
+  "stack": [
+    "C/C++",
+    "GLFW or SDL",
+    "OpenGL"
+  ],
+  "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 — engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
+  "status_note": "This continuation tracker supersedes pure_engine_v2_steps.json for future work. Steps 25 through 34 are complete and verified, and the next phase intentionally begins with an empty step list until a concrete need is demonstrated in conversation.",
+  "steps": [],
+  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
+}
