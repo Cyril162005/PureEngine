@@ -1,7 +1,6 @@
 #ifndef PUREENGINE_HOSTILE_DATA_H
 #define PUREENGINE_HOSTILE_DATA_H
 
-#include <array>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -12,14 +11,18 @@
 
 namespace pe {
 
+struct HostileDefinition {
+    float baseSpeed;
+    Vec3 spawnPosition;
+    float rotationSpeed;
+};
+
 struct HostileDefaults {
-    std::array<float, 3> baseSpeeds{1.8f, 1.6f, 1.5f};
-    std::array<Vec3, 3> spawnPositions{
-        Vec3(0.0f, -2.0f, 0.0f),
-        Vec3(3.0f, 2.0f, 0.0f),
-        Vec3(-3.0f, 2.0f, 0.0f)
+    std::vector<HostileDefinition> hostiles{
+        {1.8f, Vec3(0.0f, -2.0f, 0.0f), 1.8f},
+        {1.6f, Vec3(3.0f, 2.0f, 0.0f), -1.2f},
+        {1.5f, Vec3(-3.0f, 2.0f, 0.0f), 2.2f}
     };
-    std::array<float, 3> rotationSpeeds{1.8f, -1.2f, 2.2f};
     float difficultyRate = 0.01f;
     float maxDifficultyScale = 1.33f;
 };
@@ -52,38 +55,6 @@ inline bool parseFloatList(const std::string& text, std::vector<float>& out) {
     return !out.empty();
 }
 
-inline bool parseSpawnPositions(const std::string& text, std::vector<Vec3>& out) {
-    std::stringstream stream(text);
-    std::string token;
-    while (std::getline(stream, token, ';')) {
-        const std::string trimmed = trim(token);
-        if (trimmed.empty()) {
-            return false;
-        }
-        std::stringstream pairStream(trimmed);
-        std::string item;
-        std::vector<float> pair;
-        while (std::getline(pairStream, item, ',')) {
-            const std::string trimmedItem = trim(item);
-            if (trimmedItem.empty()) {
-                return false;
-            }
-            std::stringstream valueStream(trimmedItem);
-            float value = 0.0f;
-            valueStream >> value;
-            if (valueStream.fail() || !valueStream.eof()) {
-                return false;
-            }
-            pair.push_back(value);
-        }
-        if (pair.size() != 2) {
-            return false;
-        }
-        out.push_back(Vec3(pair[0], pair[1], 0.0f));
-    }
-    return !out.empty();
-}
-
 inline std::vector<std::string> hostileDataCandidates() {
     return {
         "assets/hostile_default.txt",
@@ -101,9 +72,7 @@ inline HostileDefaults loadHostileDefaults() {
             continue;
         }
 
-        std::array<float, 3> parsedSpeeds = defaults.baseSpeeds;
-        std::array<float, 3> parsedRotations = defaults.rotationSpeeds;
-        std::array<Vec3, 3> parsedSpawns = defaults.spawnPositions;
+        std::vector<HostileDefinition> parsedHostiles;
         float parsedRate = defaults.difficultyRate;
         float parsedCap = defaults.maxDifficultyScale;
         bool ok = true;
@@ -125,30 +94,14 @@ inline HostileDefaults loadHostileDefaults() {
             const std::string key = trim(trimmed.substr(0, equalsPos));
             const std::string value = trim(trimmed.substr(equalsPos + 1));
 
-            if (key == "base_speed" || key == "base_speeds") {
+            if (key == "hostile") {
                 std::vector<float> vals;
-                if (!parseFloatList(value, vals) || vals.size() != 3) {
-                    std::cerr << "Warning: hostile defaults file contained malformed base speeds; using built-in defaults." << std::endl;
+                if (!parseFloatList(value, vals) || vals.size() != 4) {
+                    std::cerr << "Warning: hostile defaults file contained malformed hostile entry; using built-in defaults." << std::endl;
                     ok = false;
                     break;
                 }
-                parsedSpeeds = {vals[0], vals[1], vals[2]};
-            } else if (key == "rotation_speed" || key == "rotation_speeds") {
-                std::vector<float> vals;
-                if (!parseFloatList(value, vals) || vals.size() != 3) {
-                    std::cerr << "Warning: hostile defaults file contained malformed rotation speeds; using built-in defaults." << std::endl;
-                    ok = false;
-                    break;
-                }
-                parsedRotations = {vals[0], vals[1], vals[2]};
-            } else if (key == "spawn_points") {
-                std::vector<Vec3> points;
-                if (!parseSpawnPositions(value, points) || points.size() != 3) {
-                    std::cerr << "Warning: hostile defaults file contained malformed spawn_points; using built-in defaults." << std::endl;
-                    ok = false;
-                    break;
-                }
-                parsedSpawns = {points[0], points[1], points[2]};
+                parsedHostiles.push_back({vals[0], Vec3(vals[1], vals[2], 0.0f), vals[3]});
             } else if (key == "difficulty_rate") {
                 std::stringstream stream(value);
                 float parsed = 0.0f;
@@ -176,10 +129,13 @@ inline HostileDefaults loadHostileDefaults() {
             }
         }
 
+        if (ok && parsedHostiles.empty()) {
+            std::cerr << "Warning: hostile defaults file contained no hostile entries; using built-in defaults." << std::endl;
+            return defaults;
+        }
+
         if (ok) {
-            defaults.baseSpeeds = parsedSpeeds;
-            defaults.rotationSpeeds = parsedRotations;
-            defaults.spawnPositions = parsedSpawns;
+            defaults.hostiles = parsedHostiles;
             defaults.difficultyRate = parsedRate;
             defaults.maxDifficultyScale = parsedCap;
             return defaults;

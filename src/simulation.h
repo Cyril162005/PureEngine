@@ -48,7 +48,6 @@
 // Include guard, same pattern as every other project header.
 
 #include <cstddef>     // std::size_t — loop counters
-#include <array>       // std::array — fixed hostile speed data
 #include <vector>      // the entity/flag/speed containers (caller-owned)
 
 #include "entity.h"    // the pure data type the mechanics advance
@@ -73,12 +72,12 @@ inline void advanceRotations(std::vector<Entity>& entities, float dt) {
 // numbers — the base speeds and the shared Phase 2 ramp, both handed
 // in as data). Indices 3..end are the hostile range; speeds is the
 // parallel hostileSpeeds array addressed as speeds[h - 3], exactly as
-// main.cpp declares it. The fixed-size reference preserves the
-// three-hostile contract without exposing a raw pointer.
+// main.cpp declares it. The vector length matches the loaded hostile
+// definitions and preserves their order.
 // guard keeps intent honest per hostile: zero distance means no
 // direction to move in.
 inline void chasePlayer(std::vector<Entity>& entities,
-                        const std::array<float, 3>& speeds,
+                        const std::vector<float>& speeds,
                         float difficultyScale, float dt) {
     for (size_t h = 3; h < entities.size(); ++h) {
         pe::Entity& hostile = entities[h];

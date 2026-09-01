@@ -240,6 +240,19 @@
       "depends_on": [
         29
       ]
+    },
+    {
+      "id": 31,
+      "name": "Data-Driven Hostile Count",
+      "status": "completed",
+      "definition_of_done": "The hostile count is declared by repeated hostile= entries in hostile_default.txt and is no longer fixed by compile-time hostile arrays or three explicit lifecycle constructions, while the existing built-in fallback remains available.",
+      "notes": "Step 31 extends the Step 28 hostile data boundary from configurable hostile statistics to configurable hostile count. Each hostile= line contains base speed, spawn x/y, and rotation speed; the player plus two scenery entities remain fixed, so the existing hostile range still begins at entity index 3. A file with zero hostile entries is distinguished from a missing file and falls back to the built-in three-hostile profile.",
+      "implementation": "src/hostile_data.h now defines HostileDefinition and stores HostileDefaults.hostiles in std::vector. The loader parses any number of repeated hostile=base_speed,spawn_x,spawn_y,rotation_speed entries, rejects malformed entries, and emits a distinct no-hostile-entries warning before using built-in defaults. src/lifecycle.h loops over hostile.hostiles; src/main.cpp builds the matching hostileSpeeds vector; src/simulation.h accepts the dynamic speed vector. assets/hostile_default.txt now contains three repeated hostile= lines. Whole-src grep found no additional hostile-count assumptions in UI/HUD, spawn timing, or other systems; the remaining literal 3 bounds are the intentional player-plus-two-scenery boundary.",
+      "verification": "All four Step 31 behavior tests passed with real evidence. Normal file: unchanged from the Step 30 baseline, no crash. Reduced count: hostile_default.txt was changed to two hostile= lines, verified via Get-Content before running, and the executable ran without crashing. Zero entries: with the file otherwise valid and no hostile= lines, the executable printed exactly \"Warning: hostile defaults file contained no hostile entries; using built-in defaults.\" Missing file: both copies were confirmed absent via Get-Item before running, and the executable printed exactly \"Warning: hostile defaults file not found; using built-in defaults.\" with exit code 0. Both files were automatically restored after testing.",
+      "completed_commit": "paired commit",
+      "depends_on": [
+        30
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

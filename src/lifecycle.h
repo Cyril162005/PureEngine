@@ -82,17 +82,13 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
     // required a single new rendering line — behavior comes from DATA.
     entities.push_back(Entity(pe::Vec3(0.0f, 1.5f, 0.0f), -1.4f,
                               pe::Vec3(0.6f, 0.6f, 1.0f)));
-    // The current hostile archetype is still one small fixed set of
-    // values, but it now comes from the startup loader default/profile.
-    entities.push_back(Entity(hostile.spawnPositions[0], hostile.rotationSpeeds[0],
-                              pe::Vec3(1.0f, 1.0f, 1.0f),
-                              pe::Vec3(0.5f, 0.5f, 0.0f)));
-    entities.push_back(Entity(hostile.spawnPositions[1], hostile.rotationSpeeds[1],
-                              pe::Vec3(1.0f, 1.0f, 1.0f),
-                              pe::Vec3(0.5f, 0.5f, 0.0f)));
-    entities.push_back(Entity(hostile.spawnPositions[2], hostile.rotationSpeeds[2],
-                              pe::Vec3(1.0f, 1.0f, 1.0f),
-                              pe::Vec3(0.5f, 0.5f, 0.0f)));
+    // The hostile count and per-hostile values come from the startup
+    // profile; each entry still uses the same hostile representation.
+    for (const HostileDefinition& definition : hostile.hostiles) {
+        entities.push_back(Entity(definition.spawnPosition, definition.rotationSpeed,
+                                  pe::Vec3(1.0f, 1.0f, 1.0f),
+                                  pe::Vec3(0.5f, 0.5f, 0.0f)));
+    }
     return entities;
 }
 

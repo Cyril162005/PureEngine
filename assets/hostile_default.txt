@@ -1,8 +1,9 @@
 # PureEngine hostile archetype defaults
 # Single hostile configuration used by the current prototype.
-# Format: key=value with comma- or semicolon-separated numeric lists.
-base_speed=1.8,1.6,1.5
+# Format: hostile=base_speed,spawn_x,spawn_y,rotation_speed.
+# One hostile entry per line; the number of lines is the hostile count.
+hostile=1.8,0,-2,1.8
+hostile=1.6,3,2,-1.2
+hostile=1.5,-3,2,2.2
 difficulty_rate=0.01
 max_difficulty_scale=1.33
-spawn_points=0,-2;3,2;-3,2
-rotation_speed=1.8,-1.2,2.2

@@ -705,9 +705,12 @@ int main() {
     // These are the current defaults for the one hostile archetype,
     // loaded from a tiny startup file if present. The runtime chase
     // semantics remain unchanged; only the source of the values moves
-    // out of the compiled-in literal array. The data remains three
-    // hostiles, one base speed per hostile.
-    const std::array<float, 3> hostileSpeeds = hostileDefaults.baseSpeeds;
+    // out of the compiled-in literal array. The data supplies one base
+    // speed per loaded hostile.
+    std::vector<float> hostileSpeeds;
+    for (const pe::HostileDefinition& hostile : hostileDefaults.hostiles) {
+        hostileSpeeds.push_back(hostile.baseSpeed);
+    }
 
     // --- Game Build Phase 2: difficulty scaling knobs ---
     // The scale formula stays identical to the current gameplay:
