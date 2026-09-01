@@ -55,18 +55,18 @@ inline bool parseFloatList(const std::string& text, std::vector<float>& out) {
     return !out.empty();
 }
 
-inline std::vector<std::string> hostileDataCandidates() {
+inline std::vector<std::string> hostileDataCandidates(const std::string& fileName) {
     return {
-        "assets/hostile_default.txt",
-        "../assets/hostile_default.txt",
-        "../../assets/hostile_default.txt"
+        "assets/" + fileName,
+        "../assets/" + fileName,
+        "../../assets/" + fileName
     };
 }
 
-inline HostileDefaults loadHostileDefaults() {
+inline HostileDefaults loadHostileDefaults(const std::string& fileName = "hostile_default.txt") {
     HostileDefaults defaults;
 
-    for (const std::string& candidate : hostileDataCandidates()) {
+    for (const std::string& candidate : hostileDataCandidates(fileName)) {
         std::ifstream in(candidate);
         if (!in) {
             continue;

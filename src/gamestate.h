@@ -26,8 +26,9 @@ namespace pe {
 enum class GameState {
     MENU,     // Start screen. No world simulated, nothing drawn but
               // the clear color. SPACE starts a game, ESC quits.
-    PLAYING,  // The full Steps 1-10 world: entities, camera, arrows,
+    PLAYING,  // The default scene: entities, camera, arrows,
               // collision, tint, audio. ESC pauses.
+    PLAYING_ALT, // The alternate scene using the same gameplay path.
     PAUSED,   // The PLAYING world held still: drawn every frame,
               // simulated on none of them. ESC resumes, SPACE quits
               // to the menu.
@@ -56,7 +57,7 @@ enum class GameState {
 // entity updates, the chase, the collision scan, and the catch test
 // all sit behind.
 constexpr bool simulates(GameState state) {
-    return state == GameState::PLAYING;
+    return state == GameState::PLAYING || state == GameState::PLAYING_ALT;
 }
 
 // Does this state DRAW the world this frame? Everything except MENU —

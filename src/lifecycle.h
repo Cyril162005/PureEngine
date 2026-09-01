@@ -59,14 +59,12 @@
 
 namespace pe {
 
-// --- Build the initial world: the six entity constructions,
+// --- Build the initial world: the player and scenery constructions,
 // relocated whole from main.cpp (Step 7 / Step 12 / Phase 1 /
 // balance tuning). Order is CONTRACT: 0 = player, 1-2 = scenery,
-// 3+ = hostiles — chased at hostileSpeeds[h - 3], caught by the
-// h >= 3 loop, textured by index, collision-bounded by the literal 3.
-// The current hostile archetype values can now be loaded from a tiny
-// text file at startup; the default profile is the original values as a
-// fallback when the file is absent or malformed.
+// 3+ = hostiles — supplied by the selected scene profile, chased at
+// hostileSpeeds[h - 3], caught by the h >= 3 loop, textured by index,
+// collision-bounded by the literal 3.
 inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile = HostileDefaults()) {
     std::vector<Entity> entities;
     // Instances 1 & 2 — the Step 6 pair, exactly preserved: same world
@@ -82,8 +80,8 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
     // required a single new rendering line — behavior comes from DATA.
     entities.push_back(Entity(pe::Vec3(0.0f, 1.5f, 0.0f), -1.4f,
                               pe::Vec3(0.6f, 0.6f, 1.0f)));
-    // The hostile count and per-hostile values come from the startup
-    // profile; each entry still uses the same hostile representation.
+    // The hostile count and per-hostile values come from the selected
+    // scene profile; each entry still uses the same representation.
     for (const HostileDefinition& definition : hostile.hostiles) {
         entities.push_back(Entity(definition.spawnPosition, definition.rotationSpeed,
                                   pe::Vec3(1.0f, 1.0f, 1.0f),

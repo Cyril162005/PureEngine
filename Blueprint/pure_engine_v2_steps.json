@@ -253,6 +253,19 @@
       "depends_on": [
         30
       ]
+    },
+    {
+      "id": 32,
+      "name": "Second Scene Proves Boundary Reuse",
+      "status": "completed",
+      "definition_of_done": "A second hostile scene can be selected without forcing changes to the renderer, camera, input, or simulation boundaries, proving the existing engine boundaries are reusable data-driven interfaces rather than scene-specific code paths.",
+      "notes": "The default scene and alternate scene are both just different HostileDefaults payloads exchanged through the same activeHostileDefaults pointer. The proof is not a new abstraction: the same render path, camera path, input edge detection, and simulation mechanics run with the alternate scene data, while the scene-specific values remain in hostile_default.txt and hostile_alt.txt.",
+      "implementation": "main.cpp defines defaultHostileDefaults + alternateHostileDefaults, switches activeHostileDefaults through activateScene(), and creates the alternate gameplay state as PLAYING_ALT. The second scene is a data swap: resetGame() repopulates entities from the active scene profile, hostileSpeeds is rebuilt from that profile, and the same state machine and chase/collision frame loop run unchanged. The critical generalization proof is that src/renderer.h, src/camera.h, src/input.h, and src/simulation.h required zero edits for this scene switch. There was no scene-specific rendering code, no extra camera logic, no new input scheme, and no simulation rework — the boundaries were already generic enough to serve both profiles.",
+      "verification": "Temporary debug logging around the scene switch showed the selection pointer identity matching the intended profile on each run: SPACE selected the default profile and matched &defaultHostileDefaults, while 2 selected the alternate profile and matched &alternateHostileDefaults, with the identity check matching for 7 consecutive runs. The pause/resume trace was then checked for unintended reactivation: when paused, ESC resumed into the same state derived from activeHostileDefaults (PLAYING_ALT when alternate was active, otherwise PLAYING), and no extra activation occurred from the pause edge. The log was removed before finalizing the commit so the shipped code stays clean. Clean Release build and a brief runtime play check were both performed successfully after the final tracker update: the build completed with no project-code errors, and the game launched and ran through the default and alternate scene transitions without crashing.",
+      "completed_commit": "PureEngine Step 32: second scene proves boundary reuse",
+      "depends_on": [
+        31
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

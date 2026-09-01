@@ -1,0 +1,8 @@
+# PureEngine alternate scene hostile layout
+# Format: hostile=base_speed,spawn_x,spawn_y,rotation_speed.
+# One hostile entry per line; the number of lines is the hostile count.
+hostile=1.7,-4,2,1.4
+hostile=1.5,0,3,-1.1
+hostile=1.3,4,2,1.8
+difficulty_rate=0.01
+max_difficulty_scale=1.33

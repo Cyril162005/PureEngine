@@ -662,13 +662,15 @@ int main() {
     // responsibility. The index conventions are still load-bearing:
     // 0 = player, 1-2 = scenery, 3+ = hostiles, chased at the base
     // speed array and textured by index.
-    const pe::HostileDefaults hostileDefaults = pe::loadHostileDefaults();
-    std::vector<pe::Entity> entities = pe::buildInitialEntities(hostileDefaults);
+    const pe::HostileDefaults defaultHostileDefaults = pe::loadHostileDefaults("hostile_default.txt");
+    const pe::HostileDefaults alternateHostileDefaults = pe::loadHostileDefaults("hostile_alt.txt");
+    const pe::HostileDefaults* activeHostileDefaults = &defaultHostileDefaults;
+    std::vector<pe::Entity> entities = pe::buildInitialEntities(*activeHostileDefaults);
     // --- Step 11: the INITIAL world, kept as DATA ---
     // A snapshot of the fresh entity list. Starting a game from the
     // menu restores it — reset is an ASSIGNMENT, not new code, which
     // is exactly what 'entities as data' (Step 7) was buying.
-    const std::vector<pe::Entity> initialEntities = entities;
+    std::vector<pe::Entity> initialEntities = entities;
     // Collision flags hoisted OUT of the loop body (they lived inside
     // it in Steps 8-10). The PAUSED state still DRAWS the scene but
     // stops SIMULATING, so the last PLAYING frame's flags must survive
@@ -693,7 +695,7 @@ int main() {
     // the only keys registered for previous-frame tracking (snapshot
     // starts all-false: before the program starts, nothing is pressed).
     // WASD and the arrows stay level-only reads — no tracking needed.
-    pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE};
+    pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, GLFW_KEY_2};
 
     // --- Step 8: Player movement speed (before the loop) ---
     // World units per second for the ARROW-key-driven entity
@@ -702,13 +704,9 @@ int main() {
     const float entityMoveSpeed = 2.5f;
 
     // --- Step 12 / Phase 1 / Phase 2: hostile BASE speeds ---
-    // These are the current defaults for the one hostile archetype,
-    // loaded from a tiny startup file if present. The runtime chase
-    // semantics remain unchanged; only the source of the values moves
-    // out of the compiled-in literal array. The data supplies one base
-    // speed per loaded hostile.
+    // The selected scene supplies one base speed per loaded hostile.
     std::vector<float> hostileSpeeds;
-    for (const pe::HostileDefinition& hostile : hostileDefaults.hostiles) {
+    for (const pe::HostileDefinition& hostile : activeHostileDefaults->hostiles) {
         hostileSpeeds.push_back(hostile.baseSpeed);
     }
 
@@ -718,8 +716,20 @@ int main() {
     // The file loader falls back to the current built-in values if it is
     // missing or malformed, which keeps the game playable and avoids
     // crashing. The actual runtime expression is unchanged.
-    const float difficultyRate = hostileDefaults.difficultyRate;
-    const float maxDifficultyScale = hostileDefaults.maxDifficultyScale;
+    float difficultyRate = activeHostileDefaults->difficultyRate;
+    float maxDifficultyScale = activeHostileDefaults->maxDifficultyScale;
+
+    auto activateScene = [&](const pe::HostileDefaults& scene) {
+        activeHostileDefaults = &scene;
+        entities = pe::buildInitialEntities(*activeHostileDefaults);
+        initialEntities = entities;
+        hostileSpeeds.clear();
+        for (const pe::HostileDefinition& hostile : activeHostileDefaults->hostiles) {
+            hostileSpeeds.push_back(hostile.baseSpeed);
+        }
+        difficultyRate = activeHostileDefaults->difficultyRate;
+        maxDifficultyScale = activeHostileDefaults->maxDifficultyScale;
+    };
 
     // --- Step 13: GPU geometry, textures, and sampler setup moved out ---
     // Everything that used to follow here — Step 4's triangle vertex
@@ -863,11 +873,17 @@ int main() {
             // SPACE starts a game: reset the world to its initial data,
             // then enter PLAYING. EDGE — one start per press.
             } else if (spaceEdge) {
+                activateScene(defaultHostileDefaults);
                 resetGame();
                 currentState = pe::GameState::PLAYING;
+            } else if (input.isEdge(window, GLFW_KEY_2)) {
+                activateScene(alternateHostileDefaults);
+                resetGame();
+                currentState = pe::GameState::PLAYING_ALT;
             }
             break;
         case pe::GameState::PLAYING:
+        case pe::GameState::PLAYING_ALT:
             // ESC pauses. EDGE — a held key must not flip pause on and
             // off 60 times a second.
             if (escEdge) {
@@ -928,7 +944,9 @@ int main() {
             // menu. The abandoned world stays in memory as-is; the NEXT
             // start resets it via resetGame().
             if (escEdge) {
-                currentState = pe::GameState::PLAYING;
+                currentState = activeHostileDefaults == &alternateHostileDefaults
+                    ? pe::GameState::PLAYING_ALT
+                    : pe::GameState::PLAYING;
             } else if (spaceEdge) {
                 currentState = pe::GameState::MENU;
             }
