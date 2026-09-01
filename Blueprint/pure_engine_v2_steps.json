@@ -279,6 +279,19 @@
       "depends_on": [
         32
       ]
+    },
+    {
+      "id": 34,
+      "name": "Automated Hostile Parser Validation",
+      "status": "completed",
+      "definition_of_done": "A small automated hostile-data validation target exercises loadHostileDefaults() for valid data, missing-key, malformed-number, empty-list, missing-file, and the known Step 30 warning path without introducing a test framework or a new dependency.",
+      "notes": "This step found a real pre-existing bug in loadHostileDefaults(): any absolute path was silently rewritten as assets/<absolute-path>, so the function could never locate a valid temp file and always fell through to the built-in defaults path. The fix is a small std::filesystem::path::is_absolute() guard in src/hostile_data.h that preserves the existing assets/ relative search while allowing explicit absolute paths to be used directly. The test target stays minimal: a plain int main() test executable without a framework, and no game logic changed beyond this small parser fix.",
+      "implementation": "tests/hostile_data_test.cpp adds six cases covering valid data, missing key, malformed number, empty hostile list, missing file, and the two-stage unknown-key + malformed warning pattern matching the known Step 30 fallback behavior. CMakeLists.txt adds the hostile_data_test target. src/hostile_data.h adds <filesystem> and returns the original path directly when fileName is absolute; otherwise it keeps the existing assets/ ../assets / ../../assets candidate search.",
+      "verification": "Fresh verification: hostile_data_test.exe: PASS, all 6 cases produced the expected built-in fallback or valid-data behavior. PureEngine.exe was rebuilt and ran normally afterward, confirming no regression to the normal relative-path assets/ flow used by the real game. The output also exercised the real Step 30 warning path: unknown key followed by malformed file fallback still returns built-in defaults without crashing.",
+      "completed_commit": "PureEngine Step 34: automated parser tests + absolute-path fix",
+      "depends_on": [
+        33
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -1,6 +1,7 @@
 #ifndef PUREENGINE_HOSTILE_DATA_H
 #define PUREENGINE_HOSTILE_DATA_H
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -56,6 +57,11 @@ inline bool parseFloatList(const std::string& text, std::vector<float>& out) {
 }
 
 inline std::vector<std::string> hostileDataCandidates(const std::string& fileName) {
+    const std::filesystem::path path(fileName);
+    if (path.is_absolute()) {
+        return { fileName };
+    }
+
     return {
         "assets/" + fileName,
         "../assets/" + fileName,

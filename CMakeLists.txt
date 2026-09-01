@@ -100,6 +100,16 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_default.txt"
 )
 
+# Minimal parser validation target: exercises the real hostile-data loading
+# logic without changing PureEngine.exe's source, flags, or dependency set.
+add_executable(hostile_data_test
+    tests/hostile_data_test.cpp
+)
+
+# Keep the test translation unit scoped to the exact header it needs.
+# This avoids exposing the whole src/ directory, which is what makes
+# src/time.h shadow the CRT's time.h during compilation.
+
 # On Linux, we might need extra libs
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)
