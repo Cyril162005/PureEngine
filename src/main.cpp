@@ -801,6 +801,16 @@ int main() {
     // here with a rate of 1 second per second.
     float survivalTime = 0.0f;
 
+    // --- Step 33: minimal periodic frame-time visibility ---
+    // Report the average frame time while the game is actively
+    // simulating, so menu idle time does not skew the result. This is
+    // intentionally tiny: one rolling accumulator, one report window,
+    // and no profiler, no new files, no extra dependencies.
+    float simFrameAccumulator = 0.0f;
+    int simFrameCount = 0;
+    float simFrameReportWindow = 5.0f;
+    float simFrameReportElapsed = 0.0f;
+
     // --- Step 11: reset the world to its initial data ---
     // Called when a game STARTS from the menu. Every piece of play
     // state returns to its pre-game value: the entity snapshot (which
@@ -843,6 +853,25 @@ int main() {
         // before everything — because what a delta measures depends on
         // exactly where it is taken.
         const float dt = frameTime.tick();
+
+        if (pe::simulates(currentState)) {
+            simFrameAccumulator += dt;
+            simFrameCount += 1;
+            simFrameReportElapsed += dt;
+            if (simFrameReportElapsed >= simFrameReportWindow) {
+                const float averageSeconds = simFrameAccumulator / static_cast<float>(simFrameCount);
+                const float averageMilliseconds = averageSeconds * 1000.0f;
+                std::cout << "avg frame: " << averageMilliseconds << " ms over "
+                          << simFrameReportWindow << " s" << std::endl;
+                simFrameAccumulator = 0.0f;
+                simFrameCount = 0;
+                simFrameReportElapsed = 0.0f;
+            }
+        } else {
+            simFrameAccumulator = 0.0f;
+            simFrameCount = 0;
+            simFrameReportElapsed = 0.0f;
+        }
 
         // A. Poll for events (input, window resize, etc.)
         glfwPollEvents();

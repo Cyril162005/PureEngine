@@ -266,6 +266,19 @@
       "depends_on": [
         31
       ]
+    },
+    {
+      "id": 33,
+      "name": "Minimal Periodic Frame-Time Visibility",
+      "status": "completed",
+      "definition_of_done": "Average frame time is reported periodically during active simulation only, without introducing a profiler, new file, or new dependency, while the menu and paused states do not skew the average.",
+      "notes": "This is intentionally the smallest visibility hook: the existing dt value already flows through the main loop, and the timing boundary remains in src/time.h. The report is only accumulated while pe::simulates(currentState) is true, so menu idle time is excluded. A 5-second window keeps the console output sparse while still surfacing rough frame cost over a meaningful play period.",
+      "implementation": "src/main.cpp adds a tiny rolling accumulator and a 5-second report window directly in the main loop. The code tracks simFrameAccumulator, simFrameCount, and simFrameReportElapsed, increments them only when pe::simulates(currentState) is true, prints avg frame: <ms> ms over 5 s, and resets the accumulator when the game is not simulating or when the window is reached. No new headers, files, or dependencies added. The timing boundary stays unchanged in src/time.h.",
+      "verification": "Manual runtime evidence from three separate gameplay sessions: avg frame: ~1.0-1.03 ms over 5 s printed consistently in each session, with no crashes and no anomalous values. The same report stayed stable across 15s+ runtime, a 15s run, and a shorter run, and the output remained free of the earlier debug text. This confirms the periodic print is behaving as intended while the game is actively simulating.",
+      "completed_commit": "PureEngine Step 33: minimal periodic frame-time visibility",
+      "depends_on": [
+        32
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
