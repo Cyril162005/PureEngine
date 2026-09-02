@@ -1135,6 +1135,11 @@ int main() {
                 // write fails below, the on-screen number stays correct
                 // for the rest of this session.
                 if (survivalTime > highScore) {
+                    // Step 35: use the existing single-beep round-robin for
+                    // the real high-score event as well, with no new asset,
+                    // no API change, and the same slot rotation already used
+                    // for collision and GAME_OVER notifications.
+                    audio.playNext();
                     highScore = survivalTime;
                     // create_directories makes savedata/ if it does not
                     // exist yet (a first run never has it); the

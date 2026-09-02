@@ -9,6 +9,19 @@
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 — engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
   "status_note": "This continuation tracker supersedes pure_engine_v2_steps.json for future work. Steps 25 through 34 are complete and verified, and the next phase intentionally begins with an empty step list until a concrete need is demonstrated in conversation.",
-  "steps": [],
+  "steps": [
+    {
+      "id": 35,
+      "name": "Wire existing beep to new-high-score event",
+      "status": "completed",
+      "definition_of_done": "The existing single-beep round-robin fires when a run beats the stored high score, without adding sound assets or changing the audio API.",
+      "notes": "This is the smallest honest use of the current one-asset audio system. Collision-edge and GAME_OVER events already trigger the current beep through playNext(); the high-score branch now uses that same mechanism at the real record-break moment.",
+      "implementation": "In src/main.cpp, the high-score branch calls audio.playNext() before updating the in-memory score and saving it. No new asset, no new audio API, no sound-type abstraction was introduced.",
+      "verification": "Verified by Cyril: build succeeded, a full run reached 53.5884s and beat the prior high score of 47.7s; the console printed NEW HIGH SCORE and the beep was audible at that moment, alongside the existing catch/GAME_OVER triggers.",
+      "depends_on": [
+        20
+      ]
+    }
+  ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
 }
