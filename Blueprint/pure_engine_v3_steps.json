@@ -34,6 +34,20 @@
         20,
         35
       ]
+    },
+    {
+      "id": 37,
+      "name": "Collision hit-flash feedback",
+      "status": "completed",
+      "definition_of_done": "A brief collision hit pulse is synchronized with the existing collision sound using the current render path, and the tracker records the investigated-but-deferred collision-perception quirk that the rotation-safe AABB is larger than the visible triangle sprite.",
+      "notes": "The flash uses the same edge event that already triggers the collision beep: when any new collision is detected, collisionFlashFrames = 6 and the render block overrides the active clear color for a few frames. Visual confirmation: the pulse reads as a quick hit-pulse, not a sustained tint. Investigated but deferred: the collision check itself is correct and loops player vs each hostile individually; the apparent bug is more likely a visual-perception mismatch because the rotation-safe hitbox is a 1.414x1.414 AABB while the visible triangle sprite is roughly 1.0x1.0. This remains a non-blocking known quirk for later debug-overlay work, not a gameplay bug to fix in this pass.",
+      "implementation": "In src/main.cpp, the anyNewCollision branch sets collisionFlashFrames = 6 and reuses the existing clear color override in the render block so the flash lands on the same frame as the collision audio cue. No new abstraction or subsystem was introduced.",
+      "verification": "Verified by runtime confirmation: the flash reads as a quick hit-pulse instead of a lingering tint. The collision investigation was reviewed from source: player-vs-hostile overlap checks are per-hostile loops, and the mismatch is a deferred visual quirk rather than a logic bug to fix now.",
+      "depends_on": [
+        20,
+        35,
+        36
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

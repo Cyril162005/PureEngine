@@ -618,6 +618,11 @@ int main() {
     // Tracks which clear color is currently active. false = black (the
     // Step 1/2 default), true = dark blue. SPACE toggles this flag.
     bool clearColorIsBlue = false;
+    // Step 37: transient catch flash — same edge event that triggers
+    // the collision beep. A very short 1-2 frame pulse keeps the visual
+    // hit feedback synced with the audio cue without introducing a new
+    // rendering abstraction or shader work.
+    int collisionFlashFrames = 0;
     // Step 16: the spaceWasPressedLastFrame bool that used to live here
     // moved into pe::Input. Why edges need memory is unchanged:
     // glfwGetKey() only reports RIGHT NOW, so a held key would otherwise
@@ -1093,6 +1098,10 @@ int main() {
                 // same semantics; main.cpp keeps the EDGE DECISION that
                 // gets us here.
                 audio.playNext();
+                // Step 37: keep the hit flash synchronized with the same
+                // edge event that already triggers the beep, so the visual
+                // and audio feedback land on the same frame.
+                collisionFlashFrames = 6;
             }
             // Store THIS frame's vector for the next frame's edge test.
             wasColliding = colliding;
@@ -1162,12 +1171,11 @@ int main() {
                         std::cerr << "Warning: could not save the high score to "
                                   << highScorePath
                                   << " - it stays in memory for this session only" << std::endl;
+                    }
                 } else {
                     // Step 36: normal death uses only the dedicated
                     // game-over cue, never both sounds at once.
                     audio.playGameOver();
-                }
-                    }
                 }
                 currentState = pe::GameState::GAME_OVER;
             }
@@ -1180,7 +1188,11 @@ int main() {
         // GAME_OVER dark red, gameplay black — or dark blue when Step
         // 3's toggle flag (still owned HERE) is set. Same values, same
         // priority order; main.cpp asks and the renderer clears.
-        const pe::ClearColor frameClear = pe::clearColorFor(currentState, clearColorIsBlue);
+        pe::ClearColor frameClear = pe::clearColorFor(currentState, clearColorIsBlue);
+        if (collisionFlashFrames > 0) {
+            frameClear = pe::ClearColor{1.0f, 0.2f, 0.2f};
+            --collisionFlashFrames;
+        }
         renderer.clear(frameClear.r, frameClear.g, frameClear.b);
 
         // --- Step 11 / Step 19: gameplay rendering happens OUTSIDE the MENU ---
