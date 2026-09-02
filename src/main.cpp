@@ -1120,12 +1120,6 @@ int main() {
             if (caught) {
                 std::cout << "GAME OVER — survived "
                           << survivalTime << " seconds" << std::endl;
-                // Step 20: the end-of-run beep goes through the SAME
-                // playNext() as the collision beep — one shared cursor,
-                // exactly as the single nextCollisionSound variable
-                // always did, so the two events keep rotating through
-                // the same four slots.
-                audio.playNext();
                 // --- Game Build Phase 4: record check + save ---
                 // The run's final time is complete RIGHT NOW (the timer
                 // stops with the state flip below), so this is the exact
@@ -1135,11 +1129,9 @@ int main() {
                 // write fails below, the on-screen number stays correct
                 // for the rest of this session.
                 if (survivalTime > highScore) {
-                    // Step 35: use the existing single-beep round-robin for
-                    // the real high-score event as well, with no new asset,
-                    // no API change, and the same slot rotation already used
-                    // for collision and GAME_OVER notifications.
-                    audio.playNext();
+                    // Step 36: separate high-score cue — this event uses its
+                    // dedicated asset instead of the shared collision beep.
+                    audio.playNewHighScore();
                     highScore = survivalTime;
                     // create_directories makes savedata/ if it does not
                     // exist yet (a first run never has it); the
@@ -1170,6 +1162,11 @@ int main() {
                         std::cerr << "Warning: could not save the high score to "
                                   << highScorePath
                                   << " - it stays in memory for this session only" << std::endl;
+                } else {
+                    // Step 36: normal death uses only the dedicated
+                    // game-over cue, never both sounds at once.
+                    audio.playGameOver();
+                }
                     }
                 }
                 currentState = pe::GameState::GAME_OVER;

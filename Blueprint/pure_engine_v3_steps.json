@@ -21,6 +21,19 @@
       "depends_on": [
         20
       ]
+    },
+    {
+      "id": 36,
+      "name": "Distinct event audio (game-over, high-score) + bug fixes",
+      "status": "completed",
+      "definition_of_done": "The project ships the runtime asset copy fix, the silent loaded-flag bug fix, and the one-sound-per-death UX rule: record death plays only win_sound.wav; normal death plays only GAMEOVER.wav. The tracker records the remaining known follow-up about the long GAMEOVER clip.",
+      "notes": "Packaging bug fixed: CMake now copies GAMEOVER.wav and win_sound.wav next to the executable, so the runtime path matches the game's 3-candidate asset probe. Silent-flag bug fixed: gameOverSoundLoaded and newHighScoreSoundLoaded were never set true after successful loadNamedSound() calls, so both sounds loaded but were immediately rejected by the playback guards. UX fix: in src/main.cpp, the caught-death branch chooses a single event sound per death, prioritizing the record-break cue over the normal death cue. Known follow-up, not blocking: GAMEOVER.wav is approximately 8.6 seconds long, longer than ideal for a game where deaths are sub-second; a shorter ~2-3s replacement clip is planned later but not yet implemented.",
+      "implementation": "In src/audio.h, set the event-loaded flags to true immediately after each successful loadNamedSound() call. In src/main.cpp, the caught-death block now only triggers win_sound.wav on a record-break and only triggers GAMEOVER.wav on a normal death. CMakeLists.txt copies both event asset files into the build output assets/ directory alongside the existing beep.wav and hostile_default.txt bundle.",
+      "verification": "Verified by build and runtime checks: PureEngine.exe rebuilt successfully, runtime logs showed GAME OVER and NEW HIGH SCORE events firing correctly, and the final run confirmed a record death played only win_sound.wav while a non-record death played only GAMEOVER.wav. The long clip length is noted as follow-up work rather than a blocker.",
+      "depends_on": [
+        20,
+        35
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

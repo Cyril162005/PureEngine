@@ -90,11 +90,21 @@ target_include_directories(${PROJECT_NAME} PRIVATE "${stb_SOURCE_DIR}")
 # Link GLFW and miniaudio
 target_link_libraries(${PROJECT_NAME} glfw miniaudio)
 
-# Copy the current hostile-default data file next to the executable so the
-# game can still find it when launched from build/Release/ without relying
-# on the repo root working directory.
+# Copy the runtime asset bundle next to the executable so the game can
+# still find its data when launched from build/Release/ without relying
+# on the repo root working directory. This includes both the parser data
+# and the audio assets used at runtime.
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/beep.wav"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/beep.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/GAMEOVER.wav"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/GAMEOVER.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/win_sound.wav"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/hostile_default.txt"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_default.txt"

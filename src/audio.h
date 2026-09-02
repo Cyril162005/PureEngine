@@ -46,6 +46,7 @@
 #include <cstddef>      // std::size_t — pool size and cursor
 #include <iostream>     // the slot-clone failure warning (matches the
                         // console-message discipline the init path had)
+#include <string>       // build the runtime candidate paths for each asset
 #include <miniaudio.h>  // the static-lib API — the one layer we do not
                         // write ourselves (Step 9's ruling).
 
@@ -80,6 +81,7 @@ public:
     // decision plus all non-audio teardown.
     bool init() {
         if (ma_engine_init(NULL, &engine) != MA_SUCCESS) {
+            std::cerr << "audio init: ma_engine_init() failed" << std::endl;
             return false;
         }
         engineIsValid = true;
@@ -100,14 +102,16 @@ public:
         // the optional resource-manager group and fence.
         const char* loadedPath = NULL;
         for (const char* candidate : candidates) {
-            if (ma_sound_init_from_file(&engine, candidate, 0, NULL, NULL,
-                                        &sounds[0]) == MA_SUCCESS) {
+            const ma_result result = ma_sound_init_from_file(&engine, candidate, 0, NULL, NULL,
+                                                            &sounds[0]);
+            if (result == MA_SUCCESS) {
                 loadedPath = candidate;
                 ++slotsValid;
                 break;
             }
         }
         if (loadedPath == NULL) {
+            std::cerr << "audio init: all beep candidates failed" << std::endl;
             shutdown();
             return false;
         }
@@ -115,8 +119,9 @@ public:
         // any slot fails to init (out of resources, etc.), tear down
         // everything and abort — a half-built pool is a bug factory.
         for (std::size_t i = 1; i < POOL_SIZE; ++i) {
-            if (ma_sound_init_from_file(&engine, loadedPath, 0, NULL, NULL,
-                                        &sounds[i]) != MA_SUCCESS) {
+            const ma_result result = ma_sound_init_from_file(&engine, loadedPath, 0, NULL, NULL,
+                                                            &sounds[i]);
+            if (result != MA_SUCCESS) {
                 std::cerr << "Failed to initialize collision sound pool slot "
                           << i << std::endl;
                 shutdown();
@@ -124,6 +129,22 @@ public:
             }
             ++slotsValid;
         }
+
+        // Step 36: distinct event cues are loaded using the same
+        // pattern as the original beep: name + 3 candidate search paths,
+        // all resolved relative to the current working directory.
+        // This keeps the collision beep completely unchanged while adding
+        // dedicated assets for the high-value game events.
+        if (!loadNamedSound("GAMEOVER.wav", gameOverSound)) {
+            shutdown();
+            return false;
+        }
+        gameOverSoundLoaded = true;
+        if (!loadNamedSound("win_sound.wav", newHighScoreSound)) {
+            shutdown();
+            return false;
+        }
+        newHighScoreSoundLoaded = true;
         return true;
     }
 
@@ -146,6 +167,26 @@ public:
         ma_sound_start(&sound);
     }
 
+    void playGameOver() {
+        if (!gameOverSoundLoaded) {
+            return;
+        }
+        if (ma_sound_is_playing(&gameOverSound)) {
+            ma_sound_seek_to_pcm_frame(&gameOverSound, 0);
+        }
+        ma_sound_start(&gameOverSound);
+    }
+
+    void playNewHighScore() {
+        if (!newHighScoreSoundLoaded) {
+            return;
+        }
+        if (ma_sound_is_playing(&newHighScoreSound)) {
+            ma_sound_seek_to_pcm_frame(&newHighScoreSound, 0);
+        }
+        ma_sound_start(&newHighScoreSound);
+    }
+
     // --- Teardown, reverse creation order ---
     // Every initialized pool slot first (each registered WITH the
     // engine), then the engine itself — which stops the mixing thread
@@ -159,6 +200,14 @@ public:
         }
         slotsValid = 0;
         nextSlot = 0;
+        if (gameOverSoundLoaded) {
+            ma_sound_uninit(&gameOverSound);
+            gameOverSoundLoaded = false;
+        }
+        if (newHighScoreSoundLoaded) {
+            ma_sound_uninit(&newHighScoreSound);
+            newHighScoreSoundLoaded = false;
+        }
         if (engineIsValid) {
             ma_engine_uninit(&engine);
             engineIsValid = false;
@@ -166,14 +215,33 @@ public:
     }
 
 private:
+    bool loadNamedSound(const std::string& fileName, ma_sound& sound) {
+        const std::string root = std::string("assets/") + fileName;
+        const std::string build = std::string("../assets/") + fileName;
+        const std::string release = std::string("../../assets/") + fileName;
+        const char* candidates[] = { root.c_str(), build.c_str(), release.c_str() };
+        for (const char* candidate : candidates) {
+            const ma_result result = ma_sound_init_from_file(&engine, candidate, 0, NULL, NULL, &sound);
+            if (result == MA_SUCCESS) {
+                return true;
+            }
+        }
+        std::cout << "load failure for " << fileName << ": all candidates failed" << std::endl;
+        return false;
+    }
+
     ma_engine engine = {};
     ma_sound sounds[POOL_SIZE] = {};
+    ma_sound gameOverSound = {};
+    ma_sound newHighScoreSound = {};
     // slotsValid is BOTH the count of initialized slots and the
     // round-robin modulus — playNext can never touch an uninitialized
     // slot, even after a failed init().
     std::size_t slotsValid = 0;
     std::size_t nextSlot = 0;
     bool engineIsValid = false;
+    bool gameOverSoundLoaded = false;
+    bool newHighScoreSoundLoaded = false;
 };
 
 } // namespace pe
