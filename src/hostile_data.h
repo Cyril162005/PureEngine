@@ -27,6 +27,7 @@ struct HostileDefaults {
     };
     float difficultyRate = 0.01f;
     float maxDifficultyScale = 1.33f;
+    float winTime = 120.0f;
 };
 
 inline std::string trim(const std::string& value) {
@@ -82,6 +83,7 @@ inline HostileDefaults loadHostileDefaults(const std::string& fileName = "hostil
         std::vector<HostileDefinition> parsedHostiles;
         float parsedRate = defaults.difficultyRate;
         float parsedCap = defaults.maxDifficultyScale;
+        float parsedWinTime = defaults.winTime;
         bool ok = true;
 
         std::string line;
@@ -130,6 +132,16 @@ inline HostileDefaults loadHostileDefaults(const std::string& fileName = "hostil
                     break;
                 }
                 parsedCap = parsed;
+            } else if (key == "win_time") {
+                std::stringstream stream(value);
+                float parsed = 0.0f;
+                stream >> parsed;
+                if (stream.fail() || !stream.eof()) {
+                    std::cerr << "Warning: hostile defaults file contained malformed win_time; using built-in defaults." << std::endl;
+                    ok = false;
+                    break;
+                }
+                parsedWinTime = parsed;
             } else {
                 std::cerr << "Warning: hostile defaults file contained an unknown key; using built-in defaults." << std::endl;
                 ok = false;
@@ -146,6 +158,7 @@ inline HostileDefaults loadHostileDefaults(const std::string& fileName = "hostil
             defaults.hostiles = parsedHostiles;
             defaults.difficultyRate = parsedRate;
             defaults.maxDifficultyScale = parsedCap;
+            defaults.winTime = parsedWinTime;
             return defaults;
         }
 

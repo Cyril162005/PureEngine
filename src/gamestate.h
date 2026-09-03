@@ -32,11 +32,14 @@ enum class GameState {
     PAUSED,   // The PLAYING world held still: drawn every frame,
               // simulated on none of them. ESC resumes, SPACE quits
               // to the menu.
-    GAME_OVER // Step 12: the run ended — the hostile caught the player.
+    GAME_OVER, // Step 12: the run ended — the hostile caught the player.
               // Scene frozen on screen exactly like PAUSED (drawn, not
               // simulated), dark-red clear color, survival time printed
               // to the console. ESC does NOTHING (there is nothing to
               // resume); SPACE returns to the menu.
+    WIN       // Step 39: the run reached its configured win time.
+              // Scene frozen on screen like GAME_OVER, with a distinct
+              // victory clear color; SPACE returns to the menu.
 };
 
 // --- Step 19: pure state predicates and lookups ---
@@ -52,7 +55,7 @@ enum class GameState {
 // anywhere, any number of times.
 
 // Does this state SIMULATE the world this frame? Only PLAYING does —
-// PAUSED and GAME_OVER hold the world still (drawn, not simulated),
+// PAUSED, GAME_OVER, and WIN hold the world still (drawn, not simulated),
 // MENU has no world at all. This is the gate the survival timer, the
 // entity updates, the chase, the collision scan, and the catch test
 // all sit behind.
@@ -61,7 +64,7 @@ constexpr bool simulates(GameState state) {
 }
 
 // Does this state DRAW the world this frame? Everything except MENU —
-// PLAYING, PAUSED, and GAME_OVER share the exact draw path; only MENU
+// PLAYING, PAUSED, GAME_OVER, and WIN share the exact draw path; only MENU
 // shows nothing but the clear color.
 constexpr bool drawsWorld(GameState state) {
     return state != GameState::MENU;
@@ -87,6 +90,9 @@ constexpr ClearColor clearColorFor(GameState state, bool blueToggled) {
     }
     if (state == GameState::GAME_OVER) {
         return ClearColor{0.28f, 0.0f, 0.0f};
+    }
+    if (state == GameState::WIN) {
+        return ClearColor{0.0f, 0.28f, 0.08f};
     }
     if (blueToggled) {
         return ClearColor{0.0f, 0.0f, 0.25f};

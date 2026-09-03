@@ -723,6 +723,7 @@ int main() {
     // crashing. The actual runtime expression is unchanged.
     float difficultyRate = activeHostileDefaults->difficultyRate;
     float maxDifficultyScale = activeHostileDefaults->maxDifficultyScale;
+    float winTime = activeHostileDefaults->winTime;
 
     auto activateScene = [&](const pe::HostileDefaults& scene) {
         activeHostileDefaults = &scene;
@@ -734,6 +735,7 @@ int main() {
         }
         difficultyRate = activeHostileDefaults->difficultyRate;
         maxDifficultyScale = activeHostileDefaults->maxDifficultyScale;
+        winTime = activeHostileDefaults->winTime;
     };
 
     // --- Step 13: GPU geometry, textures, and sampler setup moved out ---
@@ -997,6 +999,13 @@ int main() {
                 currentState = pe::GameState::MENU;
             }
             break;
+        case pe::GameState::WIN:
+            // The run reached its configured target. Like GAME_OVER, the
+            // world stays frozen until SPACE returns to the menu.
+            if (spaceEdge) {
+                currentState = pe::GameState::MENU;
+            }
+            break;
         }
         // --- Step 16: frame-end snapshot update, through the boundary ---
         // Same POSITION as the old escWasPressedLastFrame /
@@ -1178,6 +1187,14 @@ int main() {
                     audio.playGameOver();
                 }
                 currentState = pe::GameState::GAME_OVER;
+            }
+            if (!caught && survivalTime >= winTime) {
+                if (survivalTime > highScore) {
+                    audio.playNewHighScore();
+                }
+                std::cout << "YOU WIN — survived "
+                          << survivalTime << " seconds" << std::endl;
+                currentState = pe::GameState::WIN;
             }
         }
 

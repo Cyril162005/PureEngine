@@ -7,3 +7,4 @@ hostile=1.5,0,3,-1.1
 hostile=1.3,4,2,1.8
 difficulty_rate=0.01
 max_difficulty_scale=1.33
+win_time=120.0
