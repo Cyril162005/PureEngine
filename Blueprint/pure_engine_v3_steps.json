@@ -80,6 +80,19 @@
         38,
         39
       ]
+    },
+    {
+      "id": 41,
+      "name": "Consolidate texture-loading duplication in renderer.h",
+      "status": "completed",
+      "definition_of_done": "The four repeated entity texture candidate-array blocks are consolidated behind loadRgbAsset() without changing candidate order, loading behavior, or init failure handling.",
+      "notes": "The player, scenery, hostile, and hostile-alt texture loads previously each built the same three-candidate path array before calling loadRgbTexture(). The new loadRgbAsset() helper builds assets/, ../assets/, and ../../assets/ candidates internally and returns the synchronous loadRgbTexture() result, including 0 on failure.",
+      "implementation": "In src/renderer.h, the four entity texture call sites now use loadRgbAsset() with their base filenames. The legacy checker path remains separate with its existing dedicated failure message; the combined entity-texture failure check is unchanged.",
+      "verification": "Verified by Cyril: the Release build succeeded, both default and alternate scenes rendered their textures normally, no visual regression occurred, and the game did not crash. This was a pure refactor with no behavior change.",
+      "depends_on": [
+        38,
+        40
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

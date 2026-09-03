@@ -218,22 +218,10 @@ public:
         // resource boundary by Step 14. Tint rule reminder:
         // every palette color keeps red-channel content, or it would
         // render BLACK under the collision tint.
-        const char* playerCandidates[3] = {
-            "assets/tex_player.png", "../assets/tex_player.png", "../../assets/tex_player.png"
-        };
-        const char* sceneryCandidates[3] = {
-            "assets/tex_scenery.png", "../assets/tex_scenery.png", "../../assets/tex_scenery.png"
-        };
-        const char* hostileCandidates[3] = {
-            "assets/tex_hostile.png", "../assets/tex_hostile.png", "../../assets/tex_hostile.png"
-        };
-        const char* hostileAltCandidates[3] = {
-            "assets/tex_hostile_alt.png", "../assets/tex_hostile_alt.png", "../../assets/tex_hostile_alt.png"
-        };
-        playerTexture = pe::loadRgbTexture(playerCandidates);
-        sceneryTexture = pe::loadRgbTexture(sceneryCandidates);
-        hostileTexture = pe::loadRgbTexture(hostileCandidates);
-        hostileTextureAlt = pe::loadRgbTexture(hostileAltCandidates);
+        playerTexture = loadRgbAsset("tex_player.png");
+        sceneryTexture = loadRgbAsset("tex_scenery.png");
+        hostileTexture = loadRgbAsset("tex_hostile.png");
+        hostileTextureAlt = loadRgbAsset("tex_hostile_alt.png");
         if (playerTexture == 0 || sceneryTexture == 0 || hostileTexture == 0 || hostileTextureAlt == 0) {
             std::cerr << "Failed to load Phase 5 entity textures (tried: assets/, ../assets/, ../../assets/)" << std::endl;
             destroyAll();
@@ -454,6 +442,16 @@ public:
     }
 
 private:
+    GLuint loadRgbAsset(const char* baseFilename) {
+        const std::string candidate0 = "assets/" + std::string(baseFilename);
+        const std::string candidate1 = "../assets/" + std::string(baseFilename);
+        const std::string candidate2 = "../../assets/" + std::string(baseFilename);
+        const char* candidates[3] = {
+            candidate0.c_str(), candidate1.c_str(), candidate2.c_str()
+        };
+        return pe::loadRgbTexture(candidates);
+    }
+
     // Delete every owned GL object. All names default to 0 and GL
     // delete calls on 0 are no-ops, so this is safe at ANY point of a
     // partial init — the property that replaces main.cpp's four
