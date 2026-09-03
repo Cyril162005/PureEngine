@@ -23,8 +23,6 @@
       ]
     },
     {
-    },
-    {
       "id": 39,
       "name": "Win condition via configurable win_time",
       "status": "completed",
@@ -68,6 +66,19 @@
         20,
         36,
         37
+      ]
+    },
+    {
+      "id": 40,
+      "name": "Distribution packaging (fixed asset bundle + package.ps1)",
+      "status": "completed",
+      "definition_of_done": "A clean Release build copies all eleven runtime assets automatically, and package.ps1 creates a correctly structured PureEngine-0.1.0-win64.zip containing only PureEngine.exe and the complete assets directory, with runtime save data excluded.",
+      "notes": "The CMake POST_BUILD rule now copies the complete runtime asset bundle: checker.png, font_digits.png, tex_player.png, tex_scenery.png, tex_hostile.png, tex_hostile_alt.png, hostile_alt.txt, beep.wav, GAMEOVER.wav, win_sound.wav, and hostile_default.txt. scripts/package.ps1 stages the Release executable and explicit asset list into a clean PureEngine-0.1.0-win64 folder, then creates the zip; package/ is ignored because the archive and staging folder are build output.",
+      "implementation": "CMakeLists.txt was extended with copy_if_different commands for the seven previously missing runtime assets. scripts/package.ps1 defines the single version variable $version = \"0.1.0\", recreates package/, copies only PureEngine.exe and the eleven runtime assets, validates each input, and compresses the correctly named staging folder. .gitignore excludes package/.",
+      "verification": "Verified end-to-end by Cyril: a clean-state Release rebuild copied all eleven runtime assets; package.ps1 produced PureEngine-0.1.0-win64.zip; extraction produced the correct single folder depth; the extracted build ran standalone from a fresh location with no savedata carried over; multiple real sessions saved new high scores correctly.",
+      "depends_on": [
+        38,
+        39
       ]
     }
   ],

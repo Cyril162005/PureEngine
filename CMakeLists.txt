@@ -108,6 +108,27 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/hostile_default.txt"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_default.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/hostile_alt.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_alt.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/checker.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/checker.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/font_digits.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/font_digits.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_player.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_player.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_scenery.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_scenery.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_hostile.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_hostile.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_hostile_alt.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_hostile_alt.png"
 )
 
 # Minimal parser validation target: exercises the real hostile-data loading

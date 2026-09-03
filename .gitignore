@@ -5,6 +5,7 @@ build3/
 # game on first record (create_directories + write) and changes whenever
 # anyone beats their record. Not source code; fresh clones start at 0.0.
 savedata/
+package/
 *.exe
 *.obj
 *.pdb
