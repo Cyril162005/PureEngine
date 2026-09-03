@@ -66,9 +66,12 @@ the repo root, from `build/`, or from `build/Release/`.
 | Input | Effect |
 |---|---|
 | SPACE | Start from menu / return to menu from game over |
+| 2 | Start the alternate hostile scene from the menu |
 | Arrow keys | Move the player |
 | WASD | Pan the camera |
 | ESC | Pause / resume; on the menu it quits |
+
+The alternate scene uses `hostile_alt.txt` and demonstrates the orange hostile texture variant.
 
 The high score is saved to `savedata/highscore.txt` (created automatically
 on the first record; excluded from git). Delete it to start fresh at 0.0.
