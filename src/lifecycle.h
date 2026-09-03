@@ -85,7 +85,8 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
     for (const HostileDefinition& definition : hostile.hostiles) {
         entities.push_back(Entity(definition.spawnPosition, definition.rotationSpeed,
                                   pe::Vec3(1.0f, 1.0f, 1.0f),
-                                  pe::Vec3(0.5f, 0.5f, 0.0f)));
+                                  pe::Vec3(0.5f, 0.5f, 0.0f),
+                                  definition.textureId));
     }
     return entities;
 }

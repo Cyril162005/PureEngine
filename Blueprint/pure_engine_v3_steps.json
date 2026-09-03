@@ -48,6 +48,20 @@
         35,
         36
       ]
+    },
+    {
+      "id": 38,
+      "name": "Visually distinct hostile types via textureId",
+      "status": "completed",
+      "definition_of_done": "Hostile definitions can select a texture variant through an optional textureId, the value is threaded through Entity into the renderer, and the alternate scene visibly demonstrates textureId=1 while legacy/default data remains unchanged.",
+      "notes": "The first implementation pass exposed a missing data link: adding texture selection only to renderer.h was insufficient because Entity did not carry textureId. The completed chain is HostileDefinition -> lifecycle.h Entity construction -> Entity.textureId -> renderer.h per-hostile texture selection. The new assets/tex_hostile_alt.png is a 16x16 RGB texture matching tex_hostile.png's format, and assets/hostile_alt.txt uses textureId=1 for one hostile while retaining the optional 5th hostile value for backward compatibility.",
+      "implementation": "In src/hostile_data.h, HostileDefinition gained textureId defaulting to 0 and hostile= accepts either four legacy values or an optional fifth texture id. In src/entity.h, Entity gained textureId defaulting to 0; src/lifecycle.h threads each HostileDefinition.textureId into the hostile Entity. In src/renderer.h, tex_hostile_alt.png is loaded, managed, and selected for entities whose textureId is 1. assets/hostile_alt.txt demonstrates the new format.",
+      "verification": "Verified by Cyril with a real visual test: pressing 2 from the menu loaded hostile_alt.txt and displayed one orange hostile using tex_hostile_alt.png alongside two normal crimson hostiles. Pressing SPACE loaded the default scene, where all hostiles remained crimson with no regression.",
+      "depends_on": [
+        20,
+        36,
+        37
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

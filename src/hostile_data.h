@@ -16,13 +16,14 @@ struct HostileDefinition {
     float baseSpeed;
     Vec3 spawnPosition;
     float rotationSpeed;
+    int textureId = 0;
 };
 
 struct HostileDefaults {
     std::vector<HostileDefinition> hostiles{
-        {1.8f, Vec3(0.0f, -2.0f, 0.0f), 1.8f},
-        {1.6f, Vec3(3.0f, 2.0f, 0.0f), -1.2f},
-        {1.5f, Vec3(-3.0f, 2.0f, 0.0f), 2.2f}
+        {1.8f, Vec3(0.0f, -2.0f, 0.0f), 1.8f, 0},
+        {1.6f, Vec3(3.0f, 2.0f, 0.0f), -1.2f, 0},
+        {1.5f, Vec3(-3.0f, 2.0f, 0.0f), 2.2f, 0}
     };
     float difficultyRate = 0.01f;
     float maxDifficultyScale = 1.33f;
@@ -102,12 +103,13 @@ inline HostileDefaults loadHostileDefaults(const std::string& fileName = "hostil
 
             if (key == "hostile") {
                 std::vector<float> vals;
-                if (!parseFloatList(value, vals) || vals.size() != 4) {
+                if (!parseFloatList(value, vals) || (vals.size() != 4 && vals.size() != 5)) {
                     std::cerr << "Warning: hostile defaults file contained malformed hostile entry; using built-in defaults." << std::endl;
                     ok = false;
                     break;
                 }
-                parsedHostiles.push_back({vals[0], Vec3(vals[1], vals[2], 0.0f), vals[3]});
+                const int textureId = (vals.size() == 5) ? static_cast<int>(vals[4]) : 0;
+                parsedHostiles.push_back({vals[0], Vec3(vals[1], vals[2], 0.0f), vals[3], textureId});
             } else if (key == "difficulty_rate") {
                 std::stringstream stream(value);
                 float parsed = 0.0f;

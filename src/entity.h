@@ -47,6 +47,7 @@ struct Entity {
     // tightest box that stays correct at EVERY rotation angle. Z is 0:
     // the scene is flat, collision is a 2D test.
     Vec3 halfExtents;
+    int textureId = 0;
 
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
@@ -58,7 +59,8 @@ struct Entity {
           rotationAngle(0.0f),
           rotationSpeed(0.0f),
           scale(1.0f, 1.0f, 1.0f),
-          halfExtents(0.7071f, 0.7071f, 0.0f) {}
+          halfExtents(0.7071f, 0.7071f, 0.0f),
+          textureId(0) {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -68,12 +70,14 @@ struct Entity {
     // mesh arrives, callers pass its real bounds — no existing call
     // site breaks.
     Entity(const Vec3& position, float rotationSpeed, const Vec3& scale,
-           const Vec3& halfExtents = Vec3(0.7071f, 0.7071f, 0.0f))
+           const Vec3& halfExtents = Vec3(0.7071f, 0.7071f, 0.0f),
+           int textureId = 0)
         : position(position),
           rotationAngle(0.0f),
           rotationSpeed(rotationSpeed),
           scale(scale),
-          halfExtents(halfExtents) {}
+          halfExtents(halfExtents),
+          textureId(textureId) {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the

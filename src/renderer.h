@@ -227,10 +227,14 @@ public:
         const char* hostileCandidates[3] = {
             "assets/tex_hostile.png", "../assets/tex_hostile.png", "../../assets/tex_hostile.png"
         };
+        const char* hostileAltCandidates[3] = {
+            "assets/tex_hostile_alt.png", "../assets/tex_hostile_alt.png", "../../assets/tex_hostile_alt.png"
+        };
         playerTexture = pe::loadRgbTexture(playerCandidates);
         sceneryTexture = pe::loadRgbTexture(sceneryCandidates);
         hostileTexture = pe::loadRgbTexture(hostileCandidates);
-        if (playerTexture == 0 || sceneryTexture == 0 || hostileTexture == 0) {
+        hostileTextureAlt = pe::loadRgbTexture(hostileAltCandidates);
+        if (playerTexture == 0 || sceneryTexture == 0 || hostileTexture == 0 || hostileTextureAlt == 0) {
             std::cerr << "Failed to load Phase 5 entity textures (tried: assets/, ../assets/, ../../assets/)" << std::endl;
             destroyAll();
             return false;
@@ -344,7 +348,8 @@ public:
             } else if (i < 3) {
                 entityTexture = sceneryTexture;
             } else {
-                entityTexture = hostileTexture;
+                const int textureId = entity.textureId;
+                entityTexture = (textureId == 1) ? hostileTextureAlt : hostileTexture;
             }
             glBindTexture(GL_TEXTURE_2D, entityTexture);
             // Build this entity's MVP from its own data.
@@ -463,6 +468,7 @@ private:
         glDeleteTextures(1, &playerTexture);
         glDeleteTextures(1, &sceneryTexture);
         glDeleteTextures(1, &hostileTexture);
+        glDeleteTextures(1, &hostileTextureAlt);
         glDeleteTextures(1, &checkerTexture);
         textVAO = 0;
         textVBO = 0;
@@ -473,6 +479,7 @@ private:
         playerTexture = 0;
         sceneryTexture = 0;
         hostileTexture = 0;
+        hostileTextureAlt = 0;
         checkerTexture = 0;
     }
 
@@ -486,6 +493,7 @@ private:
     GLuint playerTexture = 0;        // Phase 5: warm green
     GLuint sceneryTexture = 0;       // Phase 5: steel blue
     GLuint hostileTexture = 0;       // Phase 5: crimson (never tinted)
+    GLuint hostileTextureAlt = 0;    // Optional hostile variant texture
     GLuint fontTexture = 0;          // Phase 3: the RGBA digit atlas
 
     // The atlas's geometry, known FROM THE GENERATOR (not queried):
