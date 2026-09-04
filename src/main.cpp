@@ -623,6 +623,10 @@ int main() {
     // hit feedback synced with the audio cue without introducing a new
     // rendering abstraction or shader work.
     int collisionFlashFrames = 0;
+    // Step 42: TEMPORARY debug overlay — F1 toggles AABB wireframes on
+    // top of sprites to visually confirm whether the Step-37 collision
+    // perception is a real bug or just the sprite-vs-hitbox mismatch.
+    bool debugHitboxes = false;
     // Step 16: the spaceWasPressedLastFrame bool that used to live here
     // moved into pe::Input. Why edges need memory is unchanged:
     // glfwGetKey() only reports RIGHT NOW, so a held key would otherwise
@@ -700,7 +704,7 @@ int main() {
     // the only keys registered for previous-frame tracking (snapshot
     // starts all-false: before the program starts, nothing is pressed).
     // WASD and the arrows stay level-only reads — no tracking needed.
-    pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, GLFW_KEY_2};
+    pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, GLFW_KEY_2, GLFW_KEY_F1};
 
     // --- Step 8: Player movement speed (before the loop) ---
     // World units per second for the ARROW-key-driven entity
@@ -931,6 +935,10 @@ int main() {
                 if (spaceEdge) {
                     // Flip the flag: black becomes blue, blue becomes black.
                     clearColorIsBlue = !clearColorIsBlue;
+                }
+                // --- Step 42: F1 = AABB debug overlay toggle (edge) ---
+                if (input.isEdge(window, GLFW_KEY_F1)) {
+                    debugHitboxes = !debugHitboxes;
                 }
                 // --- Step 6 / Steps 15-16: Camera Movement (WASD,
                 // polled every frame) ---
@@ -1233,6 +1241,11 @@ int main() {
             // Step 15: the VIEW matrix now comes prebuilt from the
             // camera boundary; the renderer performs no camera math.
             renderer.drawWorld(camera.projection(), camera.view(), entities, colliding);
+
+            // --- Step 42: debug AABB wireframes (F1 toggle) ---
+            if (debugHitboxes) {
+                renderer.drawAABBs(camera.projection(), camera.view(), entities);
+            }
 
             // --- Game Build Phase 3/4: UI layer — survival timer + high score ---
             // Step 21: the number formatting and the two layout

@@ -263,6 +263,29 @@ public:
         glEnableVertexAttribArray(1);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+        // --- Step 42: debug AABB line-loop geometry (unit square, 4 verts) ---
+        // Same interleaved 5-float layout so the SAME shader + attribute
+        // pointers consume it. UVs are set to (0,0) — sampled, irrelevant.
+        // The four corners visit a +1/-1 unit square in order, which the
+        // draw method scales by halfExtents*2 to get the real box size.
+        float aabbVertices[] = {
+            // position              // UV
+            -1.0f, -1.0f, 0.0f,     0.0f, 0.0f,   // bottom-left
+             1.0f, -1.0f, 0.0f,     0.0f, 0.0f,   // bottom-right
+             1.0f,  1.0f, 0.0f,     0.0f, 0.0f,   // top-right
+            -1.0f,  1.0f, 0.0f,     0.0f, 0.0f    // top-left
+        };
+        glGenVertexArrays(1, &aabbVAO);
+        glGenBuffers(1, &aabbVBO);
+        glBindVertexArray(aabbVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, aabbVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(aabbVertices), aabbVertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
         // --- Step 10: bind the sampler uniform to TEXTURE UNIT 0 ---
         // A sampler2D uniform holds a unit INDEX, not image data; set
         // once (uniforms persist in the program) while the program is
@@ -441,6 +464,57 @@ public:
         glDisable(GL_BLEND);
     }
 
+    // --- Step 42: TEMPORARY debug AABB wireframe overlay ---
+    // Draws each entity's ACTUAL collision AABB as a thin line loop —
+    // the EXACT scaled, NON-rotated rectangle that aabbOverlap() tests
+    // against in collision.h. Purpose: visually resolve the Step 37
+    // open question (is collision perception wrong, or is the sprite
+    // visually smaller than the rotation-safe hitbox?).
+    // Design rules obeyed: no new shader, no new texture asset, no new
+    // uniforms — reuse the existing pipeline with a solid-color tint
+    // and the existing checker texture (sampled, irrelevant because
+    // the tint saturates everything visible).
+    void drawAABBs(const Mat4& projection, const Mat4& view,
+                   const std::vector<Entity>& entities) {
+        glUseProgram(shaderProgram);
+        glBindVertexArray(aabbVAO);
+        // Checker texture on sampler unit 0 — any valid texture works;
+        // the fragment shader samples it regardless, but the strong
+        // uniform tint below dominates the visual output completely.
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, checkerTexture);
+
+        for (size_t i = 0; i < entities.size(); ++i) {
+            const Entity& entity = entities[i];
+            // Model transform for the AABB: translate to entity origin,
+            // SCALE to (halfExtent*2, halfExtent*2, 1) so the unit square
+            // (-1..+1) maps to the actual full-sized box, NO rotation —
+            // AABBs are axis-aligned by definition. This is the exact
+            // same box collision.h uses: halfExtents * scale, doubled.
+            const Mat4 aabbModel =
+                Mat4::translation(entity.position)
+                * Mat4::scale(Vec3(entity.halfExtents.x * entity.scale.x * 2.0f,
+                                   entity.halfExtents.y * entity.scale.y * 2.0f,
+                                   1.0f));
+            const Mat4 aabbMvp = projection * view * aabbModel;
+            glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &aabbMvp.m[0][0]);
+
+            // Tint: index 0 = player = bright orange (distinguish from
+            // collision-red 1,0,0), everything else = yellow. Two hues
+            // are enough: scenery and hostiles share yellow, since the
+            // debug question is "does this rotating triangle fill its
+            // square hitbox?", not "which type is which?" — textures
+            // already show that.
+            if (i == 0) {
+                glUniform3f(colorLocation, 1.0f, 0.5f, 0.0f);   // orange — player
+            } else {
+                glUniform3f(colorLocation, 1.0f, 1.0f, 0.0f);   // yellow — scenery / hostiles
+            }
+
+            glDrawArrays(GL_LINE_LOOP, 0, 4);
+        }
+    }
+
 private:
     GLuint loadRgbAsset(const char* baseFilename) {
         const std::string candidate0 = "assets/" + std::string(baseFilename);
@@ -459,6 +533,8 @@ private:
     void destroyAll() {
         glDeleteVertexArrays(1, &textVAO);
         glDeleteBuffers(1, &textVBO);
+        glDeleteVertexArrays(1, &aabbVAO);
+        glDeleteBuffers(1, &aabbVBO);
         glDeleteVertexArrays(1, &worldVAO);
         glDeleteBuffers(1, &worldVBO);
         glDeleteProgram(shaderProgram);
@@ -487,6 +563,7 @@ private:
     GLint colorLocation = -1;        // Step 8/10: per-draw tint upload target
     GLuint worldVAO = 0, worldVBO = 0;  // Step 4/10: the triangle geometry
     GLuint textVAO = 0, textVBO = 0;    // Phase 3: the glyph quad geometry
+    GLuint aabbVAO = 0, aabbVBO = 0;    // Step 42: debug unit-square line loop
     GLuint checkerTexture = 0;       // Step 10: legacy, sampled by no entity
     GLuint playerTexture = 0;        // Phase 5: warm green
     GLuint sceneryTexture = 0;       // Phase 5: steel blue
