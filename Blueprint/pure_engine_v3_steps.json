@@ -106,6 +106,19 @@
         37,
         41
       ]
+    },
+    {
+      "id": 43,
+      "name": "Shorten GAMEOVER.wav clip (8.6s -> 2.5s)",
+      "status": "completed",
+      "definition_of_done": "Original 8.6s GAMEOVER.wav (3,025,034 bytes, float32 stereo 44.1kHz) replaced with a 2.5s version under the SAME filename so 0 code references change; build deploys the new blob via the existing CMake copy rule; runtime death event plays the new noticeably shorter clip with smooth fade.",
+      "notes": "Known follow-up since Step 36: original GAMEOVER.wav was 8.6 seconds long, absurd for sub-second arcade deaths where a fresh run starts with SPACE immediately. Replaced via Scenario B (same filename, pure binary blob swap) so zero code or config files need string edits. Expected references (audited pre-swap via grep) were 3 production-code sites: audio.h:138 loadNamedSound string, CMakeLists.txt:103-104 POST_BUILD copy_if_different src/dst, scripts/package.ps1:13 asset-bundle list item. All three retained unchanged because filename stayed 'GAMEOVER.wav'. Expected byte size for 2.5s float32 stereo 44.1kHz: ~882,044 bytes plus header/metadata; actual on-disk size after swap = 887,824 bytes (within ~5.8KB overhead of theoretical size — confirms ~2.5s at the claimed format). Build-time copy_if_different propagated the 887,824-byte blob into build/Release/assets/GAMEOVER.wav with a post-build timestamp, replacing the old 3,025,034-byte file — verified by dir listing before and after rebuild. Runtime sound quality (smooth fade vs abrupt cut) and perceived duration difference require actual speaker playback from a user session, which a headless build agent cannot verify.",
+      "implementation": "Blob-only swap: assets/GAMEOVER.wav bytes replaced in-place on disk at 9/4/2026 12:33 AM, timestamp changed from 9/2 12:45 AM (old), length dropped from 3,025,034 bytes to 887,824 bytes. Zero source files edited. Zero CMake strings edited. Zero package.ps1 list entries changed. CMake POST_BUILD's copy_if_different rule deployed the new blob automatically during the next Release rebuild because mtime/size differed from the build-output copy. Only non-binary artifact change: this Step 43 tracker entry.",
+      "verification": "Verified with real command output: (1) dir assets/GAMEOVER.wav before swap = 3,025,034 bytes / 9/2; after swap = 887,824 bytes / 9/4 12:33 AM — confirmed. (2) git status assets/GAMEOVER.wav returned ' M' (tracked modified; not ??), proving the blob is a real tracked update to an already-indexed file — no new git add trap like Step 36's original bug. (3) cmake --build build --config Release exit 0. (4) dir build/Release/assets/GAMEOVER.wav after rebuild = 887,824 bytes / 9/4 12:36 AM (freshly copied, mtime matches build run) — POST_BUILD copy rule worked. (5) Runtime playback perceived-length and fade-smoothness = UNVERIFIED (headless build-only environment; cannot play audio; you must confirm with your ears and report if the fade is bad).",
+      "depends_on": [
+        36,
+        42
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
