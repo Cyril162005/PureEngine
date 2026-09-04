@@ -45,6 +45,8 @@ A 2D-to-3D transition is not an extension. It is a different project. It require
 
 This section exists so that any future genuine need can be assessed honestly against the actual project direction and history: flat 2D remains the intended scope, and any 3D discussion should be treated as a separate endeavor rather than a default evolution of this codebase.
 
+**Stress-test result (Step 45):** Tested at 3, 20, and 50 hostiles using data-driven hostile_default.txt variants. Average frame time stayed flat at ~1.5–1.6 ms across all three counts. No measurable performance pressure found. Depth-field and broad-phase collision remain correctly deferred — this is now an evidence-based deferral, not an untested assumption.
+
 ## Known Follow-ups
 
 - Event audio (GAMEOVER.wav / win_sound.wav) continues playing after returning to MENU — root cause partially understood: `ma_sound_stop()` is the correct miniaudio API (atomically stops mixing on the next audio thread tick), but the Step 44 attempt failed due to incorrect timing or placement of the call. Fix is tractable but deprioritized: GAMEOVER.wav is now only ~2.5s (post Step 43), so the bleed is a minor cosmetic annoyance at worst. Not urgent, leave as a low-priority follow-up if the clip ever gets longer.
