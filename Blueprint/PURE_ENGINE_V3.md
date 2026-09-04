@@ -47,7 +47,7 @@ This section exists so that any future genuine need can be assessed honestly aga
 
 ## Known Follow-ups
 
-- Event audio (GAMEOVER.wav / win_sound.wav) continues playing after returning to MENU — `stopEventSounds()` attempt with `ma_sound_stop()` did not resolve it, needs deeper investigation (possibly miniaudio API misuse, or the sound object isn't the one actually playing). Not blocking, deferred.
+- Event audio (GAMEOVER.wav / win_sound.wav) continues playing after returning to MENU — root cause partially understood: `ma_sound_stop()` is the correct miniaudio API (atomically stops mixing on the next audio thread tick), but the Step 44 attempt failed due to incorrect timing or placement of the call. Fix is tractable but deprioritized: GAMEOVER.wav is now only ~2.5s (post Step 43), so the bleed is a minor cosmetic annoyance at worst. Not urgent, leave as a low-priority follow-up if the clip ever gets longer.
 
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.
