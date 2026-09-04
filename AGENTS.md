@@ -61,6 +61,10 @@ For every claim such as "works," "passes," or "fixed," include the actual comman
 - If a check cannot be run, say "unverified" rather than guessing.
 - If the request is ambiguous, state the interpretation in one line and continue with that assumption.
 
+## Standing priority (set Step 45 onward)
+
+Focus is on **engine internals**, not gameplay features or content. Gameplay work is only justified when it is explicitly testing whether the engine holds up under real conditions (e.g. stress-testing entity count, verifying a module boundary actually holds under load). Do not propose new game content, difficulty tiers, or gameplay mechanics unless the current session explicitly requests one and cites a concrete engine-validation reason.
+
 ## Guardrails for agents
 
 - Keep the project architecture small and coherent with the existing engine step model.
