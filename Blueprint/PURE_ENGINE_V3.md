@@ -45,5 +45,9 @@ A 2D-to-3D transition is not an extension. It is a different project. It require
 
 This section exists so that any future genuine need can be assessed honestly against the actual project direction and history: flat 2D remains the intended scope, and any 3D discussion should be treated as a separate endeavor rather than a default evolution of this codebase.
 
+## Known Follow-ups
+
+- Event audio (GAMEOVER.wav / win_sound.wav) continues playing after returning to MENU — `stopEventSounds()` attempt with `ma_sound_stop()` did not resolve it, needs deeper investigation (possibly miniaudio API misuse, or the sound object isn't the one actually playing). Not blocking, deferred.
+
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.
