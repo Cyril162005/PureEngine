@@ -48,6 +48,19 @@ struct Entity {
     // the scene is flat, collision is a 2D test.
     Vec3 halfExtents;
     int textureId = 0;
+    // --- Step 45: explicit draw-layer field ---
+    // Canonical draw order for the current entity types:
+    //   0 = player (background — draws first)
+    //   1 = scenery
+    //   2 = hostile (foreground — draws last, on top)
+    // The renderer's draw loop iterates the entity vector, which
+    // buildInitialEntities() assembles in depth order (player first,
+    // then scenery, then hostiles). As long as that construction order
+    // holds, the vector is already depth-ordered and no runtime sort
+    // is needed. This field makes the INTENT explicit in the data so
+    // a future step that reorders the vector (e.g. dynamic spawn,
+    // entity removal) knows to sort by depth before drawing.
+    int depth = 0;
 
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
@@ -60,7 +73,8 @@ struct Entity {
           rotationSpeed(0.0f),
           scale(1.0f, 1.0f, 1.0f),
           halfExtents(0.7071f, 0.7071f, 0.0f),
-          textureId(0) {}
+          textureId(0),
+          depth(0) {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -68,7 +82,8 @@ struct Entity {
     // halfExtents has a DEFAULT ARGUMENT: every entity so far shares
     // the same triangle geometry, so callers omit it; the day a second
     // mesh arrives, callers pass its real bounds — no existing call
-    // site breaks.
+    // site breaks. depth defaults to 0 — callers (lifecycle.h) set the
+    // correct layer explicitly after construction.
     Entity(const Vec3& position, float rotationSpeed, const Vec3& scale,
            const Vec3& halfExtents = Vec3(0.7071f, 0.7071f, 0.0f),
            int textureId = 0)
@@ -77,7 +92,8 @@ struct Entity {
           rotationSpeed(rotationSpeed),
           scale(scale),
           halfExtents(halfExtents),
-          textureId(textureId) {}
+          textureId(textureId),
+          depth(0) {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the

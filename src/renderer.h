@@ -344,6 +344,14 @@ public:
         // --- Step 7: ONE draw loop for ALL entities ---
         // projection * view * model, acting RIGHT-TO-LEFT on the vertex.
         // The loop neither knows nor cares how many entities exist.
+        //
+        // Step 45: draw order relies on the entity vector being in depth
+        // order (player=0, scenery=1, hostiles=2), which buildInitialEntities()
+        // guarantees by construction. No runtime sort is needed while the
+        // vector is always built in that order. If a future step reorders
+        // the vector (dynamic spawn, removal), sort by entity.depth here
+        // before iterating. Entity::depth is the canonical intent; this
+        // comment is the reminder of the contract.
         for (size_t i = 0; i < entities.size(); ++i) {
             const Entity& entity = entities[i];
             // --- Game Build Phase 5: per-entity texture selection ---
