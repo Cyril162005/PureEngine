@@ -8,7 +8,7 @@
 // decision): an enum + ONE current-state variable + a single dispatch
 // point in main.cpp. A scene-graph or push-down state stack would buy
 // dynamic scene nesting and history — neither exists in a project with
-// four states and linear transitions. When (if) those needs become
+// six states and linear transitions. When (if) those needs become
 // real, the enum becomes the key into whatever structure replaces it;
 // nothing downstream hardcodes the mechanism, only the values.
 //
@@ -54,7 +54,7 @@ enum class GameState {
 // constexpr and side-effect-free: asking costs nothing and can happen
 // anywhere, any number of times.
 
-// Does this state SIMULATE the world this frame? Only PLAYING does —
+// Does this state SIMULATE the world this frame? PLAYING and PLAYING_ALT do —
 // PAUSED, GAME_OVER, and WIN hold the world still (drawn, not simulated),
 // MENU has no world at all. This is the gate the survival timer, the
 // entity updates, the chase, the collision scan, and the catch test
