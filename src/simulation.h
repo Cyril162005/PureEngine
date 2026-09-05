@@ -88,19 +88,19 @@ inline void chasePlayer(std::vector<Entity>& entities,
     }
 }
 
-// --- The scenery collision scan (Steps 8-11's loop, relocated whole) ---
-// Every UNIQUE pair among the original three, tested exactly once
-// (i runs each entity, j only the ones AFTER it — N*(N-1)/2 tests,
-// 3 for N = 3). Overlap is symmetric, so BOTH flags are set. The
-// caller owns the flag vector and must have rebuilt it from zero
-// first (main.cpp does: collision state is derived fresh every
-// frame, never remembered). The bound is the literal 3 — the
-// hostiles are deliberately excluded; this loop IS the scenery
-// system and nothing else.
+// --- The scenery collision scan (Steps 8-11's loop, Step 46 sceneryCount) ---
+// Every UNIQUE pair among the scenery pool (the first sceneryCount
+// entities), tested exactly once (i runs each entity, j only the ones
+// AFTER it — N*(N-1)/2 tests). Overlap is symmetric, so BOTH flags are
+// set. The caller owns the flag vector and must have rebuilt it from
+// zero first (main.cpp does: collision state is derived fresh every
+// frame, never remembered). The bound is sceneryCount; hostiles remain
+// excluded.
 inline void scanSceneryCollisions(const std::vector<Entity>& entities,
-                                  std::vector<char>& colliding) {
-    for (size_t i = 0; i < 3; ++i) {
-        for (size_t j = i + 1; j < 3; ++j) {
+                                  std::vector<char>& colliding,
+                                  size_t sceneryCount) {
+    for (size_t i = 0; i < sceneryCount; ++i) {
+        for (size_t j = i + 1; j < sceneryCount; ++j) {
             if (pe::aabbOverlap(entities[i], entities[j])) {
                 colliding[i] = 1;
                 colliding[j] = 1;

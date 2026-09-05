@@ -1086,12 +1086,12 @@ int main() {
             // The scan itself moved into pe::scanSceneryCollisions
             // (src/simulation.h): every unique pair among the
             // original three tested once, BOTH flags set on overlap.
-            // The bound stays the literal 3 inside the helper — the
-            // hostiles remain excluded, their only interaction the
-            // catch test below. The rebuild line ABOVE stays here,
+            // Step 46: pass sceneryCount explicitly.
+            // The rebuild line ABOVE stays here,
             // because the rebuild is the collision-state POLICY
             // (derived fresh, never remembered).
-            pe::scanSceneryCollisions(entities, colliding);
+            constexpr size_t sceneryCount = 3;
+            pe::scanSceneryCollisions(entities, colliding, sceneryCount);
 
             // --- Step 10: per-entity collision EDGE detection + sound pool ---
             // Step 9's scalar OR-flag is gone. Now the previous frame's full
