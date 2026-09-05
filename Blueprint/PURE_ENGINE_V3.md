@@ -1,7 +1,7 @@
 # PureEngine — Build Continuation (v3)
 
 ## Context
-PureEngine Step 25 through Step 34 are complete and verified. This continuation begins from the hardened state established after the v2 tracker was superseded: data-driven hostile config, alternate scene reuse, periodic frame-time visibility, and the automated hostile parser test target.
+PureEngine Step 25 through Step 50 are complete and verified. This continuation begins from the hardened state established after the v2 tracker was superseded: data-driven hostile config, alternate scene reuse, periodic frame-time visibility, and the automated hostile parser test target.
 
 The current project remains intentionally minimal. The source and build output remain the authority, and this tracker is only a forward pointer for future work.
 
