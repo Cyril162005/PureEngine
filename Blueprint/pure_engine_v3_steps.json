@@ -119,6 +119,18 @@
         36,
         42
       ]
+    },
+    {
+      "id": 49,
+      "name": "Depth-based draw-order sorting in renderer.h",
+      "status": "planned",
+      "definition_of_done": "pe::Renderer::drawWorld sorts entities by Entity::depth before issuing draw calls (or applies an equivalent explicit ordering step), so draw order no longer relies implicitly on buildInitialEntities()'s construction order, while the current visual draw order (player, then scenery, then hostiles) remains unchanged for the existing entity set.",
+      "notes": "Source evidence only, no design pre-decided: src/renderer.h:349-353 already names this exact gap in its own comment inside drawWorld: 'Step 45: draw order relies on the entity vector being in depth order... If a future step reorders the vector (dynamic spawn, removal), sort by entity.depth here before iterating.' Entity::depth already exists (Step 45, commit e1bee39) and is already assigned correctly by buildInitialEntities() (0=player, 1=scenery, 2=hostile), but no sort ever reads it - draw order today is still purely accidental construction order. Broad-phase collision is explicitly excluded from this step: rendering order and collision performance are separate concerns per the project's no-premature-abstraction discipline, and bundling them was rejected during scoping. Open design questions, deliberately not answered here: whether the sort runs every frame or only when the entity set changes, what happens on depth ties (stability requirement), and whether the sort call belongs in renderer.h itself or in simulation.h alongside the other per-frame mechanics.",
+      "implementation": "Not yet implemented - no code exists for this step yet.",
+      "verification": "Not yet verified - nothing to verify until implementation exists.",
+      "depends_on": [
+        45
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
