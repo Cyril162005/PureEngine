@@ -73,9 +73,13 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
     entities.push_back(Entity(pe::Vec3(-1.5f, 0.0f, 0.0f), 0.9f,
                               pe::Vec3(1.0f, 1.0f, 1.0f)));
     entities.back().depth = 0;   // player — draws first (background layer)
+    entities.back().role = EntityRole::Player;
+    entities.back().moveSpeed = 0.0f;
     entities.push_back(Entity(pe::Vec3( 1.5f, 0.0f, 0.0f), 0.9f,
                               pe::Vec3(1.0f, 1.0f, 1.0f)));
     entities.back().depth = 1;   // scenery
+    entities.back().role = EntityRole::Scenery;
+    entities.back().moveSpeed = 0.0f;
     // Instance 3 — the proof that the loop scales without code
     // duplication: new position, new speed AND DIRECTION (-1.4 rad/s =
     // clockwise, ~4.5 s/revolution), new scale (60% size). None of this
@@ -83,6 +87,8 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
     entities.push_back(Entity(pe::Vec3(0.0f, 1.5f, 0.0f), -1.4f,
                               pe::Vec3(0.6f, 0.6f, 1.0f)));
     entities.back().depth = 1;   // scenery
+    entities.back().role = EntityRole::Scenery;
+    entities.back().moveSpeed = 0.0f;
     // The hostile count and per-hostile values come from the selected
     // scene profile; each entry still uses the same representation.
     for (const HostileDefinition& definition : hostile.hostiles) {
@@ -91,6 +97,8 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
                                   pe::Vec3(0.5f, 0.5f, 0.0f),
                                   definition.textureId));
         entities.back().depth = 2;  // hostile — draws last (foreground layer)
+        entities.back().role = EntityRole::Hostile;
+        entities.back().moveSpeed = definition.baseSpeed;
     }
     return entities;
 }

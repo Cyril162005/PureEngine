@@ -66,24 +66,33 @@ inline void advanceRotations(std::vector<Entity>& entities, float dt) {
     }
 }
 
-// --- The hostile chase (Steps 12/Phase 1's loop, relocated whole) ---
+// --- The hostile chase (Steps 12/Phase 1's loop, Step 47 role-based, Step 49 moveSpeed) ---
 // Pure pursuers: each hostile recomputes its own pursuit vector
 // every frame (no prediction, no flanking; difficulty comes from the
-// numbers — the base speeds and the shared Phase 2 ramp, both handed
-// in as data). Indices 3..end are the hostile range; speeds is the
-// parallel hostileSpeeds array addressed as speeds[h - 3], exactly as
-// main.cpp declares it. The vector length matches the loaded hostile
-// definitions and preserves their order.
-// guard keeps intent honest per hostile: zero distance means no
+// numbers — each hostile's Entity::moveSpeed and the shared Phase 2 ramp).
+// Hostiles are identified by EntityRole::Hostile.
+// Player position is located via EntityRole::Player.
+// Guard keeps intent honest per hostile: zero distance means no
 // direction to move in.
 inline void chasePlayer(std::vector<Entity>& entities,
-                        const std::vector<float>& speeds,
                         float difficultyScale, float dt) {
-    for (size_t h = 3; h < entities.size(); ++h) {
-        pe::Entity& hostile = entities[h];
-        const pe::Vec3 toPlayer = entities[0].position - hostile.position;
-        if (toPlayer.length() > 0.0f) {
-            hostile.position = hostile.position + toPlayer.normalized() * (speeds[h - 3] * difficultyScale) * dt;
+    const pe::Entity* player = nullptr;
+    for (const pe::Entity& entity : entities) {
+        if (entity.role == EntityRole::Player) {
+            player = &entity;
+            break;
+        }
+    }
+    if (!player) {
+        return;
+    }
+
+    for (pe::Entity& entity : entities) {
+        if (entity.role == EntityRole::Hostile) {
+            const pe::Vec3 toPlayer = player->position - entity.position;
+            if (toPlayer.length() > 0.0f) {
+                entity.position = entity.position + toPlayer.normalized() * (entity.moveSpeed * difficultyScale) * dt;
+            }
         }
     }
 }

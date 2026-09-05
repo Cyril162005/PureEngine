@@ -30,6 +30,15 @@
 
 namespace pe {
 
+// --- Step 47: explicit entity role ---
+// Distinguishes the gameplay purpose of each entity without relying
+// on container indices or magic numbers.
+enum class EntityRole {
+    Player,
+    Scenery,
+    Hostile
+};
+
 struct Entity {
     Vec3 position;        // world position of the entity's origin
     float rotationAngle;  // current Z rotation in RADIANS, accumulates
@@ -61,6 +70,8 @@ struct Entity {
     // a future step that reorders the vector (e.g. dynamic spawn,
     // entity removal) knows to sort by depth before drawing.
     int depth = 0;
+    EntityRole role = EntityRole::Scenery;
+    float moveSpeed = 0.0f;
 
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
@@ -74,7 +85,9 @@ struct Entity {
           scale(1.0f, 1.0f, 1.0f),
           halfExtents(0.7071f, 0.7071f, 0.0f),
           textureId(0),
-          depth(0) {}
+          depth(0),
+          role(EntityRole::Scenery),
+          moveSpeed(0.0f) {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -93,7 +106,9 @@ struct Entity {
           scale(scale),
           halfExtents(halfExtents),
           textureId(textureId),
-          depth(0) {}
+          depth(0),
+          role(EntityRole::Scenery),
+          moveSpeed(0.0f) {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the

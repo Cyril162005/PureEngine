@@ -708,16 +708,9 @@ int main() {
 
     // --- Step 8: Player movement speed (before the loop) ---
     // World units per second for the ARROW-key-driven entity
-    // (entities[0]). Deliberately a bit slower than the camera's 3.0
+    // (player entity). Deliberately a bit slower than the camera's 3.0
     // so driving into another triangle feels controlled, not twitchy.
     const float entityMoveSpeed = 2.5f;
-
-    // --- Step 12 / Phase 1 / Phase 2: hostile BASE speeds ---
-    // The selected scene supplies one base speed per loaded hostile.
-    std::vector<float> hostileSpeeds;
-    for (const pe::HostileDefinition& hostile : activeHostileDefaults->hostiles) {
-        hostileSpeeds.push_back(hostile.baseSpeed);
-    }
 
     // --- Game Build Phase 2: difficulty scaling knobs ---
     // The scale formula stays identical to the current gameplay:
@@ -733,10 +726,9 @@ int main() {
         activeHostileDefaults = &scene;
         entities = pe::buildInitialEntities(*activeHostileDefaults);
         initialEntities = entities;
-        hostileSpeeds.clear();
-        for (const pe::HostileDefinition& hostile : activeHostileDefaults->hostiles) {
-            hostileSpeeds.push_back(hostile.baseSpeed);
-        }
+        // Step 47: hostile speeds now live on each Entity (moveSpeed),
+        // set by buildInitialEntities — no separate hostileSpeeds vector
+        // to rebuild here anymore.
         difficultyRate = activeHostileDefaults->difficultyRate;
         maxDifficultyScale = activeHostileDefaults->maxDifficultyScale;
         winTime = activeHostileDefaults->winTime;
@@ -961,25 +953,31 @@ int main() {
                 if (pe::Input::isDown(window, GLFW_KEY_D)) {
                     camera.move(1.0f, 0.0f, dt);   // camera right -> scene slides left
                 }
-                // --- Step 8: Player entity movement (ARROW keys) ---
+                // --- Step 8 / Step 47: Player entity movement (ARROW keys) ---
                 // WASD belongs to the CAMERA (established Step 6 behavior,
-                // kept untouched). The ARROW keys move entities[0] through
-                // the world, so the player can drive it into the other two
-                // triangles and trigger a collision on demand. Same RATE
-                // pattern as camera panning. The reference below points
-                // INTO the vector — writes land in the real entity.
-                pe::Entity& player = entities[0];
-                if (pe::Input::isDown(window, GLFW_KEY_UP)) {
-                    player.position.y += entityMoveSpeed * dt;
+                // kept untouched). The ARROW keys move the Player entity
+                // through the world, identified via EntityRole::Player. Same
+                // RATE pattern as camera panning.
+                pe::Entity* player = nullptr;
+                for (pe::Entity& entity : entities) {
+                    if (entity.role == pe::EntityRole::Player) {
+                        player = &entity;
+                        break;
+                    }
                 }
-                if (pe::Input::isDown(window, GLFW_KEY_DOWN)) {
-                    player.position.y -= entityMoveSpeed * dt;
-                }
-                if (pe::Input::isDown(window, GLFW_KEY_LEFT)) {
-                    player.position.x -= entityMoveSpeed * dt;
-                }
-                if (pe::Input::isDown(window, GLFW_KEY_RIGHT)) {
-                    player.position.x += entityMoveSpeed * dt;
+                if (player) {
+                    if (pe::Input::isDown(window, GLFW_KEY_UP)) {
+                        player->position.y += entityMoveSpeed * dt;
+                    }
+                    if (pe::Input::isDown(window, GLFW_KEY_DOWN)) {
+                        player->position.y -= entityMoveSpeed * dt;
+                    }
+                    if (pe::Input::isDown(window, GLFW_KEY_LEFT)) {
+                        player->position.x -= entityMoveSpeed * dt;
+                    }
+                    if (pe::Input::isDown(window, GLFW_KEY_RIGHT)) {
+                        player->position.x += entityMoveSpeed * dt;
+                    }
                 }
             }
             break;
@@ -1072,7 +1070,7 @@ int main() {
             // comes from NUMBERS. The decision of WHEN this runs
             // (this frame, in this order, only in PLAYING) stays
             // here.
-            pe::chasePlayer(entities, hostileSpeeds, difficultyScale, dt);
+            pe::chasePlayer(entities, difficultyScale, dt);
 
             // --- Step 8: Collision pass (after movement, before drawing) ---
             // One flag per entity, rebuilt from ZERO every frame: collision
@@ -1136,11 +1134,23 @@ int main() {
             // rewind-if-busy, Steps 9/10 pattern), and flip the state
             // LAST so every per-frame system above ran exactly once on
             // the final frame. Same frame, same death, three threats.
+            // Step 47: identify player and hostiles via EntityRole
+            const pe::Entity* player = nullptr;
+            for (const pe::Entity& entity : entities) {
+                if (entity.role == pe::EntityRole::Player) {
+                    player = &entity;
+                    break;
+                }
+            }
             bool caught = false;
-            for (size_t h = 3; h < entities.size(); ++h) {
-                if (pe::aabbOverlap(entities[0], entities[h])) {
-                    caught = true;
-                    break;   // one catcher is enough — stop testing
+            if (player) {
+                for (const pe::Entity& entity : entities) {
+                    if (entity.role == pe::EntityRole::Hostile) {
+                        if (pe::aabbOverlap(*player, entity)) {
+                            caught = true;
+                            break;   // one catcher is enough — stop testing
+                        }
+                    }
                 }
             }
             if (caught) {
