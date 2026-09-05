@@ -1002,6 +1002,7 @@ int main() {
             // screen (drawn below, never simulated) until SPACE moves
             // us back to the purple menu.
             if (spaceEdge) {
+                audio.stopEventSounds();   // Step 48: stop GAMEOVER.wav if still playing
                 currentState = pe::GameState::MENU;
             }
             break;
@@ -1009,6 +1010,7 @@ int main() {
             // The run reached its configured target. Like GAME_OVER, the
             // world stays frozen until SPACE returns to the menu.
             if (spaceEdge) {
+                audio.stopEventSounds();   // Step 48: stop win_sound.wav if still playing
                 currentState = pe::GameState::MENU;
             }
             break;

@@ -187,6 +187,25 @@ public:
         ma_sound_start(&newHighScoreSound);
     }
 
+    // --- Step 48: stop event sounds without tearing them down ---
+    // Silences GAMEOVER.wav and win_sound.wav immediately. Called when
+    // the engine returns to MENU from GAME_OVER or WIN so neither clip
+    // keeps playing over the menu screen. ma_sound_stop() atomically
+    // sets the node state to stopped on the next audio thread tick
+    // (~one mix callback, <20ms); the sound objects remain valid and
+    // playable on the next run. Guards on the loaded flags: if init()
+    // partially succeeded, calling stop on an uninitialised ma_sound
+    // is undefined behaviour — the same guards playGameOver/
+    // playNewHighScore use.
+    void stopEventSounds() {
+        if (gameOverSoundLoaded) {
+            ma_sound_stop(&gameOverSound);
+        }
+        if (newHighScoreSoundLoaded) {
+            ma_sound_stop(&newHighScoreSound);
+        }
+    }
+
     // --- Teardown, reverse creation order ---
     // Every initialized pool slot first (each registered WITH the
     // engine), then the engine itself — which stops the mixing thread
