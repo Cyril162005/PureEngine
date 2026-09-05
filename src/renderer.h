@@ -354,9 +354,10 @@ public:
         // neither entities nor colliding is reordered in place, because
         // both the colliding[] lookup and the texture-select branches
         // below still address by ORIGINAL index (i == 0, i < 3), not by
-        // sorted position. On the CURRENT entity set this permutation is
+        // sorted position. The texture-select branches below use entity.role
+        // instead of raw index. On the CURRENT entity set this permutation is
         // a no-op (construction order already matches depth order), so
-        // today's visual draw order is unchanged; it becomes load-bearing
+        // today's visual draw order is unchanged. It becomes load-bearing
         // only if a future step reorders the underlying vector (dynamic
         // spawn, removal).
         std::vector<size_t> drawOrder(entities.size());
@@ -379,9 +380,9 @@ public:
             // fallback default even though every branch overrides it —
             // legacy asset, sampled by no entity anymore.
             GLuint entityTexture = checkerTexture;   // legacy default, never sampled now
-            if (i == 0) {
+            if (entity.role == EntityRole::Player) {
                 entityTexture = playerTexture;
-            } else if (i < 3) {
+            } else if (entity.role == EntityRole::Scenery) {
                 entityTexture = sceneryTexture;
             } else {
                 const int textureId = entity.textureId;
