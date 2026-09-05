@@ -50,6 +50,7 @@ For every claim such as "works," "passes," or "fixed," include the actual comman
 - `src/ui.h`: HUD/UI boundary
 - `src/simulation.h`: simulation logic boundary
 - `src/entity.h`, `src/collision.h`, `src/gamestate.h`: core data and state logic
+- `src/hostile_data.h`: hostile definition data boundary
 - `src/math/`: custom math layer
 - `src/stb_impl.cpp`: stb implementation unit
 
@@ -72,3 +73,4 @@ Focus is on **engine internals**, not gameplay features or content. Gameplay wor
 - Favor incremental feature work over broad refactors.
 - Do not make out-of-scope changes without flagging them clearly.
 - No "bulletproof" or "production-ready" language unless a claim is backed by real verification.
+
