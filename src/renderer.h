@@ -53,6 +53,7 @@
 #define PUREENGINE_RENDERER_H
 // Include guard, same pattern as entity.h and the math headers.
 
+#include <algorithm>     // Step 49: std::stable_sort for depth-based draw order
 #include <glad/gl.h>     // every GL call below goes through the GLAD loader
 #include <iostream>      // the same stderr diagnostics main.cpp always used
 #include <string>        // drawDigitString takes formatted game text
@@ -345,14 +346,30 @@ public:
         // projection * view * model, acting RIGHT-TO-LEFT on the vertex.
         // The loop neither knows nor cares how many entities exist.
         //
-        // Step 45: draw order relies on the entity vector being in depth
-        // order (player=0, scenery=1, hostiles=2), which buildInitialEntities()
-        // guarantees by construction. No runtime sort is needed while the
-        // vector is always built in that order. If a future step reorders
-        // the vector (dynamic spawn, removal), sort by entity.depth here
-        // before iterating. Entity::depth is the canonical intent; this
-        // comment is the reminder of the contract.
+        // Step 49: draw order is now explicit, not accidental. Previously
+        // (Step 45's comment, relocated below) this relied entirely on
+        // buildInitialEntities() constructing the vector in depth order.
+        // A permutation of INDICES is sorted by entity.depth (stable, so
+        // entities sharing a depth keep their existing relative order) —
+        // neither entities nor colliding is reordered in place, because
+        // both the colliding[] lookup and the texture-select branches
+        // below still address by ORIGINAL index (i == 0, i < 3), not by
+        // sorted position. On the CURRENT entity set this permutation is
+        // a no-op (construction order already matches depth order), so
+        // today's visual draw order is unchanged; it becomes load-bearing
+        // only if a future step reorders the underlying vector (dynamic
+        // spawn, removal).
+        std::vector<size_t> drawOrder(entities.size());
         for (size_t i = 0; i < entities.size(); ++i) {
+            drawOrder[i] = i;
+        }
+        std::stable_sort(drawOrder.begin(), drawOrder.end(),
+            [&entities](size_t a, size_t b) {
+                return entities[a].depth < entities[b].depth;
+            });
+
+        for (size_t k = 0; k < drawOrder.size(); ++k) {
+            const size_t i = drawOrder[k];
             const Entity& entity = entities[i];
             // --- Game Build Phase 5: per-entity texture selection ---
             // Index 0 is the player, 1..2 are the scenery pair, 3 onward
