@@ -131,7 +131,75 @@
       "depends_on": [
         45
       ]
-    }
+    },
+    {
+      "id": 45,
+      "name": "Entity depth field + stress-test baseline at 3/20/50 hostiles",
+      "status": "completed",
+      "definition_of_done": "Entity carries an explicit depth field, and a stress test at 3, 20, and 50 hostiles establishes the baseline frame-time curve for future collision and rendering comparisons.",
+      "notes": "The depth field makes draw-order intent explicit in data. The stress test used data-driven hostile_default.txt variants; average frame time stayed flat at ~1.5-1.6 ms across all three counts. Re-verified post-Steps 46-49 at 50 hostiles: 1.47-1.80 ms (avg ~1.6 ms), confirming no performance pressure.",
+      "implementation": "In src/entity.h, Entity gained an int depth member defaulting to 0. In src/lifecycle.h, buildInitialEntities assigns depth 0=player, 1=scenery, 2=hostile. The stress-test asset files (hostile_stress_50.txt etc.) were added to assets/.",
+      "verification": "Verified by runtime measurement: 3, 20, and 50 hostiles all produced flat ~1.5-1.6 ms avg frame time. Re-verified post-Steps 46-49 at 50 hostiles: 1.47-1.80 ms (avg ~1.6 ms), commit 08f7d98.",
+      "commit": "e1bee39",
+      "depends_on": [
+        34
+      ]
+    },
+    {
+      "id": 46,
+      "name": "Parameterize scanSceneryCollisions sceneryCount",
+      "status": "completed",
+      "definition_of_done": "scanSceneryCollisions accepts sceneryCount as a parameter instead of hard-coding the literal 3, making the collision bound explicit at the call site.",
+      "notes": "The call site in main.cpp now passes constexpr size_t sceneryCount = 3, preserving the existing bound while removing the magic number from the helper.",
+      "implementation": "In src/simulation.h, scanSceneryCollisions takes a size_t sceneryCount parameter. In src/main.cpp, the call passes constexpr size_t sceneryCount = 3.",
+      "verification": "Verified by build and runtime: Release build succeeded, collision behavior unchanged (3 scenery entities still tested), no regression.",
+      "commit": "ef1bbaa",
+      "depends_on": [
+        22,
+        45
+      ]
+    },
+    {
+      "id": 47,
+      "name": "EntityRole field for role-based movement/catch/chase",
+      "status": "completed",
+      "definition_of_done": "Entity carries an explicit EntityRole enum (Player/Scenery/Hostile), and all role-based logic in main.cpp and simulation.h uses the role field instead of raw index ranges.",
+      "notes": "This eliminates the parallel identity mechanisms (index convention vs role) for movement, chase, and catch logic. buildInitialEntities assigns role alongside depth.",
+      "implementation": "In src/entity.h, Entity gained EntityRole role defaulting to Scenery, and the EntityRole enum was added. In src/lifecycle.h, buildInitialEntities sets role for each entity. In src/simulation.h, chasePlayer uses role. In src/main.cpp, the catch test uses entity.role == EntityRole::Hostile.",
+      "verification": "Verified by build and runtime: Release build succeeded, gameplay unchanged, player still caught by hostiles correctly.",
+      "commit": "0eba3ae",
+      "depends_on": [
+        45
+      ]
+    },
+    {
+      "id": 48,
+      "name": "Re-attempt stopEventSounds() for event audio bleed",
+      "status": "completed",
+      "definition_of_done": "Event audio (GAMEOVER.wav / win_sound.wav) is stopped when returning to MENU, preventing bleed into menu idle time.",
+      "notes": "Root cause: ma_sound_stop() is the correct miniaudio API but the previous attempt failed due to timing/placement. This step re-attempted with corrected call placement.",
+      "implementation": "In src/audio.h and src/main.cpp, the stopEventSounds() call was placed at the correct transition point.",
+      "verification": "Verified by runtime: returning to MENU from GAME_OVER no longer lets event audio continue playing. The remaining cosmetic issue (short ~2.5s GAMEOVER clip post-Step 43) is acceptable.",
+      "commit": "fc75b3d",
+      "depends_on": [
+        36,
+        43
+      ]
+    },
+    {
+      "id": 50,
+      "name": "Unify renderer.h texture selection and AABB tint to Entity::role",
+      "status": "completed",
+      "definition_of_done": "renderer.h's texture-select and AABB debug-overlay tint logic both use Entity::role instead of raw index, closing the parallel identity mechanism gap.",
+      "notes": "This is the last remaining raw-index spot in renderer.h. Zero behavior change: role and index agree for every entity since construction order is unchanged.",
+      "implementation": "In src/renderer.h, drawWorld's texture-select block changed from i==0 / i<3 to entity.role==Player / entity.role==Scenery. drawAABBs' tint block changed from i==0 to entity.role==Player. Comment updated.",
+      "verification": "Verified by build: Release build succeeded, no errors, no warnings.",
+      "commit": "595ec9a",
+      "depends_on": [
+        47,
+        49
+      ]
+    },
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
 }
