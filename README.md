@@ -5,13 +5,13 @@ OpenGL, plus a small arcade game built entirely on top of it. No engine
 framework, no game library — every engine layer was written as part of the
 project itself.
 
-- **Engine** (12 steps, all complete): window/context, rendering pipeline,
-  own math library (`Vec3`/`Mat4`), own entity/collision/state systems,
+- **Engine** (50 steps): window/context, rendering pipeline,
+  own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio), file-based asset loading (stb_image PNG),
   scene structure, and a full game loop with states.
-- **Game** (6 phases, all complete): an arena survival game — keep a spinning
-  player clear of crimson hostiles while the scenery spins around you.
-  Survival time is the score; the best time persists across runs.
+- **Game** (arcade survival): keep a spinning player clear of crimson
+  hostiles while the scenery spins around you. Survival time is the
+  score; the best time persists across runs.
 
 The full build history and design decisions live in
 [`Blueprint/GAME_BUILD.md`](Blueprint/GAME_BUILD.md) (machine-readable twin:
