@@ -45,11 +45,11 @@ A 2D-to-3D transition is not an extension. It is a different project. It require
 
 This section exists so that any future genuine need can be assessed honestly against the actual project direction and history: flat 2D remains the intended scope, and any 3D discussion should be treated as a separate endeavor rather than a default evolution of this codebase.
 
-**Stress-test result (Step 45, re-verified post-Steps 46-49):** Tested at 3, 20, and 50 hostiles using data-driven hostile_default.txt variants. Average frame time stayed flat at ~1.5–1.6 ms across all three counts. Re-measured at 50 hostiles after Steps 46-49 (EntityRole branching, depth-sort): 1.47–1.80 ms (avg ~1.6 ms), matching the Step 45 baseline within normal noise. No disproportionate cost from the added branching or sort. Broad-phase collision remains correctly deferred — the earlier inference is now confirmed by measurement.
+**Stress-test result (Step 45, re-verified post-Steps 46-49):** Tested at 3, 20, and 50 hostiles using data-driven hostile_default.txt variants. Average frame time stayed flat at ~1.5ï¿½1.6 ms across all three counts. Re-measured at 50 hostiles after Steps 46-49 (EntityRole branching, depth-sort): 1.47ï¿½1.80 ms (avg ~1.6 ms), matching the Step 45 baseline within normal noise. No disproportionate cost from the added branching or sort. Broad-phase collision remains correctly deferred ï¿½ the earlier inference is now confirmed by measurement.
 
 ## Known Follow-ups
 
-- Event audio (GAMEOVER.wav / win_sound.wav) continues playing after returning to MENU â€” root cause partially understood: `ma_sound_stop()` is the correct miniaudio API (atomically stops mixing on the next audio thread tick), but the Step 44 attempt failed due to incorrect timing or placement of the call. Fix is tractable but deprioritized: GAMEOVER.wav is now only ~2.5s (post Step 43), so the bleed is a minor cosmetic annoyance at worst. Not urgent, leave as a low-priority follow-up if the clip ever gets longer.
+- Event audio bleed on MENU return (GAMEOVER.wav / win_sound.wav) â€” addressed in Step 48 with corrected ma_sound_stop() placement. Resolved; no remaining action.
 
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.
