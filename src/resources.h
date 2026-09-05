@@ -28,7 +28,7 @@
  *
  * Ownership rule (unchanged): the functions hand back a GL texture
  * name and forget it. The CALLER owns the name and deletes it — for
- * the five game textures that is still pe::Renderer::destroyAll(),
+ * the six loaded textures that is still pe::Renderer::destroyAll(),
  * exactly as Step 13 left it. Returning 0 on failure keeps working
  * with that pattern because deleting GL name 0 is a safe no-op.
  *
