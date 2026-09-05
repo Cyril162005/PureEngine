@@ -1,3 +1,15 @@
+/**
+ * PureEngine — Step 28: Data-Driven Hostile Defaults
+ * File: hostile_data.h
+ * Boundary: Hostile Data
+ *
+ * Provides data structures and loading utilities for hostile entity definitions
+ * and wave/difficulty parameters. Parses configuration files at runtime to allow
+ * data-driven hostile counts, spawn positions, speeds, textures, and win conditions
+ * without recompilation.
+ *
+ * Introduced in Step 28 and extended through Step 39 (win condition).
+ */
 #ifndef PUREENGINE_HOSTILE_DATA_H
 #define PUREENGINE_HOSTILE_DATA_H
 
