@@ -27,7 +27,9 @@
       "name": "Win condition via configurable win_time",
       "status": "completed",
       "definition_of_done": "The game has an independent configured win_time target, enters a frozen distinct WIN state after the catch check, preserves endurance scores beyond the difficulty cap, and avoids conflating a normal win with a new-high-score audio event.",
-      "notes": "The win target is deliberately decoupled from maxDifficultyScale timing: both hostile scene files define win_time=120.0, so reaching the difficulty cap does not end the endurance run. GameState::WIN reuses GAME_OVER's frozen-world and SPACE-to-menu pattern with a distinct victory clear color. A UX bug was found and fixed: the high-score cue now plays in the WIN branch only when survivalTime > highScore as well; an ordinary win is silent because no dedicated win asset exists yet. A dedicated win sound remains future follow-up work, alongside the shorter GAMEOVER.wav replacement noted in Step 36.",
+      "notes": "The win target is deliberately decoupled from maxDifficultyScale timing: both hostile scene files define win_time=120.0, so reaching the difficulty cap does not end the endurance run. GameState::WIN reuses GAME_OVER's frozen-world and SPACE-to-menu pattern with a distinct victory clear color. A UX bug was found and fixed: the high-score cue now plays in the WIN branch only when survivalTime > highScore as well; an ordinary win is silent because no dedicated win asset exists yet. A dedicated win sound remains future follow-up work, alongside the shorter GAMEOVER.wav replacement noted in Step 36."
+    },
+    {
       "id": 36,
       "name": "Distinct event audio (game-over, high-score) + bug fixes",
       "status": "completed",
