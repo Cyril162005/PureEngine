@@ -17,7 +17,7 @@
  *     whole from main.cpp, comments included. Index conventions are
  *     load-bearing across the whole project (0 = player, 1-2 =
  *     scenery with the collision bound of 3, 3+ = hostiles chased at
- *     hostileSpeeds[h - 3], textures selected by index), so creation
+ *     moveSpeed, textures selected by index), so creation
  *     ORDER is part of the contract, not an accident.
  *   - resetEntities(entities, snapshot): the snapshot-restoration
  *     ASSIGNMENT — the ONLY place the explicit "removal" of the old
@@ -63,7 +63,7 @@ namespace pe {
 // relocated whole from main.cpp (Step 7 / Step 12 / Phase 1 /
 // balance tuning). Order is CONTRACT: 0 = player, 1-2 = scenery,
 // 3+ = hostiles — supplied by the selected scene profile, chased at
-// hostileSpeeds[h - 3], caught by the h >= 3 loop, textured by index,
+// moveSpeed, caught by the role-based loop, textured by index,
 // collision-bounded by the literal 3.
 inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile = HostileDefaults()) {
     std::vector<Entity> entities;

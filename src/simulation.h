@@ -10,7 +10,7 @@
  *     each entity advancing by its own speed via Entity::update(dt).
  *   - chasePlayer(): the hostile pursuit loop — indices 3 to the end
  *     of the vector, direction = player - hostile normalized, scaled
- *     by THIS hostile's base speed (hostileSpeeds[h - 3]) TIMES the
+ *     by THIS hostile's base speed (entity.moveSpeed) TIMES the
  *     frame's difficulty scale TIMES deltaTime, with the zero-length
  *     guard that keeps a hostile sitting exactly on the player still
  *     (the catch test ends the run that frame, not the chase).

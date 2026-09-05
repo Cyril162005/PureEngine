@@ -277,8 +277,9 @@
  *       hostile's base speed by a difficulty scale derived from Step
  *       12's survivalTime (1 + t*0.01, capped at 1.33, so the fastest
  *       hostile tops out at 2.394 < the player's 2.5 — 'avoidable by
- *       construction' holds at any run length). hostileSpeeds[] stays
- *       a const BASE array; the scale is recomputed every frame and
+ *       construction' holds at any run length). Each hostile carries
+ *       its own base speed in Entity::moveSpeed; the scale is recomputed
+ *       every frame and
  *       resetGame() needs zero changes.
  *
  * Game Build Phase 3: On-Screen Text (Score/Timer Display)
@@ -1064,7 +1065,7 @@ int main() {
             // --- Step 12 / Phase 1 / Step 22: hostile chase ---
             // The mechanics moved into pe::chasePlayer (src/
             // simulation.h): the v1 chase unchanged per hostile,
-            // looped over the hostile range (index 3 to the end),
+            // looped over entities where role == Hostile,
             // direction = player - hostile normalized, scaled by the
             // hostile's base speed TIMES this frame's difficultyScale
             // TIMES deltaTime, zero-length guard included. Pure
@@ -1125,7 +1126,7 @@ int main() {
 
             // --- Step 12 / Phase 1: the catch test — player vs ANY hostile ---
             // v1 tested ONE pair; Phase 1 generalizes it the minimal
-            // way: a loop over the hostile range (index 3 onward)
+            // way: a loop over entities where role == Hostile
             // OR-ing Step 8's exact AABB test into a single bool.
             // Touching ANY hostile ends the run — the lose condition
             // does not care which one caught you. Everything ELSE is
