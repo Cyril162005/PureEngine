@@ -66,7 +66,7 @@ inline void advanceRotations(std::vector<Entity>& entities, float dt) {
     }
 }
 
-// --- The hostile chase (Steps 12/Phase 1's loop, Step 47 role-based, Step 49 moveSpeed) ---
+// --- The hostile chase (Steps 12/Phase 1's loop, Step 47 role-based) ---
 // Pure pursuers: each hostile recomputes its own pursuit vector
 // every frame (no prediction, no flanking; difficulty comes from the
 // numbers — each hostile's Entity::moveSpeed and the shared Phase 2 ramp).
