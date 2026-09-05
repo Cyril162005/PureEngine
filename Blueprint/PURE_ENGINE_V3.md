@@ -47,6 +47,12 @@ This section exists so that any future genuine need can be assessed honestly aga
 
 **Stress-test result (Step 45, re-verified post-Steps 46-49):** Tested at 3, 20, and 50 hostiles using data-driven hostile_default.txt variants. Average frame time stayed flat at ~1.5�1.6 ms across all three counts. Re-measured at 50 hostiles after Steps 46-49 (EntityRole branching, depth-sort): 1.47�1.80 ms (avg ~1.6 ms), matching the Step 45 baseline within normal noise. No disproportionate cost from the added branching or sort. Broad-phase collision remains correctly deferred � the earlier inference is now confirmed by measurement.
 
+**Flat-to-2D transition status:** 4/5 criteria met (camera split,
+transform decoupling, fixed coords, depth field). Broad-phase
+collision deliberately deferred, backed by 3 rounds of stress-test
+evidence (see Step 45/46-49 notes). Re-evaluate only if a future
+stress test at a materially higher entity count shows real cost.
+
 ## Known Follow-ups
 
 - Event audio bleed on MENU return (GAMEOVER.wav / win_sound.wav) — addressed in Step 48 with corrected ma_sound_stop() placement. Resolved; no remaining action.
