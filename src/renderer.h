@@ -525,13 +525,13 @@ public:
             const Mat4 aabbMvp = projection * view * aabbModel;
             glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &aabbMvp.m[0][0]);
 
-            // Tint: index 0 = player = bright orange (distinguish from
+            // Tint: player = bright orange (distinguish from
             // collision-red 1,0,0), everything else = yellow. Two hues
             // are enough: scenery and hostiles share yellow, since the
             // debug question is "does this rotating triangle fill its
             // square hitbox?", not "which type is which?" — textures
             // already show that.
-            if (i == 0) {
+            if (entity.role == EntityRole::Player) {
                 glUniform3f(colorLocation, 1.0f, 0.5f, 0.0f);   // orange — player
             } else {
                 glUniform3f(colorLocation, 1.0f, 1.0f, 0.0f);   // yellow — scenery / hostiles
