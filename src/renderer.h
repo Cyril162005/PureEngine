@@ -24,7 +24,7 @@
  *   - no interfaces/virtuals, no renderer registry, no ECS
  * One concrete shader, one concrete triangle, one concrete digit font.
  *
- * Seams that intentionally stay INSIDE for later continuation steps:
+ * Seams extracted by later continuation steps:
  *   - texture LOADING was split into its own boundary by Step 14
  *     (src/resources.h — this class now OBTAINS textures through it
  *     and never touches a file itself);
