@@ -21,7 +21,7 @@
  *     direction * speed * deltaTime — frame-rate independent, same
  *     pattern as Step 5's rotation. The KEY MEANING (which key is
  *     which direction) stays in main.cpp — polling keys is Step 16's
- *     future input boundary, so this class does NOT include or call
+ *     input boundary (Step 16), so this class does NOT include or call
  *     GLFW; movement arrives as plain data.
  *   - view: Mat4::lookAt from the position, aiming at
  *     position + (0, 0, -1) with up (0, 1, 0) — the exact Step 6
