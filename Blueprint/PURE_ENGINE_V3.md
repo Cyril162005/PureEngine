@@ -45,7 +45,7 @@ A 2D-to-3D transition is not an extension. It is a different project. It require
 
 This section exists so that any future genuine need can be assessed honestly against the actual project direction and history: flat 2D remains the intended scope, and any 3D discussion should be treated as a separate endeavor rather than a default evolution of this codebase.
 
-**Stress-test result (Step 45):** Tested at 3, 20, and 50 hostiles using data-driven hostile_default.txt variants. Average frame time stayed flat at ~1.5â€“1.6 ms across all three counts. No measurable performance pressure found. Depth-field and broad-phase collision remain correctly deferred â€” this is now an evidence-based deferral, not an untested assumption.
+**Stress-test result (Step 45, re-verified post-Steps 46-49):** Tested at 3, 20, and 50 hostiles using data-driven hostile_default.txt variants. Average frame time stayed flat at ~1.5–1.6 ms across all three counts. Re-measured at 50 hostiles after Steps 46-49 (EntityRole branching, depth-sort): 1.47–1.80 ms (avg ~1.6 ms), matching the Step 45 baseline within normal noise. No disproportionate cost from the added branching or sort. Broad-phase collision remains correctly deferred — the earlier inference is now confirmed by measurement.
 
 ## Known Follow-ups
 
