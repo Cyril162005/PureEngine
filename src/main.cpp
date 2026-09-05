@@ -102,7 +102,7 @@
 // What STAYS here: the collections themselves (entities,
 // initialEntities, colliding), resetGame()'s one-block atomicity and
 // its call policy, and everything entities MEAN — player/scenery/
-// hostile roles, the chase, the catch test, texture-by-index. No
+// hostile roles, the chase, the catch test, texture assignment. No
 // manager, no container ownership, no spawning or destruction
 // machinery: the engine has never added or removed an entity at
 // runtime, and restoration IS its removal semantics. Header-only:
