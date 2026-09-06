@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 — engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker supersedes pure_engine_v2_steps.json for future work. Steps 25 through 34 are complete and verified, and the next phase intentionally begins with an empty step list until a concrete need is demonstrated in conversation.",
+  "status_note": "This continuation tracker supersedes pure_engine_v2_steps.json for future work. Steps 25 through 50 are complete and verified, covering engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation.",
   "steps": [
     {
       "id": 35,
