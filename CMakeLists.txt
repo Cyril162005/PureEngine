@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(PureEngine LANGUAGES C CXX)
+enable_testing()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -94,6 +95,8 @@ target_link_libraries(${PROJECT_NAME} glfw miniaudio)
 # still find its data when launched from build/Release/ without relying
 # on the repo root working directory. This includes both the parser data
 # and the audio assets used at runtime.
+# Runtime asset bundle: copies only the 11 files the game loads at runtime.
+# hostile_stress_*.txt are stress-test-only fixtures, intentionally excluded.
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -136,6 +139,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 add_executable(hostile_data_test
     tests/hostile_data_test.cpp
 )
+add_test(NAME hostile_data_test COMMAND hostile_data_test)
 
 # Keep the test translation unit scoped to the exact header it needs.
 # This avoids exposing the whole src/ directory, which is what makes
@@ -145,3 +149,4 @@ add_executable(hostile_data_test
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)
 endif()
+
