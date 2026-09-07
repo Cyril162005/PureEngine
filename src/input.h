@@ -1,47 +1,49 @@
+/**
+ * =====================================================================
+ *  PureEngine — Step 16: Input Module Boundary (src/input.h)
+ * =====================================================================
+ *  The engine's FOURTH system boundary (after the renderer in Step 13,
+ *  resource loading in Step 14, and the camera in Step 15). This file
+ *  OWNS two responsibilities, and nothing else:
+ *
+ *    1. KEYBOARD KEY-STATE POLLING — the raw "is this key down RIGHT
+ *       NOW?" reads (glfwGetKey), relocated whole from main.cpp.
+ *    2. EDGE DETECTION — the Step 3 pattern (the exact instant a key
+ *       goes DOWN), which needs memory: the PREVIOUS frame's state for
+ *       each tracked key. That memory lives here, with a single owner.
+ *
+ *  What deliberately does NOT live here:
+ *    - what a key MEANS in MENU / PLAYING / PAUSED / GAME_OVER —
+ *      state-specific meaning stays in main.cpp's state switch;
+ *    - game-state transitions, camera behavior, player movement,
+ *      deltaTime, gameplay decisions of any kind;
+ *    - window lifecycle: glfwPollEvents(), glfwWindowShouldClose(),
+ *      and glfwSetWindowShouldClose() all stay in main.cpp;
+ *    - any action-mapping system. Keys are identified by their raw
+ *      GLFW key codes (GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, ...): the
+ *      boundary hands main.cpp plain booleans, and main.cpp decides.
+ *
+ *  The polling model is unchanged: no callbacks, just glfwGetKey
+ *  queries once per frame. The TEMPORAL ORDER that makes edge
+ *  detection work is a contract between this class and the frame
+ *  loop, preserved exactly as Steps 3 and 11 established it:
+ *
+ *      glfwPollEvents()            (main.cpp, frame start)
+ *      isDown / isEdge reads       (this class, no side effects)
+ *      state switch consumes them  (main.cpp)
+ *      update()                    (this class, frame end)
+ *
+ *  isEdge() READS the previous-frame snapshot but never writes it;
+ *  update() is the ONLY writer, called once per frame AFTER all edge
+ *  consumption. That separation is why a held key produces exactly
+ *  ONE edge event per physical press.
+ *
+ *  Header-only, like every project module: no CMakeLists.txt change.
+ * =====================================================================
+ */
+
 #ifndef PUREENGINE_INPUT_H
 #define PUREENGINE_INPUT_H
-
-// =====================================================================
-//  PureEngine — Step 16: Input Module Boundary (src/input.h)
-// =====================================================================
-//  The engine's FOURTH system boundary (after the renderer in Step 13,
-//  resource loading in Step 14, and the camera in Step 15). This file
-//  OWNS two responsibilities, and nothing else:
-//
-//    1. KEYBOARD KEY-STATE POLLING — the raw "is this key down RIGHT
-//       NOW?" reads (glfwGetKey), relocated whole from main.cpp.
-//    2. EDGE DETECTION — the Step 3 pattern (the exact instant a key
-//       goes DOWN), which needs memory: the PREVIOUS frame's state for
-//       each tracked key. That memory lives here, with a single owner.
-//
-//  What deliberately does NOT live here:
-//    - what a key MEANS in MENU / PLAYING / PAUSED / GAME_OVER —
-//      state-specific meaning stays in main.cpp's state switch;
-//    - game-state transitions, camera behavior, player movement,
-//      deltaTime, gameplay decisions of any kind;
-//    - window lifecycle: glfwPollEvents(), glfwWindowShouldClose(),
-//      and glfwSetWindowShouldClose() all stay in main.cpp;
-//    - any action-mapping system. Keys are identified by their raw
-//      GLFW key codes (GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, ...): the
-//      boundary hands main.cpp plain booleans, and main.cpp decides.
-//
-//  The polling model is unchanged: no callbacks, just glfwGetKey
-//  queries once per frame. The TEMPORAL ORDER that makes edge
-//  detection work is a contract between this class and the frame
-//  loop, preserved exactly as Steps 3 and 11 established it:
-//
-//      glfwPollEvents()            (main.cpp, frame start)
-//      isDown / isEdge reads       (this class, no side effects)
-//      state switch consumes them  (main.cpp)
-//      update()                    (this class, frame end)
-//
-//  isEdge() READS the previous-frame snapshot but never writes it;
-//  update() is the ONLY writer, called once per frame AFTER all edge
-//  consumption. That separation is why a held key produces exactly
-//  ONE edge event per physical press.
-//
-//  Header-only, like every project module: no CMakeLists.txt change.
-// =====================================================================
 
 #include <GLFW/glfw3.h>   // glfwGetKey, GLFW_PRESS, raw GLFW key codes
 #include <vector>         // the tracked-key list and previous-frame state
