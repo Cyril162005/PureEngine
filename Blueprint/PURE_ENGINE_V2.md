@@ -549,6 +549,60 @@ provide a concrete reason for the boundary.
   commit `4f8c08c`; after the push HEAD == origin/main; the pre-existing untracked
   files remained untouched.
 
+### Step 25 — GLFW Forward-Compatibility Hint Cleanup
+**Status:** Completed (verified by Cyril, committed `49e7b48`, pushed)
+**Goal:** Replace `GL_TRUE` with `GLFW_TRUE` in the macOS forward-compatibility window hint.
+**Definition of done:** The macOS-only GLFW forward-compatibility window hint uses GLFW's boolean constant without changing the GLAD loader dependency or runtime behavior.
+**Notes:** The GLAD header remains required because `main.cpp` calls `gladLoadGL(glfwGetProcAddress)`. Only `GL_TRUE` -> `GLFW_TRUE` changed under the `__APPLE__` guard.
+
+### Step 26 — Unused `<sstream>` Include Cleanup
+**Status:** Completed (verified by Cyril, committed, pushed)
+**Goal:** Remove the stale `<sstream>` include from `src/main.cpp`.
+**Definition of done:** The unused `<sstream>` include is removed while keeping `<iomanip>` for `std::fixed` and `std::setprecision`, with no remaining `std::ostringstream` usage in `main.cpp`.
+
+### Step 27 — Stale Commented Include Cleanup
+**Status:** Completed (verified by Cyril, committed, pushed)
+**Goal:** Remove the obsolete commented-out `#include <miniaudio.h>` from the main.cpp documentation block.
+**Definition of done:** The stale commented-out line is removed while keeping the surrounding explanatory text intact.
+
+### Step 28 — Data-Driven Hostile Defaults
+**Status:** Completed (verified by Cyril, committed `49e7b48`, pushed)
+**Goal:** Load hostile base speeds, spawn positions, rotation speeds, and difficulty scaling defaults from `assets/hostile_default.txt`.
+**Definition of done:** Hostile statistics are loaded from a flat text file with built-in fallback defaults. Missing or malformed data falls back without crashing.
+**Notes:** First data-driven hostile-definition step: one flat text file, one current hostile archetype, no generalized database or runtime spawning system. Added `src/hostile_data.h` with `HostileDefaults` and key=value parsing.
+
+### Step 29 — Type-Safe Hostile Speed Boundary
+**Status:** Completed (verified by Cyril, committed as paired commit, pushed)
+**Goal:** Accept `const std::array<float, 3>&` in `chasePlayer()` instead of `const float*`.
+**Definition of done:** The hostile chase boundary accepts the caller's fixed-size `std::array` speed data by const reference, preserving chase behavior while removing the raw-pointer conversion requirement.
+
+### Step 30 — Strict Hostile Config Validation
+**Status:** Completed (verified by Cyril, committed as paired commit, pushed)
+**Goal:** Make configuration parsing strict — malformed lines and unknown keys produce warnings and trigger full fallback.
+**Definition of done:** Any future configuration key requires a parser update first; otherwise the entire file falls back to built-in defaults. Lines without `=` and unknown keys now emit warnings.
+
+### Step 31 — Data-Driven Hostile Count
+**Status:** Completed (verified by Cyril, committed as paired commit, pushed)
+**Goal:** Declare the hostile count via repeated `hostile=` entries in `hostile_default.txt`.
+**Definition of done:** The hostile count is declared by repeated `hostile=` lines; zero entries and missing files both fall back to the built-in three-hostile profile. `src/hostile_data.h` now defines `HostileDefinition` and uses `std::vector`.
+
+### Step 32 — Second Scene Proves Boundary Reuse
+**Status:** Completed (verified by Cyril, committed, pushed)
+**Goal:** Add a second hostile scene selected via data swap, proving engine boundaries are reusable interfaces.
+**Definition of done:** A second hostile scene can be selected without forcing changes to the renderer, camera, input, or simulation boundaries. The alternate scene uses `hostile_alt.txt` and the `PLAYING_ALT` state.
+**Notes:** The critical generalization proof is that `src/renderer.h`, `src/camera.h`, `src/input.h`, and `src/simulation.h` required zero edits for this scene switch.
+
+### Step 33 — Minimal Periodic Frame-Time Visibility
+**Status:** Completed (verified by Cyril, committed, pushed)
+**Goal:** Report average frame time periodically during active simulation only.
+**Definition of done:** Average frame time is printed every 5 seconds during `pe::simulates()` states, without a profiler, new file, or new dependency. A rolling accumulator and 5-second report window were added directly in `src/main.cpp`.
+
+### Step 34 — Automated Hostile Parser Validation
+**Status:** Completed (verified by Cyril, committed, pushed)
+**Goal:** Add a `hostile_data_test` executable that validates the hostile-data loader.
+**Definition of done:** Six test cases cover valid data, missing key, malformed number, empty list, missing file, and the Step 30 warning path. Registered with CTest.
+**Notes:** Also found and fixed a real pre-existing bug: absolute paths were silently rewritten as `assets/<absolute-path>`, fixed with an `is_absolute()` guard in `src/hostile_data.h`. Added `tests/hostile_data_test.cpp` and `CMakeLists.txt` test target.
+
 ## Kill Criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a
 smaller definition_of_done before continuing. Do not introduce an abstraction, manager,

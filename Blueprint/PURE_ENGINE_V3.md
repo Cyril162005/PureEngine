@@ -9,11 +9,7 @@ The current project remains intentionally minimal. The source and build output r
 Continue from the verified engine hardening work without inventing new abstractions, managers, or registries before a concrete need is demonstrated.
 
 ## Rule
-No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. The tracker stays intentionally empty until a new, concrete, scoped requirement appears.
-
-## Steps
-
-No steps are defined yet. This file exists as the forward continuation marker for future work only.
+No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. Steps 25 through 50 are tracked in `Blueprint/pure_engine_v3_steps.json` (Step 44 marked "superseded" by Step 48) and cover engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation.
 
 ## Candidate Roadmap
 The items below are non-binding, exploratory ideas only. They are not a step queue and do not define the next concrete requirement. The goal is to make PureEngine feel like a playable 2026 arcade survival game while staying flat/2D and avoiding 3D or engine-framework scope.

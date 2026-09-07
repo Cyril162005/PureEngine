@@ -5,7 +5,7 @@ OpenGL, plus a small arcade game built entirely on top of it. No engine
 framework, no game library — every engine layer was written as part of the
 project itself.
 
-- **Engine** (50 steps): window/context, rendering pipeline,
+- **Engine** (49 implemented steps, 50 attempted): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio), file-based asset loading (stb_image PNG),
   scene structure, and a full game loop with states.
@@ -49,7 +49,11 @@ reproduce them byte-for-byte:
 |---|---|
 | `make_checker.ps1` | `assets/checker.png` (legacy world texture) |
 | `make_font.ps1` | `assets/font_digits.png` (bitmap digit font atlas) |
-| `make_textures.ps1` | `assets/tex_player.png`, `assets/tex_scenery.png`, `assets/tex_hostile.png` (Phase 5 entity textures) |
+| `make_beep.ps1` | `assets/beep.wav` (collision/alert sound) |
+| `make_textures.ps1` | `assets/tex_player.png`, `assets/tex_scenery.png`, `assets/tex_hostile.png`, `assets/tex_hostile_alt.png` (Phase 5 entity textures) |
+| — | `assets/hostile_default.txt`, `assets/hostile_alt.txt` (data-driven hostile configs) |
+| — | `assets/win_sound.wav`, `assets/GAMEOVER.wav` (event audio) |
+| `scripts/package.ps1` | `package/PureEngine-0.1.0-win64.zip` |
 
 ## Run
 
@@ -98,32 +102,34 @@ creates it on the first new record, so a fresh install starts at 0.0.
 
 ```
 src/main.cpp            the game: window, audio, entities, state machine,
-                        simulation, camera, timing, high score (step by step)
+                         simulation, camera, timing, high score (step by step)
 src/renderer.h          the renderer boundary (Step 13): shader, VAO/VBOs,
-                        textures, world draw loop, screen-space digit UI
+                         textures, world draw loop, screen-space digit UI
 src/resources.h         the resource-loading boundary (Step 14): texture
-                        load/upload (3-candidate path probe, stb_image)
+                         load/upload (3-candidate path probe, stb_image)
 src/camera.h            the camera boundary (Step 15): position state,
-                        movement, lookAt view, orthographic projection
+                         movement, lookAt view, orthographic projection
 src/input.h             the input boundary (Step 16): key-state polling,
-                        edge detection, previous-frame snapshot
+                         edge detection, previous-frame snapshot
 src/time.h              the time boundary (Step 17): frame-time acquisition,
-                        delta calculation, previous-timestamp state
+                         delta calculation, previous-timestamp state
 src/lifecycle.h         the entity lifecycle boundary (Step 18): initial
-                        entity construction, snapshot restore, flag sizing
+                         entity construction, snapshot restore, flag sizing
+src/gamestate.h         game-state enum + the game-state boundary (Step 19):
+                         pure predicates and per-state lookups
 src/audio.h             the audio boundary (Step 20): miniaudio engine,
-                        four-slot pool, shared round-robin playback
+                         four-slot pool, shared round-robin playback
 src/ui.h                the UI boundary (Step 21): HUD number formatting,
-                        layout constants, two-row draw sequence
+                         layout constants, two-row draw sequence
 src/simulation.h        the simulation boundary (Step 22): pure mechanics —
-                        rotation update, hostile chase, scenery collision scan
+                         rotation update, hostile chase, scenery collision scan
 src/math/               own math layer (Vec3, Mat4)
 src/entity.h            entity data
 src/collision.h         AABB collision
-src/gamestate.h         game-state enum + the game-state boundary (Step 19):
-                        pure predicates and per-state lookups
 src/stb_impl.cpp        stb_image implementation unit
+tests/                  hostile_data_test.cpp (CTest-registered)
 assets/                 committed, script-generated assets
 Blueprint/              project blueprint + Game Build tracker
 make_*.ps1              in-tree asset generators
+scripts/package.ps1     packaging script
 ```
