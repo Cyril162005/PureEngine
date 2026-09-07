@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 — engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker supersedes pure_engine_v2_steps.json for future work. Steps 25 through 50 are complete and verified, covering engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation.",
+  "status_note": "This continuation tracker supersedes pure_engine_v2_steps.json for future work. Steps 25 through 50 are tracked (Step 44 superseded by Step 48), covering engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation.",
   "steps": [
     {
       "id": 35,
@@ -120,6 +120,19 @@
       "depends_on": [
         36,
         42
+      ]
+    },
+    {
+      "id": 44,
+      "name": "Attempt to stop event audio on menu return (superseded by Step 48)",
+      "status": "superseded",
+      "definition_of_done": "Event audio (GAMEOVER.wav / win_sound.wav) stops when returning to MENU from GAME_OVER or WIN.",
+      "notes": "original attempt to fix event-audio-bleed via stopEventSounds(), failed for reasons never root-caused, superseded by Step 48's corrected implementation. This closes the 1-50 sequence gap.",
+      "implementation": "No source code changes were committed for this step. The attempt is recorded only as a known issue note in Blueprint/PURE_ENGINE_V3.md (commit 1c536a2).",
+      "verification": "Commit 1c536a2 documents the failure. Step 48 later verified the fix with runtime testing.",
+      "commit": "1c536a2",
+      "depends_on": [
+        36
       ]
     },
     {
