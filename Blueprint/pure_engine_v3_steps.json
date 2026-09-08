@@ -229,6 +229,19 @@
         46,
         47
       ]
+    },
+    {
+      "id": 52,
+      "name": "Stress measurement: frame-time scaling at 50/500/2000/5000 hostiles",
+      "status": "completed",
+      "definition_of_done": "Measure average frame time at four hostile counts using stress-test fixtures. Determine if broad-phase spatial partitioning is needed based on scaling curve.",
+      "notes": "Results show O(n) scaling: 1.21ms (50) -> 2.22ms (500) -> 5.46ms (2000) -> 12.09ms (5000). Engine handles 50-2000 hostiles comfortably. At 5000, approaching frame-budget limits but still playable. Broad-phase optimization deferred — recommended for future games needing 2000+ entities, not blocking Phase 2.",
+      "implementation": "Used pre-built stress fixtures (hostile_stress_50/500/2000/5000.txt, tracked in commit 2d583d7). User ran each for ~15s survival, collected three 5-second frame-time averages per count. Frame reporter (main.cpp:813-877) printed 'avg frame: X ms' every 5s window.",
+      "verification": "Verified by user playtest: four complete measurements collected, scaling curve plotted, verdict rendered.",
+      "commit": "2d583d7",
+      "depends_on": [
+        51
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
