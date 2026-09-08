@@ -256,6 +256,20 @@
         51,
         52
       ]
+    },
+    {
+      "id": 54,
+      "name": "Genericize entity.h: roleId + parameter plumbing",
+      "status": "completed",
+      "definition_of_done": "Entity.role changed from arcade-specific enum to generic int roleId. Engine filters take explicit roleId parameters. All 25 role-comparison sites updated. Playtest verified: chase works, tint works, catch works.",
+      "notes": "Introduces temporary parameter plumbing on simulation/renderer filters (caller-supplied role ids). Step 55 is expected to remove these params via index-slot optimization. ArcadeRole enum lives game-side in lifecycle.h; numeric mapping (0/1/2) preserved so behavior is identical.",
+      "implementation": "entity.h: removed EntityRole enum, changed to int roleId=0. lifecycle.h: added ArcadeRole enum, assigned in buildInitialEntities. simulation.h/renderer.h: added roleId params. main.cpp: passed ArcadeRole values at call sites.",
+      "verification": "Verified by playtest: hostile chase, scenery tint, catch mechanic. Player movement confirmed working (world-space correct, camera snap-follow visual confirmed).",
+      "commit": "4c28d63",
+      "depends_on": [
+        47,
+        51
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
