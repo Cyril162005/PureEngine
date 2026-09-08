@@ -30,6 +30,15 @@ with entity count; playable to 2000 hostiles with acceptable frame time
 (~5.5ms). At 5000 hostiles (~12ms), optimization becomes necessary for
 smoother gameplay. Current Phase 2 scope does NOT require broad-phase.
 
+**Phase B triggers (no Step 54 opened):** no demonstrated need exists for any
+of the three candidates — spatial partitioning (Step 52 measured O(n), fine
+to 2000), a layer/group system (depth field + automatic stable-sort already
+cover draw ordering), or an in-game editor (no requesting use-case). Open a
+Step 54 when ONE of these becomes true: (A) a second draw-layering rule is
+needed that raw depth ints cannot express; (B) a stress run shows frame time
+climbing superlinearly or breaching budget below 2000 hostiles; (C) a concrete
+level-design task requires in-world tweaking without recompile.
+
 ## Reference: 2D/3D Architecture Notes (non-binding)
 
 This section is informational only. It is not a roadmap, not a step queue, and not a proposal to pre-plan future work. Its purpose is to document the architectural distinction between a flat 2D game and a true 3D engine so a future real need can be evaluated against earlier analysis instead of speculation.
