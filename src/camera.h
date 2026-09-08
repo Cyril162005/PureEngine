@@ -93,6 +93,14 @@ public:
         return proj;
     }
 
+    // --- Camera follow (snap-to, no lerp) ---
+    // Sets camera position to match a target's world position.
+    // Kept separate from move() so WASD free-pan can coexist if desired.
+    void follow(const Vec3& target) {
+        position.x = target.x;
+        position.y = target.y;
+    }
+
 private:
     Vec3 position = Vec3(0.0f, 0.0f, 0.0f);   // Step 6: world-space camera position
 

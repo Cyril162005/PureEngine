@@ -980,6 +980,9 @@ int main() {
                         player->position.x += entityMoveSpeed * dt;
                     }
                 }
+                if (player) {
+                    camera.follow(player->position);
+                }
             }
             break;
         case pe::GameState::PAUSED:
