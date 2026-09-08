@@ -669,9 +669,9 @@ int main() {
     // archetype starts as a tiny file-backed profile (hostile_data.h),
     // but the build order still belongs to pe::buildInitialEntities
     // (src/lifecycle.h) so the initial world remains a single named
-    // responsibility. The index conventions are still load-bearing:
-    // 0 = player, 1-2 = scenery, 3+ = hostiles, chased at the base
-    // speed array and textured by index.
+    // responsibility. Roles (not vector positions) carry meaning:
+    // systems find Player/Scenery/Hostile via EntityRole wherever
+    // each entity sits.
     const pe::HostileDefaults defaultHostileDefaults = pe::loadHostileDefaults("hostile_default.txt");
     const pe::HostileDefaults alternateHostileDefaults = pe::loadHostileDefaults("hostile_alt.txt");
     const pe::HostileDefaults* activeHostileDefaults = &defaultHostileDefaults;
@@ -1079,13 +1079,12 @@ int main() {
             colliding.assign(entities.size(), 0);
             // The scan itself moved into pe::scanSceneryCollisions
             // (src/simulation.h): every unique pair among the
-            // original three tested once, BOTH flags set on overlap.
-            // Step 46: pass sceneryCount explicitly.
+            // Player/Scenery-role entities tested once, BOTH flags set
+            // on overlap — wherever they sit in the vector.
             // The rebuild line ABOVE stays here,
             // because the rebuild is the collision-state POLICY
             // (derived fresh, never remembered).
-            constexpr size_t sceneryCount = 3;
-            pe::scanSceneryCollisions(entities, colliding, sceneryCount);
+            pe::scanSceneryCollisions(entities, colliding);
 
             // --- Step 10: per-entity collision EDGE detection + sound pool ---
             // Step 9's scalar OR-flag is gone. Now the previous frame's full

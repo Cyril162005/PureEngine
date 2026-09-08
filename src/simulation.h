@@ -8,16 +8,16 @@
  *
  *   - advanceRotations(): the per-entity rotation update — one loop,
  *     each entity advancing by its own speed via Entity::update(dt).
- *   - chasePlayer(): the hostile pursuit loop — indices 3 to the end
- *     of the vector, direction = player - hostile normalized, scaled
+ *   - chasePlayer(): the hostile pursuit loop — every EntityRole::Hostile
+ *     in the vector, direction = player - hostile normalized, scaled
  *     by THIS hostile's base speed (entity.moveSpeed) TIMES the
  *     frame's difficulty scale TIMES deltaTime, with the zero-length
  *     guard that keeps a hostile sitting exactly on the player still
  *     (the catch test ends the run that frame, not the chase).
  *   - scanSceneryCollisions(): the Steps 8-11 scenery system — every
- *     unique pair among the ORIGINAL THREE entities tested once, both
- *     flags set on overlap. The bound is the literal 3 on purpose:
- *     hostiles pass through scenery and their only interaction is the
+ *     unique pair among the Player/Scenery-role entities tested once,
+ *     both flags set on overlap, wherever they sit in the vector.
+ *     Hostiles pass through scenery and their only interaction is the
  *     catch test, exactly as every step since Step 12 preserved.
  *
  * What this boundary is NOT — and the ruling that says so (B6):
@@ -97,22 +97,28 @@ inline void chasePlayer(std::vector<Entity>& entities,
     }
 }
 
-// --- The scenery collision scan (Steps 8-11's loop, Step 46 sceneryCount) ---
-// Every UNIQUE pair among the scenery pool (the first sceneryCount
-// entities), tested exactly once (i runs each entity, j only the ones
-// AFTER it — N*(N-1)/2 tests). Overlap is symmetric, so BOTH flags are
-// set. The caller owns the flag vector and must have rebuilt it from
-// zero first (main.cpp does: collision state is derived fresh every
-// frame, never remembered). The bound is sceneryCount; hostiles remain
-// excluded.
+// --- The scenery collision scan (Steps 8-11's loop, role-based pairing) ---
+// Every UNIQUE pair among the scenery pool (entities whose role is
+// Player or Scenery, wherever they sit in the vector), tested exactly
+// once — N*(N-1)/2 tests over the collected pool indices. Overlap is
+// symmetric, so BOTH flags are set. The caller owns the flag vector
+// and must have rebuilt it from zero first (main.cpp does: collision
+// state is derived fresh every frame, never remembered). Hostiles
+// (role Hostile) remain excluded wherever they sit: no
+// index-position assumption.
 inline void scanSceneryCollisions(const std::vector<Entity>& entities,
-                                  std::vector<char>& colliding,
-                                  size_t sceneryCount) {
-    for (size_t i = 0; i < sceneryCount; ++i) {
-        for (size_t j = i + 1; j < sceneryCount; ++j) {
-            if (pe::aabbOverlap(entities[i], entities[j])) {
-                colliding[i] = 1;
-                colliding[j] = 1;
+                                  std::vector<char>& colliding) {
+    std::vector<size_t> pool;
+    for (size_t i = 0; i < entities.size(); ++i) {
+        if (entities[i].role == EntityRole::Player || entities[i].role == EntityRole::Scenery) {
+            pool.push_back(i);
+        }
+    }
+    for (size_t a = 0; a < pool.size(); ++a) {
+        for (size_t b = a + 1; b < pool.size(); ++b) {
+            if (pe::aabbOverlap(entities[pool[a]], entities[pool[b]])) {
+                colliding[pool[a]] = 1;
+                colliding[pool[b]] = 1;
             }
         }
     }
