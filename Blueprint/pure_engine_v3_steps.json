@@ -242,6 +242,20 @@
       "depends_on": [
         51
       ]
+    },
+    {
+      "id": 53,
+      "name": "Depth layering fix: player foreground (depth=3)",
+      "status": "completed",
+      "definition_of_done": "Player entity renders on top of all other entities (scenery/hostile) by depth ordering. Confirmed visible on both scenery collision and hostile catch via playtest.",
+      "notes": "One-line depth reassignment. Player now depth=3 (foreground), scenery=1 (mid-layer), hostile=2. Accepted side effect: player also covers hostiles during catch frame. Comment in entity.h (depth=0 is background) left stale, deferred to future cleanup sweep.",
+      "implementation": "In src/lifecycle.h buildInitialEntities(), changed player.depth = 0 to player.depth = 3. No other changes.",
+      "verification": "Verified by user playtest: player red-tint visible on scenery overlap, player red-flash visible on hostile catch, catch mechanic still ends run normally.",
+      "commit": "1d4c68a",
+      "depends_on": [
+        51,
+        52
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
