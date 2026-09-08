@@ -214,6 +214,21 @@
         47,
         49
       ]
+    },
+    {
+      "id": 51,
+      "name": "Role-based scenery collision scan (Phase 1)",
+      "status": "completed",
+      "definition_of_done": "scanSceneryCollisions refactored to collect player and scenery entities by role, eliminating hardcoded index ranges. All three playtest scenarios verified (collision tint+beep, hostile catch, player movement all four directions).",
+      "notes": "Phase 1 simplifies collision logic by matching the role-gated patterns established in Step 47. Player lookup was already role-filtered (Step 47); this change role-filters the scenery collision pool. Behavior unchanged, code cleaner.",
+      "implementation": "In src/simulation.h, scanSceneryCollisions now collects Player/Scenery-role entity indices into a pool and pair-tests those; the size_t sceneryCount parameter is removed. In src/main.cpp, the call site drops constexpr sceneryCount = 3 and passes only (entities, colliding); directly-touched comments updated. lifecycle.h/renderer.h comment cleanup deferred to future session.",
+      "verification": "Verified by playtest: collision (red flash + beep on scenery hit), catch (GAME_OVER on hostile reach), movement (all four arrow directions work opposite-screen as expected under snap-follow camera).",
+      "commit": "36977e6",
+      "depends_on": [
+        45,
+        46,
+        47
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

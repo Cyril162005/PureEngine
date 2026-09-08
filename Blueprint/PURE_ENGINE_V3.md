@@ -9,7 +9,7 @@ The current project remains intentionally minimal. The source and build output r
 Continue from the verified engine hardening work without inventing new abstractions, managers, or registries before a concrete need is demonstrated.
 
 ## Rule
-No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. Steps 25 through 50 are tracked in `Blueprint/pure_engine_v3_steps.json` (Step 44 marked "superseded" by Step 48) and cover engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation.
+No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. Steps 25 through 51 are tracked in `Blueprint/pure_engine_v3_steps.json` (Step 44 marked "superseded" by Step 48) and cover engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, stress-test validation, and role-based collision scanning (51).
 
 ## Candidate Roadmap
 The items below are non-binding, exploratory ideas only. They are not a step queue and do not define the next concrete requirement. The goal is to make PureEngine feel like a playable 2026 arcade survival game while staying flat/2D and avoiding 3D or engine-framework scope.
@@ -20,6 +20,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - A win condition or objective beyond pure survival time
 - Menu/UI polish (instructions, controls hint)
 - Packaging for distribution (itch.io-ready build)
+- ✓ Phase 1: Role-based collision scanning (Step 51, completed)
 
 This list is intentionally not the step queue. Steps still get pulled one at a time from real code inspection, and `kill_criteria` still applies to any future work.
 
