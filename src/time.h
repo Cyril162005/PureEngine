@@ -20,10 +20,11 @@
  *      the timer display, the high score, and the PLAYING-only
  *      accumulation gate all stay in main.cpp — the mechanism knows
  *      what a second IS; the game decides what seconds MEAN;
- *    - any fixed timestep, accumulator, delta clamping, minimum or
- *      maximum delta, frame limiter, sleep, pause-aware timing, or
- *      elapsed-time API — none of those exist in this engine and the
- *      blueprint prescribes no fixed timestep;
+ *    - any fixed timestep, accumulator, frame limiter, sleep, pause-aware
+ *      timing, or elapsed-time API — none of those exist in this engine;
+ *      tick() clamps delta to a maximum of 0.1s via std::min to prevent
+ *      large time jumps (e.g. after a debugger pause or window drag)
+ *      from causing simulation instability;
  *    - any dependency on input, camera, entities, or game state.
  *
  *  THE CRITICAL INVARIANT — sampling position. Step 2 deliberately
