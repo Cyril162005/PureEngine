@@ -330,7 +330,8 @@ public:
     // math at all; it only submits.
     void drawWorld(const Mat4& projection, const Mat4& view,
                    const std::vector<Entity>& entities,
-                   const std::vector<char>& colliding) {
+                   const std::vector<char>& colliding,
+                   int playerRoleId, int sceneryRoleId) {
         glUseProgram(shaderProgram);
 
         // Bind the world VAO ONCE: every entity shares this vertex data —
@@ -380,9 +381,9 @@ public:
             // fallback default even though every branch overrides it —
             // legacy asset, sampled by no entity anymore.
             GLuint entityTexture = checkerTexture;   // legacy default, never sampled now
-            if (entity.role == EntityRole::Player) {
+            if (entity.roleId == playerRoleId) {
                 entityTexture = playerTexture;
-            } else if (entity.role == EntityRole::Scenery) {
+            } else if (entity.roleId == sceneryRoleId) {
                 entityTexture = sceneryTexture;
             } else {
                 const int textureId = entity.textureId;
@@ -501,7 +502,8 @@ public:
     // and the existing checker texture (sampled, irrelevant because
     // the tint saturates everything visible).
     void drawAABBs(const Mat4& projection, const Mat4& view,
-                   const std::vector<Entity>& entities) {
+                   const std::vector<Entity>& entities,
+                   int playerRoleId) {
         glUseProgram(shaderProgram);
         glBindVertexArray(aabbVAO);
         // Checker texture on sampler unit 0 — any valid texture works;
@@ -531,7 +533,7 @@ public:
             // debug question is "does this rotating triangle fill its
             // square hitbox?", not "which type is which?" — textures
             // already show that.
-            if (entity.role == EntityRole::Player) {
+            if (entity.roleId == playerRoleId) {
                 glUniform3f(colorLocation, 1.0f, 0.5f, 0.0f);   // orange — player
             } else {
                 glUniform3f(colorLocation, 1.0f, 1.0f, 0.0f);   // yellow — scenery / hostiles

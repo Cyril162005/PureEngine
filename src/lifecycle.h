@@ -59,6 +59,13 @@
 
 namespace pe {
 
+// --- Step 54: game-side role identities (NOT engine vocabulary) ---
+// The engine stores roleId as an opaque int; THIS game assigns meaning:
+// 0 = player, 1 = scenery, 2 = hostile. These values are passed
+// explicitly to every engine filter that compares roles — the engine
+// itself never names them.
+enum class ArcadeRole { Player = 0, Scenery = 1, Hostile = 2 };
+
 // --- Build the initial world: the player and scenery constructions,
 // relocated whole from main.cpp (Step 7 / Step 12 / Phase 1 /
 // balance tuning). Order is CONTRACT: 0 = player, 1-2 = scenery,
@@ -73,12 +80,12 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
     entities.push_back(Entity(pe::Vec3(-1.5f, 0.0f, 0.0f), 0.9f,
                               pe::Vec3(1.0f, 1.0f, 1.0f)));
     entities.back().depth = 3;   // player — draws last (foreground layer, always visible)
-    entities.back().role = EntityRole::Player;
+    entities.back().roleId = static_cast<int>(ArcadeRole::Player);
     entities.back().moveSpeed = 0.0f;
     entities.push_back(Entity(pe::Vec3( 1.5f, 0.0f, 0.0f), 0.9f,
                               pe::Vec3(1.0f, 1.0f, 1.0f)));
     entities.back().depth = 1;   // scenery
-    entities.back().role = EntityRole::Scenery;
+    entities.back().roleId = static_cast<int>(ArcadeRole::Scenery);
     entities.back().moveSpeed = 0.0f;
     // Instance 3 — the proof that the loop scales without code
     // duplication: new position, new speed AND DIRECTION (-1.4 rad/s =
@@ -87,7 +94,7 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
     entities.push_back(Entity(pe::Vec3(0.0f, 1.5f, 0.0f), -1.4f,
                               pe::Vec3(0.6f, 0.6f, 1.0f)));
     entities.back().depth = 1;   // scenery
-    entities.back().role = EntityRole::Scenery;
+    entities.back().roleId = static_cast<int>(ArcadeRole::Scenery);
     entities.back().moveSpeed = 0.0f;
     // The hostile count and per-hostile values come from the selected
     // scene profile; each entry still uses the same representation.
@@ -97,7 +104,7 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
                                   pe::Vec3(0.5f, 0.5f, 0.0f),
                                   definition.textureId));
         entities.back().depth = 2;  // hostile — draws last (foreground layer)
-        entities.back().role = EntityRole::Hostile;
+        entities.back().roleId = static_cast<int>(ArcadeRole::Hostile);
         entities.back().moveSpeed = definition.baseSpeed;
     }
     return entities;

@@ -30,14 +30,11 @@
 
 namespace pe {
 
-// --- Step 47: explicit entity role ---
-// Distinguishes the gameplay purpose of each entity without relying
-// on container indices or magic numbers.
-enum class EntityRole {
-    Player,
-    Scenery,
-    Hostile
-};
+// --- Step 54: opaque role identity (replaces Step 47's arcade enum) ---
+// The engine stores an int it never interprets. The GAME assigns meaning
+// (arcade mapping: 0 = player, 1 = scenery, 2 = hostile — see ArcadeRole
+// in lifecycle.h). Engine filters compare roleId only against
+// caller-supplied values, never against engine-side names.
 
 struct Entity {
     Vec3 position;        // world position of the entity's origin
@@ -70,7 +67,7 @@ struct Entity {
     // a future step that reorders the vector (e.g. dynamic spawn,
     // entity removal) knows to sort by depth before drawing.
     int depth = 0;
-    EntityRole role = EntityRole::Scenery;
+    int roleId = 0;  // opaque game-defined identity (see above)
     float moveSpeed = 0.0f;
 
     // Default constructor: at the origin, unrotated, unscaled — an entity
@@ -86,7 +83,7 @@ struct Entity {
           halfExtents(0.7071f, 0.7071f, 0.0f),
           textureId(0),
           depth(0),
-          role(EntityRole::Scenery),
+          roleId(0),
           moveSpeed(0.0f) {}
 
     // Configured constructor: the things that differ per instance.
@@ -107,7 +104,7 @@ struct Entity {
           halfExtents(halfExtents),
           textureId(textureId),
           depth(0),
-          role(EntityRole::Scenery),
+          roleId(0),
           moveSpeed(0.0f) {}
 
     // Per-frame simulation: advance this entity's angle. This is the

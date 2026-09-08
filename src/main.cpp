@@ -670,8 +670,8 @@ int main() {
     // but the build order still belongs to pe::buildInitialEntities
     // (src/lifecycle.h) so the initial world remains a single named
     // responsibility. Roles (not vector positions) carry meaning:
-    // systems find Player/Scenery/Hostile via EntityRole wherever
-    // each entity sits.
+    // systems find Player/Scenery/Hostile via roleId (ArcadeRole
+    // values, game-defined) wherever each entity sits.
     const pe::HostileDefaults defaultHostileDefaults = pe::loadHostileDefaults("hostile_default.txt");
     const pe::HostileDefaults alternateHostileDefaults = pe::loadHostileDefaults("hostile_alt.txt");
     const pe::HostileDefaults* activeHostileDefaults = &defaultHostileDefaults;
@@ -947,11 +947,11 @@ int main() {
                 // --- Step 8 / Step 47: Player entity movement (ARROW keys) ---
                 // WASD belongs to the CAMERA (established Step 6 behavior,
                 // kept untouched). The ARROW keys move the Player entity
-                // through the world, identified via EntityRole::Player. Same
-                // RATE pattern as camera panning.
+                // through the world, identified via ArcadeRole::Player
+                // roleId. Same RATE pattern as camera panning.
                 pe::Entity* player = nullptr;
                 for (pe::Entity& entity : entities) {
-                    if (entity.role == pe::EntityRole::Player) {
+                    if (entity.roleId == static_cast<int>(pe::ArcadeRole::Player)) {
                         player = &entity;
                         break;
                     }
@@ -1066,7 +1066,9 @@ int main() {
             // comes from NUMBERS. The decision of WHEN this runs
             // (this frame, in this order, only in PLAYING) stays
             // here.
-            pe::chasePlayer(entities, difficultyScale, dt);
+            pe::chasePlayer(entities, difficultyScale, dt,
+                              static_cast<int>(pe::ArcadeRole::Player),
+                              static_cast<int>(pe::ArcadeRole::Hostile));
 
             // --- Step 8: Collision pass (after movement, before drawing) ---
             // One flag per entity, rebuilt from ZERO every frame: collision
@@ -1084,7 +1086,9 @@ int main() {
             // The rebuild line ABOVE stays here,
             // because the rebuild is the collision-state POLICY
             // (derived fresh, never remembered).
-            pe::scanSceneryCollisions(entities, colliding);
+            pe::scanSceneryCollisions(entities, colliding,
+                                          static_cast<int>(pe::ArcadeRole::Player),
+                                          static_cast<int>(pe::ArcadeRole::Scenery));
 
             // --- Step 10: per-entity collision EDGE detection + sound pool ---
             // Step 9's scalar OR-flag is gone. Now the previous frame's full
@@ -1129,10 +1133,10 @@ int main() {
             // rewind-if-busy, Steps 9/10 pattern), and flip the state
             // LAST so every per-frame system above ran exactly once on
             // the final frame. Same frame, same death, three threats.
-            // Step 47: identify player and hostiles via EntityRole
+            // Step 47/54: identify player and hostiles via ArcadeRole roleIds
             const pe::Entity* player = nullptr;
             for (const pe::Entity& entity : entities) {
-                if (entity.role == pe::EntityRole::Player) {
+                if (entity.roleId == static_cast<int>(pe::ArcadeRole::Player)) {
                     player = &entity;
                     break;
                 }
@@ -1140,7 +1144,7 @@ int main() {
             bool caught = false;
             if (player) {
                 for (const pe::Entity& entity : entities) {
-                    if (entity.role == pe::EntityRole::Hostile) {
+                    if (entity.roleId == static_cast<int>(pe::ArcadeRole::Hostile)) {
                         if (pe::aabbOverlap(*player, entity)) {
                             caught = true;
                             break;   // one catcher is enough — stop testing
@@ -1245,11 +1249,14 @@ int main() {
             // from the colliding flags, and one draw call per entity.
             // Step 15: the VIEW matrix now comes prebuilt from the
             // camera boundary; the renderer performs no camera math.
-            renderer.drawWorld(camera.projection(), camera.view(), entities, colliding);
+            renderer.drawWorld(camera.projection(), camera.view(), entities, colliding,
+                               static_cast<int>(pe::ArcadeRole::Player),
+                               static_cast<int>(pe::ArcadeRole::Scenery));
 
             // --- Step 42: debug AABB wireframes (F1 toggle) ---
             if (debugHitboxes) {
-                renderer.drawAABBs(camera.projection(), camera.view(), entities);
+                renderer.drawAABBs(camera.projection(), camera.view(), entities,
+                                    static_cast<int>(pe::ArcadeRole::Player));
             }
 
             // --- Game Build Phase 3/4: UI layer — survival timer + high score ---

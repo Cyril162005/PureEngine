@@ -8,8 +8,9 @@
  *
  *   - advanceRotations(): the per-entity rotation update — one loop,
  *     each entity advancing by its own speed via Entity::update(dt).
- *   - chasePlayer(): the hostile pursuit loop — every EntityRole::Hostile
- *     in the vector, direction = player - hostile normalized, scaled
+ *   - chasePlayer(): the hostile pursuit loop — every entity whose
+ *     roleId matches the caller-supplied hostile id, direction =
+ *     player - hostile normalized, scaled
  *     by THIS hostile's base speed (entity.moveSpeed) TIMES the
  *     frame's difficulty scale TIMES deltaTime, with the zero-length
  *     guard that keeps a hostile sitting exactly on the player still
@@ -66,19 +67,20 @@ inline void advanceRotations(std::vector<Entity>& entities, float dt) {
     }
 }
 
-// --- The hostile chase (Steps 12/Phase 1's loop, Step 47 role-based) ---
+// --- The hostile chase (Steps 12/Phase 1's loop, Step 54 role ids) ---
 // Pure pursuers: each hostile recomputes its own pursuit vector
 // every frame (no prediction, no flanking; difficulty comes from the
 // numbers — each hostile's Entity::moveSpeed and the shared Phase 2 ramp).
-// Hostiles are identified by EntityRole::Hostile.
-// Player position is located via EntityRole::Player.
+// Role identities arrive as caller-supplied ints (game-defined values);
+// the engine compares roleId only, never naming roles itself.
 // Guard keeps intent honest per hostile: zero distance means no
 // direction to move in.
 inline void chasePlayer(std::vector<Entity>& entities,
-                        float difficultyScale, float dt) {
+                        float difficultyScale, float dt,
+                        int playerRoleId, int hostileRoleId) {
     const pe::Entity* player = nullptr;
     for (const pe::Entity& entity : entities) {
-        if (entity.role == EntityRole::Player) {
+        if (entity.roleId == playerRoleId) {
             player = &entity;
             break;
         }
@@ -88,7 +90,7 @@ inline void chasePlayer(std::vector<Entity>& entities,
     }
 
     for (pe::Entity& entity : entities) {
-        if (entity.role == EntityRole::Hostile) {
+        if (entity.roleId == hostileRoleId) {
             const pe::Vec3 toPlayer = player->position - entity.position;
             if (toPlayer.length() > 0.0f) {
                 entity.position = entity.position + toPlayer.normalized() * (entity.moveSpeed * difficultyScale) * dt;
@@ -107,10 +109,11 @@ inline void chasePlayer(std::vector<Entity>& entities,
 // (role Hostile) remain excluded wherever they sit: no
 // index-position assumption.
 inline void scanSceneryCollisions(const std::vector<Entity>& entities,
-                                  std::vector<char>& colliding) {
+                                  std::vector<char>& colliding,
+                                  int playerRoleId, int sceneryRoleId) {
     std::vector<size_t> pool;
     for (size_t i = 0; i < entities.size(); ++i) {
-        if (entities[i].role == EntityRole::Player || entities[i].role == EntityRole::Scenery) {
+        if (entities[i].roleId == playerRoleId || entities[i].roleId == sceneryRoleId) {
             pool.push_back(i);
         }
     }
