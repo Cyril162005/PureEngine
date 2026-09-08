@@ -942,18 +942,8 @@ int main() {
                 // the ARITHMETIC into camera.move(); Step 16 moved the
                 // KEY READ into pe::Input::isDown. The direction choice
                 // and the PLAYING-only gate stay here.
-                if (pe::Input::isDown(window, GLFW_KEY_W)) {
-                    camera.move(0.0f, 1.0f, dt);   // camera up    -> scene slides down
-                }
-                if (pe::Input::isDown(window, GLFW_KEY_S)) {
-                    camera.move(0.0f, -1.0f, dt);  // camera down  -> scene slides up
-                }
-                if (pe::Input::isDown(window, GLFW_KEY_A)) {
-                    camera.move(-1.0f, 0.0f, dt);  // camera left  -> scene slides right
-                }
-                if (pe::Input::isDown(window, GLFW_KEY_D)) {
-                    camera.move(1.0f, 0.0f, dt);   // camera right -> scene slides left
-                }
+                // WASD free-pan removed: camera.follow(player->position)
+                // below is now the sole per-frame camera writer.
                 // --- Step 8 / Step 47: Player entity movement (ARROW keys) ---
                 // WASD belongs to the CAMERA (established Step 6 behavior,
                 // kept untouched). The ARROW keys move the Player entity
