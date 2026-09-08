@@ -72,7 +72,7 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
     // same unit scale.
     entities.push_back(Entity(pe::Vec3(-1.5f, 0.0f, 0.0f), 0.9f,
                               pe::Vec3(1.0f, 1.0f, 1.0f)));
-    entities.back().depth = 0;   // player — draws first (background layer)
+    entities.back().depth = 3;   // player — draws last (foreground layer, always visible)
     entities.back().role = EntityRole::Player;
     entities.back().moveSpeed = 0.0f;
     entities.push_back(Entity(pe::Vec3( 1.5f, 0.0f, 0.0f), 0.9f,
