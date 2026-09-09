@@ -1,0 +1,6 @@
+# PureEngine animation clip library (Step 58 draft content — replace with real clips when available)
+# Format: animation=name,frameCount,frameDuration,loops (true/1 = loop, false/0 = one-shot).
+# frameCount >= 1; durations in seconds (non-positive skipped safely by update()).
+# Clips index spritesheet cells per SpritesheetMetadata (renderer.h); no multi-frame art exists yet.
+animation=walk_left,8,0.1,true
+animation=idle,1,1.0,true

@@ -6,6 +6,7 @@
 #include <iomanip>   // Phase 3: fixed one-decimal-place formatting
 #include <fstream>   // Phase 4: high-score save file — the engine's FIRST disk write
 #include <filesystem> // Phase 4: create savedata/ before saving, without ever throwing
+#include <map>        // Step 58: animation clip library (name -> Animation)
 
 // --- Step 5: The Math Layer ---
 // Our OWN math code (src/math/), not an external library. Header-only:
@@ -108,6 +109,7 @@
 // runtime, and restoration IS its removal semantics. Header-only:
 // no CMakeLists.txt change.
 #include "lifecycle.h"
+#include "animation_data.h"  // Step 58: clip library load (game-owned map)
 
 // --- Step 20: Audio Boundary ---
 // Every miniaudio MECHANISM moved out of this file into pe::Audio
@@ -662,6 +664,13 @@ int main() {
         return -1;
     }
 
+    // --- Step 58: animation clip library (game-owned, outlives entities) ---
+    // Bare filename: loadAnimations() probes assets/ itself (hostile_data
+    // pattern). The map lives in main scope so clip pointers stay valid
+    // for the whole run; entities only borrow them (see animation.h).
+    const std::map<std::string, pe::Animation> animations =
+        pe::loadAnimations("animation_default.txt");
+
     // --- Step 57: spritesheet layout assumed for every entity ---
     // No multi-frame art exists yet: 8-wide, 1 total = full texture for
     // all draws (verified no-op vs. the old path). Per-entity sheets
@@ -682,6 +691,20 @@ int main() {
     const pe::HostileDefaults alternateHostileDefaults = pe::loadHostileDefaults("hostile_alt.txt");
     const pe::HostileDefaults* activeHostileDefaults = &defaultHostileDefaults;
     std::vector<pe::Entity> entities = pe::buildInitialEntities(*activeHostileDefaults);
+    // --- Step 58: assign clips BEFORE the snapshot (else resets wipe them) ---
+    // First hostile dances: role lookup, never entities[0] (that's the
+    // player). Known limit: activateScene() rebuilds without assignment,
+    // so the alt scene loses clips until lifecycle integration (later).
+    for (pe::Entity& entity : entities) {
+        if (entity.roleId == static_cast<int>(pe::ArcadeRole::Hostile)) {
+            const auto clip = animations.find("walk_left");
+            if (clip != animations.end()) {
+                entity.animationState.currentAnimation = &clip->second;
+                entity.animationState.isPlaying = true;
+            }
+            break;  // first hostile only (Step 58 scope)
+        }
+    }
     // --- Step 11: the INITIAL world, kept as DATA ---
     // A snapshot of the fresh entity list. Starting a game from the
     // menu restores it — reset is an ASSIGNMENT, not new code, which
@@ -1095,6 +1118,12 @@ int main() {
             pe::scanSceneryCollisions(entities, colliding,
                                           static_cast<int>(pe::ArcadeRole::Player),
                                           static_cast<int>(pe::ArcadeRole::Scenery));
+            // --- Step 58: advance playing clips (caller applies speed) ---
+            for (pe::Entity& entity : entities) {
+                if (entity.animationState.isPlaying) {
+                    entity.animationState.update(dt * entity.animationSpeed);
+                }
+            }
 
             // --- Step 10: per-entity collision EDGE detection + sound pool ---
             // Step 9's scalar OR-flag is gone. Now the previous frame's full
