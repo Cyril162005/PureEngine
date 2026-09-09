@@ -294,6 +294,19 @@
       "verification": "Build clean (all 3 targets), CTest 1/1 passed (0.36s), Arcade alive 6s, Pong alive 6s, entity.h compiles animation.h successfully, +28 bytes per Entity (acceptable).",
       "commit": "6d3b1d2",
       "depends_on": []
+    },
+    {
+      "id": 57,
+      "name": "Renderer animation frame integration: UV calculation",
+      "status": "completed",
+      "definition_of_done": "Renderer calculates UV rects for spritesheet frames via calculateFrameUV(). drawWorld() accepts SpritesheetMetadata (framesPerRow, totalFrames). Per-entity frame resolution wired. Non-breaking: frame 0/full-texture default preserves existing visuals. Build clean, CTest 1/1, Arcade/Pong run unchanged.",
+      "notes": "Header-only implementation (no separate renderer.cpp). V-axis orientation documented. Fixed VBO state leak (animated draws no longer corrupt static draws). totalFrames<=1 guard prevents sliver UV bug. Ready for Step 58 (data-driven animation files).",
+      "implementation": "calculateFrameUV() in renderer.h computes UV rect from frameIndex+grid. Extended drawWorld() signature with SpritesheetMetadata. Updated draw loop to use frame UVs. Updated Arcade/Pong call sites (non-breaking defaults).",
+      "verification": "Build clean (all 3 targets), CTest 1/1 (0.31s), Arcade alive 6s (visuals unchanged), Pong alive 6s (visuals unchanged).",
+      "commit": "a00678e",
+      "depends_on": [
+        56
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
