@@ -270,6 +270,19 @@
         47,
         51
       ]
+    },
+    {
+      "id": 55,
+      "name": "Genericize renderer.h: texture index slots",
+      "status": "completed",
+      "definition_of_done": "Renderer texture selection switched from role-gated branches to index-slot array. Role params deleted from drawWorld. All textureIds assigned uniquely: 0=player (green), 1=scenery (blue), 2=hostile (crimson), 3=hostile_alt (orange). Playtest verified all archetypes render correctly.",
+      "notes": "Crux: textureId 0 was shared by three entity types — Step 55 reassigns slots to eliminate conflict. Data files rewritten for consistency (including all stress fixtures). drawAABBs playerRoleId param kept (debug highlighting, role-agnostic).",
+      "implementation": "renderer.h: replaced named texture fields with entityTextures[4] array, deleted role params from drawWorld, added bounds-check fallback. lifecycle.h: assigned explicit textureIds (0/1). hostile_data.h: default textureId 0→2. All data files: updated with new slot numbers. main.cpp: dropped role args at drawWorld call.",
+      "verification": "Verified by playtest: player green (0), scenery blue (1), hostile crimson (2), alt orange (3), collision tint, F1 overlay, both scenes.",
+      "commit": "83f7477",
+      "depends_on": [
+        54
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
