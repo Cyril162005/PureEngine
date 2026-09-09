@@ -145,6 +145,24 @@ add_test(NAME hostile_data_test COMMAND hostile_data_test)
 # This avoids exposing the whole src/ directory, which is what makes
 # src/time.h shadow the CRT's time.h during compilation.
 
+# Pong API-gate target: a second game built ONLY on public engine headers
+# (math, entity, renderer, camera, input). Headers are included by relative
+# path from games/pong/pong.cpp — src/ is deliberately NOT on this target's
+# include path, for the time.h-shadowing reason above. No POST_BUILD asset
+# copy yet: run Pong from the repo root so the 3-candidate probe finds
+# assets/; packaging a second game is a separate decision.
+add_executable(Pong
+    games/pong/pong.cpp
+    src/stb_impl.cpp
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
+)
+
+target_include_directories(Pong PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(Pong PRIVATE "${stb_SOURCE_DIR}")
+
+# Link GLFW only (no miniaudio: the scaffold uses no audio boundary).
+target_link_libraries(Pong glfw)
+
 # On Linux, we might need extra libs
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)

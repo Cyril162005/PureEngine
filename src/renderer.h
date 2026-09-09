@@ -69,6 +69,51 @@
 
 namespace pe {
 
+// --- Step 57: spritesheet frame UVs (namespace scope, no GL state) ---
+// A normalized sub-rectangle of a texture: what one animation frame
+// samples. Full texture is {0,0,1,1} — the only rect Step 57 ever
+// produces in practice (no multi-frame art exists yet).
+struct UVRect {
+    float minU, minV, maxU, maxV;
+};
+
+// Layout of the sprite sheet every entity is assumed to share for now
+// (per-entity sheets arrive with data-driven animation in Step 58).
+// totalFrames = 1 means "no animation": full-texture sampling.
+struct SpritesheetMetadata {
+    int framesPerRow = 8;
+    int totalFrames = 1;
+};
+
+// Which sub-rect frame `frameIndex` occupies. Degenerate inputs
+// (non-positive row count, 0/1 total frames) and out-of-range indices
+// all resolve to the full texture — never an error, never empty.
+// Row 0 is the image TOP row: stb decodes top-first with no vertical
+// flip (no stbi_set_flip_vertically_on_load anywhere — same convention
+// as the digit path, whose glyph UVs put v=1 at the quad bottom).
+inline UVRect calculateFrameUV(int frameIndex, int framesPerRow, int totalFrames) {
+    if (framesPerRow <= 0 || totalFrames <= 1) {
+        return UVRect{0.0f, 0.0f, 1.0f, 1.0f};
+    }
+    if (frameIndex < 0) {
+        frameIndex = 0;
+    }
+    if (frameIndex > totalFrames - 1) {
+        frameIndex = totalFrames - 1;
+    }
+    const int col = frameIndex % framesPerRow;
+    const int row = frameIndex / framesPerRow;
+    const int totalRows = (totalFrames + framesPerRow - 1) / framesPerRow;
+    const float w = 1.0f / static_cast<float>(framesPerRow);
+    const float h = 1.0f / static_cast<float>(totalRows);
+    UVRect rect;
+    rect.maxV = 1.0f - static_cast<float>(row) * h;
+    rect.minV = rect.maxV - h;
+    rect.minU = static_cast<float>(col) * w;
+    rect.maxU = rect.minU + w;
+    return rect;
+}
+
 class Renderer {
 public:
     // --- Step 13: create every GPU resource the game renders with ---
@@ -330,7 +375,8 @@ public:
     // math at all; it only submits.
     void drawWorld(const Mat4& projection, const Mat4& view,
                    const std::vector<Entity>& entities,
-                   const std::vector<char>& colliding) {
+                   const std::vector<char>& colliding,
+                   const SpritesheetMetadata& spritesheet = SpritesheetMetadata{}) {
         glUseProgram(shaderProgram);
 
         // Bind the world VAO ONCE: every entity shares this vertex data —
@@ -383,6 +429,30 @@ public:
                 ? entityTextures[slot]
                 : checkerTexture;
             glBindTexture(GL_TEXTURE_2D, entityTexture);
+            // --- Step 57: animation frame UVs ---
+            // Base positions are constant — only the UV pairs vary per
+            // frame rect. Rebuilt + re-uploaded for EVERY draw (static
+            // or animated): a uniform path with no stale-VBO hazard
+            // where one animated draw would leak its UVs into the next
+            // static draw. Same stack-array + DYNAMIC re-upload idiom as
+            // the digit path; 60 bytes per entity per frame.
+            int frame = 0;
+            if (entity.animationState.isPlaying) {
+                const AnimationFrame* clipFrame = entity.animationState.getCurrentFrame();
+                if (clipFrame) {
+                    frame = clipFrame->frameIndex;
+                }
+            }
+            const UVRect frameUV = calculateFrameUV(frame, spritesheet.framesPerRow,
+                                                    spritesheet.totalFrames);
+            const float midU = (frameUV.minU + frameUV.maxU) * 0.5f;
+            const float frameVerts[] = {
+                -0.5f, -0.5f, 0.0f,     frameUV.minU, frameUV.minV,
+                 0.5f, -0.5f, 0.0f,     frameUV.maxU, frameUV.minV,
+                 0.0f,  0.5f, 0.0f,     midU, frameUV.maxV
+            };
+            glBindBuffer(GL_ARRAY_BUFFER, worldVBO);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(frameVerts), frameVerts, GL_DYNAMIC_DRAW);
             // Build this entity's MVP from its own data.
             Mat4 mvp = projection * view * entity.modelMatrix();
             // Upload to the 'transform' uniform (GL_FALSE: our Mat4 is
