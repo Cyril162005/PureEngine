@@ -283,6 +283,17 @@
       "depends_on": [
         54
       ]
+    },
+    {
+      "id": 56,
+      "name": "Animation system foundation: data structures + Entity fields",
+      "status": "completed",
+      "definition_of_done": "animation.h defines Animation (frame sequence), AnimationFrame (index+duration), AnimationState (runtime playback state). Entity extended with animationState + animationSpeed fields. AnimationState::update(dt) advances frames autonomously. Non-breaking: Arcade/Pong both run unchanged. Verified: build clean, CTest 1/1, both games alive 6s.",
+      "notes": "Step 56 is data structure only — no rendering integration yet (Step 57). AnimationState tracks current frame, elapsed time, playback state. Zero-duration frame hang fixed with bounded advance loop. Ownership contract documented (non-owning pointer, game-managed lifetime). Entity size +28 bytes (well under limit). No createAnimation helper (Part 3 rejected: header-only project convention, single-helper .cpp unjustified).",
+      "implementation": "Created animation.h (AnimationFrame, Animation, AnimationState with bounded update + private advance helper). Extended entity.h: added #include, two new fields (animationState, animationSpeed), updated both ctors. No changes to existing functionality.",
+      "verification": "Build clean (all 3 targets), CTest 1/1 passed (0.36s), Arcade alive 6s, Pong alive 6s, entity.h compiles animation.h successfully, +28 bytes per Entity (acceptable).",
+      "commit": "6d3b1d2",
+      "depends_on": []
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
