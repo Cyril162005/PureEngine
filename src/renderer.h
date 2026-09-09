@@ -219,11 +219,11 @@ public:
         // resource boundary by Step 14. Tint rule reminder:
         // every palette color keeps red-channel content, or it would
         // render BLACK under the collision tint.
-        playerTexture = loadRgbAsset("tex_player.png");
-        sceneryTexture = loadRgbAsset("tex_scenery.png");
-        hostileTexture = loadRgbAsset("tex_hostile.png");
-        hostileTextureAlt = loadRgbAsset("tex_hostile_alt.png");
-        if (playerTexture == 0 || sceneryTexture == 0 || hostileTexture == 0 || hostileTextureAlt == 0) {
+        entityTextures[0] = loadRgbAsset("tex_player.png");
+        entityTextures[1] = loadRgbAsset("tex_scenery.png");
+        entityTextures[2] = loadRgbAsset("tex_hostile.png");
+        entityTextures[3] = loadRgbAsset("tex_hostile_alt.png");
+        if (entityTextures[0] == 0 || entityTextures[1] == 0 || entityTextures[2] == 0 || entityTextures[3] == 0) {
             std::cerr << "Failed to load Phase 5 entity textures (tried: assets/, ../assets/, ../../assets/)" << std::endl;
             destroyAll();
             return false;
@@ -330,8 +330,7 @@ public:
     // math at all; it only submits.
     void drawWorld(const Mat4& projection, const Mat4& view,
                    const std::vector<Entity>& entities,
-                   const std::vector<char>& colliding,
-                   int playerRoleId, int sceneryRoleId) {
+                   const std::vector<char>& colliding) {
         glUseProgram(shaderProgram);
 
         // Bind the world VAO ONCE: every entity shares this vertex data —
@@ -353,10 +352,10 @@ public:
         // A permutation of INDICES is sorted by entity.depth (stable, so
         // entities sharing a depth keep their existing relative order) —
         // neither entities nor colliding is reordered in place, because
-        // both the colliding[] lookup and the texture-select branches
-        // below still address by ORIGINAL index (i == 0, i < 3), not by
-        // sorted position. The texture-select branches below use entity.role
-        // instead of raw index. On the CURRENT entity set this permutation is
+        // the colliding[] lookup addresses by ORIGINAL index, not by
+        // sorted position. Texture selection needs no index at all:
+        // entity.textureId addresses the slot array directly.
+        // On the CURRENT entity set this permutation is
         // a no-op (construction order already matches depth order), so
         // today's visual draw order is unchanged. It becomes load-bearing
         // only if a future step reorders the underlying vector (dynamic
@@ -373,22 +372,16 @@ public:
         for (size_t k = 0; k < drawOrder.size(); ++k) {
             const size_t i = drawOrder[k];
             const Entity& entity = entities[i];
-            // --- Game Build Phase 5: per-entity texture selection ---
-            // Index 0 is the player, 1..2 are the scenery pair, 3 onward
-            // are hostiles — the exact same index convention the collision
-            // loops in main.cpp use. One bind per entity is cheap (six
-            // tiny textures, no state thrash). The checker is kept as the
-            // fallback default even though every branch overrides it —
-            // legacy asset, sampled by no entity anymore.
-            GLuint entityTexture = checkerTexture;   // legacy default, never sampled now
-            if (entity.roleId == playerRoleId) {
-                entityTexture = playerTexture;
-            } else if (entity.roleId == sceneryRoleId) {
-                entityTexture = sceneryTexture;
-            } else {
-                const int textureId = entity.textureId;
-                entityTexture = (textureId == 1) ? hostileTextureAlt : hostileTexture;
-            }
+            // --- Step 55: per-entity texture selection by slot ---
+            // entity.textureId indexes entityTextures[] directly ([0]=player,
+            // [1]=scenery, [2]=hostile, [3]=alt — assigned game-side at
+            // construction / in data files). Out-of-range ids fall back to
+            // the legacy checker. One bind per entity is cheap (tiny
+            // textures, no state thrash).
+            const int slot = entity.textureId;
+            const GLuint entityTexture = (slot >= 0 && slot < TEXTURE_SLOTS)
+                ? entityTextures[slot]
+                : checkerTexture;
             glBindTexture(GL_TEXTURE_2D, entityTexture);
             // Build this entity's MVP from its own data.
             Mat4 mvp = projection * view * entity.modelMatrix();
@@ -567,10 +560,9 @@ private:
         glDeleteBuffers(1, &worldVBO);
         glDeleteProgram(shaderProgram);
         glDeleteTextures(1, &fontTexture);
-        glDeleteTextures(1, &playerTexture);
-        glDeleteTextures(1, &sceneryTexture);
-        glDeleteTextures(1, &hostileTexture);
-        glDeleteTextures(1, &hostileTextureAlt);
+        for (int i = 0; i < TEXTURE_SLOTS; ++i) {
+            glDeleteTextures(1, &entityTextures[i]);
+        }
         glDeleteTextures(1, &checkerTexture);
         textVAO = 0;
         textVBO = 0;
@@ -578,10 +570,9 @@ private:
         worldVBO = 0;
         shaderProgram = 0;
         fontTexture = 0;
-        playerTexture = 0;
-        sceneryTexture = 0;
-        hostileTexture = 0;
-        hostileTextureAlt = 0;
+        for (int i = 0; i < TEXTURE_SLOTS; ++i) {
+            entityTextures[i] = 0;
+        }
         checkerTexture = 0;
     }
 
@@ -592,11 +583,9 @@ private:
     GLuint worldVAO = 0, worldVBO = 0;  // Step 4/10: the triangle geometry
     GLuint textVAO = 0, textVBO = 0;    // Phase 3: the glyph quad geometry
     GLuint aabbVAO = 0, aabbVBO = 0;    // Step 42: debug unit-square line loop
-    GLuint checkerTexture = 0;       // Step 10: legacy, sampled by no entity
-    GLuint playerTexture = 0;        // Phase 5: warm green
-    GLuint sceneryTexture = 0;       // Phase 5: steel blue
-    GLuint hostileTexture = 0;       // Phase 5: crimson (never tinted)
-    GLuint hostileTextureAlt = 0;    // Optional hostile variant texture
+    GLuint checkerTexture = 0;       // Step 10: legacy, out-of-range fallback
+    static constexpr int TEXTURE_SLOTS = 4;
+    GLuint entityTextures[TEXTURE_SLOTS] = {};  // Step 55 slots: [0]=player green, [1]=scenery blue, [2]=hostile crimson, [3]=hostile alt
     GLuint fontTexture = 0;          // Phase 3: the RGBA digit atlas
 
     // The atlas's geometry, known FROM THE GENERATOR (not queried):

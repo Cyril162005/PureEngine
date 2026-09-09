@@ -81,11 +81,13 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
                               pe::Vec3(1.0f, 1.0f, 1.0f)));
     entities.back().depth = 3;   // player — draws last (foreground layer, always visible)
     entities.back().roleId = static_cast<int>(ArcadeRole::Player);
+    entities.back().textureId = 0;   // slot 0 = player
     entities.back().moveSpeed = 0.0f;
     entities.push_back(Entity(pe::Vec3( 1.5f, 0.0f, 0.0f), 0.9f,
                               pe::Vec3(1.0f, 1.0f, 1.0f)));
     entities.back().depth = 1;   // scenery
     entities.back().roleId = static_cast<int>(ArcadeRole::Scenery);
+    entities.back().textureId = 1;   // slot 1 = scenery
     entities.back().moveSpeed = 0.0f;
     // Instance 3 — the proof that the loop scales without code
     // duplication: new position, new speed AND DIRECTION (-1.4 rad/s =
@@ -95,6 +97,7 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
                               pe::Vec3(0.6f, 0.6f, 1.0f)));
     entities.back().depth = 1;   // scenery
     entities.back().roleId = static_cast<int>(ArcadeRole::Scenery);
+    entities.back().textureId = 1;   // slot 1 = scenery
     entities.back().moveSpeed = 0.0f;
     // The hostile count and per-hostile values come from the selected
     // scene profile; each entry still uses the same representation.

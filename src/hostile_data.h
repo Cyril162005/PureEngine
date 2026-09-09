@@ -28,14 +28,14 @@ struct HostileDefinition {
     float baseSpeed;
     Vec3 spawnPosition;
     float rotationSpeed;
-    int textureId = 0;
+    int textureId = 2;  // slot 2 = hostile (slot 0 = player, 1 = scenery, 3 = alt)
 };
 
 struct HostileDefaults {
     std::vector<HostileDefinition> hostiles{
-        {1.8f, Vec3(0.0f, -2.0f, 0.0f), 1.8f, 0},
-        {1.6f, Vec3(3.0f, 2.0f, 0.0f), -1.2f, 0},
-        {1.5f, Vec3(-3.0f, 2.0f, 0.0f), 2.2f, 0}
+        {1.8f, Vec3(0.0f, -2.0f, 0.0f), 1.8f, 2},
+        {1.6f, Vec3(3.0f, 2.0f, 0.0f), -1.2f, 2},
+        {1.5f, Vec3(-3.0f, 2.0f, 0.0f), 2.2f, 2}
     };
     float difficultyRate = 0.01f;
     float maxDifficultyScale = 1.33f;
@@ -122,7 +122,7 @@ inline HostileDefaults loadHostileDefaults(const std::string& fileName = "hostil
                     ok = false;
                     break;
                 }
-                const int textureId = (vals.size() == 5) ? static_cast<int>(vals[4]) : 0;
+                const int textureId = (vals.size() == 5) ? static_cast<int>(vals[4]) : 2;
                 parsedHostiles.push_back({vals[0], Vec3(vals[1], vals[2], 0.0f), vals[3], textureId});
             } else if (key == "difficulty_rate") {
                 std::stringstream stream(value);

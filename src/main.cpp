@@ -1249,9 +1249,7 @@ int main() {
             // from the colliding flags, and one draw call per entity.
             // Step 15: the VIEW matrix now comes prebuilt from the
             // camera boundary; the renderer performs no camera math.
-            renderer.drawWorld(camera.projection(), camera.view(), entities, colliding,
-                               static_cast<int>(pe::ArcadeRole::Player),
-                               static_cast<int>(pe::ArcadeRole::Scenery));
+            renderer.drawWorld(camera.projection(), camera.view(), entities, colliding);
 
             // --- Step 42: debug AABB wireframes (F1 toggle) ---
             if (debugHitboxes) {
