@@ -307,6 +307,19 @@
       "depends_on": [
         56
       ]
+    },
+    {
+      "id": 58,
+      "name": "Data-driven animation loading: animation_data.h + file parsing",
+      "status": "completed",
+      "definition_of_done": "animation_data.h implements pe::loadAnimations() with strict exception-free parsing, 3-candidate file probe, warn-and-skip on malformed lines. Loads animation definitions from assets/animation_default.txt. main.cpp integrated: animation tick loop added to PLAYING, first hostile assigned walk_left animation. CMake POST_BUILD copies asset. Parse proof: zero warnings on load. Build clean, CTest 1/1, Arcade/Pong run unchanged.",
+      "notes": "Mirrors hostile_data.h discipline exactly (no-throw parsing, probe, fallback). Animation assignment placed before snapshot (reset-safe). Known limit: alt scene loses clips (will integrate in Step 59 lifecycle work). Tick loop uses dt*animationSpeed (animationSpeed field now has consumer).",
+      "implementation": "Created animation_data.h: free function pe::loadAnimations(filename), 3-candidate probe, trim/parse helpers duplicated locally (coupling avoidance). Extended main.cpp: animation load at init, tick loop in PLAYING, role-lookup assignment for first hostile. Added CMake POST_BUILD copy for animation_default.txt.",
+      "verification": "Build clean (all 3 targets, CMake reconfigured 22s), CTest 1/1 (0.63s), Arcade alive 7s (parse proof: zero warnings), Pong alive (unaffected), animation_default.txt loaded cleanly (walk_left + idle).",
+      "commit": "ea6d80e",
+      "depends_on": [
+        57
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
