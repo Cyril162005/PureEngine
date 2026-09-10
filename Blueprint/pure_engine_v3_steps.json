@@ -372,6 +372,19 @@
       "depends_on": [
         60
       ]
+    },
+    {
+      "id": 63,
+      "name": "Tilemap system foundation",
+      "status": "completed",
+      "definition_of_done": "tilemap.h with Tile/Tilemap, loadTilemap (hostile_data discipline), tilemapToEntities, collideEntityWithTilemap (returns axis normal). Sample assets/tilemap_default.txt. 3 proof cases in existing test binary. Non-breaking.",
+      "notes": "Render path = synthesize entities -> existing drawWorld (second call). tileId==0 = empty. World mapping documented. Two deviations accepted: loadTilemap takes const std::string& (sibling style); empty-range loop fixed pre-commit.",
+      "implementation": "src/tilemap.h (~290 lines), assets/tilemap_default.txt (10x8), +140 lines in hostile_data_test.cpp",
+      "verification": "Build clean, CTest 1/1 (8 cases total), Arcade/Pong unchanged (do not include header).",
+      "commit": "786381d",
+      "depends_on": [
+        62
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
