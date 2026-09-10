@@ -463,6 +463,19 @@
       "depends_on": [
         68
       ]
+    },
+    {
+      "id": 70,
+      "name": "Particle system foundation",
+      "status": "completed",
+      "definition_of_done": "particles.h with Particle, Emitter, spawnParticle/emit/updateParticles/particlesToEntities. Swap-remove pool, capped emitter, drawWorld converter. Proof cases in existing test binary. Non-breaking.",
+      "notes": "Renders as textured triangles via drawWorld (no quads/points yet). Color stored, not rendered. No game wiring yet. First std::rand use in src/.",
+      "implementation": "src/particles.h (~170 lines), +179 lines in hostile_data_test.cpp",
+      "verification": "Build clean, CTest 1/1 (31 cases), Arcade/Pong untouched.",
+      "commit": "d7245fa",
+      "depends_on": [
+        69
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
