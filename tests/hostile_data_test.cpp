@@ -8,6 +8,7 @@
 #include "../src/events.h"
 #include "../src/gamepad.h"
 #include "../src/particles.h"
+#include "../src/physics.h"
 #include "../src/font.h"
 #include "../src/hostile_data.h"
 #include "../src/scene.h"
@@ -1146,6 +1147,199 @@ static bool checkParticleConverter() {
     return true;
 }
 
+static pe::Entity makeStaticBox(float x, float y, float hx, float hy) {
+    pe::Entity e;
+    e.position = pe::Vec3(x, y, 0.0f);
+    e.halfExtents = pe::Vec3(hx, hy, 0.0f);
+    e.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+    e.isStatic = true;
+    return e;
+}
+
+static pe::Entity makeCharacter(float x, float y) {
+    pe::Entity e;
+    e.position = pe::Vec3(x, y, 0.0f);
+    e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.0f);
+    e.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+    e.gravityScale = 1.0f;
+    e.velocity = pe::Vec3(0.0f, 0.0f, 0.0f);
+    return e;
+}
+
+static bool checkStaticFloorLanding() {
+    // Floor top at y=0; character half-height 0.5 -> rest y must be 0.5.
+    const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+    pe::Entity c = makeCharacter(0.0f, 5.0f);
+    bool landed = false;
+    for (int i = 0; i < 300 && !landed; ++i) {
+        landed = pe::updateCharacterController(c, statics, 1.0f / 60.0f, false);
+    }
+    if (!landed) {
+        std::cerr << "Character never reported grounded while falling\n";
+        return false;
+    }
+    // The grounded flag is tolerance-based (0.05): it trips on contact
+    // approach, one frame before penetration resolves. Settle a few frames
+    // so position/velocity reach the true rest state, then assert rest.
+    for (int i = 0; i < 10; ++i) {
+        pe::updateCharacterController(c, statics, 1.0f / 60.0f, false);
+    }
+    if (!assertFloatClose(c.position.y, 0.5f) ||
+        !assertFloatClose(c.velocity.y, 0.0f)) {
+        std::cerr << "Character did not rest on the floor\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkGroundedState() {
+    const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+    pe::Entity onFloor = makeCharacter(0.0f, 0.5f);
+    pe::Entity inAir = makeCharacter(0.0f, 5.0f);
+    if (!pe::checkGrounded(onFloor, statics) ||
+        pe::checkGrounded(inAir, statics)) {
+        std::cerr << "Grounded state wrong (resting vs airborne)\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkWallCollision() {
+    // Wall face at x=1; character runs +x into it: stops, vx zeroed.
+    const std::vector<pe::Entity> statics = {makeStaticBox(2.0f, 0.0f, 1.0f, 5.0f)};
+    pe::Entity c = makeCharacter(0.0f, 2.0f);
+    c.velocity = pe::Vec3(5.0f, 0.0f, 0.0f);
+    c.gravityScale = 0.0f;
+    pe::updateCharacterController(c, statics, 0.2f, false);
+    if (!assertFloatClose(c.position.x, 0.5f) ||
+        !assertFloatClose(c.velocity.x, 0.0f)) {
+        std::cerr << "Wall did not stop horizontal motion\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkCeilingCollision() {
+    // Ceiling bottom at y=3; character rises into it: stays below, vy zeroed.
+    const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, 4.0f, 5.0f, 1.0f)};
+    pe::Entity c = makeCharacter(0.0f, 2.0f);
+    c.velocity = pe::Vec3(0.0f, 10.0f, 0.0f);
+    c.gravityScale = 0.0f;
+    pe::updateCharacterController(c, statics, 0.1f, false);
+    if (!assertFloatClose(c.position.y, 2.5f) ||
+        !assertFloatClose(c.velocity.y, 0.0f)) {
+        std::cerr << "Ceiling did not stop ascent\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkJumpAndLand() {
+    const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+    pe::Entity c = makeCharacter(0.0f, 0.5f);
+    pe::updateCharacterController(c, statics, 1.0f / 60.0f, false);  // settle grounded
+    pe::updateCharacterController(c, statics, 1.0f / 60.0f, true);   // jump
+    if (!assertFloatClose(c.velocity.y, c.jumpImpulse)) {
+        std::cerr << "Jump did not apply impulse\n";
+        return false;
+    }
+    float apex = c.position.y;
+    bool landed = false;
+    for (int i = 0; i < 600 && !landed; ++i) {
+        landed = pe::updateCharacterController(c, statics, 1.0f / 60.0f, false);
+        if (c.position.y > apex) {
+            apex = c.position.y;
+        }
+    }
+    if (!landed || apex <= 1.0f) {
+        std::cerr << "Jump arc did not rise and come down\n";
+        return false;
+    }
+    // Same tolerance-contact note as the landing test: settle, then rest.
+    for (int i = 0; i < 10; ++i) {
+        pe::updateCharacterController(c, statics, 1.0f / 60.0f, false);
+    }
+    if (!assertFloatClose(c.position.y, 0.5f)) {
+        std::cerr << "Jump did not land back at rest height\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkCoyoteTime() {
+    // Floor spans x in [-5,0]; character walks off the edge, jumps late.
+    const std::vector<pe::Entity> statics = {makeStaticBox(-2.5f, -1.0f, 2.5f, 1.0f)};
+    pe::Entity c = makeCharacter(-0.25f, 0.5f);
+    pe::updateCharacterController(c, statics, 1.0f / 60.0f, false);  // grounded, coyote armed
+    c.position.x = 0.5f;  // step off the ledge (airborne now)
+    pe::updateCharacterController(c, statics, 0.05f, true);  // late jump, inside window
+    if (!assertFloatClose(c.velocity.y, c.jumpImpulse)) {
+        std::cerr << "Coyote jump did not fire inside the window\n";
+        return false;
+    }
+    // Same setup, but wait out the window: no jump, keeps falling.
+    pe::Entity d = makeCharacter(-0.25f, 0.5f);
+    pe::updateCharacterController(d, statics, 1.0f / 60.0f, false);
+    d.position.x = 0.5f;
+    pe::updateCharacterController(d, statics, 0.2f, true);
+    if (!(d.velocity.y < 0.0f)) {
+        std::cerr << "Jump fired after the coyote window expired\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkCharacterDtGuards() {
+    const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+    pe::Entity c = makeCharacter(0.0f, 5.0f);
+    c.velocity = pe::Vec3(1.0f, -2.0f, 0.0f);
+    if (pe::updateCharacterController(c, statics, 0.0f, true) ||
+        pe::updateCharacterController(c, statics, -1.0f, true)) {
+        std::cerr << "Non-positive dt must report not-grounded\n";
+        return false;
+    }
+    if (!assertFloatClose(c.position.x, 0.0f) ||
+        !assertFloatClose(c.position.y, 5.0f) ||
+        !assertFloatClose(c.velocity.x, 1.0f) ||
+        !assertFloatClose(c.velocity.y, -2.0f)) {
+        std::cerr << "Non-positive dt must not move the character\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkStaticResolve() {
+    // Dynamic vs static: static unmoved, dynamic takes the full push.
+    pe::Entity a = makeCharacter(0.0f, 0.0f);
+    pe::Entity b = makeStaticBox(0.8f, 0.0f, 0.5f, 0.5f);
+    pe::resolveCollision(a, b);
+    if (!assertFloatClose(a.position.x, -0.2f) ||
+        !assertFloatClose(b.position.x, 0.8f) ||
+        !assertFloatClose(b.position.y, 0.0f)) {
+        std::cerr << "Static body moved or dynamic under-corrected\n";
+        return false;
+    }
+    // Both static: nothing moves.
+    pe::Entity s1 = makeStaticBox(0.0f, 0.0f, 0.5f, 0.5f);
+    pe::Entity s2 = makeStaticBox(0.8f, 0.0f, 0.5f, 0.5f);
+    pe::resolveCollision(s1, s2);
+    if (!assertFloatClose(s1.position.x, 0.0f) ||
+        !assertFloatClose(s2.position.x, 0.8f)) {
+        std::cerr << "Static-static pair must not move\n";
+        return false;
+    }
+    // Neither static: original equal split preserved (non-breaking).
+    pe::Entity c = makeCharacter(0.0f, 0.0f);
+    pe::Entity d = makeCharacter(0.8f, 0.0f);
+    pe::resolveCollision(c, d);
+    if (!assertFloatClose(c.position.x, -0.1f) ||
+        !assertFloatClose(d.position.x, 0.9f)) {
+        std::cerr << "Dynamic-dynamic split regressed\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1178,6 +1372,14 @@ int main() {
     const bool particleMotionOk = checkParticleMotion();
     const bool particleDeathOk = checkParticleDeath();
     const bool particleConvertOk = checkParticleConverter();
+    const bool staticFloorOk = checkStaticFloorLanding();
+    const bool groundedOk = checkGroundedState();
+    const bool wallOk = checkWallCollision();
+    const bool ceilingOk = checkCeilingCollision();
+    const bool jumpOk = checkJumpAndLand();
+    const bool coyoteOk = checkCoyoteTime();
+    const bool charDtOk = checkCharacterDtGuards();
+    const bool staticResolveOk = checkStaticResolve();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1190,7 +1392,9 @@ int main() {
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
         !gamepadPollOk ||
         !particleSpawnOk || !emitterRateOk || !particleMotionOk ||
-        !particleDeathOk || !particleConvertOk) {
+        !particleDeathOk || !particleConvertOk ||
+        !staticFloorOk || !groundedOk || !wallOk || !ceilingOk ||
+        !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

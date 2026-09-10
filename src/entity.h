@@ -100,6 +100,27 @@ struct Entity {
     // changes, same discipline as SceneManager indices (Step 64).
     int parentIndex = -1;
 
+    // --- Step 71: physics body type (platformer hardening) ---
+    // isStatic = true means infinite mass: the body never moves from
+    // collisions, and its velocity is never integrated. Intended for
+    // tilemap geometry, platforms, and other immovable level geometry.
+    // Default false preserves all existing behavior (arcade game,
+    // Pong, etc.). Gravity/integration still respect gravityScale and
+    // velocity as before; only resolveCollision treats the flag.
+    bool isStatic = false;
+
+    // --- Step 71: character controller fields (platformer hardening) ---
+    // Coyote timer: remaining time in the coyote window (seconds)
+    float coyoteTimer = 0.0f;
+    // Coyote time: how long after leaving ground a jump is still allowed
+    float coyoteTime = 0.1f;
+    // Jump impulse: upward velocity applied on jump
+    float jumpImpulse = 12.0f;
+    // Maximum downward velocity (terminal velocity cap)
+    float maxFallSpeed = 25.0f;
+    // Was grounded last frame (for state tracking)
+    bool wasGrounded = false;
+
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
     // in the initializer list: no garbage state possible, same standard
@@ -120,8 +141,9 @@ struct Entity {
           cols(1),
           rows(1),
           velocity(0.0f, 0.0f, 0.0f),
-          gravityScale(0.0f),
-          parentIndex(-1) {}
+gravityScale(0.0f),
+            parentIndex(-1),
+            isStatic(false) {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -148,8 +170,9 @@ struct Entity {
            cols(1),
            rows(1),
            velocity(0.0f, 0.0f, 0.0f),
-           gravityScale(0.0f),
-           parentIndex(-1) {}
+gravityScale(0.0f),
+            parentIndex(-1),
+            isStatic(false) {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the
