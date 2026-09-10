@@ -9,7 +9,7 @@ The current project remains intentionally minimal. The source and build output r
 Continue from the verified engine hardening work without inventing new abstractions, managers, or registries before a concrete need is demonstrated.
 
 ## Rule
-No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. Steps 25 through 58 are tracked in `Blueprint/pure_engine_v3_steps.json` (Step 44 marked "superseded" by Step 48) and cover engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, stress-test validation, role-based collision scanning (51), frame-time scaling measurement (52), player foreground layering (53), entity role genericization (54), renderer texture index slots (55), animation data structures (56), renderer animation frame UVs (57), and data-driven animation loading (58).
+No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. Steps 25 through 59 are tracked in `Blueprint/pure_engine_v3_steps.json` (Step 44 marked "superseded" by Step 48) and cover engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, stress-test validation, role-based collision scanning (51), frame-time scaling measurement (52), player foreground layering (53), entity role genericization (54), renderer texture index slots (55), animation data structures (56), renderer animation frame UVs (57), data-driven animation loading (58), and animated Pong proof (59).
 
 ## Candidate Roadmap
 The items below are non-binding, exploratory ideas only. They are not a step queue and do not define the next concrete requirement. The goal is to make PureEngine feel like a playable 2026 arcade survival game while staying flat/2D and avoiding 3D or engine-framework scope.
@@ -27,6 +27,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - ✓ Step 56: Animation system foundation (data structures, Entity fields) — completed
 - ✓ Step 57: Renderer animation frame UV calculation — completed
 - ✓ Step 58: Data-driven animation loading (file parsing, tick loop) — completed
+- ✓ Step 59: Animated Pong (per-entity layout, visual proof) — completed
 
 This list is intentionally not the step queue. Steps still get pulled one at a time from real code inspection, and `kill_criteria` still applies to any future work.
 

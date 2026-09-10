@@ -320,6 +320,21 @@
       "depends_on": [
         57
       ]
+    },
+    {
+      "id": 59,
+      "name": "Animated Pong (per-entity spritesheet layout)",
+      "status": "completed",
+      "definition_of_done": "Entity cols/rows fields enable per-entity spritesheet layout. Pong paddles animated via paddle_animations.txt (move/idle clips). Visual proof: paddles cycle red-purple on W/S and UP/DOWN, idle on frame 0. Ball renders full (no sliver). Animation fluid, no regressions.",
+      "notes": "Resolves architecture blocker: per-entity layout allows sheet + non-sheet textures in same drawWorld call. Ball stays 1x1 (full texture), paddles 8x1 (animated). Step 59A generated paddle_spritesheet.png procedurally.",
+      "implementation": "Extended Entity: cols/rows fields (default 1x1). Updated drawWorld signature: removed global metadata, read per-entity. Pong: loaded paddle_animations.txt, assigned clips on key press, ticked animation in loop.",
+      "verification": "Playtest: left paddle animates W/S, right paddle animates UP/DOWN, idle state, ball full texture, animation fluid.",
+      "commit": "c83fb4d",
+      "depends_on": [
+        56,
+        57,
+        58
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
