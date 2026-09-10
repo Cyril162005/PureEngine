@@ -146,12 +146,15 @@ add_test(NAME hostile_data_test COMMAND hostile_data_test)
 
 # Step 68: the debug-console header (src/console.h) is pure logic but names
 # GLFW key codes and draws through pe::Renderer, so this target needs the
-# same third-party header paths as the games. Headers ONLY: the test calls
-# no GLFW/GL functions (no GL context exists here), so the link set below
-# stays empty. src/ itself stays off the path (time.h-shadowing rule above).
+# same third-party header paths as the games. src/ itself stays off the
+# path (time.h-shadowing rule above).
 target_include_directories(hostile_data_test PRIVATE "${glfw_SOURCE_DIR}/include")
 target_include_directories(hostile_data_test PRIVATE "${glfw_SOURCE_DIR}/deps")
 target_include_directories(hostile_data_test PRIVATE "${stb_SOURCE_DIR}")
+# Step 69: the gamepad header CALLS GLFW (pollGamepad), so the test also
+# links the already-fetched static GLFW. No new dependency — same lib the
+# games link. (Step 68 needed headers only; this step needs the symbols.)
+target_link_libraries(hostile_data_test PRIVATE glfw)
 
 # Keep the test translation unit scoped to the exact header it needs.
 # This avoids exposing the whole src/ directory, which is what makes

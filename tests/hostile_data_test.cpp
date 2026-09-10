@@ -6,6 +6,7 @@
 
 #include "../src/console.h"
 #include "../src/events.h"
+#include "../src/gamepad.h"
 #include "../src/font.h"
 #include "../src/hostile_data.h"
 #include "../src/scene.h"
@@ -870,6 +871,110 @@ static bool checkConsoleHistory() {
     return true;
 }
 
+static bool checkGamepadDeadzone() {
+    // Inside the zone (both signs) reads exactly 0; outside passes
+    // through untouched; the boundary itself passes (deliberate input).
+    if (!assertFloatClose(pe::applyDeadzone(0.1f, 0.2f), 0.0f) ||
+        !assertFloatClose(pe::applyDeadzone(-0.1f, 0.2f), 0.0f) ||
+        !assertFloatClose(pe::applyDeadzone(0.0f, 0.2f), 0.0f) ||
+        !assertFloatClose(pe::applyDeadzone(0.5f, 0.2f), 0.5f) ||
+        !assertFloatClose(pe::applyDeadzone(-0.5f, 0.2f), -0.5f) ||
+        !assertFloatClose(pe::applyDeadzone(1.0f, 0.2f), 1.0f) ||
+        !assertFloatClose(pe::applyDeadzone(-1.0f, 0.2f), -1.0f) ||
+        !assertFloatClose(pe::applyDeadzone(0.2f, 0.2f), 0.2f) ||
+        !assertFloatClose(pe::applyDeadzone(-0.2f, 0.2f), -0.2f)) {
+        std::cerr << "Deadzone math wrong\n";
+        return false;
+    }
+    // Negative deadzone behaves as 0: everything passes.
+    if (!assertFloatClose(pe::applyDeadzone(0.05f, -1.0f), 0.05f) ||
+        !assertFloatClose(pe::applyDeadzone(0.0f, -1.0f), 0.0f)) {
+        std::cerr << "Negative deadzone must behave as 0\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkGamepadButtons() {
+    // Hand-built snapshot: A pressed, B released.
+    pe::GamepadState state;
+    state.connected = true;
+    state.buttons[GLFW_GAMEPAD_BUTTON_A] = true;
+    if (!pe::gamepadButton(state, GLFW_GAMEPAD_BUTTON_A) ||
+        pe::gamepadButton(state, GLFW_GAMEPAD_BUTTON_B) ||
+        pe::gamepadButton(state, GLFW_GAMEPAD_BUTTON_START) ||
+        pe::gamepadButton(state, GLFW_GAMEPAD_BUTTON_DPAD_UP)) {
+        std::cerr << "Button level reads wrong\n";
+        return false;
+    }
+    // Out-of-range codes (both sides, far outside): false, no crash.
+    if (pe::gamepadButton(state, -1) ||
+        pe::gamepadButton(state, 15) ||
+        pe::gamepadButton(state, 99)) {
+        std::cerr << "Out-of-range button must read false\n";
+        return false;
+    }
+    // Default snapshot is fully zeroed/disconnected (the pollGamepad
+    // absent-pad contract, also true by construction).
+    const pe::GamepadState fresh;
+    if (fresh.connected || fresh.leftX != 0.0f || fresh.leftY != 0.0f ||
+        fresh.rightX != 0.0f || fresh.rightY != 0.0f ||
+        pe::gamepadButton(fresh, GLFW_GAMEPAD_BUTTON_A)) {
+        std::cerr << "Default GamepadState must be zeroed\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkGamepadEdge() {
+    pe::GamepadState released;
+    released.connected = true;
+    pe::GamepadState pressed = released;
+    pressed.buttons[GLFW_GAMEPAD_BUTTON_X] = true;
+    // Press transition fires; hold and release do not; garbage does not.
+    if (!pe::gamepadButtonEdge(released, pressed, GLFW_GAMEPAD_BUTTON_X) ||
+        pe::gamepadButtonEdge(pressed, pressed, GLFW_GAMEPAD_BUTTON_X) ||
+        pe::gamepadButtonEdge(pressed, released, GLFW_GAMEPAD_BUTTON_X) ||
+        pe::gamepadButtonEdge(released, released, GLFW_GAMEPAD_BUTTON_X) ||
+        pe::gamepadButtonEdge(released, pressed, GLFW_GAMEPAD_BUTTON_Y) ||
+        pe::gamepadButtonEdge(released, pressed, -1) ||
+        pe::gamepadButtonEdge(released, pressed, 42)) {
+        std::cerr << "Button edge transitions wrong\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkGamepadPollSafety() {
+    // No GLFW init exists in this process: every poll MUST report a
+    // clean absent pad (never crash, never garbage). Out-of-range ids
+    // refuse before even asking GLFW.
+    const pe::GamepadState absent = pe::pollGamepad();
+    if (absent.connected) {
+        std::cerr << "Uninitialized GLFW must poll disconnected\n";
+        return false;
+    }
+    for (int b = 0; b <= GLFW_GAMEPAD_BUTTON_LAST; ++b) {
+        if (pe::gamepadButton(absent, b)) {
+            std::cerr << "Absent pad must read no buttons\n";
+            return false;
+        }
+    }
+    const float axes[4] = {absent.leftX, absent.leftY, absent.rightX,
+                           absent.rightY};
+    for (int i = 0; i < 4; ++i) {
+        if (axes[i] < -1.0f || axes[i] > 1.0f) {
+            std::cerr << "Polled axis out of [-1,1]\n";
+            return false;
+        }
+    }
+    if (pe::pollGamepad(99).connected || pe::pollGamepad(-1).connected) {
+        std::cerr << "Out-of-range joystick id must poll disconnected\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -893,6 +998,10 @@ int main() {
     const bool consoleFeedOk = checkConsoleFeedKey();
     const bool consoleSubmitOk = checkConsoleSubmit();
     const bool consoleHistoryOk = checkConsoleHistory();
+    const bool gamepadDeadzoneOk = checkGamepadDeadzone();
+    const bool gamepadButtonsOk = checkGamepadButtons();
+    const bool gamepadEdgeOk = checkGamepadEdge();
+    const bool gamepadPollOk = checkGamepadPollSafety();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -901,7 +1010,9 @@ int main() {
         !fontCellsOk || !fontMetricsOk ||
         !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
-        !consoleHistoryOk) {
+        !consoleHistoryOk ||
+        !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
+        !gamepadPollOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
