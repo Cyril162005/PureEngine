@@ -411,6 +411,19 @@
       "depends_on": [
         64
       ]
+    },
+    {
+      "id": 66,
+      "name": "Font/Text rendering foundation",
+      "status": "completed",
+      "definition_of_done": "font.h with fontCellFor/textWidth/alignOffsetX. drawTextString added to renderer (drawDigitString untouched). Atlas extended with A-Z while cells 0-10 stay byte-identical. Proof cases in existing test binary. Non-breaking.",
+      "notes": "Screen-space only. Lowercase folds to upper. Existing digit path fully preserved. Atlas proof via pixel decode-compare.",
+      "implementation": "src/font.h (~70), renderer.h (+64), make_font.ps1 updated, font_digits.png extended, +57 test lines",
+      "verification": "Build clean, CTest 1/1 (15 cases), Arcade/Pong untouched and visually identical.",
+      "commit": "09bc6a0",
+      "depends_on": [
+        65
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

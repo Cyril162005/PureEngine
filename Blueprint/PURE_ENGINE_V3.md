@@ -9,7 +9,7 @@ The current project remains intentionally minimal. The source and build output r
 Continue from the verified engine hardening work without inventing new abstractions, managers, or registries before a concrete need is demonstrated.
 
 ## Rule
-No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. Steps 25 through 65 are tracked in `Blueprint/pure_engine_v3_steps.json` (Step 44 marked "superseded" by Step 48) and cover engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, stress-test validation, role-based collision scanning (51), frame-time scaling measurement (52), player foreground layering (53), entity role genericization (54), renderer texture index slots (55), animation data structures (56), renderer animation frame UVs (57), data-driven animation loading (58), animated Pong proof (59), physics foundation (60), physics integration (61), collision response (62), tilemap system foundation (63), scene management foundation (64), and transform hierarchy foundation (65).
+No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. Steps 25 through 66 are tracked in `Blueprint/pure_engine_v3_steps.json` (Step 44 marked "superseded" by Step 48) and cover engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, stress-test validation, role-based collision scanning (51), frame-time scaling measurement (52), player foreground layering (53), entity role genericization (54), renderer texture index slots (55), animation data structures (56), renderer animation frame UVs (57), data-driven animation loading (58), animated Pong proof (59), physics foundation (60), physics integration (61), collision response (62), tilemap system foundation (63), scene management foundation (64), transform hierarchy foundation (65), and font/text rendering foundation (66).
 
 ## Candidate Roadmap
 The items below are non-binding, exploratory ideas only. They are not a step queue and do not define the next concrete requirement. The goal is to make PureEngine feel like a playable 2026 arcade survival game while staying flat/2D and avoiding 3D or engine-framework scope.
@@ -34,6 +34,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - ✓ Step 63: Tilemap system foundation (load, to-entities, collide) — completed
 - ✓ Step 64: Scene management foundation (Scene + SceneManager) — completed
 - ✓ Step 65: Transform hierarchy foundation (parentIndex + setParent + worldPosition) — completed
+- ✓ Step 66: Font/Text rendering foundation (font.h + drawTextString) — completed
 
 This list is intentionally not the step queue. Steps still get pulled one at a time from real code inspection, and `kill_criteria` still applies to any future work.
 
