@@ -7,6 +7,7 @@
 #include "../src/console.h"
 #include "../src/events.h"
 #include "../src/gamepad.h"
+#include "../src/particles.h"
 #include "../src/font.h"
 #include "../src/hostile_data.h"
 #include "../src/scene.h"
@@ -975,6 +976,176 @@ static bool checkGamepadPollSafety() {
     return true;
 }
 
+static bool checkParticleSpawn() {
+    std::vector<pe::Particle> pool;
+    pe::spawnParticle(pool, pe::Vec3(1.0f, 2.0f, 0.0f),
+                      pe::Vec3(3.0f, 4.0f, 0.0f), 2.5f, 0.75f,
+                      pe::Vec3(1.0f, 0.0f, 0.0f));
+    if (pool.size() != 1) {
+        std::cerr << "spawnParticle did not append exactly one\n";
+        return false;
+    }
+    const pe::Particle& p = pool[0];
+    if (!assertFloatClose(p.position.x, 1.0f) ||
+        !assertFloatClose(p.position.y, 2.0f) ||
+        !assertFloatClose(p.velocity.x, 3.0f) ||
+        !assertFloatClose(p.velocity.y, 4.0f) ||
+        !assertFloatClose(p.life, 2.5f) ||
+        !assertFloatClose(p.maxLife, 2.5f) ||
+        !assertFloatClose(p.size, 0.75f) ||
+        !assertFloatClose(p.color.x, 1.0f) ||
+        !assertFloatClose(p.color.y, 0.0f) ||
+        !assertFloatClose(p.color.z, 0.0f)) {
+        std::cerr << "spawnParticle stored wrong values\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkEmitterRateAndCap() {
+    pe::Emitter e;
+    e.position = pe::Vec3(5.0f, 5.0f, 0.0f);
+    e.spawnRate = 10.0f;
+    e.speedMin = 1.0f;
+    e.speedMax = 2.0f;
+    e.lifeMin = 0.5f;
+    e.lifeMax = 1.0f;
+    std::vector<pe::Particle> pool;
+    pe::emit(e, pool, 1.0f);  // 10 units of budget
+    if (pool.size() != 10) {
+        std::cerr << "Emitter rate produced " << pool.size() << ", want 10\n";
+        return false;
+    }
+    for (std::size_t i = 0; i < pool.size(); ++i) {
+        const pe::Particle& p = pool[i];
+        if (!assertFloatClose(p.position.x, 5.0f) ||
+            !assertFloatClose(p.position.y, 5.0f) ||
+            p.life < 0.5f || p.life > 1.0f) {
+            std::cerr << "Emitted particle outside emitter spec\n";
+            return false;
+        }
+        const float speedSq =
+            p.velocity.x * p.velocity.x + p.velocity.y * p.velocity.y;
+        // Epsilon margins: cos^2+sin^2 rounds to ~1e-7 around 1.0.
+        if (speedSq < 0.999f || speedSq > 4.001f ||
+            p.velocity.z != 0.0f) {
+            std::cerr << "Emitted speed outside [1,2] disc\n";
+            return false;
+        }
+    }
+    // dt <= 0 and non-positive rate spawn nothing.
+    const std::size_t before = pool.size();
+    pe::emit(e, pool, 0.0f);
+    pe::emit(e, pool, -1.0f);
+    e.spawnRate = 0.0f;
+    pe::emit(e, pool, 1.0f);
+    if (pool.size() != before) {
+        std::cerr << "Zero/negative emit inputs spawned\n";
+        return false;
+    }
+    // Cap: maxParticles=3 keeps the pool at 3 across repeated emits...
+    e.spawnRate = 10.0f;
+    e.maxParticles = 3;
+    std::vector<pe::Particle> capped;
+    pe::emit(e, capped, 1.0f);
+    pe::emit(e, capped, 1.0f);
+    if (capped.size() != 3) {
+        std::cerr << "Cap did not hold at 3\n";
+        return false;
+    }
+    // ...and skipped budget is LOST, not backlogged: uncapped, a 0.1s
+    // emit at rate 10 yields exactly 1 (a backlog would burst 10+).
+    e.maxParticles = 256;
+    e.accumulator = 0.0f;
+    std::vector<pe::Particle> uncap;
+    pe::emit(e, uncap, 0.1f);
+    if (uncap.size() != 1) {
+        std::cerr << "Fresh 0.1s emit must yield exactly 1\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkParticleMotion() {
+    std::vector<pe::Particle> pool;
+    pe::spawnParticle(pool, pe::Vec3(0.0f, 0.0f, 0.0f),
+                      pe::Vec3(1.0f, 2.0f, 0.0f), 1.0f, 0.5f,
+                      pe::Vec3(1.0f, 1.0f, 1.0f));
+    // dt <= 0: byte-identical no-op.
+    pe::updateParticles(pool, 0.0f);
+    pe::updateParticles(pool, -1.0f);
+    if (!assertFloatClose(pool[0].position.x, 0.0f) ||
+        !assertFloatClose(pool[0].life, 1.0f)) {
+        std::cerr << "Non-positive dt must not advance particles\n";
+        return false;
+    }
+    pe::updateParticles(pool, 0.5f);
+    if (!assertFloatClose(pool[0].position.x, 0.5f) ||
+        !assertFloatClose(pool[0].position.y, 1.0f) ||
+        !assertFloatClose(pool[0].life, 0.5f)) {
+        std::cerr << "Integration/aging wrong\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkParticleDeath() {
+    std::vector<pe::Particle> pool;
+    pe::spawnParticle(pool, pe::Vec3(0.0f, 0.0f, 0.0f),
+                      pe::Vec3(0.0f, 0.0f, 0.0f), 0.3f, 0.5f,
+                      pe::Vec3(1.0f, 1.0f, 1.0f));  // dies
+    pe::spawnParticle(pool, pe::Vec3(9.0f, 0.0f, 0.0f),
+                      pe::Vec3(0.0f, 0.0f, 0.0f), 5.0f, 0.5f,
+                      pe::Vec3(1.0f, 1.0f, 1.0f));  // survives
+    pe::spawnParticle(pool, pe::Vec3(8.0f, 0.0f, 0.0f),
+                      pe::Vec3(0.0f, 0.0f, 0.0f), 0.1f, 0.5f,
+                      pe::Vec3(1.0f, 1.0f, 1.0f));  // dies
+    pe::updateParticles(pool, 1.0f);
+    if (pool.size() != 1 ||
+        !assertFloatClose(pool[0].position.x, 9.0f) ||
+        !assertFloatClose(pool[0].life, 4.0f)) {
+        std::cerr << "Dead particles not removed / survivor wrong\n";
+        return false;
+    }
+    // All dead -> empty pool, no crash.
+    pe::updateParticles(pool, 10.0f);
+    if (!pool.empty()) {
+        std::cerr << "Pool must empty when all die\n";
+        return false;
+    }
+    pe::updateParticles(pool, 1.0f);  // empty update: safe no-op
+    return true;
+}
+
+static bool checkParticleConverter() {
+    std::vector<pe::Particle> pool;
+    pe::spawnParticle(pool, pe::Vec3(2.0f, 3.0f, 0.0f),
+                      pe::Vec3(0.0f, 0.0f, 0.0f), 1.0f, 0.5f,
+                      pe::Vec3(1.0f, 1.0f, 1.0f));
+    pe::spawnParticle(pool, pe::Vec3(0.0f, 0.0f, 0.0f),
+                      pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, 0.5f,
+                      pe::Vec3(1.0f, 1.0f, 1.0f));  // dead: skipped
+    const std::vector<pe::Entity> entities =
+        pe::particlesToEntities(pool, 2, 3, 7);
+    if (entities.size() != 1) {
+        std::cerr << "Converter must skip dead particles\n";
+        return false;
+    }
+    const pe::Entity& e = entities[0];
+    if (!assertFloatClose(e.position.x, 2.0f) ||
+        !assertFloatClose(e.position.y, 3.0f) ||
+        !assertFloatClose(e.scale.x, 0.5f) ||
+        !assertFloatClose(e.scale.y, 0.5f) ||
+        !assertFloatClose(e.scale.z, 1.0f) ||
+        !assertFloatClose(e.halfExtents.x, 0.25f) ||
+        !assertFloatClose(e.halfExtents.y, 0.25f) ||
+        e.textureId != 2 || e.depth != 3 || e.roleId != 7) {
+        std::cerr << "Converter carry-through wrong\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1002,6 +1173,11 @@ int main() {
     const bool gamepadButtonsOk = checkGamepadButtons();
     const bool gamepadEdgeOk = checkGamepadEdge();
     const bool gamepadPollOk = checkGamepadPollSafety();
+    const bool particleSpawnOk = checkParticleSpawn();
+    const bool emitterRateOk = checkEmitterRateAndCap();
+    const bool particleMotionOk = checkParticleMotion();
+    const bool particleDeathOk = checkParticleDeath();
+    const bool particleConvertOk = checkParticleConverter();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1012,7 +1188,9 @@ int main() {
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
-        !gamepadPollOk) {
+        !gamepadPollOk ||
+        !particleSpawnOk || !emitterRateOk || !particleMotionOk ||
+        !particleDeathOk || !particleConvertOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
