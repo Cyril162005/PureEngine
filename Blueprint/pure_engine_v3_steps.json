@@ -437,6 +437,19 @@
       "depends_on": [
         66
       ]
+    },
+    {
+      "id": 68,
+      "name": "Debug console foundation",
+      "status": "completed",
+      "definition_of_done": "console.h with Console, toggle/feedKey/submit/print/registerCommand/drawConsole. Built-ins: help, clear, echo. History capped at 64. Proof cases in existing test binary. Non-breaking.",
+      "notes": "No backdrop panel. Commands case-insensitive. Extra safety: rejects null handlers and builtin-name collisions. GLFW_INCLUDE_NONE used to avoid glad conflict. drawConsole not executed headless (same pattern as prior steps).",
+      "implementation": "src/console.h (~290 lines), +159 test lines, small CMakeLists.txt header path addition for test target",
+      "verification": "Build clean, CTest 1/1 (22 cases), Arcade/Pong untouched.",
+      "commit": "ff97e4c",
+      "depends_on": [
+        67
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
