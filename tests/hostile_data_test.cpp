@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 
+#include "../src/events.h"
 #include "../src/font.h"
 #include "../src/hostile_data.h"
 #include "../src/scene.h"
@@ -575,6 +576,149 @@ static bool checkFontMetrics() {
     return true;
 }
 
+static bool checkEventsOrderAndPayload() {
+    pe::EventBus bus;
+    std::vector<int> calls;
+    int seenA = -999, seenB = -999;
+    const int first = bus.subscribe(pe::EventType::Collision,
+        [&](const pe::GameEvent& e) {
+            calls.push_back(0);
+            seenA = e.a;
+            seenB = e.b;
+        });
+    const int second = bus.subscribe(pe::EventType::Collision,
+        [&](const pe::GameEvent&) { calls.push_back(1); });
+    if (first < 0 || second != first + 1 ||
+        bus.handlerCount(pe::EventType::Collision) != 2) {
+        std::cerr << "subscribe tokens/count wrong\n";
+        return false;
+    }
+    const pe::GameEvent hit{pe::EventType::Collision, 3, 7};
+    bus.emit(hit);
+    if (calls.size() != 2 || calls[0] != 0 || calls[1] != 1 ||
+        seenA != 3 || seenB != 7) {
+        std::cerr << "emit order/payload wrong\n";
+        return false;
+    }
+    // Other types are independent: SceneChanged has no handlers, silent.
+    bus.emit(pe::GameEvent{pe::EventType::SceneChanged, 0, 1});
+    if (calls.size() != 2 ||
+        bus.handlerCount(pe::EventType::SceneChanged) != 0) {
+        std::cerr << "Event types leaked into each other\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkEventsUnsubscribe() {
+    pe::EventBus bus;
+    int hits = 0;
+    const int token = bus.subscribe(pe::EventType::SceneChanged,
+        [&](const pe::GameEvent&) { ++hits; });
+    if (token < 0 ||
+        !bus.unsubscribe(pe::EventType::SceneChanged, token)) {
+        std::cerr << "Valid unsubscribe failed\n";
+        return false;
+    }
+    bus.emit(pe::GameEvent{pe::EventType::SceneChanged, 0, 1});
+    if (hits != 0) {
+        std::cerr << "Unsubscribed handler still fired\n";
+        return false;
+    }
+    // Double-remove and never-issued tokens refuse.
+    if (bus.unsubscribe(pe::EventType::SceneChanged, token) ||
+        bus.unsubscribe(pe::EventType::SceneChanged, 999)) {
+        std::cerr << "Bogus unsubscribe accepted\n";
+        return false;
+    }
+    // Token non-reuse: the freed token never comes back.
+    const int fresh = bus.subscribe(pe::EventType::SceneChanged,
+        [&](const pe::GameEvent&) {});
+    if (fresh == token || fresh < 0 ||
+        bus.handlerCount(pe::EventType::SceneChanged) != 1) {
+        std::cerr << "Token was reused after unsubscribe\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkEventsEdgeCases() {
+    pe::EventBus bus;
+    // Refusals: sentinel type, empty handler (both spellings).
+    if (bus.subscribe(pe::EventType::Count,
+            [](const pe::GameEvent&) {}) != -1 ||
+        bus.subscribe(pe::EventType::Collision, nullptr) != -1 ||
+        bus.subscribe(pe::EventType::Collision, pe::EventHandler()) != -1) {
+        std::cerr << "Illegal subscribe accepted\n";
+        return false;
+    }
+    if (bus.unsubscribe(pe::EventType::Count, 0) ||
+        bus.handlerCount(pe::EventType::Count) != 0) {
+        std::cerr << "Sentinel type not inert\n";
+        return false;
+    }
+    bus.emit(pe::GameEvent{pe::EventType::Count, 0, 0});  // must not crash
+
+    // Mutation during emit: self-removal + late subscribe take effect
+    // on the NEXT emit, while the in-flight snapshot runs to completion.
+    std::vector<int> calls;
+    int selfToken = -1;
+    int adderToken = -1;
+    selfToken = bus.subscribe(pe::EventType::Collision,
+        [&](const pe::GameEvent&) {
+            calls.push_back(0);
+            bus.unsubscribe(pe::EventType::Collision, selfToken);
+            adderToken = bus.subscribe(pe::EventType::Collision,
+                [&](const pe::GameEvent&) { calls.push_back(9); });
+        });
+    const int steady = bus.subscribe(pe::EventType::Collision,
+        [&](const pe::GameEvent&) { calls.push_back(1); });
+    bus.emit(pe::GameEvent{pe::EventType::Collision, 0, 0});
+    if (calls.size() != 2 || calls[0] != 0 || calls[1] != 1 ||
+        bus.handlerCount(pe::EventType::Collision) != 2) {
+        std::cerr << "Snapshot emit misbehaved under mutation\n";
+        return false;
+    }
+    calls.clear();
+    bus.emit(pe::GameEvent{pe::EventType::Collision, 0, 0});
+    if (calls.size() != 2 || calls[0] != 1 || calls[1] != 9) {
+        std::cerr << "Post-mutation membership/order wrong\n";
+        return false;
+    }
+
+    // Reentrant emit: handler emits a different type mid-dispatch.
+    pe::EventBus nested;
+    std::vector<int> seq;
+    nested.subscribe(pe::EventType::SceneChanged,
+        [&](const pe::GameEvent&) { seq.push_back(1); });
+    nested.subscribe(pe::EventType::Collision,
+        [&](const pe::GameEvent& e) {
+            seq.push_back(0);
+            nested.emit(pe::GameEvent{pe::EventType::SceneChanged, e.a, e.b});
+            seq.push_back(2);
+        });
+    nested.emit(pe::GameEvent{pe::EventType::Collision, 5, 6});
+    if (seq.size() != 3 || seq[0] != 0 || seq[1] != 1 || seq[2] != 2) {
+        std::cerr << "Reentrant emit order wrong\n";
+        return false;
+    }
+
+    // clear(): silent afterwards, and tokens stay retired.
+    bus.clear();
+    if (bus.handlerCount(pe::EventType::Collision) != 0) {
+        std::cerr << "clear did not drop handlers\n";
+        return false;
+    }
+    bus.emit(pe::GameEvent{pe::EventType::Collision, 0, 0});  // silent
+    const int afterClear = bus.subscribe(pe::EventType::Collision,
+        [&](const pe::GameEvent&) {});
+    if (afterClear <= adderToken || afterClear <= steady) {
+        std::cerr << "clear recycled a token\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -591,12 +735,16 @@ int main() {
     const bool hierarchyEdgeOk = checkHierarchyEdgeCases();
     const bool fontCellsOk = checkFontCells();
     const bool fontMetricsOk = checkFontMetrics();
+    const bool eventsOrderOk = checkEventsOrderAndPayload();
+    const bool eventsUnsubOk = checkEventsUnsubscribe();
+    const bool eventsEdgeOk = checkEventsEdgeCases();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
-        !fontCellsOk || !fontMetricsOk) {
+        !fontCellsOk || !fontMetricsOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
