@@ -456,7 +456,19 @@ public:
             glBindBuffer(GL_ARRAY_BUFFER, worldVBO);
             glBufferData(GL_ARRAY_BUFFER, sizeof(frameVerts), frameVerts, GL_DYNAMIC_DRAW);
             // Build this entity's MVP from its own data.
-            Mat4 mvp = projection * view * entity.modelMatrix();
+            // Integration sprint: a PARENTED entity renders at its WORLD
+            // position (translation-only, Step 65 design — the adoption
+            // step the hierarchy header always deferred to). The
+            // parentless expression below is character-identical to
+            // modelMatrix(), so every pre-existing entity renders
+            // byte-identically; only parentIndex != -1 takes the branch.
+            Mat4 model = entity.modelMatrix();
+            if (entity.parentIndex != -1) {
+                model = Mat4::translation(worldPosition(entities, i))
+                      * Mat4::rotationZ(entity.rotationAngle)
+                      * Mat4::scale(entity.scale);
+            }
+            Mat4 mvp = projection * view * model;
             // Upload to the 'transform' uniform (GL_FALSE: our Mat4 is
             // already column-major, the layout OpenGL expects).
             glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);

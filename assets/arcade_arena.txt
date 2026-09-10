@@ -1,0 +1,19 @@
+# PureEngine arcade arena (integration sprint).
+# Same format as tilemap_default.txt: width, height, tileSize, one row=
+# line per grid row top-to-bottom. 1 = solid wall (texture slot 1).
+# Layout is spawn-safe by measurement: player (-1.5,0), scenery
+# (1.5,0)/(0,1.5), default hostiles (0,-2)/(3,2)/(-3,2) all spawn in
+# empty cells with >=0.5 clearance. Solids: full floor, one mid-left
+# pair, one high-right pair — the player can bump them, never spawns
+# inside them.
+width=10
+height=8
+tileSize=1.0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,1,1
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=1,1,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=1,1,1,1,1,1,1,1,1,1

@@ -110,6 +110,22 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
         entities.back().roleId = static_cast<int>(ArcadeRole::Hostile);
         entities.back().moveSpeed = definition.baseSpeed;
     }
+    // --- Integration sprint: the hierarchy companion ---
+    // A small spinning satellite PARENTED to the player (index 0 by the
+    // construction order above): the first rendered consumer of Step 65.
+    // roleId 99 is deliberately outside Player/Scenery/Hostile, so the
+    // chase, catch, and scenery scans — all role-filtered — ignore it by
+    // construction; it is pure visual attachment, owned by the snapshot
+    // and reset flows like every other entity (no special-casing).
+    entities.push_back(Entity(pe::Vec3(0.9f, 0.5f, 0.0f), 2.0f,
+                              pe::Vec3(0.4f, 0.4f, 1.0f),
+                              pe::Vec3(0.3f, 0.3f, 0.0f),
+                              0));
+    entities.back().depth = 3;
+    entities.back().roleId = 99;
+    entities.back().textureId = 0;
+    entities.back().moveSpeed = 0.0f;
+    entities.back().parentIndex = 0;
     return entities;
 }
 

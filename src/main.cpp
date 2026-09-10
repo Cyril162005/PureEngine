@@ -153,6 +153,12 @@
 // nothing — no scheduler, no pipeline, no run() wearing an
 // architectural hat. Header-only: no CMakeLists.txt change.
 #include "simulation.h"
+#include "tilemap.h"    // Integration sprint: arena collision geometry + tile entities
+#include "scene.h"      // Integration sprint: SceneManager owns the arena entity lists
+#include "events.h"     // Integration sprint: collision/scene-change bus
+#include "console.h"    // Integration sprint: runtime debug console (typed, drawn)
+#include "gamepad.h"    // Integration sprint: stick movement + button edges
+#include "particles.h"  // Integration sprint: catch-burst particles
 
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
@@ -684,12 +690,35 @@ int main() {
     const pe::HostileDefaults defaultHostileDefaults = pe::loadHostileDefaults("hostile_default.txt");
     const pe::HostileDefaults alternateHostileDefaults = pe::loadHostileDefaults("hostile_alt.txt");
     const pe::HostileDefaults* activeHostileDefaults = &defaultHostileDefaults;
-    std::vector<pe::Entity> entities = pe::buildInitialEntities(*activeHostileDefaults);
+    // --- Integration sprint: the SceneManager OWNS the arena entity lists ---
+    // Step 64 adoption — the first real caller. Two scenes mirror the two
+    // playable variants; ONLY scene storage is used below (no parallel
+    // vector survives). These two loadScenes are the only structural
+    // changes ever made, so scene addresses stay stable and a raw
+    // active-scene pointer is safe (re-taken from currentScene() on every
+    // switch regardless — belt and braces, never trust a pointer).
+    pe::SceneManager sceneManager;
+    pe::loadScene(sceneManager, "arena");
+    pe::loadScene(sceneManager, "arena_alt");
+    // Initial placement, NOT a transition: take the arena address directly
+    // (no switchTo, no SceneChanged event). The first real MENU->PLAYING
+    // transition then correctly reports previous=-1. Both scenes exist, so
+    // index 0 is the arena by construction order; re-taken on every switch.
+    pe::Scene* activeScene = &sceneManager.scenes[0];
+    activeScene->entities = pe::buildInitialEntities(*activeHostileDefaults);
+    // --- Integration sprint: the arena tilemap (Step 63 adoption) ---
+    // Real geometry, loaded once into the arena scene: rendered through a
+    // second drawWorld below and used as STATIC player collision in
+    // PLAYING (tiles never move — full correction lands on the player).
+    // The alt scene keeps width == 0 (no tilemap): the optionality is
+    // real, not asserted. An unreadable file degrades to "no tiles" via
+    // loadTilemap's own fallback and the game stays fully playable.
+    pe::loadTilemapIntoScene(*activeScene, "arcade_arena.txt");
     // --- Step 58: assign clips BEFORE the snapshot (else resets wipe them) ---
     // First hostile dances: role lookup, never entities[0] (that's the
     // player). Known limit: activateScene() rebuilds without assignment,
     // so the alt scene loses clips until lifecycle integration (later).
-    for (pe::Entity& entity : entities) {
+    for (pe::Entity& entity : activeScene->entities) {
         if (entity.roleId == static_cast<int>(pe::ArcadeRole::Hostile)) {
             const auto clip = animations.find("walk_left");
             if (clip != animations.end()) {
@@ -700,17 +729,37 @@ int main() {
         }
     }
     // --- Step 11: the INITIAL world, kept as DATA ---
-    // A snapshot of the fresh entity list. Starting a game from the
-    // menu restores it — reset is an ASSIGNMENT, not new code, which
-    // is exactly what 'entities as data' (Step 7) was buying.
-    std::vector<pe::Entity> initialEntities = entities;
+    // A snapshot of the active scene's fresh entity list. Starting a game
+    // from the menu restores it — reset is an ASSIGNMENT, not new code,
+    // which is exactly what 'entities as data' (Step 7) was buying.
+    // Refreshed on every scene switch (see activateScene), so it always
+    // matches the active scene.
+    std::vector<pe::Entity> initialEntities = activeScene->entities;
     // Collision flags hoisted OUT of the loop body (they lived inside
     // it in Steps 8-10). The PAUSED state still DRAWS the scene but
     // stops SIMULATING, so the last PLAYING frame's flags must survive
     // the pause (frozen tint). Rebuilt from zero every PLAYING frame.
     // Step 18: the sizing expression lives with creation in the
     // lifecycle boundary (pe::flagsForCount); main.cpp owns the buffer.
-    std::vector<char> colliding = pe::flagsForCount(entities.size());
+    std::vector<char> colliding = pe::flagsForCount(activeScene->entities.size());
+    // --- Integration sprint: the event bus (Step 67 adoption) ---
+    // Collision edges and scene switches publish here; the collision
+    // audiovisual and the scene-change notice subscribe below. First real
+    // emitter AND first real subscribers — the bus stops being inventory.
+    pe::EventBus eventBus;
+    eventBus.subscribe(pe::EventType::Collision, [&](const pe::GameEvent&) {
+        audio.playNext();
+        collisionFlashFrames = 6;
+    });
+    eventBus.subscribe(pe::EventType::SceneChanged, [](const pe::GameEvent& e) {
+        std::cout << "scene changed: " << e.a << " -> " << e.b << std::endl;
+    });
+    // --- Integration sprint: gamepad edge memory + particle pool ---
+    // Step 69 is snapshot-style: the GAME holds prev, compares per frame
+    // (see the loop). Step 70's burst pool lives for the whole session:
+    // spawned on catch, updated while the world is drawn-but-frozen too.
+    pe::GamepadState prevPad;
+    std::vector<pe::Particle> burst;
 
     // --- Step 6 / Step 15: Camera + Projection State (before the loop) ---
     // The camera's position IN WORLD SPACE, its movement speed, and
@@ -724,11 +773,26 @@ int main() {
     pe::Camera camera;
 
     // --- Step 16: the input boundary (before the loop) ---
-    // ESC and SPACE are the only keys with EDGE semantics, so they are
+    // ESC and SPACE are the only GAME keys with EDGE semantics, so they are
     // the only keys registered for previous-frame tracking (snapshot
     // starts all-false: before the program starts, nothing is pressed).
     // WASD and the arrows stay level-only reads — no tracking needed.
-    pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, GLFW_KEY_2, GLFW_KEY_F1};
+    // Integration sprint: the debug console needs edges for its whole
+    // typeable set (GRAVE toggle, ENTER submit, BACKSPACE, A-Z, 0-9,
+    // SPACE, PERIOD, MINUS), so those join the tracked list. Registration
+    // is behavior-free — untracked keys simply report no edge — so the
+    // pre-existing game edges are unaffected.
+    pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, GLFW_KEY_2, GLFW_KEY_F1,
+                    GLFW_KEY_GRAVE_ACCENT, GLFW_KEY_ENTER, GLFW_KEY_BACKSPACE,
+                    GLFW_KEY_A, GLFW_KEY_B, GLFW_KEY_C, GLFW_KEY_D, GLFW_KEY_E,
+                    GLFW_KEY_F, GLFW_KEY_G, GLFW_KEY_H, GLFW_KEY_I, GLFW_KEY_J,
+                    GLFW_KEY_K, GLFW_KEY_L, GLFW_KEY_M, GLFW_KEY_N, GLFW_KEY_O,
+                    GLFW_KEY_P, GLFW_KEY_Q, GLFW_KEY_R, GLFW_KEY_S, GLFW_KEY_T,
+                    GLFW_KEY_U, GLFW_KEY_V, GLFW_KEY_W, GLFW_KEY_X, GLFW_KEY_Y,
+                    GLFW_KEY_Z,
+                    GLFW_KEY_0, GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4,
+                    GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9,
+                    GLFW_KEY_PERIOD, GLFW_KEY_MINUS};
 
     // --- Step 8: Player movement speed (before the loop) ---
     // World units per second for the ARROW-key-driven entity
@@ -746,16 +810,29 @@ int main() {
     float maxDifficultyScale = activeHostileDefaults->maxDifficultyScale;
     float winTime = activeHostileDefaults->winTime;
 
-    auto activateScene = [&](const pe::HostileDefaults& scene) {
+    // Integration sprint: scene switching goes through the SceneManager.
+    // Rebuilds the named scene's entity list from its profile, refreshes
+    // the snapshot (so it always matches the active scene), resizes the
+    // flag buffer, retunes difficulty, switches current, re-points the
+    // active pointer, and publishes SceneChanged (previous -> new manager
+    // index). The scene's tilemap (arena) survives — only .entities is
+    // rewritten.
+    auto activateScene = [&](const std::string& sceneName, const pe::HostileDefaults& scene) {
+        const int previousIndex = sceneManager.current;
         activeHostileDefaults = &scene;
-        entities = pe::buildInitialEntities(*activeHostileDefaults);
-        initialEntities = entities;
+        pe::Scene& target = pe::loadScene(sceneManager, sceneName);  // find-or-create (both exist since setup)
+        target.entities = pe::buildInitialEntities(*activeHostileDefaults);
+        initialEntities = target.entities;
+        colliding = pe::flagsForCount(target.entities.size());
         // Step 47: hostile speeds now live on each Entity (moveSpeed),
         // set by buildInitialEntities — no separate hostileSpeeds vector
         // to rebuild here anymore.
         difficultyRate = activeHostileDefaults->difficultyRate;
         maxDifficultyScale = activeHostileDefaults->maxDifficultyScale;
         winTime = activeHostileDefaults->winTime;
+        pe::switchTo(sceneManager, sceneName);
+        activeScene = pe::currentScene(sceneManager);
+        eventBus.emit(pe::GameEvent{pe::EventType::SceneChanged, previousIndex, sceneManager.current});
     };
 
     // --- Step 13: GPU geometry, textures, and sampler setup moved out ---
@@ -849,13 +926,27 @@ int main() {
     // meta-game state that outlives every individual run, exactly the
     // distinction the snapshot pattern makes explicit by omission.
     auto resetGame = [&]() {
-        pe::resetEntities(entities, initialEntities);   // Step 18: the snapshot restore, via the lifecycle boundary
+        pe::resetEntities(activeScene->entities, initialEntities);   // Step 18: the snapshot restore, via the lifecycle boundary
         camera.reset();   // Step 15: back to the world origin, via the boundary
         clearColorIsBlue = false;
         wasColliding.clear();
-        colliding = pe::flagsForCount(entities.size());
+        colliding = pe::flagsForCount(activeScene->entities.size());
         survivalTime = 0.0f;
     };
+
+    // --- Integration sprint: the debug console, registered (Step 68) ---
+    // Game-side commands: entities (live count) and reset (full restore).
+    // Captures stay valid for the session — activeScene is re-pointed, not
+    // rebound, and resetGame outlives the loop. Toggle/type/submit/draw
+    // happen in the PLAYING branch and the draw block below.
+    pe::Console console;
+    pe::registerCommand(console, "entities", [&](const std::vector<std::string>&) {
+        return std::to_string(activeScene->entities.size()) + " entities";
+    });
+    pe::registerCommand(console, "reset", [&](const std::vector<std::string>&) {
+        resetGame();
+        return std::string("world reset");
+    });
 
     // --- Step 13: the digit-string glyph path moved to the renderer ---
     // The lambda that used to live here — per-glyph atlas UVs, quad
@@ -915,8 +1006,75 @@ int main() {
         // is a one-line assignment: states are values, and switching
         // is nothing more dramatic than storing a new one.
         bool escIsPressedNow = pe::Input::isDown(window, GLFW_KEY_ESCAPE);
-        bool escEdge = input.isEdge(window, GLFW_KEY_ESCAPE);
-        bool spaceEdge = input.isEdge(window, GLFW_KEY_SPACE);
+        // Integration sprint: gamepad snapshot (Step 69). prevPad rotates at
+        // frame end beside input.update(). Keyboard is preserved by OR-ing:
+        // either device drives. Stick axes arrive deadzoned from pollGamepad.
+        const pe::GamepadState curPad = pe::pollGamepad();
+        const bool padStartEdge =
+            pe::gamepadButtonEdge(prevPad, curPad, GLFW_GAMEPAD_BUTTON_START);
+        const bool padActionEdge =
+            pe::gamepadButtonEdge(prevPad, curPad, GLFW_GAMEPAD_BUTTON_A);
+        bool escEdge = input.isEdge(window, GLFW_KEY_ESCAPE) || padStartEdge;
+        bool spaceEdge = input.isEdge(window, GLFW_KEY_SPACE) || padActionEdge;
+        // Integration sprint: console frame gate, computed BEFORE the switch.
+        // A case-level declaration would trip C2360 (later case labels jump
+        // past the initialization), so the flag lives here with the edges.
+        // PAUSED counts as console territory too (frozen-world debugging).
+        const bool consoleWasOpen =
+            (currentState == pe::GameState::PLAYING ||
+             currentState == pe::GameState::PLAYING_ALT ||
+             currentState == pe::GameState::PAUSED) &&
+            console.open;
+        // Integration sprint: shared console pump for PLAYING + PAUSED.
+        // GRAVE toggles; an open console owns ESC (close) and the typing
+        // keys (swallowed from the game via consoleAteFrame). ENTER submits
+        // with terminal echo (headless-verifiable command path). Defined
+        // once, called per state — no duplicated 40-line block. `auto`
+        // closure, captures by ref, zero allocation.
+        bool consoleAteFrame = false;
+        auto pumpConsole = [&]() {
+            if (input.isEdge(window, GLFW_KEY_GRAVE_ACCENT)) {
+                pe::toggle(console);
+            }
+            if (!consoleWasOpen) {
+                return;
+            }
+            consoleAteFrame = true;
+            if (console.open && escEdge) {
+                pe::toggle(console);  // close, do NOT pause/resume
+            } else if (console.open) {
+                const bool shift = pe::Input::isDown(window, GLFW_KEY_LEFT_SHIFT) ||
+                                   pe::Input::isDown(window, GLFW_KEY_RIGHT_SHIFT);
+                if (spaceEdge) {
+                    pe::feedKey(console, GLFW_KEY_SPACE, false);
+                }
+                if (input.isEdge(window, GLFW_KEY_ENTER)) {
+                    const std::string consoleOut = pe::submit(console);
+                    if (!consoleOut.empty()) {
+                        std::cout << consoleOut << std::endl;
+                    }
+                }
+                if (input.isEdge(window, GLFW_KEY_BACKSPACE)) {
+                    pe::feedKey(console, GLFW_KEY_BACKSPACE, false);
+                }
+                for (int key = GLFW_KEY_A; key <= GLFW_KEY_Z; ++key) {
+                    if (input.isEdge(window, key)) {
+                        pe::feedKey(console, key, shift);
+                    }
+                }
+                for (int key = GLFW_KEY_0; key <= GLFW_KEY_9; ++key) {
+                    if (input.isEdge(window, key)) {
+                        pe::feedKey(console, key, shift);
+                    }
+                }
+                if (input.isEdge(window, GLFW_KEY_PERIOD)) {
+                    pe::feedKey(console, GLFW_KEY_PERIOD, false);
+                }
+                if (input.isEdge(window, GLFW_KEY_MINUS)) {
+                    pe::feedKey(console, GLFW_KEY_MINUS, false);
+                }
+            }
+        };
 
         switch (currentState) {
         case pe::GameState::MENU:
@@ -929,22 +1087,28 @@ int main() {
             // SPACE starts a game: reset the world to its initial data,
             // then enter PLAYING. EDGE — one start per press.
             } else if (spaceEdge) {
-                activateScene(defaultHostileDefaults);
+                activateScene("arena", defaultHostileDefaults);
                 resetGame();
                 currentState = pe::GameState::PLAYING;
             } else if (input.isEdge(window, GLFW_KEY_2)) {
-                activateScene(alternateHostileDefaults);
+                activateScene("arena_alt", alternateHostileDefaults);
                 resetGame();
                 currentState = pe::GameState::PLAYING_ALT;
             }
             break;
         case pe::GameState::PLAYING:
         case pe::GameState::PLAYING_ALT:
+            // Integration sprint: console first via the shared pump above.
+            // Arrows keep driving the player while open — the world stays
+            // live behind the overlay, by decision, not accident. Pad
+            // START/A ride inside escEdge/spaceEdge and are swallowed too.
+            pumpConsole();
             // ESC pauses. EDGE — a held key must not flip pause on and
-            // off 60 times a second.
-            if (escEdge) {
+            // off 60 times a second. Swallowed while the console owned
+            // the frame (gate), same for SPACE below.
+            if (escEdge && !consoleAteFrame) {
                 currentState = pe::GameState::PAUSED;
-            } else {
+            } else if (!consoleAteFrame) {
                 // --- Step 3: SPACE clear-color toggle (EDGE, exactly one
                 // toggle per physical press; held key stays false after
                 // the first frame). Scope of PLAYING only now.
@@ -973,7 +1137,7 @@ int main() {
                 // through the world, identified via ArcadeRole::Player
                 // roleId. Same RATE pattern as camera panning.
                 pe::Entity* player = nullptr;
-                for (pe::Entity& entity : entities) {
+                for (pe::Entity& entity : activeScene->entities) {
                     if (entity.roleId == static_cast<int>(pe::ArcadeRole::Player)) {
                         player = &entity;
                         break;
@@ -992,6 +1156,19 @@ int main() {
                     if (pe::Input::isDown(window, GLFW_KEY_RIGHT)) {
                         player->position.x += entityMoveSpeed * dt;
                     }
+                    // Integration sprint: gamepad left stick (Step 69), same
+                    // rate as arrows — Y negated (GLFW up reads negative).
+                    // Keyboard preserved: both add. Disconnected pad reads
+                    // zero, so this is a silent no-op without hardware.
+                    if (curPad.connected) {
+                        player->position.x += curPad.leftX * entityMoveSpeed * dt;
+                        player->position.y -= curPad.leftY * entityMoveSpeed * dt;
+                    }
+                    // Integration sprint: static tile collision (Step 63).
+                    // Tiles never move — the full correction lands on the
+                    // player, who slides/stops on walls and floor. Empty map
+                    // (alt scene) early-outs to zero: free, no branch here.
+                    pe::collideEntityWithTilemap(*player, activeScene->tilemap);
                 }
                 if (player) {
                     camera.follow(player->position);
@@ -999,14 +1176,18 @@ int main() {
             }
             break;
         case pe::GameState::PAUSED:
+            // Integration sprint: the console pumps here too (frozen-world
+            // debugging — type while paused, the world holds still). An
+            // owning frame swallows ESC/SPACE exactly like PLAYING.
+            pumpConsole();
             // ESC resumes; SPACE gives up the run and returns to the
             // menu. The abandoned world stays in memory as-is; the NEXT
             // start resets it via resetGame().
-            if (escEdge) {
+            if (escEdge && !consoleAteFrame) {
                 currentState = activeHostileDefaults == &alternateHostileDefaults
                     ? pe::GameState::PLAYING_ALT
                     : pe::GameState::PLAYING;
-            } else if (spaceEdge) {
+            } else if (spaceEdge && !consoleAteFrame) {
                 currentState = pe::GameState::MENU;
             }
             break;
@@ -1039,6 +1220,7 @@ int main() {
         // "previous" state. Order is load-bearing — updating earlier
         // would kill every edge this frame.
         input.update(window);
+        prevPad = curPad;  // Integration sprint: gamepad edge memory rotates here, same contract.
 
         // --- Step 11 / Step 19: Simulation runs ONLY in PLAYING ---
         // PAUSED holds the world still — drawn every frame (below),
@@ -1067,7 +1249,7 @@ int main() {
             // rate via the state += rate * deltaTime pattern) moved
             // into pe::advanceRotations (src/simulation.h); the
             // per-frame semantics are byte-identical.
-            pe::advanceRotations(entities, dt);
+            pe::advanceRotations(activeScene->entities, dt);
 
             // --- Phase 2: this frame's difficulty scale ---
             // Computed ONCE per frame (all hostiles share the same clock):
@@ -1089,7 +1271,7 @@ int main() {
             // comes from NUMBERS. The decision of WHEN this runs
             // (this frame, in this order, only in PLAYING) stays
             // here.
-            pe::chasePlayer(entities, difficultyScale, dt,
+            pe::chasePlayer(activeScene->entities, difficultyScale, dt,
                               static_cast<int>(pe::ArcadeRole::Player),
                               static_cast<int>(pe::ArcadeRole::Hostile));
 
@@ -1101,7 +1283,7 @@ int main() {
             // unambiguous and it reads fine as a flag. (Step 11: the
             // vector itself is hoisted to loop scope so PAUSED can keep
             // drawing the last frame's tint; contents rebuilt here.)
-            colliding.assign(entities.size(), 0);
+            colliding.assign(activeScene->entities.size(), 0);
             // The scan itself moved into pe::scanSceneryCollisions
             // (src/simulation.h): every unique pair among the
             // Player/Scenery-role entities tested once, BOTH flags set
@@ -1109,11 +1291,11 @@ int main() {
             // The rebuild line ABOVE stays here,
             // because the rebuild is the collision-state POLICY
             // (derived fresh, never remembered).
-            pe::scanSceneryCollisions(entities, colliding,
+            pe::scanSceneryCollisions(activeScene->entities, colliding,
                                           static_cast<int>(pe::ArcadeRole::Player),
                                           static_cast<int>(pe::ArcadeRole::Scenery));
             // --- Step 58: advance playing clips (caller applies speed) ---
-            for (pe::Entity& entity : entities) {
+            for (pe::Entity& entity : activeScene->entities) {
                 if (entity.animationState.isPlaying) {
                     entity.animationState.update(dt * entity.animationSpeed);
                 }
@@ -1129,22 +1311,23 @@ int main() {
                 wasColliding.assign(colliding.size(), 0);
             }
             bool anyNewCollision = false;
+            int freshIndex = -1;
             for (size_t i = 0; i < colliding.size(); ++i) {
                 if (colliding[i] && !wasColliding[i]) {
                     anyNewCollision = true;
+                    freshIndex = static_cast<int>(i);
                     break;
                 }
             }
             if (anyNewCollision) {
-                // Step 20: the round-robin claim, rewind-if-busy, and
-                // start moved into pe::Audio::playNext() — same cursor,
-                // same semantics; main.cpp keeps the EDGE DECISION that
-                // gets us here.
-                audio.playNext();
-                // Step 37: keep the hit flash synchronized with the same
-                // edge event that already triggers the beep, so the visual
-                // and audio feedback land on the same frame.
-                collisionFlashFrames = 6;
+                // Integration sprint: the edge PUBLISHES instead of acting.
+                // Collision{a = fresh entity index, b = -1} goes on the
+                // Step-67 bus; the subscriber (setup above) performs the
+                // Step-20 beep + Step-37 flash. Detection -> bus ->
+                // response: the first genuine event path. Pair identity
+                // beyond the fresh index lives in the flag vector, not the
+                // event — the bus carries opaque ints by design.
+                eventBus.emit(pe::GameEvent{pe::EventType::Collision, freshIndex, -1});
             }
             // Store THIS frame's vector for the next frame's edge test.
             wasColliding = colliding;
@@ -1164,7 +1347,7 @@ int main() {
             // the final frame. Same frame, same death, three threats.
             // Step 47/54: identify player and hostiles via ArcadeRole roleIds
             const pe::Entity* player = nullptr;
-            for (const pe::Entity& entity : entities) {
+            for (const pe::Entity& entity : activeScene->entities) {
                 if (entity.roleId == static_cast<int>(pe::ArcadeRole::Player)) {
                     player = &entity;
                     break;
@@ -1172,7 +1355,7 @@ int main() {
             }
             bool caught = false;
             if (player) {
-                for (const pe::Entity& entity : entities) {
+                for (const pe::Entity& entity : activeScene->entities) {
                     if (entity.roleId == static_cast<int>(pe::ArcadeRole::Hostile)) {
                         if (pe::aabbOverlap(*player, entity)) {
                             caught = true;
@@ -1184,6 +1367,17 @@ int main() {
             if (caught) {
                 std::cout << "GAME OVER — survived "
                           << survivalTime << " seconds" << std::endl;
+                // Integration sprint: death burst (Step 70). 24 sparks on a
+                // deterministic ring (no rng in game code) from the player's
+                // final position, updated + drawn below even while frozen.
+                if (player) {
+                    for (int s = 0; s < 24; ++s) {
+                        const float ang = static_cast<float>(s) * 2.0f * 3.14159265f / 24.0f;
+                        pe::spawnParticle(burst, player->position,
+                                          pe::Vec3(std::cos(ang) * 3.0f, std::sin(ang) * 3.0f, 0.0f),
+                                          0.8f, 0.35f, pe::Vec3(1.0f, 1.0f, 1.0f));
+                    }
+                }
                 // --- Game Build Phase 4: record check + save ---
                 // The run's final time is complete RIGHT NOW (the timer
                 // stops with the state flip below), so this is the exact
@@ -1244,6 +1438,14 @@ int main() {
             }
         }
 
+        // Integration sprint: particle pool (Step 70). Updated while the
+        // world is drawn AND alive-or-finished (PLAYING + GAME_OVER/WIN) —
+        // frozen in PAUSED/MENU like everything else. The death burst above
+        // therefore animates over the frozen final frame.
+        if (pe::drawsWorld(currentState) && currentState != pe::GameState::PAUSED) {
+            pe::updateParticles(burst, dt);
+        }
+
         // B. Clear the screen
         // --- Step 11 / Step 19: clear color is per-state ---
         // The palette RULES moved to the game-state boundary in Step 19
@@ -1278,11 +1480,36 @@ int main() {
             // from the colliding flags, and one draw call per entity.
             // Step 15: the VIEW matrix now comes prebuilt from the
             // camera boundary; the renderer performs no camera math.
-            renderer.drawWorld(camera.projection(), camera.view(), entities, colliding);
+            renderer.drawWorld(camera.projection(), camera.view(), activeScene->entities, colliding);
+
+            // Integration sprint: tile pass (Step 63 rendering). Live tiles
+            // become entities through the converter and draw through the SAME
+            // drawWorld with their own zeroed flag buffer — no second render
+            // system (Step 63 ruling stands). Depth 0 draws first; roleId 3
+            // is opaque to every scan. Empty map (alt scene): the converter
+            // returns empty and this whole block is a no-op.
+            {
+                const std::vector<pe::Entity> tileEntities =
+                    pe::tilemapToEntities(activeScene->tilemap, 0, 3);
+                if (!tileEntities.empty()) {
+                    const std::vector<char> tileClear(tileEntities.size(), 0);
+                    renderer.drawWorld(camera.projection(), camera.view(), tileEntities, tileClear);
+                }
+            }
+
+            // Integration sprint: particle pass (Step 70 rendering). Same
+            // converter pattern — crimson slot, top depth, zeroed flags —
+            // so sparks draw over the frozen scene. Empty pool: skipped.
+            if (!burst.empty()) {
+                const std::vector<pe::Entity> sparkEntities =
+                    pe::particlesToEntities(burst, 2, 4, 99);
+                const std::vector<char> sparkClear(sparkEntities.size(), 0);
+                renderer.drawWorld(camera.projection(), camera.view(), sparkEntities, sparkClear);
+            }
 
             // --- Step 42: debug AABB wireframes (F1 toggle) ---
             if (debugHitboxes) {
-                renderer.drawAABBs(camera.projection(), camera.view(), entities,
+                renderer.drawAABBs(camera.projection(), camera.view(), activeScene->entities,
                                     static_cast<int>(pe::ArcadeRole::Player));
             }
 
@@ -1299,6 +1526,18 @@ int main() {
             // simulation gate stopped the clock, so the number stops
             // with it), and the FINAL time on GAME_OVER.
             pe::drawHud(renderer, camera.projection(), survivalTime, highScore);
+            // Integration sprint: extended-text state labels (Step 66 — first
+            // in-game execution of drawTextString beyond digits) and the
+            // console overlay (Step 68 — no-op unless open). Centered on the
+            // origin; the HUD rows above are untouched.
+            if (currentState == pe::GameState::PAUSED) {
+                renderer.drawTextString("PAUSED", 0.0f, 0.5f, camera.projection(), pe::TextAlign::Center);
+            } else if (currentState == pe::GameState::GAME_OVER) {
+                renderer.drawTextString("GAME OVER", 0.0f, 0.5f, camera.projection(), pe::TextAlign::Center);
+            } else if (currentState == pe::GameState::WIN) {
+                renderer.drawTextString("YOU WIN", 0.0f, 0.5f, camera.projection(), pe::TextAlign::Center);
+            }
+            pe::drawConsole(renderer, camera.projection(), console);
         }
 
         // C. Swap buffers
