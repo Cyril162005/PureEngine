@@ -166,6 +166,19 @@ target_include_directories(Pong PRIVATE "${stb_SOURCE_DIR}")
 # Link GLFW only (no miniaudio: the scaffold uses no audio boundary).
 target_link_libraries(Pong glfw)
 
+# Step 59B: deliver Pong's animation assets next to its exe (same
+# copy_if_different pattern as the arcade bundle). Without these, the
+# paddle sheet + clip file resolve only from a repo-root CWD.
+add_custom_command(TARGET Pong POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Pong>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"
+        "$<TARGET_FILE_DIR:Pong>/assets/paddle_spritesheet.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"
+        "$<TARGET_FILE_DIR:Pong>/assets/paddle_animations.txt"
+)
+
 # On Linux, we might need extra libs
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)

@@ -268,7 +268,8 @@ public:
         entityTextures[1] = loadRgbAsset("tex_scenery.png");
         entityTextures[2] = loadRgbAsset("tex_hostile.png");
         entityTextures[3] = loadRgbAsset("tex_hostile_alt.png");
-        if (entityTextures[0] == 0 || entityTextures[1] == 0 || entityTextures[2] == 0 || entityTextures[3] == 0) {
+        entityTextures[4] = loadRgbAsset("paddle_spritesheet.png");
+        if (entityTextures[0] == 0 || entityTextures[1] == 0 || entityTextures[2] == 0 || entityTextures[3] == 0 || entityTextures[4] == 0) {
             std::cerr << "Failed to load Phase 5 entity textures (tried: assets/, ../assets/, ../../assets/)" << std::endl;
             destroyAll();
             return false;
@@ -375,8 +376,7 @@ public:
     // math at all; it only submits.
     void drawWorld(const Mat4& projection, const Mat4& view,
                    const std::vector<Entity>& entities,
-                   const std::vector<char>& colliding,
-                   const SpritesheetMetadata& spritesheet = SpritesheetMetadata{}) {
+                   const std::vector<char>& colliding) {
         glUseProgram(shaderProgram);
 
         // Bind the world VAO ONCE: every entity shares this vertex data —
@@ -443,8 +443,9 @@ public:
                     frame = clipFrame->frameIndex;
                 }
             }
-            const UVRect frameUV = calculateFrameUV(frame, spritesheet.framesPerRow,
-                                                    spritesheet.totalFrames);
+            // Per-entity sheet grid (full grids only: total = cols*rows).
+            const UVRect frameUV = calculateFrameUV(frame, entity.cols,
+                                                    entity.cols * entity.rows);
             const float midU = (frameUV.minU + frameUV.maxU) * 0.5f;
             const float frameVerts[] = {
                 -0.5f, -0.5f, 0.0f,     frameUV.minU, frameUV.minV,
@@ -654,8 +655,8 @@ private:
     GLuint textVAO = 0, textVBO = 0;    // Phase 3: the glyph quad geometry
     GLuint aabbVAO = 0, aabbVBO = 0;    // Step 42: debug unit-square line loop
     GLuint checkerTexture = 0;       // Step 10: legacy, out-of-range fallback
-    static constexpr int TEXTURE_SLOTS = 4;
-    GLuint entityTextures[TEXTURE_SLOTS] = {};  // Step 55 slots: [0]=player green, [1]=scenery blue, [2]=hostile crimson, [3]=hostile alt
+    static constexpr int TEXTURE_SLOTS = 5;
+    GLuint entityTextures[TEXTURE_SLOTS] = {};  // Step 55 slots: [0]=player green, [1]=scenery blue, [2]=hostile crimson, [3]=hostile alt; Step 59B: [4]=paddle sheet
     GLuint fontTexture = 0;          // Phase 3: the RGBA digit atlas
 
     // The atlas's geometry, known FROM THE GENERATOR (not queried):

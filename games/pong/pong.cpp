@@ -17,6 +17,7 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <map>      // Pong clip library (name -> Animation)
 #include <vector>
 
 #include "../../src/entity.h"
@@ -25,6 +26,7 @@
 #include "../../src/camera.h"
 #include "../../src/input.h"
 #include "../../src/time.h"
+#include "../../src/animation_data.h"
 
 int main() {
     // 1. Initialize GLFW (window lifecycle stays game-side per input.h contract)
@@ -77,18 +79,28 @@ int main() {
     //    no roles since Step 55); textureIds pick renderer slots.
     std::vector<pe::Entity> entities;
 
+    // --- Step 59B: paddle clip library (game-owned, outlives entities) ---
+    // Bare filename: loadAnimations() probes assets/ itself.
+    const std::map<std::string, pe::Animation> paddleClips =
+        pe::loadAnimations("paddle_animations.txt");
+
     pe::Entity paddleL;
     paddleL.position = pe::Vec3(-5.0f, 0.0f, 0.0f);   // inside the +/-6 view box
     paddleL.scale = pe::Vec3(0.5f, 2.0f, 1.0f);       // thin tall paddle
     paddleL.roleId = 0;
-    paddleL.textureId = 0;   // slot 0 = green
+    paddleL.textureId = 4;   // slot 4 = paddle sheet (NOT slots 0/1:
+                             // 16px singles would slice into slivers)
+    paddleL.cols = 8;        // 8x1 sheet grid
+    paddleL.rows = 1;
     entities.push_back(paddleL);
 
     pe::Entity paddleR;
     paddleR.position = pe::Vec3(5.0f, 0.0f, 0.0f);
     paddleR.scale = pe::Vec3(0.5f, 2.0f, 1.0f);
     paddleR.roleId = 1;
-    paddleR.textureId = 1;   // slot 1 = blue
+    paddleR.textureId = 4;   // slot 4 = paddle sheet
+    paddleR.cols = 8;
+    paddleR.rows = 1;
     entities.push_back(paddleR);
 
     pe::Entity ball;
@@ -122,6 +134,36 @@ int main() {
             if (entities[i].position.y > paddleLimitY) { entities[i].position.y = paddleLimitY; }
             if (entities[i].position.y < -paddleLimitY) { entities[i].position.y = -paddleLimitY; }
         }
+        // --- Step 59B: paddle clips follow paddle motion ---
+        // Moving paddle -> paddle_move clip; still paddle -> paddle_idle.
+        // Single find per paddle (no double lookup); re-pointing at the
+        // same clip preserves elapsedTime (no restart jitter).
+        {
+            const bool leftMoves = pe::Input::isDown(window, GLFW_KEY_W) ||
+                                   pe::Input::isDown(window, GLFW_KEY_S);
+            const auto moveClip = paddleClips.find("paddle_move");
+            const auto idleClip = paddleClips.find("paddle_idle");
+            const auto* want = leftMoves
+                ? (moveClip != paddleClips.end() ? &moveClip->second : nullptr)
+                : (idleClip != paddleClips.end() ? &idleClip->second : nullptr);
+            if (want) {
+                entities[0].animationState.currentAnimation = want;
+                entities[0].animationState.isPlaying = true;
+            }
+        }
+        {
+            const bool rightMoves = pe::Input::isDown(window, GLFW_KEY_UP) ||
+                                    pe::Input::isDown(window, GLFW_KEY_DOWN);
+            const auto moveClip = paddleClips.find("paddle_move");
+            const auto idleClip = paddleClips.find("paddle_idle");
+            const auto* want = rightMoves
+                ? (moveClip != paddleClips.end() ? &moveClip->second : nullptr)
+                : (idleClip != paddleClips.end() ? &idleClip->second : nullptr);
+            if (want) {
+                entities[1].animationState.currentAnimation = want;
+                entities[1].animationState.isPlaying = true;
+            }
+        }
 
         // Ball: discrete integrate, wall bounce, paddle bounce (game-side
         // response via public aabbOverlap), reset past the side edges
@@ -139,6 +181,13 @@ int main() {
         }
         if (entities[2].position.x < -7.0f || entities[2].position.x > 7.0f) {
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
+        }
+
+        // --- Step 59B: tick playing clips (ball idles on frame 0: not playing) ---
+        for (pe::Entity& entity : entities) {
+            if (entity.animationState.isPlaying) {
+                entity.animationState.update(dt * entity.animationSpeed);
+            }
         }
 
         renderer.clear(0.0f, 0.0f, 0.0f);

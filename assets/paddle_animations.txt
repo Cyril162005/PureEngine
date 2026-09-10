@@ -1,0 +1,4 @@
+# Pong paddle clips (Step 59B draft content — sheet: paddle_spritesheet.png, 8x1 cells)
+# Format: animation=name,frameCount,frameDuration,loops (true/1 = loop, false/0 = one-shot).
+animation=paddle_move,8,0.1,true
+animation=paddle_idle,1,1.0,true

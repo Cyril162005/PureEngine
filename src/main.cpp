@@ -671,12 +671,6 @@ int main() {
     const std::map<std::string, pe::Animation> animations =
         pe::loadAnimations("animation_default.txt");
 
-    // --- Step 57: spritesheet layout assumed for every entity ---
-    // No multi-frame art exists yet: 8-wide, 1 total = full texture for
-    // all draws (verified no-op vs. the old path). Per-entity sheets
-    // arrive with data-driven animation in Step 58.
-    const pe::SpritesheetMetadata arcadeSheet{8, 1};
-
     // --- Step 7 / Step 18: Entities as DATA (before the loop) ---
     // Every triangle instance is one entry in this vector. The Step 5/6
     // globals rotationAngle/rotationSpeed no longer exist — that state
@@ -1284,7 +1278,7 @@ int main() {
             // from the colliding flags, and one draw call per entity.
             // Step 15: the VIEW matrix now comes prebuilt from the
             // camera boundary; the renderer performs no camera math.
-            renderer.drawWorld(camera.projection(), camera.view(), entities, colliding, arcadeSheet);
+            renderer.drawWorld(camera.projection(), camera.view(), entities, colliding);
 
             // --- Step 42: debug AABB wireframes (F1 toggle) ---
             if (debugHitboxes) {
