@@ -476,6 +476,32 @@
       "depends_on": [
         69
       ]
+    },
+    {
+      "id": 71,
+      "name": "Arcade integration sprint",
+      "status": "completed",
+      "definition_of_done": "Arcade adopts tilemap (arena asset, second drawWorld, player collision), SceneManager ownership + switching, EventBus collision/scene-change paths, console (toggle/type/submit/draw, PLAYING+PAUSED), gamepad (stick+A/START), catch-burst particles, state labels + console via drawTextString, hierarchy satellite + renderer world-position branch. Non-breaking: catch timing identical (0.55s).",
+      "notes": "VM ghost key events observed during playtests (phantom SPACE/ESC/2 edges incl. untouched paths; gamepad proven innocent via probe: mapped=0 always). Not a game bug. C2360 lesson: no case-level declarations. Duplicate GLFW_KEY_2 in tracked list is benign.",
+      "implementation": "src/main.cpp (+~300), lifecycle.h (satellite), renderer.h (parent branch), arcade_arena.txt, CMake asset copy",
+      "verification": "Build clean, CTest 1/1, scripted playtests (scene events, deaths, console help/entities over stdout), Pong alive.",
+      "commit": "e1488f2",
+      "depends_on": [
+        70
+      ]
+    },
+    {
+      "id": 72,
+      "name": "Physics hardening for platformer",
+      "status": "completed",
+      "definition_of_done": "Entity gains isStatic + controller fields. resolveCollision honors statics (full correction on dynamic, both-static no-op). updateCharacterController: gravity/clamp/integrate, single min-axis static resolve, jump + coyote + ceiling cancel, grounded state. 8 behavior tests green (39 total).",
+      "notes": "Two real findings while testing: split H-then-V pass shoved landing characters sideways (fixed: single min-axis pass); grounded tolerance trips one frame before rest (tests settle, engine correct). No tunneling protection; no entity-entity static platform path beyond resolve.",
+      "implementation": "src/entity.h (+fields), src/physics.h (+static resolve, controller), +~200 test lines",
+      "verification": "Build clean, CTest 1/1 (39 cases). Fall probe used during diagnosis (temp, outside repo).",
+      "commit": "9ac9246",
+      "depends_on": [
+        71
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
