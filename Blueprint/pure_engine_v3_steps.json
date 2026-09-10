@@ -398,6 +398,19 @@
       "depends_on": [
         63
       ]
+    },
+    {
+      "id": 65,
+      "name": "Transform hierarchy foundation",
+      "status": "completed",
+      "definition_of_done": "Entity gains parentIndex (-1 = root). setParent with cycle detection. worldPosition walks the chain (translation-only). Bounded walk terminates even on hand-written cycles. Proof cases in existing test binary. Non-breaking.",
+      "notes": "Only entity.h touched. No consumer rewiring. setParent refuses detached loops. parentless entities remain identical (worldPosition == position).",
+      "implementation": "src/entity.h (+99), +112 lines in hostile_data_test.cpp",
+      "verification": "Build clean, CTest 1/1 (13 cases), Arcade/Pong untouched and alive.",
+      "commit": "3adc2ea",
+      "depends_on": [
+        64
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
