@@ -5,17 +5,26 @@ OpenGL, plus a small arcade game built entirely on top of it. No engine
 framework, no game library — every engine layer was written as part of the
 project itself.
 
-- **Engine** (49 implemented steps, 50 attempted): window/context, rendering pipeline,
+- **Engine** (72 tracked steps, 25–72): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio), file-based asset loading (stb_image PNG),
-  scene structure, and a full game loop with states.
-- **Game** (arcade survival): keep a spinning player clear of crimson
-  hostiles while the scenery spins around you. Survival time is the
-  score; the best time persists across runs.
+  scene structure, animation, physics (gravity, impulse, statics, character
+  controller), tilemaps, scenes, transform hierarchy, bitmap text,
+  event bus, debug console, gamepad input, particles, and full game loops
+  with states.
+- **Games**: arcade survival (dodge crimson hostiles; survival time is the
+  score, persisted across runs; arena has tile walls, a companion satellite,
+  catch-burst particles, debug console, gamepad support) and Pong
+  (`build\Release\Pong.exe`: paddles + ball, the second-game API proof).
 
 The full build history and design decisions live in
 [`Blueprint/GAME_BUILD.md`](Blueprint/GAME_BUILD.md) (machine-readable twin:
-[`Blueprint/game_build_steps.json`](Blueprint/game_build_steps.json)).
+[`Blueprint/game_build_steps.json`](Blueprint/game_build_steps.json)),
+[`Blueprint/PURE_ENGINE_V3.md`](Blueprint/PURE_ENGINE_V3.md) (engine track,
+machine-readable twin: [`Blueprint/pure_engine_v3_steps.json`](Blueprint/pure_engine_v3_steps.json)).
+Steps 63–70 were built as tested foundations first and then adopted by the
+arcade game (Step 71); Step 72 hardened physics for a platformer (no
+platformer game exists yet — that is the next milestone).
 
 ## Requirements
 
@@ -48,34 +57,48 @@ reproduce them byte-for-byte:
 | Script | Output |
 |---|---|
 | `make_checker.ps1` | `assets/checker.png` (legacy world texture) |
-| `make_font.ps1` | `assets/font_digits.png` (bitmap digit font atlas) |
+| `make_font.ps1` | `assets/font_digits.png` (37-cell bitmap atlas: digits + A–Z) |
 | `make_beep.ps1` | `assets/beep.wav` (collision/alert sound) |
-| `make_textures.ps1` | `assets/tex_player.png`, `assets/tex_scenery.png`, `assets/tex_hostile.png`, `assets/tex_hostile_alt.png` (Phase 5 entity textures) |
+| `make_textures.ps1` | `assets/tex_player.png`, `assets/tex_scenery.png`, `assets/tex_hostile.png` (entity textures) |
+| `make_paddlesheet.ps1` | `assets/paddle_spritesheet.png` (Pong paddle frames) |
+| — | `assets/tex_hostile_alt.png` (committed; no generator script) |
 | — | `assets/hostile_default.txt`, `assets/hostile_alt.txt` (data-driven hostile configs) |
-| — | `assets/win_sound.wav`, `assets/GAMEOVER.wav` (event audio) |
+| — | `assets/animation_default.txt`, `assets/paddle_animations.txt` (clip definitions) |
+| — | `assets/tilemap_default.txt`, `assets/arcade_arena.txt` (tilemaps) |
+| — | `assets/win_sound.wav`, `assets/GAMEOVER.wav` (event audio, committed; no generator script) |
 | `scripts/package.ps1` | `package/PureEngine-0.1.0-win64.zip` |
 
 ## Run
 
 ```bat
 build\Release\PureEngine.exe
+build\Release\Pong.exe
 ```
 
-The executable resolves its assets through a 3-candidate probe
+Each executable resolves its assets through a 3-candidate probe
 (`assets/`, `../assets/`, `../../assets/`), so it works when launched from
 the repo root, from `build/`, or from `build/Release/`.
 
-### Controls
+### Arcade controls
 
 | Input | Effect |
 |---|---|
-| SPACE | Start from menu / return to menu from game over |
+| SPACE | Start from menu / return to menu from game over (gamepad A works too) |
 | 2 | Start the alternate hostile scene from the menu |
-| Arrow keys | Move the player |
-| WASD | Pan the camera |
-| ESC | Pause / resume; on the menu it quits |
+| Arrow keys | Move the player (gamepad left stick works too) |
+| ESC | Pause / resume; on the menu it quits (gamepad START works too) |
+| F1 | Toggle collision-box debug overlay |
+| ` (backtick) | Toggle the debug console (type `help`, `entities`, `reset`; ENTER submits) |
 
 The alternate scene uses `hostile_alt.txt` and demonstrates the orange hostile texture variant.
+The camera follows the player (the old WASD free-pan is gone). Blue tile
+walls block the player; the small green satellite is a hierarchy-attached
+companion; states show centered text labels (PAUSED / GAME OVER / YOU WIN).
+
+### Pong controls
+
+W/S move the left paddle, Up/Down move the right paddle, ESC quits. No
+score, pause, audio, or states yet — that is future work, not architecture.
 
 The high score is saved to `savedata/highscore.txt` (created automatically
 on the first record; excluded from git). Delete it to start fresh at 0.0.
@@ -84,8 +107,10 @@ on the first record; excluded from git). Delete it to start fresh at 0.0.
 
 The executable is **fully self-contained**: GLFW, miniaudio, stb, and GLAD
 are statically linked, and the MSVC C/C++ runtime is statically linked as
-well (set via `CMAKE_MSVC_RUNTIME_LIBRARY` in `CMakeLists.txt`). A working
-package is just:
+well (via the `/MD`→`/MT` flag-variable rewrite in `CMakeLists.txt` — the
+modern `CMAKE_MSVC_RUNTIME_LIBRARY` property did not take effect because
+the fetched dependencies reset the policy scope; see the comment there).
+A working package is just:
 
 ```
 PureEngine/
@@ -101,35 +126,66 @@ creates it on the first new record, so a fresh install starts at 0.0.
 ## Repository layout
 
 ```
-src/main.cpp            the game: window, audio, entities, state machine,
-                         simulation, camera, timing, high score (step by step)
-src/renderer.h          the renderer boundary (Step 13): shader, VAO/VBOs,
-                         textures, world draw loop, screen-space digit UI
-src/resources.h         the resource-loading boundary (Step 14): texture
-                         load/upload (3-candidate path probe, stb_image)
-src/camera.h            the camera boundary (Step 15): position state,
-                         movement, lookAt view, orthographic projection
-src/input.h             the input boundary (Step 16): key-state polling,
-                         edge detection, previous-frame snapshot
-src/time.h              the time boundary (Step 17): frame-time acquisition,
-                         delta calculation, previous-timestamp state
-src/lifecycle.h         the entity lifecycle boundary (Step 18): initial
-                         entity construction, snapshot restore, flag sizing
-src/gamestate.h         game-state enum + the game-state boundary (Step 19):
-                         pure predicates and per-state lookups
-src/audio.h             the audio boundary (Step 20): miniaudio engine,
-                         four-slot pool, shared round-robin playback
-src/ui.h                the UI boundary (Step 21): HUD number formatting,
-                         layout constants, two-row draw sequence
-src/simulation.h        the simulation boundary (Step 22): pure mechanics —
-                         rotation update, hostile chase, scenery collision scan
+src/main.cpp            arcade game: window, audio, entities, state machine,
+                         simulation, camera, timing, high score + adopted
+                         tilemap/scenes/events/console/gamepad/particles/text
+src/renderer.h          the renderer boundary: shader, VAO/VBOs, textures,
+                         world draw loop, digit + full-text UI, debug overlay
+src/resources.h         the resource-loading boundary: texture load/upload
+                         (3-candidate path probe, stb_image)
+src/camera.h            the camera boundary: follow, lookAt view,
+                         orthographic projection
+src/input.h             the input boundary: key-state polling, edge detection,
+                         previous-frame snapshot
+src/gamepad.h           gamepad snapshots: poll, deadzone, button edges
+src/time.h              the time boundary: frame-time, clamped delta
+src/lifecycle.h         the entity lifecycle boundary: initial construction
+                         (incl. hierarchy satellite), snapshot restore
+src/gamestate.h         game-state enum + predicates and per-state lookups
+src/audio.h             the audio boundary: miniaudio engine, beep pool,
+                         dedicated event sounds
+src/ui.h                the UI boundary: HUD number formatting + layout
+src/simulation.h        the simulation boundary: rotations, chase, physics
+                         integration, scenery collision scan
+src/physics.h           physics: gravity, impulse resolve (static-aware),
+                         character controller (grounded/jump/coyote)
+src/tilemap.h           tilemaps: load, convert to entities, tile collision
+src/scene.h             scenes: SceneManager own/load/switch/clear
+src/font.h              bitmap-text logic: cell map, width, alignment
+src/events.h            event bus: subscribe/emit, snapshot delivery
+src/console.h           debug console: toggle/type/commands/draw
+src/particles.h         particles: pool, emitter, drawWorld converter
+src/animation*.h        animation clips, file loading, frame UVs
 src/math/               own math layer (Vec3, Mat4)
-src/entity.h            entity data
+src/entity.h            entity data (+parentIndex, isStatic, coyote fields)
 src/collision.h         AABB collision
 src/stb_impl.cpp        stb_image implementation unit
-tests/                  hostile_data_test.cpp (CTest-registered)
-assets/                 committed, script-generated assets
-Blueprint/              project blueprint + Game Build tracker
+games/pong/pong.cpp     Pong: second-game API proof (own CMake target)
+tests/                  hostile_data_test.cpp, 39 behavior cases (CTest)
+assets/                 committed assets (scripts generate most, not all)
+Blueprint/              blueprints + step trackers (source of step history)
 make_*.ps1              in-tree asset generators
 scripts/package.ps1     packaging script
 ```
+
+## Where the project stands
+
+v1.0 means a small code-first 2D engine proven by real games. Current
+state: the arcade game exercises rendering, input (+gamepad), audio,
+config, HUD, save, tilemaps, scenes, events, console, particles, text,
+and hierarchy; physics (statics, controller) is implemented and
+behavior-tested (39 CTest cases) but has no game caller yet. The planned
+proof is a minimal platformer (tilemap + controller + scenes) — that game
+does not exist yet and is the next milestone. Deliberately deferred:
+sprite batching (measured: unneeded, see below), lighting, audio mixer,
+editor, ECS, 3D, networking.
+
+## Performance note
+
+Measured on the integration workload (Release, `/O2`): tilemap→entities
+for the 14-tile arena plus a 24-particle update/convert costs ~0.003 ms
+per frame; a 10k-tile conversion costs ~3.8 ms one-off (level load, not
+per frame); tile collision queries cost ~70 ns; the live arcade scene
+runs at several hundred fps. Step-52 evidence (1.21 ms at 50 entities →
+12.09 ms at 5000) still bounds the entity path. Nothing here justifies
+batching: it stays deferred until a measurement says otherwise.
