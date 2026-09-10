@@ -80,6 +80,12 @@ struct Entity {
     // sample the full texture — identical to pre-animation behavior.
     int cols = 1;
     int rows = 1;
+    // --- Step 60: physics state (inert by default) ---
+    // velocity: world units/s. gravityScale: 0 = no physics (default,
+    // non-breaking), 1 = full GRAVITY. See physics.h (free functions,
+    // massless model, no persistent acceleration field).
+    Vec3 velocity = Vec3(0.0f, 0.0f, 0.0f);
+    float gravityScale = 0.0f;
 
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
@@ -99,7 +105,9 @@ struct Entity {
           animationState(),
           animationSpeed(1.0f),
           cols(1),
-          rows(1) {}
+          rows(1),
+          velocity(0.0f, 0.0f, 0.0f),
+          gravityScale(0.0f) {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -124,7 +132,9 @@ struct Entity {
           animationState(),
           animationSpeed(1.0f),
           cols(1),
-          rows(1) {}
+          rows(1),
+          velocity(0.0f, 0.0f, 0.0f),
+          gravityScale(0.0f) {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the
