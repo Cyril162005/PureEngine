@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 
+#include "../src/console.h"
 #include "../src/events.h"
 #include "../src/font.h"
 #include "../src/hostile_data.h"
@@ -719,6 +720,156 @@ static bool checkEventsEdgeCases() {
     return true;
 }
 
+static bool checkConsoleToggle() {
+    pe::Console c;
+    if (c.open || !c.input.empty() || !c.lines.empty()) {
+        std::cerr << "Console must start closed and empty\n";
+        return false;
+    }
+    pe::toggle(c);
+    if (!c.open) {
+        std::cerr << "toggle did not open\n";
+        return false;
+    }
+    // State survives a close/reopen round-trip.
+    pe::feedKey(c, GLFW_KEY_H, false);
+    pe::feedKey(c, GLFW_KEY_I, true);
+    pe::toggle(c);
+    pe::toggle(c);
+    if (!c.open || c.input != "hI") {
+        std::cerr << "toggle lost input state\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkConsoleFeedKey() {
+    pe::Console c;
+    pe::feedKey(c, GLFW_KEY_H, false);    // -> 'h'
+    pe::feedKey(c, GLFW_KEY_E, true);     // -> 'E'
+    pe::feedKey(c, GLFW_KEY_1, false);    // -> '1' (shift ignored)
+    pe::feedKey(c, GLFW_KEY_1, true);     // -> '1' still
+    pe::feedKey(c, GLFW_KEY_SPACE, false);
+    pe::feedKey(c, GLFW_KEY_PERIOD, false);
+    pe::feedKey(c, GLFW_KEY_MINUS, false);
+    if (c.input != "hE11 .-") {
+        std::cerr << "feedKey built '" << c.input << "'\n";
+        return false;
+    }
+    // Backspace removes one char; safe on empty.
+    pe::feedKey(c, GLFW_KEY_BACKSPACE, false);
+    if (c.input != "hE11 .") {
+        std::cerr << "Backspace misbehaved\n";
+        return false;
+    }
+    // Untypeable keys are ignored: function keys, escape, enter
+    // (submit is a separate call), tab.
+    pe::feedKey(c, GLFW_KEY_F1, false);
+    pe::feedKey(c, GLFW_KEY_ESCAPE, false);
+    pe::feedKey(c, GLFW_KEY_ENTER, false);
+    pe::feedKey(c, GLFW_KEY_TAB, false);
+    if (c.input != "hE11 .") {
+        std::cerr << "Ignored key leaked into input\n";
+        return false;
+    }
+    pe::Console empty;
+    pe::feedKey(empty, GLFW_KEY_BACKSPACE, false);  // must not crash
+    if (!empty.input.empty()) {
+        std::cerr << "Backspace on empty input wrote state\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkConsoleSubmit() {
+    pe::Console c;
+    // Game-side command via the registration mechanism (the "list
+    // entities" pattern: the engine carries the wire, the game the data).
+    if (!pe::registerCommand(c, "entities",
+            [](const std::vector<std::string>&) {
+                return std::string("3 hostiles");
+            })) {
+        std::cerr << "Valid registerCommand refused\n";
+        return false;
+    }
+    // Registration refusals: builtin collision (any case), empty name,
+    // duplicate, null handler.
+    if (pe::registerCommand(c, "echo",
+            [](const std::vector<std::string>&) { return std::string("x"); }) ||
+        pe::registerCommand(c, "HELP",
+            [](const std::vector<std::string>&) { return std::string("x"); }) ||
+        pe::registerCommand(c, "",
+            [](const std::vector<std::string>&) { return std::string("x"); }) ||
+        pe::registerCommand(c, "Entities",
+            [](const std::vector<std::string>&) { return std::string("x"); }) ||
+        pe::registerCommand(c, "nullcmd", pe::ConsoleHandler())) {
+        std::cerr << "Illegal registerCommand accepted\n";
+        return false;
+    }
+
+    // Registered command: echo "> entities" + result, input cleared.
+    c.input = "entities";
+    if (pe::submit(c) != "3 hostiles" || !c.input.empty() ||
+        c.lines.size() != 2 || c.lines[0] != "> entities" ||
+        c.lines[1] != "3 hostiles") {
+        std::cerr << "Registered command submit wrong\n";
+        return false;
+    }
+    // Built-ins, case-insensitive command names, args preserved as typed.
+    c.input = "ECHO Hi There";
+    if (pe::submit(c) != "Hi There") {
+        std::cerr << "echo submit wrong\n";
+        return false;
+    }
+    c.input = "HELP";
+    const std::string help = pe::submit(c);
+    if (help.find("help") == std::string::npos ||
+        help.find("clear") == std::string::npos ||
+        help.find("echo") == std::string::npos ||
+        help.find("entities") == std::string::npos) {
+        std::cerr << "help output missing names: '" << help << "'\n";
+        return false;
+    }
+    // Unknown command: exact format, token as typed.
+    c.input = "frobnicate now";
+    if (pe::submit(c) != "unknown command 'frobnicate' (try help)") {
+        std::cerr << "Unknown-command format wrong\n";
+        return false;
+    }
+    // Empty / blank input: no-op, nothing pushed.
+    const std::size_t before = c.lines.size();
+    c.input = "";
+    if (pe::submit(c) != "" || c.lines.size() != before) {
+        std::cerr << "Empty submit must be a no-op\n";
+        return false;
+    }
+    c.input = "   ";
+    if (pe::submit(c) != "" || c.lines.size() != before) {
+        std::cerr << "Blank submit must be a no-op\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkConsoleHistory() {
+    pe::Console c;
+    for (int i = 0; i < 70; ++i) {
+        pe::print(c, "n" + std::to_string(i));
+    }
+    if (c.lines.size() != 64 || c.lines.front() != "n6" ||
+        c.lines.back() != "n69") {
+        std::cerr << "History cap did not keep the newest 64\n";
+        return false;
+    }
+    // clear wipes everything including the submit echo: true clean slate.
+    c.input = "clear";
+    if (pe::submit(c) != "" || !c.lines.empty() || !c.input.empty()) {
+        std::cerr << "clear did not wipe history\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -738,13 +889,19 @@ int main() {
     const bool eventsOrderOk = checkEventsOrderAndPayload();
     const bool eventsUnsubOk = checkEventsUnsubscribe();
     const bool eventsEdgeOk = checkEventsEdgeCases();
+    const bool consoleToggleOk = checkConsoleToggle();
+    const bool consoleFeedOk = checkConsoleFeedKey();
+    const bool consoleSubmitOk = checkConsoleSubmit();
+    const bool consoleHistoryOk = checkConsoleHistory();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk) {
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk ||
+        !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
+        !consoleHistoryOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
