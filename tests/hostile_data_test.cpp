@@ -5,6 +5,7 @@
 #include <string>
 
 #include "../src/hostile_data.h"
+#include "../src/scene.h"
 #include "../src/tilemap.h"
 
 namespace fs = std::filesystem;
@@ -293,6 +294,129 @@ static bool checkTilemapCollidePushesOut() {
     return true;
 }
 
+static bool checkSceneLifecycle() {
+    pe::SceneManager manager;
+
+    // Fresh scene: empty entities, no tilemap (width == 0), nothing current.
+    pe::Scene& first = pe::loadScene(manager, "overworld");
+    if (!first.entities.empty() || first.tilemap.width != 0 ||
+        pe::currentScene(manager) != nullptr) {
+        std::cerr << "Fresh scene is not empty / current leaked\n";
+        return false;
+    }
+
+    // Find-or-create: repeat load returns THE same scene, no duplicate.
+    pe::Scene& same = pe::loadScene(manager, "overworld");
+    if (&same != &first || manager.scenes.size() != 1) {
+        std::cerr << "loadScene duplicated an existing name\n";
+        return false;
+    }
+
+    // Unknown name refuses; current stays empty (nullptr, never void).
+    if (pe::switchTo(manager, "dungeon") ||
+        pe::currentScene(manager) != nullptr) {
+        std::cerr << "switchTo unknown name must fail cleanly\n";
+        return false;
+    }
+
+    // Switch on, add an entity, check it carried through.
+    if (!pe::switchTo(manager, "overworld") ||
+        pe::currentScene(manager) == nullptr ||
+        pe::currentScene(manager)->name != "overworld") {
+        std::cerr << "switchTo known name did not become current\n";
+        return false;
+    }
+    pe::Entity proto;
+    proto.position = pe::Vec3(3.0f, 4.0f, 0.0f);
+    proto.roleId = 7;
+    const pe::Entity* stored = pe::addEntity(manager, proto);
+    if (stored == nullptr || pe::currentScene(manager)->entities.size() != 1 ||
+        !assertFloatClose(stored->position.x, 3.0f) || stored->roleId != 7) {
+        std::cerr << "addEntity did not store the entity on current\n";
+        return false;
+    }
+
+    // Removal: bad index refuses, good index erases exactly one.
+    if (pe::removeEntity(manager, 5) ||
+        !pe::removeEntity(manager, 0) ||
+        !pe::currentScene(manager)->entities.empty()) {
+        std::cerr << "removeEntity misbehaved on current scene\n";
+        return false;
+    }
+
+    // Tilemap into the scene: good file stores data, bad file refuses
+    // and leaves the previous map untouched.
+    const fs::path tmpDir = fs::temp_directory_path() / "pureengine_scene_test";
+    fs::create_directories(tmpDir);
+    const fs::path goodPath = tmpDir / "__pureengine_scene_good___.txt";
+    const fs::path badPath = tmpDir / "__pureengine_scene_bad___.txt";
+    if (!writeFile(goodPath, "width=2\nheight=2\ntileSize=1.0\nrow=1,0\nrow=0,1\n") ||
+        !writeFile(badPath, "width=2\nheight=2\ntileSize=1.0\nrow=1,0\nrow=0\n")) {
+        std::cerr << "Failed to create scene tilemap test files\n";
+        return false;
+    }
+    pe::Scene* current = pe::currentScene(manager);
+    if (!pe::loadTilemapIntoScene(*current, goodPath.string()) ||
+        current->tilemap.width != 2 || current->tilemap.tiles.size() != 4) {
+        std::cerr << "loadTilemapIntoScene rejected a valid file\n";
+        return false;
+    }
+    if (pe::loadTilemapIntoScene(*current, badPath.string()) ||
+        current->tilemap.width != 2 || current->tilemap.tiles.size() != 4) {
+        std::cerr << "Bad tilemap file clobbered the stored map\n";
+        return false;
+    }
+    fs::remove(goodPath);
+    fs::remove(badPath);
+    fs::remove(tmpDir);
+
+    // Clear: contents gone, tilemap back to none, name survives.
+    pe::clearCurrent(manager);
+    current = pe::currentScene(manager);
+    if (current == nullptr || !current->entities.empty() ||
+        current->tilemap.width != 0 || current->name != "overworld") {
+        std::cerr << "clearCurrent did not empty while keeping identity\n";
+        return false;
+    }
+
+    // Second scene coexists; switching shuttles current between them.
+    pe::loadScene(manager, "dungeon");
+    if (manager.scenes.size() != 2 || !pe::switchTo(manager, "dungeon") ||
+        pe::currentScene(manager)->name != "dungeon" ||
+        !pe::switchTo(manager, "overworld") ||
+        pe::currentScene(manager)->name != "overworld") {
+        std::cerr << "Second scene did not coexist/switch cleanly\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkSceneNoCurrentNoOps() {
+    pe::SceneManager manager;  // never loaded, never switched
+
+    // Both currentScene overloads agree: no scene.
+    const pe::SceneManager& frozen = manager;
+    if (pe::currentScene(manager) != nullptr ||
+        pe::currentScene(frozen) != nullptr) {
+        std::cerr << "Fresh manager must report no current scene\n";
+        return false;
+    }
+
+    // Every mutating path with no current scene: silent no-op, no crash.
+    pe::clearCurrent(manager);  // must not crash
+    pe::Entity proto;
+    if (pe::addEntity(manager, proto) != nullptr ||
+        pe::removeEntity(manager, 0) || pe::switchTo(manager, "ghost")) {
+        std::cerr << "No-current operations must fail safe\n";
+        return false;
+    }
+    if (!manager.scenes.empty() || manager.current != -1) {
+        std::cerr << "No-ops must not grow or move manager state\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -302,9 +426,12 @@ int main() {
     const bool tilemapValidOk = checkTilemapValidLoad();
     const bool tilemapMalformedOk = checkTilemapMalformedFallsBack();
     const bool tilemapCollideOk = checkTilemapCollidePushesOut();
+    const bool sceneLifecycleOk = checkSceneLifecycle();
+    const bool sceneNoOpsOk = checkSceneNoCurrentNoOps();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
-        !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk) {
+        !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
+        !sceneLifecycleOk || !sceneNoOpsOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
