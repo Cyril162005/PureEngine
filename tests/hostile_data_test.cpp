@@ -417,6 +417,112 @@ static bool checkSceneNoCurrentNoOps() {
     return true;
 }
 
+static bool checkHierarchyChain() {
+    // Grandparent (1,0,0) -> parent (0,2,0) -> child (0,0,3):
+    // child world must be exactly (1,2,3).
+    std::vector<pe::Entity> chain(3);
+    chain[0].position = pe::Vec3(1.0f, 0.0f, 0.0f);
+    chain[1].position = pe::Vec3(0.0f, 2.0f, 0.0f);
+    chain[2].position = pe::Vec3(0.0f, 0.0f, 3.0f);
+    if (chain[0].parentIndex != -1) {
+        std::cerr << "Default parentIndex must be -1\n";
+        return false;
+    }
+    if (!pe::setParent(chain, 1, 0) || !pe::setParent(chain, 2, 1)) {
+        std::cerr << "Valid parent links were refused\n";
+        return false;
+    }
+    const pe::Vec3 rootWorld = pe::worldPosition(chain, 0);
+    const pe::Vec3 childWorld = pe::worldPosition(chain, 2);
+    if (!assertFloatClose(rootWorld.x, 1.0f) ||
+        !assertFloatClose(rootWorld.y, 0.0f) ||
+        !assertFloatClose(rootWorld.z, 0.0f) ||
+        !assertFloatClose(childWorld.x, 1.0f) ||
+        !assertFloatClose(childWorld.y, 2.0f) ||
+        !assertFloatClose(childWorld.z, 3.0f)) {
+        std::cerr << "3-deep chain did not sum to (1,2,3)\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkHierarchyRefusals() {
+    std::vector<pe::Entity> pair(2);
+    if (!pe::setParent(pair, 1, 0)) {
+        std::cerr << "Setup link was refused\n";
+        return false;
+    }
+    // Self-parent, 2-cycle back-link, out-of-range child/parent, and
+    // below--1 parent: all refused, state unchanged.
+    if (pe::setParent(pair, 0, 0) || pe::setParent(pair, 0, 1) ||
+        pe::setParent(pair, 5, 0) || pe::setParent(pair, 0, 9) ||
+        pe::setParent(pair, 0, -2)) {
+        std::cerr << "Illegal parent link was accepted\n";
+        return false;
+    }
+    if (pair[0].parentIndex != -1 || pair[1].parentIndex != 0) {
+        std::cerr << "Refused setParent mutated state\n";
+        return false;
+    }
+    // Clear via -1: link gone, world back to local.
+    pair[1].position = pe::Vec3(4.0f, 5.0f, 6.0f);
+    if (!pe::setParent(pair, 1, -1) || pair[1].parentIndex != -1) {
+        std::cerr << "Clear via -1 failed\n";
+        return false;
+    }
+    const pe::Vec3 cleared = pe::worldPosition(pair, 1);
+    if (!assertFloatClose(cleared.x, 4.0f) ||
+        !assertFloatClose(cleared.y, 5.0f) ||
+        !assertFloatClose(cleared.z, 6.0f)) {
+        std::cerr << "Cleared entity world != local\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkHierarchyEdgeCases() {
+    // Parentless identity: worldPosition == position exactly.
+    pe::Entity solo;
+    solo.position = pe::Vec3(-2.5f, 7.25f, 0.0f);
+    std::vector<pe::Entity> single(1, solo);
+    const pe::Vec3 identity = pe::worldPosition(single, 0);
+    if (!assertFloatClose(identity.x, -2.5f) ||
+        !assertFloatClose(identity.y, 7.25f) ||
+        !assertFloatClose(identity.z, 0.0f)) {
+        std::cerr << "Parentless worldPosition != position\n";
+        return false;
+    }
+    // Out-of-range index: zero vector, no crash.
+    const pe::Vec3 miss = pe::worldPosition(single, 42);
+    if (miss.x != 0.0f || miss.y != 0.0f || miss.z != 0.0f) {
+        std::cerr << "Out-of-range worldPosition must be (0,0,0)\n";
+        return false;
+    }
+    // Hand-written cycle (bypasses setParent — field is public): the
+    // capped walk must terminate with the exact capped accumulation.
+    // pos0=(1,0,0), pos1=(0,1,0), size 2 -> world=(1,0,0)+(0,1,0)+(1,0,0).
+    std::vector<pe::Entity> loop(2);
+    loop[0].position = pe::Vec3(1.0f, 0.0f, 0.0f);
+    loop[1].position = pe::Vec3(0.0f, 1.0f, 0.0f);
+    loop[0].parentIndex = 1;
+    loop[1].parentIndex = 0;
+    const pe::Vec3 capped = pe::worldPosition(loop, 0);
+    if (!assertFloatClose(capped.x, 2.0f) ||
+        !assertFloatClose(capped.y, 1.0f) ||
+        !assertFloatClose(capped.z, 0.0f)) {
+        std::cerr << "Hand-written cycle did not terminate with capped sum\n";
+        return false;
+    }
+    // setParent also refuses to attach to that detached loop.
+    std::vector<pe::Entity> withLoop = loop;
+    withLoop.push_back(pe::Entity());
+    if (pe::setParent(withLoop, 2, 0)) {
+        std::cerr << "setParent attached to a detached loop\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -428,10 +534,14 @@ int main() {
     const bool tilemapCollideOk = checkTilemapCollidePushesOut();
     const bool sceneLifecycleOk = checkSceneLifecycle();
     const bool sceneNoOpsOk = checkSceneNoCurrentNoOps();
+    const bool hierarchyChainOk = checkHierarchyChain();
+    const bool hierarchyRefusalsOk = checkHierarchyRefusals();
+    const bool hierarchyEdgeOk = checkHierarchyEdgeCases();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
-        !sceneLifecycleOk || !sceneNoOpsOk) {
+        !sceneLifecycleOk || !sceneNoOpsOk ||
+        !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

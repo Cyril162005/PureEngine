@@ -25,6 +25,9 @@
 // Include guard, same pattern as the math headers: safe against
 // double-inclusion in one translation unit.
 
+#include <cstddef>  // std::size_t for the Step 65 hierarchy functions
+#include <vector>   // std::vector<Entity> for the Step 65 hierarchy functions
+
 #include "math/vec3.h"  // position and scale are Vec3s
 #include "math/mat4.h"  // modelMatrix() returns a Mat4
 #include "animation.h"  // AnimationState member (Step 56, data only)
@@ -86,6 +89,16 @@ struct Entity {
     // massless model, no persistent acceleration field).
     Vec3 velocity = Vec3(0.0f, 0.0f, 0.0f);
     float gravityScale = 0.0f;
+    // --- Step 65: hierarchy link (inert by default) ---
+    // parentIndex is an INDEX into the caller's entity vector, not an
+    // owning pointer: -1 = root (no parent, the pre-Step-65 behavior for
+    // every existing entity). The engine never follows it implicitly —
+    // only setParent()/worldPosition() below read it — so renderer,
+    // physics, collision, and both games are unaffected until a caller
+    // opts in. If the vector is reordered or resized, stored indices
+    // may point elsewhere: re-establish parenting after structural
+    // changes, same discipline as SceneManager indices (Step 64).
+    int parentIndex = -1;
 
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
@@ -107,7 +120,8 @@ struct Entity {
           cols(1),
           rows(1),
           velocity(0.0f, 0.0f, 0.0f),
-          gravityScale(0.0f) {}
+          gravityScale(0.0f),
+          parentIndex(-1) {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -131,10 +145,11 @@ struct Entity {
           moveSpeed(0.0f),
           animationState(),
           animationSpeed(1.0f),
-          cols(1),
-          rows(1),
-          velocity(0.0f, 0.0f, 0.0f),
-          gravityScale(0.0f) {}
+           cols(1),
+           rows(1),
+           velocity(0.0f, 0.0f, 0.0f),
+           gravityScale(0.0f),
+           parentIndex(-1) {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the
@@ -161,6 +176,80 @@ struct Entity {
              * Mat4::scale(scale);
     }
 };
+
+// --- Step 65: parent-child transform foundation (free functions) ---
+// TRANSLATION-ONLY: worldPosition() accumulates local positions up the
+// parent chain. A parent's rotation/scale do NOT propagate to children
+// yet — full TRS composition is future work once a consumer needs it.
+// The hierarchy is OPT-IN: nothing in the engine calls these implicitly,
+// so every pre-Step-65 entity (parentIndex == -1) behaves exactly as
+// before. parentIndex values are indices into the CALLER's vector —
+// reorder/resize the vector and re-establish parenting afterwards.
+inline bool setParent(std::vector<Entity>& entities, std::size_t child,
+                      int parent) {
+    if (child >= entities.size()) {
+        return false;
+    }
+    if (parent < -1) {
+        return false;
+    }
+    if (parent != -1) {
+        const std::size_t first = static_cast<std::size_t>(parent);
+        if (first >= entities.size() || first == child) {
+            return false;
+        }
+        // Walk the prospective parent's chain: reaching `child` means
+        // this link would close a cycle. The walk is hard-capped at
+        // entities.size() steps — a well-founded chain is always shorter
+        // than that, so exhausting the budget means the ancestry never
+        // resolves (a pre-existing detached loop, writable because the
+        // field is public) and the link is refused too.
+        int cursor = parent;
+        for (std::size_t steps = 0; steps <= entities.size(); ++steps) {
+            if (cursor < 0) {
+                break;  // reached a root: well-founded, safe to link
+            }
+            const std::size_t here = static_cast<std::size_t>(cursor);
+            if (here >= entities.size()) {
+                break;  // hand-written garbage link: treat as root
+            }
+            if (here == child) {
+                return false;  // cycle
+            }
+            if (steps == entities.size()) {
+                return false;  // never resolved: detached loop, refuse
+            }
+            cursor = entities[here].parentIndex;
+        }
+    }
+    entities[child].parentIndex = parent;
+    return true;
+}
+
+// Sum local positions from the entity up through its ancestors.
+// Out-of-range index: (0,0,0). The walk is hard-capped at
+// entities.size() steps, so even a hand-written cycle (bypassing
+// setParent — the field is public) always terminates instead of hanging.
+inline Vec3 worldPosition(const std::vector<Entity>& entities,
+                          std::size_t index) {
+    if (index >= entities.size()) {
+        return Vec3(0.0f, 0.0f, 0.0f);
+    }
+    Vec3 world = entities[index].position;
+    int cursor = entities[index].parentIndex;
+    for (std::size_t steps = 0; steps < entities.size(); ++steps) {
+        if (cursor < 0) {
+            break;
+        }
+        const std::size_t here = static_cast<std::size_t>(cursor);
+        if (here >= entities.size()) {
+            break;
+        }
+        world = world + entities[here].position;
+        cursor = entities[here].parentIndex;
+    }
+    return world;
+}
 
 } // namespace pe
 
