@@ -346,6 +346,32 @@
       "verification": "Build clean (all 3 targets), CTest 1/1 (0.35s), Arcade alive 6s, Pong alive 6s, gravityScale=0 non-breaking confirmed.",
       "commit": "b9ca280",
       "depends_on": []
+    },
+    {
+      "id": 61,
+      "name": "Physics integration: applyPhysics in simulation.h",
+      "status": "completed",
+      "definition_of_done": "simulation.h gains applyPhysics() — gravity + velocity integration per entity. Gravity conditional, integration runs for any nonzero-velocity entity. Non-breaking: all existing entities have velocity=0, gravityScale=0.",
+      "notes": "Semantic correction: gravity gated on gravityScale>0, integration runs for any nonzero velocity (velocity-without-gravity works correctly). No game-side changes.",
+      "implementation": "Added applyPhysics() to simulation.h. Includes physics.h.",
+      "verification": "Build clean, CTest 1/1, Arcade/Pong unchanged.",
+      "commit": "073c792",
+      "depends_on": [
+        60
+      ]
+    },
+    {
+      "id": 62,
+      "name": "Collision response: impulse-based resolveCollision",
+      "status": "completed",
+      "definition_of_done": "physics.h gains resolveCollision() — AABB overlap detection, push-out separation, velocity reflection with restitution [0,1]. Non-breaking: no callers yet.",
+      "notes": "Lives in physics.h (not collision.h — detection stays pure). Equal-mass model. Static body limit documented (platformer prerequisite). Runtime proof pending first caller.",
+      "implementation": "resolveCollision() in physics.h: overlap detection, push-out, impulse reflection, restitution clamp.",
+      "verification": "Build clean, CTest 1/1, Arcade/Pong unchanged. Logic hand-verified (elastic case, guard cases).",
+      "commit": "85bcb02",
+      "depends_on": [
+        60
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
