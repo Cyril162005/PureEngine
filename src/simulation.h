@@ -3,8 +3,9 @@
  * File: simulation.h
  *
  * The engine's ninth SYSTEM boundary — pure MECHANICS only. Step 22
- * extracts exactly three operations from main.cpp's PLAYING branch,
- * each relocated byte-equivalent from its Steps 7/12/8 form:
+ * extracted exactly three operations from main.cpp's PLAYING branch
+ * (relocated byte-equivalent from Steps 7/12/8); Step 61 added a
+ * fourth, applyPhysics (new work, no main.cpp predecessor):
  *
  *   - advanceRotations(): the per-entity rotation update — one loop,
  *     each entity advancing by its own speed via Entity::update(dt).
@@ -20,6 +21,9 @@
  *     both flags set on overlap, wherever they sit in the vector.
  *     Hostiles pass through scenery and their only interaction is the
  *     catch test, exactly as every step since Step 12 preserved.
+ *   - applyPhysics() (Step 61 addition, NEW not relocated): gravity
+ *     then integrate per entity. Unlike the three relocated loops,
+ *     this mechanic had no main.cpp predecessor.
  *
  * What this boundary is NOT — and the ruling that says so (B6):
  *   - no scheduler, no system registry, no execution pipeline. There
@@ -53,6 +57,7 @@
 
 #include "entity.h"    // the pure data type the mechanics advance
 #include "collision.h" // pe::aabbOverlap — the scenery scan's one test
+#include "physics.h"   // applyGravity / integrate (Step 61)
 
 namespace pe {
 
@@ -95,6 +100,23 @@ inline void chasePlayer(std::vector<Entity>& entities,
             if (toPlayer.length() > 0.0f) {
                 entity.position = entity.position + toPlayer.normalized() * (entity.moveSpeed * difficultyScale) * dt;
             }
+        }
+    }
+}
+
+// --- Physics integration (Step 61, new — no main.cpp predecessor) ---
+// Gravity is conditional (inert entities skip it); integration runs for
+// any entity with nonzero velocity, so a hurled object coasts even with
+// gravityScale 0. Static entities are never written (no FP churn, no
+// observable change while nothing opts in).
+inline void applyPhysics(std::vector<Entity>& entities, float dt) {
+    for (Entity& entity : entities) {
+        if (entity.gravityScale > 0.0f) {
+            applyGravity(entity.velocity, entity.gravityScale, dt);
+        }
+        if (entity.velocity.x != 0.0f || entity.velocity.y != 0.0f ||
+            entity.velocity.z != 0.0f) {
+            integrate(entity.position, entity.velocity, dt);
         }
     }
 }
