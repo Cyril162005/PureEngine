@@ -424,6 +424,19 @@
       "depends_on": [
         65
       ]
+    },
+    {
+      "id": 67,
+      "name": "Event system foundation",
+      "status": "completed",
+      "definition_of_done": "events.h with EventType, GameEvent, EventBus (subscribe/unsubscribe/emit/clear/handlerCount). Snapshot emit for reentrancy safety. Token non-reuse. Proof cases in existing test binary. Non-breaking.",
+      "notes": "Single-threaded only. Opaque int payloads. No game wiring yet. Extension rule: new types append above Count.",
+      "implementation": "src/events.h (~150 lines), +149 lines in hostile_data_test.cpp",
+      "verification": "Build clean, CTest 1/1 (18 cases), Arcade/Pong untouched.",
+      "commit": "c12ceb7",
+      "depends_on": [
+        66
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
