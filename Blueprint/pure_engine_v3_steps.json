@@ -335,6 +335,17 @@
         57,
         58
       ]
+    },
+    {
+      "id": 60,
+      "name": "Physics foundation: velocity and gravity fields",
+      "status": "completed",
+      "definition_of_done": "Entity gains velocity (Vec3) and gravityScale (float, default 0). physics.h defines GRAVITY constant and free functions (applyGravity, applyForce, integrate). Non-breaking: gravityScale=0 opt-in. Build clean, CTest 1/1, Arcade/Pong unchanged.",
+      "notes": "Foundation only — no call sites yet. Step 61 wires gravity into simulation. Vec3 throughout (z=0), no Vec2. Massless model: force = acceleration. gravityScale=0 default preserves all existing entity behavior.",
+      "implementation": "Created physics.h: GRAVITY constexpr(-9.8), applyGravity/applyForce/integrate free functions. Extended entity.h: velocity Vec3(0,0,0), gravityScale 0.0f, both ctors updated.",
+      "verification": "Build clean (all 3 targets), CTest 1/1 (0.35s), Arcade alive 6s, Pong alive 6s, gravityScale=0 non-breaking confirmed.",
+      "commit": "b9ca280",
+      "depends_on": []
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
