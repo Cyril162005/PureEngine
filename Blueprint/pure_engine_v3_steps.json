@@ -385,6 +385,19 @@
       "depends_on": [
         62
       ]
+    },
+    {
+      "id": 64,
+      "name": "Scene management foundation",
+      "status": "completed",
+      "definition_of_done": "scene.h with Scene (name/entities/tilemap) and SceneManager. loadScene (find-or-create), switchTo, clearCurrent, addEntity, removeEntity, loadTilemapIntoScene. Safe no-ops on all failure paths. Proof cases in existing test binary. Non-breaking.",
+      "notes": "loadTilemapIntoScene returns true only when map is stored; false leaves previous tilemap untouched. loadScene does not change current. Pointer invalidation documented. No auto tilemap->entity conversion.",
+      "implementation": "src/scene.h (~150 lines), +128 lines in hostile_data_test.cpp",
+      "verification": "Build clean, CTest 1/1 (10 cases), Arcade/Pong untouched and alive.",
+      "commit": "4b7f06d",
+      "depends_on": [
+        63
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
