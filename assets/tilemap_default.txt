@@ -1,0 +1,14 @@
+# PureEngine sample tilemap (Step 63)
+# Format: width, height, tileSize; one row= line per grid row, top-to-bottom.
+# Cell values are tileIds: 0 = empty (skipped), nonzero = solid, textureId = value.
+width=10
+height=8
+tileSize=1.0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,1,1,1,1,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,1,1,0,0,0,0,1,1,0
+row=0,0,0,0,0,0,0,0,0,0
+row=1,1,1,1,1,1,1,1,1,1
