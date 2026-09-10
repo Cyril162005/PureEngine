@@ -450,6 +450,19 @@
       "depends_on": [
         67
       ]
+    },
+    {
+      "id": 69,
+      "name": "Gamepad input foundation",
+      "status": "completed",
+      "definition_of_done": "gamepad.h with GamepadState, pollGamepad, applyDeadzone, gamepadButton, gamepadButtonEdge. Raw GLFW codes. Deadzone support. Proof cases in existing test binary. Non-breaking.",
+      "notes": "input.h completely untouched. No force feedback. Hardware connected path code-reviewed but not executed in this environment. Test target now links glfw for the poll symbols.",
+      "implementation": "src/gamepad.h (~130 lines), +113 test lines, small CMakeLists.txt link addition for test target",
+      "verification": "Build clean, CTest 1/1 (26 cases), Arcade/Pong untouched.",
+      "commit": "2c97064",
+      "depends_on": [
+        68
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
