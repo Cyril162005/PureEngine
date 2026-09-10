@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 
+#include "../src/font.h"
 #include "../src/hostile_data.h"
 #include "../src/scene.h"
 #include "../src/tilemap.h"
@@ -523,6 +524,57 @@ static bool checkHierarchyEdgeCases() {
     return true;
 }
 
+static bool checkFontCells() {
+    // Frozen Phase-3 cells: digits and '.' must never move.
+    for (char d = '0'; d <= '9'; ++d) {
+        if (pe::fontCellFor(d) != d - '0') {
+            std::cerr << "Digit cell moved for '" << d << "'\n";
+            return false;
+        }
+    }
+    if (pe::fontCellFor('.') != 10) {
+        std::cerr << "'.' cell moved from 10\n";
+        return false;
+    }
+    // Step 66 appendages: A->11 ... Z->36, contiguous.
+    if (pe::fontCellFor('A') != 11 || pe::fontCellFor('Z') != 36 ||
+        pe::fontCellFor('M') != 11 + ('M' - 'A')) {
+        std::cerr << "A-Z cells are not 11-36\n";
+        return false;
+    }
+    // Lowercase folds to upper.
+    if (pe::fontCellFor('a') != 11 || pe::fontCellFor('z') != 36 ||
+        pe::fontCellFor('q') != pe::fontCellFor('Q')) {
+        std::cerr << "Lowercase did not fold to upper\n";
+        return false;
+    }
+    // No glyph: space, punctuation, control -> -1.
+    if (pe::fontCellFor(' ') != -1 || pe::fontCellFor('!') != -1 ||
+        pe::fontCellFor('-') != -1 || pe::fontCellFor('\n') != -1) {
+        std::cerr << "Glyph-less char must map to -1\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkFontMetrics() {
+    // Width: one advance per character, drawn or skipped.
+    if (!assertFloatClose(pe::textWidth("AB", 0.52f), 1.04f) ||
+        !assertFloatClose(pe::textWidth("A B!", 0.5f), 2.0f) ||
+        !assertFloatClose(pe::textWidth("", 0.52f), 0.0f)) {
+        std::cerr << "textWidth miscounted advances\n";
+        return false;
+    }
+    // Alignment: left stays, center shifts by half the width.
+    if (!assertFloatClose(pe::alignOffsetX(pe::TextAlign::Left, 4.0f), 0.0f) ||
+        !assertFloatClose(pe::alignOffsetX(pe::TextAlign::Center, 4.0f), -2.0f) ||
+        !assertFloatClose(pe::alignOffsetX(pe::TextAlign::Center, 0.0f), 0.0f)) {
+        std::cerr << "alignOffsetX is wrong\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -537,11 +589,14 @@ int main() {
     const bool hierarchyChainOk = checkHierarchyChain();
     const bool hierarchyRefusalsOk = checkHierarchyRefusals();
     const bool hierarchyEdgeOk = checkHierarchyEdgeCases();
+    const bool fontCellsOk = checkFontCells();
+    const bool fontMetricsOk = checkFontMetrics();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
         !sceneLifecycleOk || !sceneNoOpsOk ||
-        !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk) {
+        !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
+        !fontCellsOk || !fontMetricsOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

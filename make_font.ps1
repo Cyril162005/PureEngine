@@ -1,7 +1,10 @@
-# Generates assets/font_digits.png: Game Build Phase 3's bitmap font atlas.
-# ONE ROW of 11 fixed 16x16 cells — index 0..9 = digits '0'..'9',
-# index 10 = the decimal point '.' — white glyphs on a TRANSPARENT
-# background, 176x16 RGBA total.
+# Generates assets/font_digits.png: Game Build Phase 3's bitmap font atlas,
+# extended by Step 66 to full text.
+# ONE ROW of 37 fixed 16x16 cells — index 0..9 = digits '0'..'9',
+# index 10 = the decimal point '.', index 11..36 = 'A'..'Z' — white
+# glyphs on a TRANSPARENT background, 592x16 RGBA total.
+# Cells 0-10 are FROZEN Phase-3 patterns: the digit UVs (cell / 11)
+# must never shift, so existing games render pixel-identically.
 #
 # Every glyph is a hand-coded 5x7 dot-matrix pattern defined right here
 # in the script, scaled 2x to 10x14 and placed at cell offset (3, 1).
@@ -18,8 +21,8 @@ $assetDir = Join-Path 'd:\PureEngine' 'assets'
 if (-not (Test-Path $assetDir)) { New-Item -ItemType Directory -Path $assetDir | Out-Null }
 $out = Join-Path $assetDir 'font_digits.png'
 
-$cell = 16; $cols = 11
-$width = $cell * $cols; $height = $cell     # 176 x 16
+$cell = 16; $cols = 37
+$width = $cell * $cols; $height = $cell     # 592 x 16
 
 # --- CRC32 (PNG spec polynomial 0xEDB88320, reflected) ---
 $crcTable = New-Object uint32[] 256
@@ -43,8 +46,10 @@ function Get-Chunk([string]$type, [byte[]]$data) {
     return (Get-BE32 ([uint32]$data.Length)) + $t + $data + (Get-BE32 $crc)
 }
 
-# --- The font itself: 11 glyphs, each seven 5-character rows ---
+# --- The font itself: 37 glyphs, each seven 5-character rows ---
 # '1' = glyph pixel, '0' = transparent. These patterns ARE the font.
+# First 11 entries are the FROZEN Phase-3 cells (untouched, in order);
+# Step 66 appends A-Z in the same hand-coded 5x7 style.
 $glyphs = @(
     ,@('01110','10001','10011','10101','11001','10001','01110')   # 0
     ,@('00100','01100','00100','00100','00100','00100','01110')   # 1
@@ -57,6 +62,32 @@ $glyphs = @(
     ,@('01110','10001','10001','01110','10001','10001','01110')   # 8
     ,@('01110','10001','10001','01111','00001','00010','01100')   # 9
     ,@('00000','00000','00000','00000','00000','01100','01100')   # .
+    ,@('01110','10001','10001','11111','10001','10001','10001')   # A
+    ,@('11110','10001','10001','11110','10001','10001','11110')   # B
+    ,@('01110','10001','10000','10000','10000','10001','01110')   # C
+    ,@('11110','10001','10001','10001','10001','10001','11110')   # D
+    ,@('11111','10000','10000','11110','10000','10000','11111')   # E
+    ,@('11111','10000','10000','11110','10000','10000','10000')   # F
+    ,@('01110','10001','10000','10111','10001','10001','01111')   # G
+    ,@('10001','10001','10001','11111','10001','10001','10001')   # H
+    ,@('01110','00100','00100','00100','00100','00100','01110')   # I
+    ,@('00111','00010','00010','00010','00010','10010','01100')   # J
+    ,@('10001','10010','10100','11000','10100','10010','10001')   # K
+    ,@('10000','10000','10000','10000','10000','10000','11111')   # L
+    ,@('10001','11011','10101','10101','10001','10001','10001')   # M
+    ,@('10001','11001','11001','10101','10011','10011','10001')   # N
+    ,@('01110','10001','10001','10001','10001','10001','01110')   # O
+    ,@('11110','10001','10001','11110','10000','10000','10000')   # P
+    ,@('01110','10001','10001','10001','10101','10010','01101')   # Q
+    ,@('11110','10001','10001','11110','10100','10010','10001')   # R
+    ,@('01111','10000','10000','01110','00001','00001','11110')   # S
+    ,@('11111','00100','00100','00100','00100','00100','00100')   # T
+    ,@('10001','10001','10001','10001','10001','10001','01110')   # U
+    ,@('10001','10001','10001','10001','10001','01010','00100')   # V
+    ,@('10001','10001','10001','10101','10101','11011','10001')   # W
+    ,@('10001','10001','01010','00100','01010','10001','10001')   # X
+    ,@('10001','10001','01010','00100','00100','00100','00100')   # Y
+    ,@('11111','00001','00010','00100','01000','10000','11111')   # Z
 )
 
 # --- Raw image: each scanline prefixed with filter byte 0, RGBA ---
@@ -98,4 +129,4 @@ $signature = [byte[]]@(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
 $ihdr = (Get-BE32 $width) + (Get-BE32 $height) + [byte[]]@(8, 6, 0, 0, 0)  # 8-bit, RGBA, deflate, filter0, no interlace
 $png = $signature + (Get-Chunk 'IHDR' $ihdr) + (Get-Chunk 'IDAT' $idat) + (Get-Chunk 'IEND' @())
 [System.IO.File]::WriteAllBytes($out, $png)
-Write-Host "Wrote $out ($($png.Length) bytes, ${width}x${height} RGBA, 11 cells: digits 0-9 + '.')"
+Write-Host "Wrote $out ($($png.Length) bytes, ${width}x${height} RGBA, 37 cells: digits 0-9 + '.' + A-Z)"

@@ -63,6 +63,7 @@
                          // boundary now — this class obtains textures from
                          // it and never calls stb_image itself (stb's ONE
                          // implementation stays in src/stb_impl.cpp).
+#include "font.h"        // Step 66: fontCellFor/align math for drawTextString
 #include "math/vec3.h"   // Vec3 types used by the entity/math interfaces
 #include "math/mat4.h"   // view/MVP construction
 #include "entity.h"      // drawWorld reads pe::Entity data
@@ -555,6 +556,65 @@ public:
         glDisable(GL_BLEND);
     }
 
+    // --- Step 66: full-text strings in SCREEN SPACE ---
+    // drawDigitString's twin for real text (A-Z plus the digit cells):
+    // identical setup, identical glyph mechanics, identical screen-space
+    // contract (projection * model, NO view), white only. The digit
+    // function above is INTENTIONALLY not refactored to share code —
+    // its body stays character-for-character identical so the proven
+    // digit path cannot regress. Differences from the digit path: the
+    // cell map comes from pe::fontCellFor (src/font.h, cells 0-36 over
+    // FONT_TEXT_CELL_COUNT) and the origin shifts by
+    // pe::alignOffsetX for centered text.
+    void drawTextString(const std::string& text, float originX, float originY,
+                        const Mat4& projection, TextAlign align = TextAlign::Left) {
+        // Same layout constants as the digit path: glyph quad 0.7 units
+        // square, 0.52 advance — new text matches the HUD's proven size.
+        const float glyphSize = 0.7f;
+        const float glyphAdvance = 0.52f;
+
+        glUseProgram(shaderProgram);
+        glUniform3f(colorLocation, 1.0f, 1.0f, 1.0f);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glBindTexture(GL_TEXTURE_2D, fontTexture);
+        glBindVertexArray(textVAO);
+
+        const float startX =
+            originX + alignOffsetX(align, textWidth(text, glyphAdvance));
+        for (size_t c = 0; c < text.size(); ++c) {
+            // Character -> atlas cell via the font boundary; -1 = no
+            // glyph (skip the draw, keep the slot — the digit-path rule,
+            // so spaces gap correctly).
+            const int cell = fontCellFor(text[c]);
+            if (cell < 0) {
+                continue;
+            }
+            // Same slice math and V-flip convention as the digit path,
+            // over the EXTENDED 37-cell row.
+            const float u0 = static_cast<float>(cell) / FONT_TEXT_CELL_COUNT;
+            const float u1 = static_cast<float>(cell + 1) / FONT_TEXT_CELL_COUNT;
+            float quadVertices[6][5] = {
+                { -0.5f, -0.5f, 0.0f, u0, 1.0f },
+                {  0.5f, -0.5f, 0.0f, u1, 1.0f },
+                {  0.5f,  0.5f, 0.0f, u1, 0.0f },
+                { -0.5f, -0.5f, 0.0f, u0, 1.0f },
+                {  0.5f,  0.5f, 0.0f, u1, 0.0f },
+                { -0.5f,  0.5f, 0.0f, u0, 0.0f }
+            };
+            glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_DYNAMIC_DRAW);
+            const Mat4 uiMvp = projection
+                * Mat4::translation(Vec3(startX + static_cast<float>(c) * glyphAdvance,
+                                         originY, 0.0f))
+                * Mat4::scale(Vec3(glyphSize, glyphSize, 1.0f));
+            glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &uiMvp.m[0][0]);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        glDisable(GL_BLEND);
+    }
+
     // --- Step 42: TEMPORARY debug AABB wireframe overlay ---
     // Draws each entity's ACTUAL collision AABB as a thin line loop —
     // the EXACT scaled, NON-rotated rectangle that aabbOverlap() tests
@@ -662,6 +722,10 @@ private:
     // The atlas's geometry, known FROM THE GENERATOR (not queried):
     // eleven equal cells across the atlas width (digits 0-9 plus '.').
     static const int FONT_CELL_COUNT = 11;
+    // Step 66: the EXTENDED atlas row (digits + '.' + A-Z). The digit
+    // path above keeps using FONT_CELL_COUNT — its UVs (cell / 11) are
+    // frozen, so existing games render pixel-identically.
+    static const int FONT_TEXT_CELL_COUNT = 37;
 };
 
 } // namespace pe
