@@ -164,6 +164,11 @@ target_include_directories(hostile_data_test PRIVATE "${stb_SOURCE_DIR}")
 # links the already-fetched static GLFW. No new dependency — same lib the
 # games link. (Step 68 needed headers only; this step needs the symbols.)
 target_link_libraries(hostile_data_test PRIVATE glfw)
+# Step 75: the audio header's inline setters reference miniaudio symbols
+# (applyVolumes calls ma_sound_set_volume, guarded to no-op pre-init), so
+# the test links the already-fetched static miniaudio too — headers arrive
+# via its interface includes. Same pattern as Step 69, still no new dep.
+target_link_libraries(hostile_data_test PRIVATE miniaudio)
 
 # Keep the test translation unit scoped to the exact header it needs.
 # This avoids exposing the whole src/ directory, which is what makes
