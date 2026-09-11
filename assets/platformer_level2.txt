@@ -1,0 +1,21 @@
+# Platformer level 2 "up" (10x8, tileSize 1.0).
+# ONE wide platform P (row 5, cols 3-7, top -1.0) with the goal on it.
+# Traversal, computed from the proven physics (run 4.5 u/s, jump 7,
+# apex ~2.5, ~4.6-unit jump range): take off near x=-3.4, land on P
+# around x=+1.1, walk right into the goal. Rises above 2.0 and narrow
+# far platforms do NOT fit this jump envelope (see the audit notes),
+# so the level is authored to it: single 2.0 rise, 5-wide landing.
+# Ceiling row 2 cols 4-6: harmless walking under, bumps jumpers.
+# Walls col 0 rows 3-7 + col 9 rows 3-7 bound the world.
+# Spawn (-3,-2.68): exact rest height (grounded frame 0).
+width=10
+height=8
+tileSize=1.0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,1,1,1,0,0,0
+row=1,0,0,0,0,0,0,0,0,1
+row=1,0,0,0,0,0,0,0,0,1
+row=1,0,0,1,1,1,1,1,0,1
+row=1,0,0,0,0,0,0,0,0,1
+row=1,1,1,1,1,1,1,1,1,1

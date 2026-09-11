@@ -1,0 +1,18 @@
+# Platformer level 1 "first steps" (10x8, tileSize 1.0).
+# 1 = solid wall/floor (texture slot 1).
+# Goal rect on the floor before the right wall (see platformer.cpp).
+# Platform row 5 cols 3-5: 1.5 above the floor (jump apex is ~2.5).
+# Left wall col 0 rows 3-7: backstop so the player cannot walk off the
+# world edge (void falls are out of scope for this proof game).
+# Spawn (-3,-2.68): exact rest height on the floor (grounded frame 0).
+width=10
+height=8
+tileSize=1.0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=1,0,0,0,0,0,0,0,0,0
+row=1,0,0,0,0,0,0,0,0,1
+row=1,0,0,1,1,1,0,0,0,1
+row=1,0,0,0,0,0,0,0,0,1
+row=1,1,1,1,1,1,1,1,1,1

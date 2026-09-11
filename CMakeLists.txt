@@ -194,6 +194,68 @@ add_custom_command(TARGET Pong POST_BUILD
         "$<TARGET_FILE_DIR:Pong>/assets/paddle_animations.txt"
 )
 
+# Platformer proof game (Session 4): third game proving the engine without
+# bypassing it — tilemap + scenes + character controller + animation +
+# input/gamepad + particles + events + audio + text + console + hierarchy.
+# Same header-only consumption as Pong (relative includes, no -Isrc), plus
+# miniaudio (it uses the audio boundary, unlike Pong).
+add_executable(Platformer
+    games/platformer/platformer.cpp
+    src/stb_impl.cpp
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
+)
+
+target_include_directories(Platformer PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(Platformer PRIVATE "${stb_SOURCE_DIR}")
+
+target_link_libraries(Platformer glfw miniaudio)
+
+# Platformer runtime bundle: everything its renderer init loads (the fixed
+# 7-texture + font set — missing files are fatal there) plus its own
+# clips, levels, and sounds. Run from the repo root like Pong.
+add_custom_command(TARGET Platformer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Platformer>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/checker.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/checker.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/font_digits.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/font_digits.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_player.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/tex_player.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_scenery.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/tex_scenery.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_hostile.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/tex_hostile.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_hostile_alt.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/tex_hostile_alt.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/paddle_spritesheet.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"
+        "$<TARGET_FILE_DIR:Platformer>/assets/paddle_animations.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/platformer_level1.txt"
+        "$<TARGET_FILE_DIR:Platformer>/assets/platformer_level1.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/platformer_level2.txt"
+        "$<TARGET_FILE_DIR:Platformer>/assets/platformer_level2.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/beep.wav"
+        "$<TARGET_FILE_DIR:Platformer>/assets/beep.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/GAMEOVER.wav"
+        "$<TARGET_FILE_DIR:Platformer>/assets/GAMEOVER.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"
+        "$<TARGET_FILE_DIR:Platformer>/assets/win_sound.wav"
+)
+
 # On Linux, we might need extra libs
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)

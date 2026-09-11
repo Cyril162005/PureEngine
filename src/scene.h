@@ -102,6 +102,30 @@ inline const Scene* currentScene(const SceneManager& manager) {
     return &manager.scenes[index];
 }
 
+// Find a scene by name WITHOUT creating it. nullptr when absent. Prefer
+// this over holding a Scene& across loadScene calls: each creation may
+// reallocate the vector, dangling earlier references into moved-from
+// storage (observed live: a stale alias read a moved-from empty map).
+// Re-find after any structural change instead of storing.
+inline Scene* sceneByName(SceneManager& manager, const std::string& name) {
+    for (std::size_t i = 0; i < manager.scenes.size(); ++i) {
+        if (manager.scenes[i].name == name) {
+            return &manager.scenes[i];
+        }
+    }
+    return nullptr;
+}
+
+inline const Scene* sceneByName(const SceneManager& manager,
+                                const std::string& name) {
+    for (std::size_t i = 0; i < manager.scenes.size(); ++i) {
+        if (manager.scenes[i].name == name) {
+            return &manager.scenes[i];
+        }
+    }
+    return nullptr;
+}
+
 // Make the named scene current. Unknown name: returns false, current
 // UNCHANGED (the caller keeps a valid scene, never a void).
 inline bool switchTo(SceneManager& manager, const std::string& name) {

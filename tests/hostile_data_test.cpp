@@ -7,6 +7,7 @@
 #include "../src/console.h"
 #include "../src/events.h"
 #include "../src/gamepad.h"
+#include "../src/input.h"
 #include "../src/particles.h"
 #include "../src/physics.h"
 #include "../src/font.h"
@@ -1340,6 +1341,305 @@ static bool checkStaticResolve() {
     return true;
 }
 
+static bool checkSceneByName() {
+    pe::SceneManager scenes;
+    if (pe::sceneByName(scenes, "nope") != nullptr) {
+        std::cerr << "sceneByName must miss on empty manager\n";
+        return false;
+    }
+    pe::loadScene(scenes, "a");
+    pe::Scene* found = pe::sceneByName(scenes, "a");
+    if (!found || found->name != "a" ||
+        pe::sceneByName(scenes, "b") != nullptr) {
+        std::cerr << "sceneByName found/missing wrong\n";
+        return false;
+    }
+    const pe::SceneManager& frozen = scenes;
+    if (pe::sceneByName(frozen, "a") == nullptr) {
+        std::cerr << "const sceneByName overload broken\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkPlatformerLevels() {
+    // Both level files parse; spawn neighborhoods and goal airspace are
+    // empty (spawn (-4,-2.5) sits in cols 0-1/rows 5-6 in both files).
+    const pe::Tilemap l1 = pe::loadTilemap("platformer_level1.txt");
+    const pe::Tilemap l2 = pe::loadTilemap("platformer_level2.txt");
+    if (l1.width != 10 || l1.height != 8 || l1.tiles.empty() ||
+        l2.width != 10 || l2.height != 8 || l2.tiles.empty()) {
+        std::cerr << "Platformer level files did not parse\n";
+        return false;
+    }
+    // Spawn (-3,-2.5) sits in col 1 (col 0 is the backstop wall now).
+    for (int row = 5; row <= 6; ++row) {
+        const pe::Tile* a = pe::tileAt(l1, 1, row);
+        const pe::Tile* b = pe::tileAt(l2, 1, row);
+        if (!a || !b || a->tileId != 0 || b->tileId != 0) {
+            std::cerr << "Spawn neighborhood blocked\n";
+            return false;
+        }
+    }
+    // L1 goal airspace (row 6, cols 6-7); L2 goal airspace (row 1, cols 6-7).
+    for (int col = 6; col <= 7; ++col) {
+        const pe::Tile* a = pe::tileAt(l1, col, 6);
+        const pe::Tile* b = pe::tileAt(l2, col, 1);
+        if (!a || !b || a->tileId != 0 || b->tileId != 0) {
+            std::cerr << "Goal airspace blocked\n";
+            return false;
+        }
+    }
+    // Layouts genuinely differ (16 vs 23 solids by construction).
+    std::size_t n1 = 0, n2 = 0;
+    for (const auto& t : l1.tiles) {
+        if (t.tileId != 0) {
+            ++n1;
+        }
+    }
+    for (const auto& t : l2.tiles) {
+        if (t.tileId != 0) {
+            ++n2;
+        }
+    }
+    if (n1 != 20 || n2 != 26) {
+        std::cerr << "Level solid counts changed\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkPlatformerLanding() {
+    // Real L1 geometry through the real converter: drop from y=2 over the
+    // floor, land grounded at rest height (-2.5). No logic duplicated —
+    // converter builds, one flag marks, controller integrates.
+    const pe::Tilemap l1 = pe::loadTilemap("platformer_level1.txt");
+    std::vector<pe::Entity> tileStatics = pe::tilemapToEntities(l1, 0.0f, 3);
+    for (auto& t : tileStatics) {
+        t.isStatic = true;
+    }
+    pe::Entity c = makeCharacter(-3.0f, 2.0f);
+    bool landed = false;
+    for (int i = 0; i < 600 && !landed; ++i) {
+        landed = pe::updateCharacterController(c, tileStatics, 1.0f / 60.0f, false);
+    }
+    if (!landed) {
+        std::cerr << "No landing on level geometry\n";
+        return false;
+    }
+    for (int i = 0; i < 10; ++i) {
+        pe::updateCharacterController(c, tileStatics, 1.0f / 60.0f, false);
+    }
+    if (!assertFloatClose(c.position.y, -2.5f) ||
+        !assertFloatClose(c.velocity.y, 0.0f)) {
+        std::cerr << "Did not rest on the level floor\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkPlatformerLevelSwitch() {
+    // Scene-level transition: two scenes, different maps, switch shuttles
+    // current and each side keeps its own entities.
+    pe::SceneManager scenes;
+    pe::Scene& s1 = pe::loadScene(scenes, "level1");
+    s1.entities.push_back(makeCharacter(-4.0f, -2.5f));
+    pe::loadTilemapIntoScene(s1, "platformer_level1.txt");
+    // Snapshot the spot-check cell NOW: the second loadScene below may
+    // reallocate the vector and invalidate s1 (documented scene caveat —
+    // this test honors it instead of tripping it).
+    const pe::Tile* preA = pe::tileAt(s1.tilemap, 4, 2);
+    const int tileA = preA ? preA->tileId : -1;
+    pe::Scene& s2 = pe::loadScene(scenes, "level2");
+    s2.entities.push_back(makeCharacter(-4.0f, -2.5f));
+    s2.entities.push_back(makeCharacter(0.0f, 0.0f));
+    pe::loadTilemapIntoScene(s2, "platformer_level2.txt");
+    pe::switchTo(scenes, "level1");
+    if (pe::currentScene(scenes)->entities.size() != 1 ||
+        pe::currentScene(scenes)->tilemap.tiles.size() != 80) {
+        std::cerr << "Level1 scene state wrong\n";
+        return false;
+    }
+    pe::switchTo(scenes, "level2");
+    if (pe::currentScene(scenes)->entities.size() != 2 ||
+        pe::currentScene(scenes)->tilemap.width != 10) {
+        std::cerr << "Level2 switch did not shuttle current\n";
+        return false;
+    }
+    // Maps differ between the levels: (4,2) is empty in L1 (all-zero row)
+    // but solid in L2 (platform row).
+    const pe::Tile* b = pe::tileAt(pe::currentScene(scenes)->tilemap, 4, 2);
+    if (tileA != 0 || !b || b->tileId == tileA) {
+        std::cerr << "Level maps unexpectedly identical\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkPlatformerClimb() {
+    // Full L2 traversal through the real controller + real level geometry:
+    // run right from spawn, single jump at x>=-3.4, keep running. The arc
+    // (computed: land ~x=+1.1 on platform P, top -1.0) must cross the goal
+    // rect (2.0,-1.0,0.75,0.75) on the way. Mirrors the game's per-frame
+    // calls exactly (velocity set, controller step, overlap by position).
+    const pe::Tilemap l2 = pe::loadTilemap("platformer_level2.txt");
+    std::vector<pe::Entity> tileStatics = pe::tilemapToEntities(l2, 0.0f, 3);
+    for (auto& t : tileStatics) {
+        t.isStatic = true;
+    }
+    // Spawn at the exact rest height (as the game does): grounded frame 0,
+    // so the scheduled jump always fires instead of being refused mid-air.
+    pe::Entity c = makeCharacter(-3.0f, -2.68f);
+    // Exact game transform: half 0.4 x scale 0.8 = 0.32 world half-height,
+    // so -2.68 is the true rest (makeCharacter's default scale is 1.0).
+    c.halfExtents = pe::Vec3(0.4f, 0.4f, 0.0f);
+    c.scale = pe::Vec3(0.8f, 0.8f, 1.0f);
+    c.jumpImpulse = 7.0f;  // game tuning (default 12 overshoots everything)
+    bool jumped = false;
+    bool overlapped = false;
+    bool wasG = false;
+    for (int i = 0; i < 600 && !overlapped; ++i) {
+        c.velocity.x = 4.5f;
+        // Jump like a player: only once, only when grounded (never waste
+        // the single jump on an airborne frame — that exact mistake failed
+        // this test's first version).
+        bool jump = false;
+        if (!jumped && wasG && c.position.x >= -3.4f) {
+            jump = true;
+            jumped = true;
+        }
+        wasG = pe::updateCharacterController(c, tileStatics, 1.0f / 60.0f, jump);
+        const float dx = c.position.x - 2.0f;
+        const float dy = c.position.y - (-1.0f);
+        const float adx = dx >= 0.0f ? dx : -dx;
+        const float ady = dy >= 0.0f ? dy : -dy;
+        if (adx < 0.75f + 0.4f && ady < 0.75f + 0.4f) {
+            overlapped = true;
+        }
+    }
+    if (!jumped) {
+        std::cerr << "Climb never jumped\n";
+        return false;
+    }
+    if (!overlapped) {
+        std::cerr << "Climb never reached the goal zone\n";
+        return false;
+    }
+    return true;
+}
+
+static bool checkPlatformerGoalEvent() {
+    // Goal flow at bus level with game payloads: SceneChanged carries
+    // from/to level indices to a subscriber that records them.
+    pe::EventBus bus;
+    int seenA = -99, seenB = -99, calls = 0;
+    bus.subscribe(pe::EventType::SceneChanged, [&](const pe::GameEvent& e) {
+        seenA = e.a;
+        seenB = e.b;
+        ++calls;
+    });
+    bus.emit(pe::GameEvent{pe::EventType::SceneChanged, 0, 1});
+    bus.emit(pe::GameEvent{pe::EventType::SceneChanged, 1, 2});
+    if (calls != 2 || seenA != 1 || seenB != 2) {
+        std::cerr << "Goal event flow broken\n";
+        return false;
+    }
+    return true;
+}
+
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4005)  // windows.h vs glfw3.h APIENTRY: same value
+#endif
+#include <windows.h>  // PostMessage/Sleep for checkInputEdges' own window
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>  // glfwGetWin32Window (test-only HWND access)
+
+static void postKey(GLFWwindow* window, int vk, bool down) {
+    // Focus-independent injection for the test's own hidden window only.
+    // (Production key delivery is the OS's job; this posts straight to
+    // the window queue, which glfwPollEvents then pumps on this thread.)
+    UINT sc = MapVirtualKeyW((UINT)vk, MAPVK_VK_TO_VSC);
+    LPARAM lp = 1 | (sc << 16);
+    if (vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN) {
+        lp |= (1 << 24);  // extended-key bit, as the OS sets it
+    }
+    UINT msg = down ? WM_KEYDOWN : WM_KEYUP;
+    if (!down) {
+        lp |= (1 << 30) | (1 << 31);
+    }
+    PostMessageW(glfwGetWin32Window(window), msg, (WPARAM)vk, lp);
+}
+
+static bool checkInputEdges() {
+    // Locks the exact snapshot semantics the platformer jump fix depends
+    // on: a posted DOWN is visible as an edge until update() consumes it,
+    // untracked keys never edge, and UP-arrow delivery works in-process.
+    // Needs a window: skipped (not failed) where GL cannot init.
+    if (!glfwInit()) {
+        std::cerr << "input test skipped: glfwInit failed\n";
+        return true;
+    }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    GLFWwindow* window = glfwCreateWindow(64, 64, "input-test", nullptr, nullptr);
+    if (!window) {
+        std::cerr << "input test skipped: hidden window failed\n";
+        glfwTerminate();
+        return true;
+    }
+    bool ok = true;
+    pe::Input input{GLFW_KEY_SPACE, GLFW_KEY_UP};
+    glfwPollEvents();
+    input.update(window);  // settle: nothing pressed, snapshot clean
+    if (input.isEdge(window, GLFW_KEY_SPACE) ||
+        input.isEdge(window, GLFW_KEY_UP) ||
+        input.isEdge(window, GLFW_KEY_A)) {
+        std::cerr << "Clean snapshot must edge nothing\n";
+        ok = false;
+    }
+    // SPACE down: tracked edge fires, untracked A stays silent.
+    postKey(window, VK_SPACE, true);
+    Sleep(150);
+    glfwPollEvents();
+    if (!input.isEdge(window, GLFW_KEY_SPACE) ||
+        input.isEdge(window, GLFW_KEY_A)) {
+        std::cerr << "SPACE down must edge tracked-only\n";
+        ok = false;
+    }
+    // Snapshot consumes: edge gone while still held.
+    input.update(window);
+    if (input.isEdge(window, GLFW_KEY_SPACE)) {
+        std::cerr << "Post-snapshot edge must clear while held\n";
+        ok = false;
+    }
+    postKey(window, VK_SPACE, false);
+    Sleep(150);
+    glfwPollEvents();
+    input.update(window);
+    // UP-arrow down must register in-process (VM blackhole check).
+    postKey(window, VK_UP, true);
+    Sleep(150);
+    glfwPollEvents();
+    if (!input.isEdge(window, GLFW_KEY_UP)) {
+        std::cerr << "UP-arrow down must edge\n";
+        ok = false;
+    }
+    postKey(window, VK_UP, false);
+    Sleep(150);
+    glfwPollEvents();
+    input.update(window);
+    if (input.isEdge(window, GLFW_KEY_UP)) {
+        std::cerr << "UP edge must clear after snapshot\n";
+        ok = false;
+    }
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    return ok;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1380,6 +1680,13 @@ int main() {
     const bool coyoteOk = checkCoyoteTime();
     const bool charDtOk = checkCharacterDtGuards();
     const bool staticResolveOk = checkStaticResolve();
+    const bool sceneByNameOk = checkSceneByName();
+    const bool platLevelsOk = checkPlatformerLevels();
+    const bool platClimbOk = checkPlatformerClimb();
+    const bool inputEdgesOk = checkInputEdges();
+    const bool platLandingOk = checkPlatformerLanding();
+    const bool platSwitchOk = checkPlatformerLevelSwitch();
+    const bool platGoalOk = checkPlatformerGoalEvent();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1394,7 +1701,10 @@ int main() {
         !particleSpawnOk || !emitterRateOk || !particleMotionOk ||
         !particleDeathOk || !particleConvertOk ||
         !staticFloorOk || !groundedOk || !wallOk || !ceilingOk ||
-        !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk) {
+        !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
+        !sceneByNameOk ||
+        !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
+        !platClimbOk || !inputEdgesOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
