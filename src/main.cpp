@@ -1171,7 +1171,11 @@ int main() {
                     pe::collideEntityWithTilemap(*player, activeScene->tilemap);
                 }
                 if (player) {
-                    camera.follow(player->position);
+                    // Smooth follow: the camera trails the player so motion
+                    // reads against the world (snap follow kept one call
+                    // away in camera.h). Simulation is untouched — only the
+                    // view changes.
+                    camera.followLerp(player->position, dt, 5.0f);
                 }
             }
             break;

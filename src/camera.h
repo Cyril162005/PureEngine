@@ -101,6 +101,23 @@ public:
         position.y = target.y;
     }
 
+    // Smooth follow: exponential approach toward the target. Same
+    // destination as follow(), but the camera trails behind motion so the
+    // player visibly moves relative to the world before the camera catches
+    // up. factor is clamped to [0,1] so low-fps frames converge without
+    // overshooting. Additive: follow() behavior is untouched.
+    void followLerp(const Vec3& target, float dt, float speed = 5.0f) {
+        float blend = speed * dt;
+        if (blend < 0.0f) {
+            blend = 0.0f;
+        }
+        if (blend > 1.0f) {
+            blend = 1.0f;
+        }
+        position.x += (target.x - position.x) * blend;
+        position.y += (target.y - position.y) * blend;
+    }
+
 private:
     Vec3 position = Vec3(0.0f, 0.0f, 0.0f);   // Step 6: world-space camera position
 
