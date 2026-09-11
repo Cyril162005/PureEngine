@@ -144,6 +144,11 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/tex_hostile_alt.png"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_hostile_alt.png"
+    # Step 77: the renderer loads GLSL from files now — every game bundle
+    # must carry assets/shaders/ (missing files are fatal in init).
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/shaders"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/shaders"
 )
 
 # Minimal parser validation target: exercises the real hostile-data loading
@@ -203,6 +208,9 @@ add_custom_command(TARGET Pong POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"
         "$<TARGET_FILE_DIR:Pong>/assets/paddle_animations.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/shaders"
+        "$<TARGET_FILE_DIR:Pong>/assets/shaders"
 )
 
 # Platformer proof game (Session 4): third game proving the engine without
@@ -265,6 +273,9 @@ add_custom_command(TARGET Platformer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"
         "$<TARGET_FILE_DIR:Platformer>/assets/win_sound.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/shaders"
+        "$<TARGET_FILE_DIR:Platformer>/assets/shaders"
 )
 
 # On Linux, we might need extra libs

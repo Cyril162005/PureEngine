@@ -51,5 +51,14 @@ foreach ($asset in $runtimeAssets) {
     Copy-Item $sourcePath (Join-Path $stageAssetsDir $asset)
 }
 
+# Step 77: the renderer loads GLSL from files — the zip must carry
+# assets/shaders/ or the packaged game exits at init (same class as the
+# paddle-sheet find: fatal renderer asset missing from a bundle).
+$shaderSourceDir = Join-Path $repoRoot (Join-Path "assets" "shaders")
+if (-not (Test-Path $shaderSourceDir -PathType Container)) {
+    throw "Runtime shader dir not found: $shaderSourceDir"
+}
+Copy-Item $shaderSourceDir (Join-Path $stageAssetsDir "shaders") -Recurse
+
 Compress-Archive -Path $stageDir -DestinationPath $zipPath -CompressionLevel Optimal
 Write-Output "Created $zipPath"

@@ -63,6 +63,9 @@
                          // boundary now — this class obtains textures from
                          // it and never calls stb_image itself (stb's ONE
                          // implementation stays in src/stb_impl.cpp).
+#include "shader.h"      // Step 77: program compile/link lives in the
+                         // shader boundary now — this class obtains the
+                         // program from it and never embeds GLSL itself.
 #include "font.h"        // Step 66: fontCellFor/align math for drawTextString
 #include "math/vec3.h"   // Vec3 types used by the entity/math interfaces
 #include "math/mat4.h"   // view/MVP construction
@@ -128,79 +131,15 @@ public:
     // cleanup path serves every failure point). main.cpp then handles
     // the NON-rendering teardown (audio, window, GLFW).
     bool init() {
-        // --- Step 4: shader sources, byte-identical to the originals ---
-        // VERTEX SHADER: position (location 0) + UV (location 1, Step 10)
-        // in, one 'transform' uniform (Step 5) applied to every vertex.
-        const char* vertexShaderSource =
-            "#version 330 core\n"
-            "layout (location = 0) in vec3 aPos;\n"
-            "layout (location = 1) in vec2 aTexCoord;\n"
-            "uniform mat4 transform;\n"
-            "out vec2 TexCoord;\n"
-            "void main() {\n"
-            "    gl_Position = transform * vec4(aPos, 1.0);\n"
-            "    TexCoord = aTexCoord;\n"
-            "}\n";
-
-        // FRAGMENT SHADER: Step 10's texture lookup with the Step 8
-        // 'color' uniform surviving as a TINT multiplier (white leaves
-        // texels untouched; red zeroes green+blue — collision feedback).
-        // Phase 3: output alpha comes from the texture — RGB world
-        // textures carry alpha 1.0 and blending stays OFF for the world,
-        // so only the RGBA font atlas ever uses the channel.
-        const char* fragmentShaderSource =
-            "#version 330 core\n"
-            "uniform sampler2D tex;\n"
-            "uniform vec3 color;\n"
-            "in vec2 TexCoord;\n"
-            "out vec4 FragColor;\n"
-            "void main() {\n"
-            "    vec4 texel = texture(tex, TexCoord);\n"
-            "    FragColor = vec4(texel.rgb * color, texel.a);\n"
-            "}\n";
-
-        // Compile the vertex shader — with the Step 4 error check. A
-        // broken shader must fail LOUDLY, never as a silent black screen.
-        GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-        glCompileShader(vertexShader);
-        int success;
-        char infoLog[512];
-        glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-        if (!success) {
-            glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-            std::cerr << "Vertex shader compilation failed:\n" << infoLog << std::endl;
-            glDeleteShader(vertexShader);
-            return false;   // nothing else was created yet
-        }
-
-        // Compile the fragment shader — same three calls, same check.
-        GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-        glCompileShader(fragmentShader);
-        glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-        if (!success) {
-            glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-            std::cerr << "Fragment shader compilation failed:\n" << infoLog << std::endl;
-            glDeleteShader(vertexShader);
-            glDeleteShader(fragmentShader);
-            return false;
-        }
-
-        // Link both into the program; linking can fail even when both
-        // shaders compiled (interface mismatch), so check GL_LINK_STATUS.
-        shaderProgram = glCreateProgram();
-        glAttachShader(shaderProgram, vertexShader);
-        glAttachShader(shaderProgram, fragmentShader);
-        glLinkProgram(shaderProgram);
-        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-        // The individual shader objects are baked into the program now —
-        // delete them either way (same as the original code).
-        glDeleteShader(vertexShader);
-        glDeleteShader(fragmentShader);
-        if (!success) {
-            glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-            std::cerr << "Shader program linking failed:\n" << infoLog << std::endl;
+        // --- Step 77: shader program from files, not string literals ---
+        // assets/shaders/default.vert/.frag hold the EXACT Step 4 GLSL
+        // (moved byte-identical — proven by decode-compare, not by eye);
+        // pe::loadShader probes, compiles, and links with the same checks
+        // and messages the inline code had. Uniform lookups below are
+        // unchanged: same names (transform/color/tex), same program role.
+        // Failure contract unchanged: stderr message, destroyAll(), false.
+        shaderProgram = pe::loadShader("default.vert", "default.frag");
+        if (shaderProgram == 0) {
             destroyAll();
             return false;
         }
