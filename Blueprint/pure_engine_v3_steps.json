@@ -546,6 +546,17 @@
       "verification": "Build clean, CTest 47/47, arcade 0.550s canary unchanged, 64x64 decode verified, on-screen size identical by construction (same UV rect + entity scale).",
       "commit": "e8cd676",
       "depends_on": []
+    },
+    {
+      "id": 77,
+      "name": "Shader system: loadable GLSL files",
+      "status": "completed",
+      "definition_of_done": "src/shader.h implements loadShader(vert,frag). GLSL moved from hardcoded strings to assets/shaders/default.vert + .frag. Renderer::init() loads from files. Visual output identical. Non-breaking.",
+      "notes": "Enables custom shaders per game. Future: 2D lighting shader (Step 79). Default shader is exact extract of previous hardcoded GLSL (proven byte-identical, not by eye). Base filenames + internal probe (tilemap precedent), not full paths.",
+      "implementation": "shader.h: readShaderFile/compileShader/loadShader free functions. assets/shaders/: two GLSL files. renderer.h: init() calls loadShader(). CMakeLists: POST_BUILD shader copy x3. package.ps1 stages shaders dir.",
+      "verification": "Build clean, CTest 47/47, canary 0.550s unchanged, all 3 games alive on file-loaded shaders.",
+      "commit": "0819b1e",
+      "depends_on": []
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
