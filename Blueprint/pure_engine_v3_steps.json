@@ -502,6 +502,17 @@
       "depends_on": [
         71
       ]
+    },
+    {
+      "id": 73,
+      "name": "Camera lerp follow (followLerp)",
+      "status": "completed",
+      "definition_of_done": "Camera::followLerp() added to camera.h. Arcade uses lerp (speed=5.0) instead of snap. Platformer/Pong keep snap. Non-breaking: sim unchanged (0.55s canary identical).",
+      "notes": "Purely additive — follow() untouched. Blend clamped [0,1] against low-fps overshoot. Arcade movement now feels smoother without touching physics.",
+      "implementation": "Added followLerp(target, dt, speed=5.0) to camera.h. One call-site swap in main.cpp:1174.",
+      "verification": "Build clean, CTest 45/45, arcade 0.55s death identical, Pong alive.",
+      "commit": "db53a13",
+      "depends_on": []
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
