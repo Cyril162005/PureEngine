@@ -51,8 +51,18 @@ For every claim such as "works," "passes," or "fixed," include the actual comman
 - `src/simulation.h`: simulation logic boundary
 - `src/entity.h`, `src/collision.h`, `src/gamestate.h`: core data and state logic
 - `src/hostile_data.h`: hostile definition data boundary
+- `src/physics.h`: physics (gravity, impulse resolve, statics, character controller)
+- `src/tilemap.h`: tilemap load/convert/collide boundary
+- `src/scene.h`: scene + SceneManager boundary
+- `src/font.h`: bitmap-text logic (cell map, metrics)
+- `src/events.h`: event bus boundary
+- `src/console.h`: debug console boundary
+- `src/gamepad.h`: gamepad snapshot boundary
+- `src/particles.h`: particle pool/emitter boundary
+- `src/animation.h`, `src/animation_data.h`: animation clips + file loading
 - `src/math/`: custom math layer
 - `src/stb_impl.cpp`: stb implementation unit
+- `games/pong/pong.cpp`, `games/platformer/platformer.cpp`: second/third games (own CMake targets)
 
 ## Reporting expectations
 
