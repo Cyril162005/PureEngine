@@ -4,6 +4,7 @@
 #include <vector>   // Step 7: entities live in a std::vector
 #include <algorithm> // Phase 2: std::min clamps the difficulty scale
 #include <iomanip>   // Phase 3: fixed one-decimal-place formatting
+#include <sstream>   // Step 75: ostringstream for the volume command echo
 #include <fstream>   // Phase 4: high-score save file — the engine's FIRST disk write
 #include <filesystem> // Phase 4: create savedata/ before saving, without ever throwing
 #include <map>        // Step 58: animation clip library (name -> Animation)
@@ -946,6 +947,58 @@ int main() {
     pe::registerCommand(console, "reset", [&](const std::vector<std::string>&) {
         resetGame();
         return std::string("world reset");
+    });
+    // --- Step 75: runtime volume tuning (no recompile) ---
+    // "volume" reports both gains; "volume <number>" sets master (clamped
+    // [0,1] by the setter). Strict no-throw parse: empty, non-numeric, or
+    // trailing-garbage input answers with usage instead of guessing.
+    // Captures audio by ref (declared earlier, outlives the loop).
+    pe::registerCommand(console, "volume", [&](const std::vector<std::string>& args) {
+        std::ostringstream echo;
+        echo << std::fixed << std::setprecision(2);
+        if (args.empty()) {
+            echo << "master " << audio.getMasterVolume()
+                 << " sfx " << audio.getSfxVolume();
+            return echo.str();
+        }
+        const std::string& text = args[0];
+        std::size_t i = 0;
+        bool negative = false;
+        if (i < text.size() && (text[i] == '+' || text[i] == '-')) {
+            negative = (text[i] == '-');
+            ++i;
+        }
+        // Manual strict parse (no atof/strtof: no exceptions, no errno,
+        // no extra includes; rejects empty, lone dots/signs, junk).
+        float whole = 0.0f;
+        float frac = 0.0f;
+        float div = 1.0f;
+        bool seenDigit = false;
+        bool seenDot = false;
+        for (; i < text.size(); ++i) {
+            const char c = text[i];
+            if (c >= '0' && c <= '9') {
+                seenDigit = true;
+                if (!seenDot) {
+                    whole = whole * 10.0f + static_cast<float>(c - '0');
+                } else {
+                    div *= 10.0f;
+                    frac += static_cast<float>(c - '0') / div;
+                }
+            } else if (c == '.' && !seenDot) {
+                seenDot = true;
+            } else {
+                break;
+            }
+        }
+        if (!seenDigit || i != text.size()) {
+            return std::string("usage: volume [0.0-1.0]");
+        }
+        float value = whole + frac;
+        audio.setMasterVolume(negative ? -value : value);
+        echo << "master " << audio.getMasterVolume()
+             << " sfx " << audio.getSfxVolume();
+        return echo.str();
     });
 
     // --- Step 13: the digit-string glyph path moved to the renderer ---

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 
+#include "../src/audio.h"
 #include "../src/console.h"
 #include "../src/events.h"
 #include "../src/gamepad.h"
@@ -1640,6 +1641,36 @@ static bool checkInputEdges() {
     return ok;
 }
 
+static bool checkVolumeClamp() {
+    // Gain contract without an audio device: setters clamp [0,1] and store;
+    // applyVolumes() guards on slotsValid/loaded flags, so this never
+    // touches miniaudio uninitialized. (clampVolume01 itself is private;
+    // this exercises it through both public setters — same code path.)
+    pe::Audio audio;  // never init()ed: guards must no-op safely
+    audio.setMasterVolume(-1.0f);
+    audio.setSfxVolume(2.0f);
+    if (!assertFloatClose(audio.getMasterVolume(), 0.0f) ||
+        !assertFloatClose(audio.getSfxVolume(), 1.0f)) {
+        std::cerr << "Volume clamp endpoints wrong\n";
+        return false;
+    }
+    audio.setMasterVolume(0.5f);
+    audio.setSfxVolume(0.5f);
+    if (!assertFloatClose(audio.getMasterVolume(), 0.5f) ||
+        !assertFloatClose(audio.getSfxVolume(), 0.5f)) {
+        std::cerr << "Volume mid-range wrong\n";
+        return false;
+    }
+    audio.setMasterVolume(0.0f);
+    audio.setSfxVolume(1.0f);
+    if (!assertFloatClose(audio.getMasterVolume(), 0.0f) ||
+        !assertFloatClose(audio.getSfxVolume(), 1.0f)) {
+        std::cerr << "Volume identity endpoints wrong\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1684,6 +1715,7 @@ int main() {
     const bool platLevelsOk = checkPlatformerLevels();
     const bool platClimbOk = checkPlatformerClimb();
     const bool inputEdgesOk = checkInputEdges();
+    const bool volumeClampOk = checkVolumeClamp();
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
@@ -1704,7 +1736,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

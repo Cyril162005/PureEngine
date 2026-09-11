@@ -23,9 +23,10 @@
  *     and returns immediately — playback never blocks the frame.
  *
  * What it deliberately is NOT:
- *   - no volume or mixing controls, no streaming, no second asset,
- *     no sound identity/naming system, no per-event sound types.
- *     One asset, four slots, one verb: playNext().
+ *   - no mixing controls, no streaming, no sound identity/naming system,
+ *     no per-event sound types, no per-sound volume (v1.2).
+ *     Step 75 adds exactly two gains (master + sfx, below) — everything
+ *     else on this list still holds.
  *
  * Ownership rule (renderer.h precedent): the Audio object owns the
  * ma_engine and every pool slot it created. init() returns bool; on
@@ -145,6 +146,9 @@ public:
             return false;
         }
         newHighScoreSoundLoaded = true;
+        // Honor any pre-init setMasterVolume/setSfxVolume calls (the
+        // defaults make this call identity when untouched).
+        applyVolumes();
         return true;
     }
 
@@ -206,6 +210,29 @@ public:
         }
     }
 
+    // --- Step 75: two gains (master + sfx) ---
+    // Every sound plays at masterVolume * sfxVolume. All current assets
+    // are effects (no music stream exists), so one uniform rule covers
+    // everything with no per-sound special cases; sfxVolume is the
+    // designated split point if v1.2 adds per-sound gains. Defaults are
+    // 1.0 (behavior identical to before Step 75). Setters clamp to
+    // [0,1], store unconditionally (safe pre-init), and apply to every
+    // initialized sound; init() applies the stored values at the end so
+    // a pre-init set is never silently lost. ma_sound_set_volume is
+    // mixer-thread-safe; these run on the game thread like the triggers.
+    void setMasterVolume(float v) {
+        masterVolume = clampVolume01(v);
+        applyVolumes();
+    }
+
+    void setSfxVolume(float v) {
+        sfxVolume = clampVolume01(v);
+        applyVolumes();
+    }
+
+    float getMasterVolume() const { return masterVolume; }
+    float getSfxVolume() const { return sfxVolume; }
+
     // --- Teardown, reverse creation order ---
     // Every initialized pool slot first (each registered WITH the
     // engine), then the engine itself — which stops the mixing thread
@@ -234,6 +261,28 @@ public:
     }
 
 private:
+    // Clamp helper (Step 75): the only gain logic provable without an
+    // audio device — covered headlessly through the public setters.
+    float clampVolume01(float v) {
+        return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+    }
+
+    // Push master*sfx to every initialized sound. Guards mirror the
+    // triggers (slotsValid count, loaded flags) — uninitialized objects
+    // are never touched, so this is safe pre-init and post-shutdown.
+    void applyVolumes() {
+        const float effective = masterVolume * sfxVolume;
+        for (std::size_t i = 0; i < slotsValid; ++i) {
+            ma_sound_set_volume(&sounds[i], effective);
+        }
+        if (gameOverSoundLoaded) {
+            ma_sound_set_volume(&gameOverSound, effective);
+        }
+        if (newHighScoreSoundLoaded) {
+            ma_sound_set_volume(&newHighScoreSound, effective);
+        }
+    }
+
     bool loadNamedSound(const std::string& fileName, ma_sound& sound) {
         const std::string root = std::string("assets/") + fileName;
         const std::string build = std::string("../assets/") + fileName;
@@ -261,6 +310,9 @@ private:
     bool engineIsValid = false;
     bool gameOverSoundLoaded = false;
     bool newHighScoreSoundLoaded = false;
+    // Step 75 gains: 1.0/1.0 preserves pre-Step-75 behavior exactly.
+    float masterVolume = 1.0f;
+    float sfxVolume = 1.0f;
 };
 
 } // namespace pe
