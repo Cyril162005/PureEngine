@@ -120,6 +120,12 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/arcade_arena.txt"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/arcade_arena.txt"
+    # paddle_spritesheet.png is a Pong/Platformer asset, but the shared
+    # renderer unconditionally loads slot 4 at init (fatal if missing), so
+    # every game bundle must carry it even when the game never draws it.
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/paddle_spritesheet.png"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/checker.png"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/checker.png"

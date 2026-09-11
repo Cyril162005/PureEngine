@@ -22,9 +22,12 @@ $runtimeAssets = @(
     "hostile_alt.txt"
     "animation_default.txt"
     "arcade_arena.txt"
+    "paddle_spritesheet.png"
 )
-# NOTE: synced with the CMake POST_BUILD arcade bundle (13 files). Deliberately
-# excluded: tilemap_default.txt (sample only — no game loads it at runtime),
+# NOTE: synced with the CMake POST_BUILD arcade bundle (14 files: the renderer's
+# fixed 7-texture set demands paddle_spritesheet.png even for games that never
+# draw it). Deliberately excluded: tilemap_default.txt (sample only — no game
+# loads it at runtime),
 # stress fixtures, platformer_* (Platformer has its own POST_BUILD bundle),
 # paddle_* (Pong has its own bundle). This zip ships PureEngine.exe (arcade).
 
