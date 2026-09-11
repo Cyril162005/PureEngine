@@ -513,6 +513,17 @@
       "verification": "Build clean, CTest 45/45, arcade 0.55s death identical, Pong alive.",
       "commit": "db53a13",
       "depends_on": []
+    },
+    {
+      "id": 74,
+      "name": "Platformer proof game (v1.0 gate)",
+      "status": "completed",
+      "definition_of_done": "Minimum platformer game proves engine systems work together: tilemap, scenes, physics controller, animation, EventBus, audio, particles, text, console, gamepad path. Full TITLE->L1->L2->WIN flow verified by human playtest.",
+      "notes": "Movement, jump, gravity, landing, walls, L1 goal, L2 goal, WIN, text, console all instrument-verified. Particles + audio human-verified. VK_UP environmental (VM only, W/Space cover jump). Arcade and Pong unchanged. Input snapshot must postdate sim reads (spc=1/jmp=0 lesson).",
+      "implementation": "games/platformer/platformer.cpp. Two tilemap levels (assets/platformer_level1.txt, assets/platformer_level2.txt). Input snapshot ordering fix (moved post-sim). A/D movement mapping. sceneByName finder.",
+      "verification": "Human playtest: 15/15 items pass. CTest 46/46. Arcade/Pong unchanged and alive.",
+      "commit": "4187cfe",
+      "depends_on": [60, 61, 62, 63, 64]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
