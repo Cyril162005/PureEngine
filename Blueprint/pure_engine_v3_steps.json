@@ -524,6 +524,28 @@
       "verification": "Human playtest: 15/15 items pass. CTest 46/46. Arcade/Pong unchanged and alive.",
       "commit": "4187cfe",
       "depends_on": [60, 61, 62, 63, 64]
+    },
+    {
+      "id": 75,
+      "name": "Audio volume control (master + sfx gain)",
+      "status": "completed",
+      "definition_of_done": "Audio gains masterVolume + sfxVolume fields. setMasterVolume/setSfxVolume API. applyVolumes() applies to all initialized sounds. Console command 'volume' in arcade. Headless clamp test. Non-breaking at defaults (x1.0 = identity).",
+      "notes": "All current sounds are SFX (no music stream). Per-sound volume deferred to v1.2. sfxVolume exists as designated v1.2 split point. Uniform gain: every sound plays at master x sfx. clampVolume01 kept private per spec; tested through public setters (stronger). Live console echo unachieved (delivery dead spell); compensated by VOL-PROBE-PASS on real initialized sounds.",
+      "implementation": "audio.h: 4 public methods + private applyVolumes + clampVolume01. main.cpp: volume console command. tests: clamp assertions via public API.",
+      "verification": "Build clean, CTest 47/47, VOL-PROBE-PASS (init/set/play/clamp/shutdown exit 0), console command code-reviewed (live echo blocked by environment), 0.550s canary unchanged.",
+      "commit": "15a7f3e",
+      "depends_on": []
+    },
+    {
+      "id": 76,
+      "name": "64x64 procedural player sprite",
+      "status": "completed",
+      "definition_of_done": "tex_player.png upgraded from 16x16 checkerboard to 64x64 ship sprite. make_textures.ps1 updated with width/height params. Engine renderer unchanged (resources.h handles any resolution). Scenery/hostile textures byte-identical.",
+      "notes": "Renderer supports any resolution by construction (stbi_load + normalized UVs). Zero engine changes needed. Existing scenery/hostile regenerate byte-identical. Zero zero-red pixels (tint rule safe). 104 distinct colors. Human eye verification of ship appearance pending (headless here).",
+      "implementation": "make_textures.ps1: added width/height params. assets/tex_player.png: regenerated as 64x64 ship.",
+      "verification": "Build clean, CTest 47/47, arcade 0.550s canary unchanged, 64x64 decode verified, on-screen size identical by construction (same UV rect + entity scale).",
+      "commit": "e8cd676",
+      "depends_on": []
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
