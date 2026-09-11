@@ -20,7 +20,13 @@ $runtimeAssets = @(
     "tex_hostile_alt.png"
     "hostile_default.txt"
     "hostile_alt.txt"
+    "animation_default.txt"
+    "arcade_arena.txt"
 )
+# NOTE: synced with the CMake POST_BUILD arcade bundle (13 files). Deliberately
+# excluded: tilemap_default.txt (sample only — no game loads it at runtime),
+# stress fixtures, platformer_* (Platformer has its own POST_BUILD bundle),
+# paddle_* (Pong has its own bundle). This zip ships PureEngine.exe (arcade).
 
 if (-not (Test-Path $executablePath -PathType Leaf)) {
     throw "Release executable not found: $executablePath"
