@@ -5,7 +5,7 @@ OpenGL, plus a small arcade game built entirely on top of it. No engine
 framework, no game library — every engine layer was written as part of the
 project itself.
 
-- **Engine** (72 tracked steps, 25–72): window/context, rendering pipeline,
+- **Engine** (74 tracked steps, 25–74): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio), file-based asset loading (stb_image PNG),
   scene structure, animation, physics (gravity, impulse, statics, character
@@ -14,8 +14,11 @@ project itself.
   with states.
 - **Games**: arcade survival (dodge crimson hostiles; survival time is the
   score, persisted across runs; arena has tile walls, a companion satellite,
-  catch-burst particles, debug console, gamepad support) and Pong
-  (`build\Release\Pong.exe`: paddles + ball, the second-game API proof).
+  catch-burst particles, debug console, gamepad support), Pong
+  (`build\Release\Pong.exe`: paddles + ball, the second-game API proof),
+  and Platformer (`build\Release\Platformer.exe`: TITLE→L1→L2→WIN across
+  two tile levels with the character controller, goal events, particles,
+  console, and gamepad path — the v1.0 proof game).
 
 The full build history and design decisions live in
 [`Blueprint/GAME_BUILD.md`](Blueprint/GAME_BUILD.md) (machine-readable twin:
@@ -23,8 +26,9 @@ The full build history and design decisions live in
 [`Blueprint/PURE_ENGINE_V3.md`](Blueprint/PURE_ENGINE_V3.md) (engine track,
 machine-readable twin: [`Blueprint/pure_engine_v3_steps.json`](Blueprint/pure_engine_v3_steps.json)).
 Steps 63–70 were built as tested foundations first and then adopted by the
-arcade game (Step 71); Step 72 hardened physics for a platformer (no
-platformer game exists yet — that is the next milestone).
+arcade game (Step 71); Step 72 hardened physics; Steps 73–74 added camera
+lerp and the platformer proof game (46 behavior cases green, 15/15 human
+playtest items pass).
 
 ## Requirements
 
@@ -100,6 +104,12 @@ companion; states show centered text labels (PAUSED / GAME OVER / YOU WIN).
 W/S move the left paddle, Up/Down move the right paddle, ESC quits. No
 score, pause, audio, or states yet — that is future work, not architecture.
 
+### Platformer controls
+
+Arrows or A/D move, SPACE/W jump, ESC pauses, ` opens the debug console
+(`help`, `entities`, `pos`, `reset`). Gamepad left stick moves where a
+mapped pad is present. Reach the goal zone to advance: L1 → L2 → WIN.
+
 The high score is saved to `savedata/highscore.txt` (created automatically
 on the first record; excluded from git). Delete it to start fresh at 0.0.
 
@@ -161,7 +171,9 @@ src/entity.h            entity data (+parentIndex, isStatic, coyote fields)
 src/collision.h         AABB collision
 src/stb_impl.cpp        stb_image implementation unit
 games/pong/pong.cpp     Pong: second-game API proof (own CMake target)
-tests/                  hostile_data_test.cpp, 39 behavior cases (CTest)
+games/platformer/       Platformer proof game: 2 tile levels + controller +
+                         scenes/events/console/particles (own CMake target)
+tests/                  hostile_data_test.cpp, 46 behavior cases (CTest)
 assets/                 committed assets (scripts generate most, not all)
 Blueprint/              blueprints + step trackers (source of step history)
 make_*.ps1              in-tree asset generators
@@ -173,10 +185,11 @@ scripts/package.ps1     packaging script
 v1.0 means a small code-first 2D engine proven by real games. Current
 state: the arcade game exercises rendering, input (+gamepad), audio,
 config, HUD, save, tilemaps, scenes, events, console, particles, text,
-and hierarchy; physics (statics, controller) is implemented and
-behavior-tested (39 CTest cases) but has no game caller yet. The planned
-proof is a minimal platformer (tilemap + controller + scenes) — that game
-does not exist yet and is the next milestone. Deliberately deferred:
+and hierarchy; the platformer proves physics (statics, controller),
+tilemap levels, scene switching, goal events, and full TITLE→L1→L2→WIN
+flow. 46 behavior cases green; 15/15 human playtest items pass (particles
+and audio verified by ear/eye; Up-arrow jump shares the proven W/Space
+path but this VM never delivers that key). Deliberately deferred:
 sprite batching (measured: unneeded, see below), lighting, audio mixer,
 editor, ECS, 3D, networking.
 
