@@ -612,7 +612,7 @@
       "notes": "Reuses 3-candidate probe + loadTilemap discipline. No binary/versioning beyond # scene v1 header. Tilemap reference basename only.",
       "implementation": "scene.h: Scene.tilemapFile, sceneTrim/parse helpers, saveSceneToFile (fixed 4), loadSceneFromFile (strict), saveSceneManagerToFile optional. loadTilemapIntoScene sets tilemapFile. Test checkSceneSerialization round-trip + strict fallback.",
       "verification": "Build clean (4/4), CTest 48/48 (new test), arcade/platformer alive, round-trip proved.",
-      "commit": "[HASH]",
+      "commit": "45cc107",
       "depends_on": [
         64
       ]
