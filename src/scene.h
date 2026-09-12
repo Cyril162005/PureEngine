@@ -26,8 +26,9 @@
  * POINTER INVALIDATION: loadScene/addEntity/currentScene return
  * references/pointers into SceneManager-owned vectors. Any later
  * structural change (loadScene adding a new scene, addEntity pushing)
- * may reallocate and invalidate them — use promptly, do not store.
- * Same caveat class as tileAt() in tilemap.h.
+ * may reallocate and invalidate them — re-take after any structural
+ * change (F-01). Mitigate with reserve() where growth is known
+ * (e.g. scenes.reserve(4)). Same caveat class as tileAt() in tilemap.h.
  */
 #ifndef PUREENGINE_SCENE_H
 #define PUREENGINE_SCENE_H

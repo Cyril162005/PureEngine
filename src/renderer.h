@@ -54,6 +54,7 @@
 // Include guard, same pattern as entity.h and the math headers.
 
 #include <algorithm>     // Step 49: std::stable_sort for depth-based draw order
+#include <cassert>       // F-04: drawWorld contract assert
 #include <glad/gl.h>     // every GL call below goes through the GLAD loader
 #include <iostream>      // the same stderr diagnostics main.cpp always used
 #include <string>        // drawDigitString takes formatted game text
@@ -391,6 +392,7 @@ private:
                            const std::vector<char>& colliding,
                            GLuint program, GLint transformLoc, GLint colorLoc,
                            const LightingState* /*lights*/) {
+        assert(entities.size() == colliding.size()); // F-04: contract — flags 1:1 with entities
         glUseProgram(program);
 
         // Bind the world VAO ONCE: every entity shares this vertex data —

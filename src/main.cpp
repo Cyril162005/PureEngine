@@ -700,6 +700,7 @@ int main() {
     // active-scene pointer is safe (re-taken from currentScene() on every
     // switch regardless — belt and braces, never trust a pointer).
     pe::SceneManager sceneManager;
+    sceneManager.scenes.reserve(4); // F-01: avoid reallocation during setup; re-take after any structural change
     pe::loadScene(sceneManager, "arena");
     pe::loadScene(sceneManager, "arena_alt");
     // Initial placement, NOT a transition: take the arena address directly
@@ -716,6 +717,9 @@ int main() {
     // real, not asserted. An unreadable file degrades to "no tiles" via
     // loadTilemap's own fallback and the game stays fully playable.
     pe::loadTilemapIntoScene(*activeScene, "arcade_arena.txt");
+    // F-04: tile cache — rebuild only on switch, not per-frame (Step 63 ruling stands)
+    std::vector<pe::Entity> cachedTileEntities = pe::tilemapToEntities(activeScene->tilemap, 0, 3);
+    std::vector<char> cachedTileClear(cachedTileEntities.size(), 0);
     // --- Step 58: assign clips BEFORE the snapshot (else resets wipe them) ---
     // First hostile dances: role lookup, never entities[0] (that's the
     // player). Known limit: activateScene() rebuilds without assignment,
@@ -824,6 +828,17 @@ int main() {
         activeHostileDefaults = &scene;
         pe::Scene& target = pe::loadScene(sceneManager, sceneName);  // find-or-create (both exist since setup)
         target.entities = pe::buildInitialEntities(*activeHostileDefaults);
+        // P-02: keep anim clips across scene rebuild — alt scene lost walk_left
+        // after Step 58 (initial assign was before snapshot; rebuild rewrote entities).
+        for (pe::Entity& e : target.entities) {
+            if (e.roleId == static_cast<int>(pe::ArcadeRole::Hostile)) {
+                auto it = animations.find("walk_left");
+                if (it != animations.end()) {
+                    e.animationState.currentAnimation = &it->second;
+                    e.animationState.isPlaying = true;
+                }
+            }
+        }
         initialEntities = target.entities;
         colliding = pe::flagsForCount(target.entities.size());
         // Step 47: hostile speeds now live on each Entity (moveSpeed),
@@ -833,7 +848,9 @@ int main() {
         maxDifficultyScale = activeHostileDefaults->maxDifficultyScale;
         winTime = activeHostileDefaults->winTime;
         pe::switchTo(sceneManager, sceneName);
-        activeScene = pe::currentScene(sceneManager);
+        activeScene = pe::currentScene(sceneManager); // re-take after structural change (F-01)
+        cachedTileEntities = pe::tilemapToEntities(activeScene->tilemap, 0, 3);
+        cachedTileClear.assign(cachedTileEntities.size(), 0);
         eventBus.emit(pe::GameEvent{pe::EventType::SceneChanged, previousIndex, sceneManager.current});
     };
 
@@ -1554,19 +1571,11 @@ int main() {
                 renderer.drawWorld(camera.projection(), camera.view(), activeScene->entities, colliding);
             }
 
-            // Integration sprint: tile pass (Step 63 rendering). Live tiles
-            // become entities through the converter and draw through the SAME
-            // drawWorld with their own zeroed flag buffer — no second render
-            // system (Step 63 ruling stands). Depth 0 draws first; roleId 3
-            // is opaque to every scan. Empty map (alt scene): the converter
-            // returns empty and this whole block is a no-op.
-            {
-                const std::vector<pe::Entity> tileEntities =
-                    pe::tilemapToEntities(activeScene->tilemap, 0, 3);
-                if (!tileEntities.empty()) {
-                    const std::vector<char> tileClear(tileEntities.size(), 0);
-                    renderer.drawWorld(camera.projection(), camera.view(), tileEntities, tileClear);
-                }
+            // Integration sprint: tile pass (Step 63 rendering). Cached per scene
+            // (F-04) — rebuild only on switch, not per-frame (Step 63 ruling stands).
+            // Depth 0 draws first; roleId 3 opaque to scans. Alt scene empty: no-op.
+            if (!cachedTileEntities.empty()) {
+                renderer.drawWorld(camera.projection(), camera.view(), cachedTileEntities, cachedTileClear);
             }
 
             // Integration sprint: particle pass (Step 70 rendering). Same
