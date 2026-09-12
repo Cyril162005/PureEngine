@@ -644,6 +644,19 @@
         65,
         70
       ]
+    },
+    {
+      "id": 84,
+      "name": "OOB textureId log + doc refresh (83->84, shader/lighting taxonomy)",
+      "status": "completed",
+      "definition_of_done": "renderer.h logs OOB textureId [0..4] to cerr then falls back to checker; README/AGENTS step count 83 and header taxonomy updated (shader.h/lighting.h added, 48 cases). No behavior change for valid ids.",
+      "notes": "One-line cerr per OOB group (debug spam acceptable). Tilemap path unchanged (uses same fallback).",
+      "implementation": "renderer.h: BatchGroup OOB check with cerr before checker fallback. README.md: 74->83 steps, add shader.h/lighting.h layout, 46->48 cases. AGENTS.md: add shader/lighting boundaries.",
+      "verification": "Build clean (4/4), CTest 48/48, no runtime change for valid ids.",
+      "commit": "eecbb9d",
+      "depends_on": [
+        55
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
