@@ -616,6 +616,19 @@
       "depends_on": [
         64
       ]
+    },
+    {
+      "id": 82,
+      "name": "Menu instructions + HUD labels (TIME/BEST)",
+      "status": "completed",
+      "definition_of_done": "MENU draws 3 centered instruction lines via drawTextString; PLAYING HUD shows TIME/BEST labels additive next to digit rows via ui.h. No new fonts/headers, existing positions kept. Display proven.",
+      "notes": "Additive only: menu readable, HUD labels visible right of digits (+3.0), no overlap, no new layout system.",
+      "implementation": "ui.h: drawHud adds TIME/BEST drawTextString before digits. main.cpp: else-if MENU draws 3 centered lines (SPACE START 2 ALT / ARROWS/WASD MOVE ESC PAUSE / AVOID RED SURVIVE).",
+      "verification": "Build clean (4/4), CTest 48/48, arcade menu alive 3s with new text, HUD labels visible additive.",
+      "commit": "b114f96",
+      "depends_on": [
+        66
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
