@@ -6,6 +6,7 @@
 #include <string>
 
 #include "../src/audio.h"
+#include "../src/components.h"
 #include "../src/console.h"
 #include "../src/events.h"
 #include "../src/gamepad.h"
@@ -1901,6 +1902,25 @@ static bool checkHierarchyContractFreeze() {
     return true;
 }
 
+static bool checkComponentHelpers() {
+    pe::Entity e;
+    if (!assertFloatClose(pe::getHealth(e), 100.0f) || !pe::isAlive(e)) { std::cerr << "Health default failed\n"; return false; }
+    pe::damage(e, 30.0f);
+    if (!assertFloatClose(pe::getHealth(e), 70.0f)) { std::cerr << "Damage failed\n"; return false; }
+    pe::heal(e, 10.0f);
+    if (!assertFloatClose(e.health, 80.0f)) { std::cerr << "Heal failed\n"; return false; }
+    pe::setTag(e, "boss");
+    if (!pe::hasTag(e, "boss") || pe::getTag(e) != "boss") { std::cerr << "Tag failed\n"; return false; }
+    pe::clearTag(e);
+    if (!e.tag.empty()) { std::cerr << "ClearTag failed\n"; return false; }
+    pe::setTimer(e, 1.0f);
+    pe::tickTimer(e, 0.4f);
+    if (!assertFloatClose(pe::getTimer(e), 0.6f)) { std::cerr << "Timer tick failed\n"; return false; }
+    pe::addVelocity(e, pe::Vec3(1,0,0));
+    if (!assertFloatClose(e.velocity.x, 1.0f)) { std::cerr << "Velocity helper failed\n"; return false; }
+    return true;
+}
+
 static bool checkConsoleHistoryRecall() {
     pe::Console c;
     c.open = true;
@@ -1990,6 +2010,7 @@ int main() {
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
+    const bool componentOk = checkComponentHelpers();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -2007,7 +2028,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !componentOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

@@ -26,6 +26,7 @@
 // double-inclusion in one translation unit.
 
 #include <cstddef>  // std::size_t for the Step 65 hierarchy functions
+#include <string>   // Step 103: tag component
 #include <vector>   // std::vector<Entity> for the Step 65 hierarchy functions
 
 #include "math/vec3.h"  // position and scale are Vec3s
@@ -126,6 +127,13 @@ struct Entity {
     // overrides to red (1,0,0) in renderer. Particles set this to Particle.color.
     Vec3 tint = Vec3(1.0f, 1.0f, 1.0f);
 
+    // --- Step 103: lightweight components (opt-in, plain data) ---
+    // No archetype, no mandatory system — helpers in components.h operate
+    // on these plain fields. Defaults keep all existing games unchanged.
+    float health = 100.0f; // Health component
+    float timer = 0.0f;    // Timer component (generic countdown)
+    std::string tag;       // Tag component (free-form)
+
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
     // in the initializer list: no garbage state possible, same standard
@@ -149,7 +157,10 @@ struct Entity {
 gravityScale(0.0f),
             parentIndex(-1),
             isStatic(false),
-            tint(1.0f, 1.0f, 1.0f) {}
+            tint(1.0f, 1.0f, 1.0f),
+            health(100.0f),
+            timer(0.0f),
+            tag() {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -179,7 +190,10 @@ gravityScale(0.0f),
  gravityScale(0.0f),
             parentIndex(-1),
             isStatic(false),
-            tint(1.0f, 1.0f, 1.0f) {}
+            tint(1.0f, 1.0f, 1.0f),
+            health(100.0f),
+            timer(0.0f),
+            tag() {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the
