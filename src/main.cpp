@@ -1621,6 +1621,11 @@ int main() {
                 renderer.drawTextString("YOU WIN", 0.0f, 0.5f, camera.projection(), pe::TextAlign::Center);
             }
             pe::drawConsole(renderer, camera.projection(), console);
+        } else if (currentState == pe::GameState::MENU) {
+            // Step 82: menu instructions — additive, centered, no new fonts
+            renderer.drawTextString("SPACE START  2 ALT", 0.0f, 0.6f, camera.projection(), pe::TextAlign::Center);
+            renderer.drawTextString("ARROWS/WASD MOVE  ESC PAUSE", 0.0f, -0.1f, camera.projection(), pe::TextAlign::Center);
+            renderer.drawTextString("AVOID RED  SURVIVE", 0.0f, -0.8f, camera.projection(), pe::TextAlign::Center);
         }
 
         // C. Swap buffers

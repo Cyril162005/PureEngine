@@ -79,6 +79,9 @@ inline std::string formatDecimal1(float value) {
 // tint are handled inside drawDigitString exactly as before.
 inline void drawHud(Renderer& renderer, const Mat4& projection,
                     float survivalTime, float highScore) {
+    // Step 82: tiny TIME/BEST labels additive, digits keep exact positions
+    renderer.drawTextString("TIME", hudTimerX + 3.0f, hudTimerY, projection, TextAlign::Left);
+    renderer.drawTextString("BEST", hudTimerX + 3.0f, hudBestY, projection, TextAlign::Left);
     renderer.drawDigitString(formatDecimal1(survivalTime), hudTimerX, hudTimerY, projection);
     renderer.drawDigitString(formatDecimal1(highScore), hudTimerX, hudBestY, projection);
 }
