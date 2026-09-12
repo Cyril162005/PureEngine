@@ -24,12 +24,11 @@ $runtimeAssets = @(
     "arcade_arena.txt"
     "paddle_spritesheet.png"
 )
-# NOTE: synced with the CMake POST_BUILD arcade bundle (14 files: the renderer's
-# fixed 7-texture set demands paddle_spritesheet.png even for games that never
-# draw it). Deliberately excluded: tilemap_default.txt (sample only — no game
-# loads it at runtime),
-# stress fixtures, platformer_* (Platformer has its own POST_BUILD bundle),
-# paddle_* (Pong has its own bundle). This zip ships PureEngine.exe (arcade).
+# Single source of truth for the shipped arcade zip (F-08). CMake POST_BUILD
+# arcade bundle mirrors this list for dev runs (14 files: renderer's fixed
+# 7-texture set requires paddle_spritesheet.png even for arcade). Deliberately
+# excluded: tilemap_default.txt (sample), stress fixtures, platformer_* (own
+# bundle), paddle_animations.txt (Pong-only). This zip ships PureEngine.exe.
 
 if (-not (Test-Path $executablePath -PathType Leaf)) {
     throw "Release executable not found: $executablePath"

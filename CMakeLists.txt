@@ -95,8 +95,9 @@ target_link_libraries(${PROJECT_NAME} glfw miniaudio)
 # still find its data when launched from build/Release/ without relying
 # on the repo root working directory. This includes both the parser data
 # and the audio assets used at runtime.
-# Runtime asset bundle: copies only the 11 files the game loads at runtime.
-# hostile_stress_*.txt are stress-test-only fixtures, intentionally excluded.
+# Runtime asset bundle: copies the 14 files matching scripts/package.ps1
+# (package.ps1 is the shipping single source of truth). Build-local copy
+# is for dev runs; hostile_stress_*.txt are stress-test-only, excluded.
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
