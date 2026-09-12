@@ -504,8 +504,10 @@ private:
                 }
                 Mat4 mvp = projection * view * model;
 
-                // --- Collision tint (same as before) ---
-                float r = 1.0f, g = 1.0f, b = 1.0f;
+                // --- Collision tint + per-entity tint (Step 86) ---
+                // colliding overrides to red; otherwise use Entity.tint (white by
+                // default, Particle.color for particles) — burst path unchanged.
+                float r = entity.tint.x, g = entity.tint.y, b = entity.tint.z;
                 if (colliding[i]) { r = 1.0f; g = 0.0f; b = 0.0f; }
 
                 Vec3 wp = (entity.parentIndex != -1) ? worldPosition(entities, i) : entity.position;

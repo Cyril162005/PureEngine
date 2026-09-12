@@ -1740,6 +1740,29 @@ static bool checkPongScore() {
     return true;
 }
 
+static bool checkParticleColorAndEmit() {
+    // Particle.color now renders via Entity.tint (Step 86)
+    pe::Particle p;
+    p.position = pe::Vec3(0,0,0);
+    p.velocity = pe::Vec3(0,0,0);
+    p.life = 1.0f; p.maxLife = 1.0f; p.size = 0.5f;
+    p.color = pe::Vec3(0.2f, 0.8f, 0.4f);
+    std::vector<pe::Particle> pool = {p};
+    auto ents = pe::particlesToEntities(pool, 2, 4, 99);
+    if (ents.size() != 1) { std::cerr << "Particle color: entity count\n"; return false; }
+    if (!assertFloatClose(ents[0].tint.x, 0.2f) || !assertFloatClose(ents[0].tint.y, 0.8f) || !assertFloatClose(ents[0].tint.z, 0.4f)) {
+        std::cerr << "Particle color not passed to Entity.tint\n"; return false;
+    }
+    // Emitter::emit no longer orphan — call it once
+    pe::Emitter e;
+    e.position = pe::Vec3(0,0,0);
+    e.spawnRate = 10.0f; e.maxParticles = 5;
+    std::vector<pe::Particle> out;
+    pe::emit(e, out, 0.2f); // should spawn ~2 particles
+    if (out.empty() || (int)out.size() > 5) { std::cerr << "Emitter emit failed\n"; return false; }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1790,6 +1813,7 @@ int main() {
     const bool platGoalOk = checkPlatformerGoalEvent();
     const bool sceneSerOk = checkSceneSerialization();
     const bool pongScoreOk = checkPongScore();
+    const bool particleColorOk = checkParticleColorAndEmit();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1807,7 +1831,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

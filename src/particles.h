@@ -13,8 +13,9 @@
  * Honest rendering limits, stated up front:
  *  - Particles draw as TEXTURED TRIANGLES (drawWorld's shared geometry),
  *    not quads or points. Dedicated quad/point rendering is a later step.
- *  - Particle::color is STORED but NOT rendered: drawWorld has no per-
- *    entity color channel (Step-56 data-ahead-of-consumer precedent).
+ *  - Step 86: Particle::color now rendered via Entity.tint (drawWorld's
+ *    per-entity tint, white by default, red on colliding). Burst path
+ *    unchanged (white), emitter colors now visible.
  *  - Particles do not collide: halfExtents carries the truthful quad
  *    bound (size/2) but nothing reads it. The game supplies its own
  *    all-zero colliding vector at the draw call (documented below).
@@ -140,8 +141,8 @@ inline void updateParticles(std::vector<Particle>& particles, float dt) {
 // Live particles (life > 0 ONLY — the dead are skipped) become Entities
 // for the existing drawWorld(projection, view, entities, colliding):
 // position through, scale = (size, size, 1), halfExtents = the truthful
-// size/2 bound (inert — nothing collides particles), texture/depth/role
-// passed through, everything else default. The caller draws with its
+// size/2 bound (inert — nothing collides particles), tint = Particle.color
+// (Step 86), texture/depth/role passed through. Caller draws with its
 // own all-zero colliding vector (same length as the return).
 inline std::vector<Entity> particlesToEntities(
     const std::vector<Particle>& particles, int textureId, int depth,
@@ -159,6 +160,7 @@ inline std::vector<Entity> particlesToEntities(
         e.textureId = textureId;
         e.depth = depth;
         e.roleId = roleId;
+        e.tint = p.color;
         entities.push_back(e);
     }
     return entities;

@@ -121,6 +121,11 @@ struct Entity {
     // Was grounded last frame (for state tracking)
     bool wasGrounded = false;
 
+    // --- Step 86: per-entity tint (particle color) ---
+    // Default white (1,1,1) — existing entities unchanged; colliding tint
+    // overrides to red (1,0,0) in renderer. Particles set this to Particle.color.
+    Vec3 tint = Vec3(1.0f, 1.0f, 1.0f);
+
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
     // in the initializer list: no garbage state possible, same standard
@@ -143,7 +148,8 @@ struct Entity {
           velocity(0.0f, 0.0f, 0.0f),
 gravityScale(0.0f),
             parentIndex(-1),
-            isStatic(false) {}
+            isStatic(false),
+            tint(1.0f, 1.0f, 1.0f) {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -170,9 +176,10 @@ gravityScale(0.0f),
            cols(1),
            rows(1),
            velocity(0.0f, 0.0f, 0.0f),
-gravityScale(0.0f),
+ gravityScale(0.0f),
             parentIndex(-1),
-            isStatic(false) {}
+            isStatic(false),
+            tint(1.0f, 1.0f, 1.0f) {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the
