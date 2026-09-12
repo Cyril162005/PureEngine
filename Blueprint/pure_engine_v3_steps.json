@@ -681,6 +681,19 @@
       "depends_on": [
         70
       ]
+    },
+    {
+      "id": 87,
+      "name": "Optional fixed-timestep (prevent 1-unit tunnel)",
+      "status": "completed",
+      "definition_of_done": "physics.h adds updateCharacterControllerFixed/applyPhysicsFixed (split large dt into 1/60 substeps, clamped). Default remains variable-dt; opt-in via Fixed wrappers. Test proves large dt no longer tunnels 1-unit tile. Header-only, non-breaking.",
+      "notes": "No broadphase, no resolve math change, no new systems. Substeps capped at 8 to avoid spiral.",
+      "implementation": "physics.h: two Fixed helpers (ceil dt/fixedDt, loop substeps, jump consumed once). Test checkFixedTimestepNoTunnel: floor+player with -20 vel dt 0.1 -> Fixed stays grounded, no tunnel.",
+      "verification": "Build clean (4/4), CTest 50/50 (new test), arcade/platformer alive.",
+      "commit": "86e892a",
+      "depends_on": [
+        72
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
