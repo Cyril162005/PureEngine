@@ -94,7 +94,7 @@ stress test at a materially higher entity count shows real cost.
 ## Known Follow-ups
 
 - Event audio bleed on MENU return (GAMEOVER.wav / win_sound.wav) — addressed in Step 48 with corrected ma_sound_stop() placement. Resolved; no remaining action.
-- **Lighting visual tuning (Step 79 follow-up):** World-space lighting implemented and shader proven running (yellow dot at player confirmed lit.frag active). Full circle falloff effect not yet visually confirmed on real hardware. Suspected cause: ambient/radius tuning needed for specific display. Fix: adjust ambient (try 0.02), radius (try 6.0), intensity (try 2.0) until visible circle appears. Deferred to dedicated tuning session.
+- **Lighting visual tuning (Step 79 follow-up):** Tuned and display-proven 2026-09-12 — ambient `0.03,0.03,0.06` + radius `5.0` world + intensity `1.8` + background `0.02,0.02,0.08` (PLAYING) `file_path:src/main.cpp:1545`, `file_path:src/gamestate.h:111`. World-space path `u_entityWorldPos` `file_path:assets/shaders/lit.vert:5`, `file_path:src/renderer.h:364` verified (lit.frag active, clip-space bug fixed `faf1052`). Arcade PLAYING shows warm circle around player, corners darker (0.39 at 10u vs 1.0 at center), falloff visible. Resolved; unlocks Step 80.
 
 ## Asset Classification (Stress Fixtures vs Runtime Assets)
 
