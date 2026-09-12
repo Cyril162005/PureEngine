@@ -94,6 +94,7 @@ stress test at a materially higher entity count shows real cost.
 ## Known Follow-ups
 
 - Event audio bleed on MENU return (GAMEOVER.wav / win_sound.wav) — addressed in Step 48 with corrected ma_sound_stop() placement. Resolved; no remaining action.
+- **Lighting visual tuning (Step 79 follow-up):** World-space lighting implemented and shader proven running (yellow dot at player confirmed lit.frag active). Full circle falloff effect not yet visually confirmed on real hardware. Suspected cause: ambient/radius tuning needed for specific display. Fix: adjust ambient (try 0.02), radius (try 6.0), intensity (try 2.0) until visible circle appears. Deferred to dedicated tuning session.
 
 ## Asset Classification (Stress Fixtures vs Runtime Assets)
 
