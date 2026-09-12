@@ -89,15 +89,15 @@ struct Entity {
     // massless model, no persistent acceleration field).
     Vec3 velocity = Vec3(0.0f, 0.0f, 0.0f);
     float gravityScale = 0.0f;
-    // --- Step 65: hierarchy link (inert by default) ---
-    // parentIndex is an INDEX into the caller's entity vector, not an
-    // owning pointer: -1 = root (no parent, the pre-Step-65 behavior for
-    // every existing entity). The engine never follows it implicitly —
-    // only setParent()/worldPosition() below read it — so renderer,
-    // physics, collision, and both games are unaffected until a caller
-    // opts in. If the vector is reordered or resized, stored indices
-    // may point elsewhere: re-establish parenting after structural
-    // changes, same discipline as SceneManager indices (Step 64).
+    // --- Step 65: hierarchy link (inert by default) — Step 83 freeze ---
+    // Contract: attachment only (translation); parent indices invalid after
+    // erase/reorder — re-establish after any structural change (same
+    // discipline as SceneManager indices, Step 64). parentIndex is an INDEX
+    // into the caller's entity vector, not an owning pointer: -1 = root
+    // (pre-Step-65 behavior for every existing entity). The engine never
+    // follows it implicitly — only setParent()/worldPosition() read it — so
+    // renderer, physics, collision, and both games are unaffected until a
+    // caller opts in. No TRS composition (rotation/scale do not propagate).
     int parentIndex = -1;
 
     // --- Step 71: physics body type (platformer hardening) ---

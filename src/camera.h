@@ -32,9 +32,10 @@
  *
  * What this class deliberately does NOT introduce:
  *   - no key polling, no GLFW dependency (Step 16's territory)
- *   - no follow/lerp/shake logic — the camera has never had any
  *   - no projection switching or viewport management
- * One concrete orthographic camera, relocated whole.
+ * Contract freeze (Step 83): arcade uses follow() (snap) / followLerp() (smooth);
+ * move() retained for future free-pan games, not wired to arcade. One concrete
+ * orthographic camera, relocated whole.
  *
  * Header-only, same discipline as src/math/, entity.h, collision.h,
  * gamestate.h, renderer.h, and resources.h: no camera.cpp, no
