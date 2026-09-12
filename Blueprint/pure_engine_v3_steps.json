@@ -843,6 +843,19 @@
       "verification": "Build clean, CTest 54/54, docs reflect 100 steps.",
       "commit": "dadd76b",
       "depends_on": []
+    },
+    {
+      "id": 101,
+      "name": "Resource cache & binary blob (loadBinaryBlob + pack entry)",
+      "status": "completed",
+      "definition_of_done": "resources.h adds loadBinaryBlob (3-candidate probe, vector<uint8_t>) and loadPackEntry (pack fallback) plus binaryCache/clear, keeps text/PNG/WAV probe unchanged, header-only.",
+      "notes": "Pack entry currently pack file or direct fallback; cache optional.",
+      "implementation": "resources.h: loadBinaryBlob, loadPackEntry, binaryCache, loadBinaryBlobCached, clearBinaryCache. Test checkBinaryBlob proves beep.wav blob + cache + pack fallback.",
+      "verification": "Build clean (4/4), CTest 55/55 (new blob test), existing assets unchanged.",
+      "commit": "17975c9",
+      "depends_on": [
+        14
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
