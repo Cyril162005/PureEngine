@@ -720,6 +720,19 @@
       "depends_on": [
         55
       ]
+    },
+    {
+      "id": 90,
+      "name": "Console history + scrollback (Up/Down recall, 64 ring)",
+      "status": "completed",
+      "definition_of_done": "Console stores last 64 submitted lines; Up/Down recall while open via feedKey; existing feedKey/submit/print/draw unchanged; test proves store/recall/cap. Header-only, non-breaking.",
+      "notes": "Minimal ring, no panel/mouse/search. Input tracks UP/DOWN for edge, pumped in arcade/platformer.",
+      "implementation": "console.h: submitHistory + historyPos, submit pushes ring, feedKey UP/DOWN recall. main.cpp/platformer.cpp: Input tracks UP/DOWN, pumps to console. Test checkConsoleHistoryRecall verifies recall and cap.",
+      "verification": "Build clean (4/4), CTest 53/53 (new history test), console recall proven.",
+      "commit": "f32760a",
+      "depends_on": [
+        68
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
