@@ -867,6 +867,17 @@
       "verification": "Build clean (4/4 + pe_core.lib), CTest 55/55, arcade/platformer/Pong alive both modes.",
       "commit": "7bce2c2",
       "depends_on": []
+    },
+    {
+      "id": 103,
+      "name": "Lightweight component helpers (health/tag/timer/velocity)",
+      "status": "completed",
+      "definition_of_done": "entity.h adds health/timer/tag plain fields (defaults 100/0/empty); components.h adds free-function helpers; entities remain plain structs, helpers opt-in, games unchanged.",
+      "notes": "No archetype, no mandatory components, no query language.",
+      "implementation": "entity.h: health/timer/tag + ctors; components.h: inline helpers; test checkComponentHelpers proves health/tag/timer/velocity.",
+      "verification": "Build clean (4/4), CTest 56/56 (new component test), games alive.",
+      "commit": "364d52b",
+      "depends_on": []
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
