@@ -1,0 +1,14 @@
+# Platformer Step 72 proof — minimal floor+platform+win (10x8, tileSize 1.0)
+# Proves: isStatic resolve, grounded (spawn -2.68), jump (apex 2.5), coyote (platform edge), land, win pad
+# No new headers — uses existing tilemap.h + physics.h updateCharacterController
+width=10
+height=8
+tileSize=1.0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=0,0,0,0,0,0,0,0,0,0
+row=1,0,0,0,0,0,0,0,0,0
+row=1,0,0,0,0,0,0,0,0,1
+row=1,0,0,1,1,1,0,0,0,1
+row=1,0,0,0,0,0,0,0,0,1
+row=1,1,1,1,1,1,1,1,1,1
