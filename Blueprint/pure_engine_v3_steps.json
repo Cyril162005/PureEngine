@@ -707,6 +707,19 @@
       "depends_on": [
         16
       ]
+    },
+    {
+      "id": 89,
+      "name": "Texture slot growth + registry (growable vector, 6th texture)",
+      "status": "completed",
+      "definition_of_done": "renderer.h replaces fixed [5] with vector registry, keep 0..4 identical, thin registerTexture helper, OOB checker fallback, 6th texture proof (id 5) via reuse of tex_player.png. No asset manager, no hot-reload.",
+      "notes": "Growable only — no unloading/hot-reload. Checker fallback preserved for OOB.",
+      "implementation": "renderer.h: vector<GLuint> entityTextures, reserve(8), push 0..4, registerTexture() returns new id, OOB check via size(), destroyAll loops vector, proof in init loads id5 tex_player.png.",
+      "verification": "Build clean (4/4), CTest 52/52 (new registry test), 6th texture id 5 valid, OOB fallback to checker.",
+      "commit": "94e7189",
+      "depends_on": [
+        55
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
