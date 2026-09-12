@@ -160,6 +160,7 @@
 #include "console.h"    // Integration sprint: runtime debug console (typed, drawn)
 #include "gamepad.h"    // Integration sprint: stick movement + button edges
 #include "particles.h"  // Integration sprint: catch-burst particles
+#include "lighting.h"   // Step 79: point light state
 
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
@@ -1537,7 +1538,21 @@ int main() {
             // from the colliding flags, and one draw call per entity.
             // Step 15: the VIEW matrix now comes prebuilt from the
             // camera boundary; the renderer performs no camera math.
-            renderer.drawWorld(camera.projection(), camera.view(), activeScene->entities, colliding);
+            // Step 79: PLAYING uses point lighting (player emits warm light),
+            // other states keep flat rendering (non-breaking).
+            if (currentState == pe::GameState::PLAYING) {
+                pe::LightingState lights;
+                lights.ambient = {pe::Vec3(0.15f, 0.15f, 0.2f), 1.0f};
+                for (const auto& e : activeScene->entities) {
+                    if (e.roleId == static_cast<int>(pe::ArcadeRole::Player)) {
+                        lights.addLight({e.position, pe::Vec3(1.0f, 0.8f, 0.6f), 6.0f, 1.0f});
+                        break;
+                    }
+                }
+                renderer.drawWorld(camera.projection(), camera.view(), activeScene->entities, colliding, lights);
+            } else {
+                renderer.drawWorld(camera.projection(), camera.view(), activeScene->entities, colliding);
+            }
 
             // Integration sprint: tile pass (Step 63 rendering). Live tiles
             // become entities through the converter and draw through the SAME

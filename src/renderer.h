@@ -67,6 +67,7 @@
                          // shader boundary now — this class obtains the
                          // program from it and never embeds GLSL itself.
 #include "font.h"        // Step 66: fontCellFor/align math for drawTextString
+#include "lighting.h"    // Step 79: LightingState for lit drawWorld overload
 #include "math/vec3.h"   // Vec3 types used by the entity/math interfaces
 #include "math/mat4.h"   // view/MVP construction
 #include "entity.h"      // drawWorld reads pe::Entity data
@@ -287,6 +288,30 @@ public:
         }
         glUniform1i(texLocation, 0);   // sampler reads from GL_TEXTURE0
 
+        // --- Step 79: lit shader program (non-fatal) ---
+        // Same load pattern as default; failure degrades to flat rendering
+        // so existing games never break on a missing lit shader.
+        litProgram = pe::loadShader("lit.vert", "lit.frag");
+        if (litProgram == 0) {
+            std::cerr << "Warning: lit shader not loaded (lit.vert/lit.frag) — lighting disabled" << std::endl;
+        } else {
+            litTransformLocation = glGetUniformLocation(litProgram, "transform");
+            litColorLocation = glGetUniformLocation(litProgram, "color");
+            if (litTransformLocation < 0 || litColorLocation < 0) {
+                std::cerr << "Warning: lit shader missing 'transform' or 'color' — lighting disabled" << std::endl;
+                glDeleteProgram(litProgram);
+                litProgram = 0;
+                litTransformLocation = -1;
+                litColorLocation = -1;
+            } else {
+                glUseProgram(litProgram);
+                GLint litTexLoc = glGetUniformLocation(litProgram, "tex");
+                if (litTexLoc >= 0) {
+                    glUniform1i(litTexLoc, 0);
+                }
+            }
+        }
+
         return true;
     }
 
@@ -317,7 +342,58 @@ public:
     void drawWorld(const Mat4& projection, const Mat4& view,
                    const std::vector<Entity>& entities,
                    const std::vector<char>& colliding) {
-        glUseProgram(shaderProgram);
+        drawWorldInternal(projection, view, entities, colliding,
+                          shaderProgram, transformLocation, colorLocation, nullptr);
+    }
+
+    void drawWorld(const Mat4& projection, const Mat4& view,
+                   const std::vector<Entity>& entities,
+                   const std::vector<char>& colliding,
+                   const LightingState& lights) {
+        if (litProgram == 0) {
+            drawWorldInternal(projection, view, entities, colliding,
+                              shaderProgram, transformLocation, colorLocation, nullptr);
+            return;
+        }
+        setLightUniforms(lights, projection * view);
+        drawWorldInternal(projection, view, entities, colliding,
+                          litProgram, litTransformLocation, litColorLocation, &lights);
+    }
+
+private:
+    void setLightUniforms(const LightingState& lights, const Mat4& projView) {
+        glUseProgram(litProgram);
+        glUniform3f(glGetUniformLocation(litProgram, "u_ambientColor"),
+                    lights.ambient.color.x, lights.ambient.color.y, lights.ambient.color.z);
+        glUniform1f(glGetUniformLocation(litProgram, "u_ambientIntensity"),
+                    lights.ambient.intensity);
+        glUniform1i(glGetUniformLocation(litProgram, "u_lightCount"),
+                    lights.lightCount());
+        for (int i = 0; i < 4; ++i) {
+            char name[32];
+            // Position — transform world -> clip on CPU so shader distance is in same space as vWorldPos
+            Vec3 pos = (i < lights.lightCount()) ? lights.lights[i].position : Vec3(0,0,0);
+            Vec3 clip = projView.transformPoint(pos);
+            snprintf(name, sizeof(name), "u_lightPos[%d]", i);
+            glUniform3f(glGetUniformLocation(litProgram, name), clip.x, clip.y, clip.z);
+            Vec3 col = (i < lights.lightCount()) ? lights.lights[i].color : Vec3(0,0,0);
+            snprintf(name, sizeof(name), "u_lightColor[%d]", i);
+            glUniform3f(glGetUniformLocation(litProgram, name), col.x, col.y, col.z);
+            float rad = (i < lights.lightCount()) ? lights.lights[i].radius : 1.0f;
+            snprintf(name, sizeof(name), "u_lightRadius[%d]", i);
+            glUniform1f(glGetUniformLocation(litProgram, name), rad);
+            float intens = (i < lights.lightCount()) ? lights.lights[i].intensity : 0.0f;
+            snprintf(name, sizeof(name), "u_lightIntensity[%d]", i);
+            glUniform1f(glGetUniformLocation(litProgram, name), intens);
+        }
+    }
+
+    void drawWorldInternal(const Mat4& projection, const Mat4& view,
+                           const std::vector<Entity>& entities,
+                           const std::vector<char>& colliding,
+                           GLuint program, GLint transformLoc, GLint colorLoc,
+                           const LightingState* /*lights*/) {
+        glUseProgram(program);
 
         // Bind the world VAO ONCE: every entity shares this vertex data —
         // only the transform differs per instance.
@@ -444,8 +520,8 @@ public:
 
             // One draw call per entity (offset into batched VBO), uniforms per entity.
             for (size_t e = 0; e < drawInfos.size(); ++e) {
-                glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &drawInfos[e].mvp.m[0][0]);
-                glUniform3f(colorLocation,
+                glUniformMatrix4fv(transformLoc, 1, GL_FALSE, &drawInfos[e].mvp.m[0][0]);
+                glUniform3f(colorLoc,
                             drawInfos[e].color[0],
                             drawInfos[e].color[1],
                             drawInfos[e].color[2]);
@@ -453,6 +529,8 @@ public:
             }
         }
     }
+
+public:
 
     // --- Per-frame: one digit string in SCREEN SPACE (Phase 3/4 UI) ---
     // The Phase 4-extracted glyph path, relocated whole — with one
@@ -670,6 +748,7 @@ private:
         glDeleteVertexArrays(1, &worldVAO);
         glDeleteBuffers(1, &worldVBO);
         glDeleteProgram(shaderProgram);
+        glDeleteProgram(litProgram);
         glDeleteTextures(1, &fontTexture);
         for (int i = 0; i < TEXTURE_SLOTS; ++i) {
             glDeleteTextures(1, &entityTextures[i]);
@@ -680,6 +759,9 @@ private:
         worldVAO = 0;
         worldVBO = 0;
         shaderProgram = 0;
+        litProgram = 0;
+        litTransformLocation = -1;
+        litColorLocation = -1;
         fontTexture = 0;
         for (int i = 0; i < TEXTURE_SLOTS; ++i) {
             entityTextures[i] = 0;
@@ -691,6 +773,9 @@ private:
     GLuint shaderProgram = 0;        // Step 4: the ONE program everything uses
     GLint transformLocation = -1;    // Step 5: per-draw MVP upload target
     GLint colorLocation = -1;        // Step 8/10: per-draw tint upload target
+    GLuint litProgram = 0;           // Step 79: lit program
+    GLint litTransformLocation = -1;
+    GLint litColorLocation = -1;
     GLuint worldVAO = 0, worldVBO = 0;  // Step 4/10: the triangle geometry
     GLuint textVAO = 0, textVBO = 0;    // Phase 3: the glyph quad geometry
     GLuint aabbVAO = 0, aabbVBO = 0;    // Step 42: debug unit-square line loop
