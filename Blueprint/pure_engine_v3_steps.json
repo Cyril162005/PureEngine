@@ -657,6 +657,17 @@
       "depends_on": [
         55
       ]
+    },
+    {
+      "id": 85,
+      "name": "Pong score + win (first to 5)",
+      "status": "completed",
+      "definition_of_done": "Pong tracks left/right score, ball past paddle awards point and resets ball, first to 5 wins with freeze + label, scores drawn via digit/text path. Minimal complete rules only.",
+      "notes": "No new headers, no audio/lighting/batching/physics beyond Pong. Arcade/platformer untouched.",
+      "implementation": "games/pong/pong.cpp: left/rightScore, winScore=5, win flag/winner, scoring on x<-7/x>7 with ball reset and velocity flip, win freeze, HUD digits at -2.0/1.5 and win text centered. Test checkPongScore pure logic.",
+      "verification": "Build clean (4/4), CTest 49/49 (new pong score test), Pong alive with scores/win, arcade/platformer untouched.",
+      "commit": "5c70453",
+      "depends_on": []
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
