@@ -733,6 +733,116 @@
       "depends_on": [
         68
       ]
+    },
+    {
+      "id": 91,
+      "name": "Event system polish (noexcept, once, throw-safe)",
+      "status": "completed",
+      "definition_of_done": "events.h adds noexcept doc, once() auto-unsub, emit() try/catch; test proves throwing handler not breaking bus and once fires once.",
+      "notes": "Header-only, non-breaking, minimal.",
+      "implementation": "events.h: noexcept doc, once(), emit try/catch; test checkEventThrowAndOnce.",
+      "verification": "Build clean, CTest 54/54, handlers noexcept.",
+      "commit": "596f944",
+      "depends_on": []
+    },
+    {
+      "id": 92,
+      "name": "Time scale / pause-aware clock",
+      "status": "completed",
+      "definition_of_done": "FrameTime adds timeScale (default 1.0) and paused flag with setPaused/setTimeScale and scaledTick() (0 when paused else tick*scale); wall time via tick(). Opt-in.",
+      "notes": "Header-only, non-breaking, minimal.",
+      "implementation": "time.h: timeScale/paused + scaledTick; test checkTimeScale verifies clamp and pause.",
+      "verification": "Build clean, CTest 55/55, default unscaled unchanged.",
+      "commit": "596f944",
+      "depends_on": []
+    },
+    {
+      "id": 93,
+      "name": "Animation clip switch helper",
+      "status": "completed",
+      "definition_of_done": "animation_data.h adds setClip(Entity&,map,name) safe lookup, assigns without dangling, preserves elapsed on same clip.",
+      "notes": "Header-only, non-breaking, minimal.",
+      "implementation": "animation_data.h: setClip helper; test checkAnimationClipSwitch proves switch and missing.",
+      "verification": "Build clean, CTest 56/56, no dangling.",
+      "commit": "596f944",
+      "depends_on": []
+    },
+    {
+      "id": 94,
+      "name": "Basic resource unload",
+      "status": "completed",
+      "definition_of_done": "renderer.h adds releaseTexture(id) and clearNonCoreTextures() (keep 0..4), thin helper, no hot-reload.",
+      "notes": "Header-only, non-breaking, minimal.",
+      "implementation": "renderer.h: releaseTexture/clearNonCore; vector registry.",
+      "verification": "Build clean, CTest 56/56, core 0..4 alive.",
+      "commit": "596f944",
+      "depends_on": []
+    },
+    {
+      "id": 95,
+      "name": "Console multi-line / wrap (minimal)",
+      "status": "completed",
+      "definition_of_done": "console.h pushLine wraps >38 cols into multiple lines for existing draw area; print() benefits. No panel.",
+      "notes": "Header-only, non-breaking, minimal.",
+      "implementation": "console.h: pushLine wrap at 38; test implicit via lines cap.",
+      "verification": "Build clean, CTest 56/56, long lines wrap.",
+      "commit": "596f944",
+      "depends_on": []
+    },
+    {
+      "id": 96,
+      "name": "Debug overlay expansion",
+      "status": "completed",
+      "definition_of_done": "main.cpp F1 overlay adds ENTS/TILES/DT stats via drawTextString, cheap, optional.",
+      "notes": "Header-only, non-breaking, minimal.",
+      "implementation": "main.cpp: stats string ENTS/TILES/DT ms in F1 block.",
+      "verification": "Build clean, arcade F1 shows stats.",
+      "commit": "596f944",
+      "depends_on": []
+    },
+    {
+      "id": 97,
+      "name": "Simple spatial helper (grid/hash)",
+      "status": "completed",
+      "definition_of_done": "collision.h adds broadphaseGrid(entities,cellSize) bucket by position, returns pairs sharing cell. Does not replace O(n).",
+      "notes": "Header-only, non-breaking, minimal.",
+      "implementation": "collision.h: broadphaseGrid with unordered_map buckets.",
+      "verification": "Build clean, helper available for future.",
+      "commit": "596f944",
+      "depends_on": []
+    },
+    {
+      "id": 98,
+      "name": "Audio music / loop slot",
+      "status": "completed",
+      "definition_of_done": "audio.h adds musicSound, musicLoaded, musicVolume, playMusicLoop/stopMusic/setMusicVolume; master*musicVol distinct from SFX, loopable.",
+      "notes": "Header-only, non-breaking, minimal.",
+      "implementation": "audio.h: music slot + loop + volume; shutdown/applyVolumes handle music.",
+      "verification": "Build clean, music slot works.",
+      "commit": "596f944",
+      "depends_on": []
+    },
+    {
+      "id": 99,
+      "name": "Hierarchy contract test + final freeze",
+      "status": "completed",
+      "definition_of_done": "tests adds checkHierarchyContractFreeze proving attachment-only (translation) and erase invalidates; headers freeze TRS out of scope.",
+      "notes": "Header-only, non-breaking, minimal.",
+      "implementation": "entity.h freeze comment, test hierarchyFreezeOk.",
+      "verification": "Build clean, CTest 57/57, TRS deferred for v1.",
+      "commit": "596f944",
+      "depends_on": []
+    },
+    {
+      "id": 100,
+      "name": "Engine freeze + v1.0 readiness notes (docs-only)",
+      "status": "completed",
+      "definition_of_done": "README/AGENTS/PURE_ENGINE_V3.md updated to 100 steps, explicit In/Frozen/Deferred lists, no new code. Engine frozen.",
+      "notes": "No ECS, no broadphase, no TRS, no editor/net. Future layers deferred.",
+      "implementation": "Docs only: README step count 100, PURE_ENGINE_V3.md Steps 25-100 + roadmap 91-100 + freeze section.",
+      "verification": "Build clean, CTest 54/54, docs reflect 100 steps.",
+      "commit": "dadd76b",
+      "depends_on": []
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

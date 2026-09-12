@@ -9,7 +9,7 @@ The current project remains intentionally minimal. The source and build output r
 Continue from the verified engine hardening work without inventing new abstractions, managers, or registries before a concrete need is demonstrated.
 
 ## Rule
-No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. Steps 25 through 90 are tracked in `Blueprint/pure_engine_v3_steps.json` (Step 44 marked "superseded" by Step 48) and cover engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, stress-test validation, role-based collision scanning (51), frame-time scaling measurement (52), player foreground layering (53), entity role genericization (54), renderer texture index slots (55), animation data structures (56), renderer animation frame UVs (57), data-driven animation loading (58), animated Pong proof (59), physics foundation (60), physics integration (61), collision response (62), tilemap system foundation (63), scene management foundation (64), transform hierarchy foundation (65), font/text rendering foundation (66), event system foundation (67), debug console foundation (68), gamepad input foundation (69), particle system foundation (70), Arcade integration sprint (71), physics hardening for platformer (72), camera lerp follow (73), platformer proof game (74), audio volume control (75), 64x64 player sprite (76), shader system (77), sprite batching (78), 2D point lighting (79), per-sound volume (80), scene serialization (81), menu/HUD polish (82), orphan/contract freeze (83), OOB textureId log + doc refresh (84), Pong score + win (85), particle system depth (86), optional fixed-timestep (87), basic input action map (88), texture slot growth + registry (89), and console history + scrollback (90).
+No step starts until there is a real demonstrated need in the source, the build, or a required conversation-driven follow-up. Steps 25 through 100 are tracked in `Blueprint/pure_engine_v3_steps.json` (Step 44 marked "superseded" by Step 48) and cover engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, stress-test validation, role-based collision scanning (51), frame-time scaling measurement (52), player foreground layering (53), entity role genericization (54), renderer texture index slots (55), animation data structures (56), renderer animation frame UVs (57), data-driven animation loading (58), animated Pong proof (59), physics foundation (60), physics integration (61), collision response (62), tilemap system foundation (63), scene management foundation (64), transform hierarchy foundation (65), font/text rendering foundation (66), event system foundation (67), debug console foundation (68), gamepad input foundation (69), particle system foundation (70), Arcade integration sprint (71), physics hardening for platformer (72), camera lerp follow (73), platformer proof game (74), audio volume control (75), 64x64 player sprite (76), shader system (77), sprite batching (78), 2D point lighting (79), per-sound volume (80), scene serialization (81), menu/HUD polish (82), orphan/contract freeze (83), OOB textureId log + doc refresh (84), Pong score + win (85), particle system depth (86), optional fixed-timestep (87), basic input action map (88), texture slot growth + registry (89), console history + scrollback (90), event polish (91), time scale (92), animation helper (93), resource unload (94), console wrap (95), debug overlay (96), spatial helper (97), audio music slot (98), hierarchy freeze (99), and engine freeze v1.0 (100).
 
 ## Candidate Roadmap
 The items below are non-binding, exploratory ideas only. They are not a step queue and do not define the next concrete requirement. The goal is to make PureEngine feel like a playable 2026 arcade survival game while staying flat/2D and avoiding 3D or engine-framework scope.
@@ -59,6 +59,16 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - ✓ Step 88: Basic input action map (Move/Jump/Pause/Confirm) — completed
 - ✓ Step 89: Texture slot growth + registry (growable vector, 6th texture) — completed
 - ✓ Step 90: Console history + scrollback (Up/Down recall, 64 ring) — completed
+- ✓ Step 91: Event system polish (noexcept, once, throw-safe) — completed
+- ✓ Step 92: Time scale / pause-aware clock — completed
+- ✓ Step 93: Animation clip switch helper — completed
+- ✓ Step 94: Basic resource unload — completed
+- ✓ Step 95: Console multi-line / wrap — completed
+- ✓ Step 96: Debug overlay expansion (ENTS/TILES/DT) — completed
+- ✓ Step 97: Simple spatial helper (broadphaseGrid) — completed
+- ✓ Step 98: Audio music / loop slot — completed
+- ✓ Step 99: Hierarchy contract test + final freeze — completed
+- ✓ Step 100: Engine freeze + v1.0 readiness (docs-only) — completed
 
 This list is intentionally not the step queue. Steps still get pulled one at a time from real code inspection, and `kill_criteria` still applies to any future work.
 
@@ -121,6 +131,9 @@ The four stress configuration files (`assets/hostile_stress_50.txt`, `assets/hos
 **Nemotron audit fact-checks (time.h CRT shadowing & renderer.h destroyAll ordering):** (1) time.h CRT-shadowing claim verified FALSE (no <time.h> inclusion or symbol collision). (2) renderer.h destroyAll ordering claim verified FALSE — shader program is deleted before textures (glDeleteProgram at line 566, glDeleteTextures at lines 567-572).
 
 **Independent fact-check finding (time.h stale doc comment):** Doc comment in time.h was stale since before the delta-clamp commit (fdc2182), now corrected — this was NOT part of the original Nemotron audit, found independently during fact-checking.
+
+## Engine freeze — v1.0 readiness (Step 100)
+**In:** 100 steps (25–100) header-only, window/context, math, entity/collision/state, renderer+batching+OOB log, shader/lighting, resources (growable registry + unload), camera (follow/limits), input (raw + Action), time (scale/pause + fixed substeps), lifecycle, audio (master/sfx/per-sound/music loop), ui (HUD+menu), simulation/physics (statics, controller, fixed), tilemap/scene (serialization + cache + asserts), hierarchy (attachment-only), font, events (noexcept/once), console (history/wrap), gamepad, particles (color via tint), Pong/Platformer/Arcade proven. **Frozen:** no ECS, no broadphase replacement, no TRS, no material/editor/net/hot-reload. **Deferred:** full materials, editor, networking, 3D, hot-reload. Docs updated: README/AGENTS step count 100, PURE_ENGINE_V3.md Steps 25–100.
 
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.

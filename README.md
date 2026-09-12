@@ -5,7 +5,7 @@ OpenGL, plus a small arcade game built entirely on top of it. No engine
 framework, no game library — every engine layer was written as part of the
 project itself.
 
-- **Engine** (83 tracked steps, 25–83): window/context, rendering pipeline,
+- **Engine** (100 tracked steps, 25–100): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio), file-based asset loading (stb_image PNG),
   scene structure, animation, physics (gravity, impulse, statics, character
