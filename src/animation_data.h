@@ -34,6 +34,7 @@
 #include <string>      // names, lines, tokens
 
 #include "animation.h"  // Animation / AnimationFrame (data only)
+#include "entity.h"   // Step 93: setClip helper needs Entity
 
 namespace pe {
 
@@ -176,6 +177,19 @@ inline std::map<std::string, Animation> loadAnimations(const std::string& fileNa
 
     std::cerr << "Warning: animation file not found; no animations loaded." << std::endl;
     return animations;
+}
+
+// Step 93: safe clip switch helper — lookup by name, assign without dangling.
+// Returns true on switch (or already on that clip), false if name not found.
+inline bool setClip(Entity& entity, const std::map<std::string, Animation>& clips, const std::string& name) {
+    auto it = clips.find(name);
+    if (it == clips.end()) return false;
+    if (entity.animationState.currentAnimation == &it->second) return true;
+    entity.animationState.currentAnimation = &it->second;
+    entity.animationState.currentFrameIndex = 0;
+    entity.animationState.elapsedTime = 0.0f;
+    entity.animationState.isPlaying = true;
+    return true;
 }
 
 } // namespace pe

@@ -77,7 +77,15 @@ inline constexpr std::size_t MAX_HISTORY = 64;  // history cap: oldest dropped
 inline constexpr std::size_t MAX_SHOWN = 10;    // draw cap: last N lines
 
 inline void pushLine(Console& c, const std::string& text) {
-    c.lines.push_back(text);
+    // Step 95: minimal wrap — long lines split to fit draw area (38 cols)
+    const std::size_t wrap = 38;
+    if (text.size() <= wrap) {
+        c.lines.push_back(text);
+    } else {
+        for (std::size_t p = 0; p < text.size(); p += wrap) {
+            c.lines.push_back(text.substr(p, wrap));
+        }
+    }
     while (c.lines.size() > MAX_HISTORY) {
         c.lines.erase(c.lines.begin());
     }

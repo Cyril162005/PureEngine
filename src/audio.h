@@ -251,6 +251,23 @@ public:
         applyVolumes();
     }
 
+    // Step 98: music loop slot — distinct from one-shot SFX, master*musicVol
+    float getMusicVolume() const { return musicVolume; }
+    void setMusicVolume(float v) { musicVolume = clampVolume01(v); applyVolumes(); }
+    bool playMusicLoop(const std::string& fileName, bool loop = true) {
+        if (!engineIsValid) return false;
+        if (musicLoaded) { ma_sound_stop(&musicSound); ma_sound_uninit(&musicSound); musicLoaded = false; }
+        if (!loadNamedSound(fileName, musicSound)) return false;
+        musicLoaded = true;
+        ma_sound_set_looping(&musicSound, loop ? 1 : 0);
+        ma_sound_set_volume(&musicSound, masterVolume * musicVolume);
+        ma_sound_start(&musicSound);
+        return true;
+    }
+    void stopMusic() {
+        if (musicLoaded) ma_sound_stop(&musicSound);
+    }
+
     // --- Teardown, reverse creation order ---
     // Every initialized pool slot first (each registered WITH the
     // engine), then the engine itself — which stops the mixing thread
@@ -272,6 +289,10 @@ public:
             ma_sound_uninit(&newHighScoreSound);
             newHighScoreSoundLoaded = false;
         }
+        if (musicLoaded) {
+            ma_sound_uninit(&musicSound);
+            musicLoaded = false;
+        }
         if (engineIsValid) {
             ma_engine_uninit(&engine);
             engineIsValid = false;
@@ -286,7 +307,7 @@ private:
     }
 
     // Push master*sfx*perSound to every initialized sound. Guards mirror
-    // triggers — safe pre-init and post-shutdown.
+    // triggers — safe pre-init and post-shutdown. Music uses master*musicVol.
     void applyVolumes() {
         const float base = masterVolume * sfxVolume;
         for (std::size_t i = 0; i < slotsValid; ++i) {
@@ -297,6 +318,9 @@ private:
         }
         if (newHighScoreSoundLoaded) {
             ma_sound_set_volume(&newHighScoreSound, base * newHighScoreVolume);
+        }
+        if (musicLoaded) {
+            ma_sound_set_volume(&musicSound, masterVolume * musicVolume);
         }
     }
 
@@ -319,6 +343,7 @@ private:
     ma_sound sounds[POOL_SIZE] = {};
     ma_sound gameOverSound = {};
     ma_sound newHighScoreSound = {};
+    ma_sound musicSound = {};
     // slotsValid is BOTH the count of initialized slots and the
     // round-robin modulus — playNext can never touch an uninitialized
     // slot, even after a failed init().
@@ -327,6 +352,7 @@ private:
     bool engineIsValid = false;
     bool gameOverSoundLoaded = false;
     bool newHighScoreSoundLoaded = false;
+    bool musicLoaded = false;
     // Step 75 gains: 1.0/1.0 preserves pre-Step-75 behavior exactly.
     float masterVolume = 1.0f;
     float sfxVolume = 1.0f;
@@ -334,6 +360,9 @@ private:
     float beepVolume = 1.0f;
     float gameOverVolume = 1.0f;
     float newHighScoreVolume = 1.0f;
+    // Step 98: music slot — long-lived, loopable, distinct from one-shot SFX
+    // Master + musicVolume apply (sfx/per-sound do not). No mixer graph.
+    float musicVolume = 1.0f;
 };
 
 } // namespace pe

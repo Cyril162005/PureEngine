@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 #include "../src/audio.h"
@@ -15,6 +16,8 @@
 #include "../src/hostile_data.h"
 #include "../src/scene.h"
 #include "../src/tilemap.h"
+#include "../src/time.h"
+#include "../src/animation_data.h"
 
 namespace fs = std::filesystem;
 
@@ -1813,6 +1816,77 @@ static bool checkTextureRegistry() {
     return true;
 }
 
+static bool checkEventThrowAndOnce() {
+    pe::EventBus bus;
+    int calls = 0;
+    bus.subscribe(pe::EventType::Collision, [&](const pe::GameEvent&) { ++calls; });
+    bus.subscribe(pe::EventType::Collision, [&](const pe::GameEvent&) { throw std::runtime_error("boom"); });
+    bus.subscribe(pe::EventType::Collision, [&](const pe::GameEvent&) { ++calls; });
+    bus.emit(pe::GameEvent{pe::EventType::Collision, 1, 2});
+    if (calls != 2) { std::cerr << "Throwing handler broke bus\n"; return false; }
+    // once() should fire once then auto-remove
+    int onceCalls = 0;
+    bus.once(pe::EventType::SceneChanged, [&](const pe::GameEvent&) { ++onceCalls; });
+    bus.emit(pe::GameEvent{pe::EventType::SceneChanged, 0, 1});
+    bus.emit(pe::GameEvent{pe::EventType::SceneChanged, 0, 1});
+    if (onceCalls != 1) { std::cerr << "once() failed\n"; return false; }
+    bus.clear();
+    if (bus.handlerCount(pe::EventType::Collision) != 0) { std::cerr << "clear() failed\n"; return false; }
+    return true;
+}
+
+static bool checkTimeScale() {
+    pe::FrameTime ft;
+    if (!assertFloatClose(ft.getTimeScale(), 1.0f) || ft.isPaused()) { std::cerr << "Time default failed\n"; return false; }
+    ft.setTimeScale(0.5f);
+    if (!assertFloatClose(ft.getTimeScale(), 0.5f)) { std::cerr << "Time scale set failed\n"; return false; }
+    ft.setTimeScale(-1.0f);
+    if (!assertFloatClose(ft.getTimeScale(), 0.0f)) { std::cerr << "Time scale clamp failed\n"; return false; }
+    ft.setPaused(true);
+    if (!ft.isPaused()) { std::cerr << "Pause set failed\n"; return false; }
+    ft.setPaused(false);
+    if (ft.isPaused()) { std::cerr << "Unpause failed\n"; return false; }
+    return true;
+}
+
+static bool checkAnimationClipSwitch() {
+    std::map<std::string, pe::Animation> clips;
+    pe::Animation a; a.name = "idle"; a.frames = {{0, 0.1f}}; a.loops = true;
+    pe::Animation b; b.name = "run"; b.frames = {{1, 0.1f}}; b.loops = true;
+    clips["idle"] = a; clips["run"] = b;
+    pe::Entity e;
+    if (!pe::setClip(e, clips, "idle")) { std::cerr << "setClip idle failed\n"; return false; }
+    if (e.animationState.currentAnimation == nullptr || e.animationState.currentAnimation->name != "idle") { std::cerr << "setClip idle not assigned\n"; return false; }
+    if (!pe::setClip(e, clips, "run")) { std::cerr << "setClip run failed\n"; return false; }
+    if (e.animationState.currentAnimation->name != "run") { std::cerr << "setClip run not switched\n"; return false; }
+    if (pe::setClip(e, clips, "missing")) { std::cerr << "setClip missing should fail\n"; return false; }
+    e.animationState.elapsedTime = 0.5f;
+    pe::setClip(e, clips, "run");
+    if (!assertFloatClose(e.animationState.elapsedTime, 0.5f)) { std::cerr << "setClip same should preserve elapsedTime\n"; return false; }
+    return true;
+}
+
+static bool checkHierarchyContractFreeze() {
+    // Attachment-only: translation accumulates, rotation/scale do not propagate
+    pe::Entity parent(pe::Vec3(1.0f, 0.0f, 0.0f), 3.14f, pe::Vec3(2.0f, 2.0f, 1.0f));
+    parent.parentIndex = -1;
+    pe::Entity child(pe::Vec3(0.0f, 1.0f, 0.0f), 1.0f, pe::Vec3(0.5f, 0.5f, 1.0f));
+    child.parentIndex = 0;
+    std::vector<pe::Entity> ents = {parent, child};
+    pe::Vec3 wp = pe::worldPosition(ents, 1);
+    if (!assertFloatClose(wp.x, 1.0f) || !assertFloatClose(wp.y, 1.0f)) {
+        std::cerr << "Hierarchy attachment-only failed: wp " << wp.x << "," << wp.y << "\n"; return false;
+    }
+    // Erase/reorder invalidates indices — re-establish required
+    ents.erase(ents.begin()); // remove parent, child now at 0 with stale parentIndex 0 (self-loop)
+    pe::Vec3 wp2 = pe::worldPosition(ents, 0);
+    // After erase, stale index must no longer resolve to original (1,1) and must not crash — bounded walk
+    if (assertFloatClose(wp2.x, 1.0f) && assertFloatClose(wp2.y, 1.0f)) {
+        std::cerr << "Hierarchy erase should invalidate, still (1,1)\n"; return false;
+    }
+    return true;
+}
+
 static bool checkConsoleHistoryRecall() {
     pe::Console c;
     c.open = true;
@@ -1897,13 +1971,17 @@ int main() {
     const bool actionMapOk = checkActionMap();
     const bool textureRegOk = checkTextureRegistry();
     const bool consoleHistRecallOk = checkConsoleHistoryRecall();
+    const bool eventThrowOnceOk = checkEventThrowAndOnce();
+    const bool timeScaleOk = checkTimeScale();
+    const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
+    const bool animClipOk = checkAnimationClipSwitch();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
@@ -1914,7 +1992,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

@@ -48,6 +48,9 @@
 
 #include "math/vec3.h"  // centers and half-extents are Vec3s
 #include "entity.h"     // the entity overload reads Entity members
+#include <unordered_map> // Step 97: grid buckets
+#include <utility>      // pair
+#include <vector>       // candidate list
 
 namespace pe {
 
@@ -85,6 +88,31 @@ constexpr bool aabbOverlap(const Entity& a, const Entity& b) {
                        Vec3(b.halfExtents.x * b.scale.x,
                             b.halfExtents.y * b.scale.y,
                             0.0f));
+}
+
+// Step 97: minimal grid helper — optional broadphase foundation.
+// Buckets entities by position/cellSize, returns pairs sharing a cell.
+// Does NOT replace existing O(n) scan; available for future use only.
+inline std::vector<std::pair<std::size_t, std::size_t>> broadphaseGrid(
+    const std::vector<Entity>& entities, float cellSize = 2.0f) {
+    if (cellSize <= 0.0f) cellSize = 2.0f;
+    std::unordered_map<long long, std::vector<std::size_t>> buckets;
+    auto key = [&](int cx, int cy) -> long long {
+        return (static_cast<long long>(cx) << 32) ^ (static_cast<unsigned int>(cy));
+    };
+    for (std::size_t i = 0; i < entities.size(); ++i) {
+        int cx = static_cast<int>(std::floor(entities[i].position.x / cellSize));
+        int cy = static_cast<int>(std::floor(entities[i].position.y / cellSize));
+        buckets[key(cx, cy)].push_back(i);
+    }
+    std::vector<std::pair<std::size_t, std::size_t>> out;
+    for (auto& kv : buckets) {
+        auto& v = kv.second;
+        for (std::size_t a = 0; a < v.size(); ++a)
+            for (std::size_t b = a + 1; b < v.size(); ++b)
+                out.emplace_back(v[a], v[b]);
+    }
+    return out;
 }
 
 } // namespace pe

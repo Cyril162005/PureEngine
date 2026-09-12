@@ -1597,10 +1597,15 @@ int main() {
                 renderer.drawWorld(camera.projection(), camera.view(), sparkEntities, sparkClear);
             }
 
-            // --- Step 42: debug AABB wireframes (F1 toggle) ---
+            // --- Step 42: debug AABB wireframes (F1 toggle) — Step 96: + stats ---
             if (debugHitboxes) {
                 renderer.drawAABBs(camera.projection(), camera.view(), activeScene->entities,
                                     static_cast<int>(pe::ArcadeRole::Player));
+                // Cheap stats: entity count, tile count, dt ms
+                std::string stats = "ENTS " + std::to_string(activeScene->entities.size()) +
+                                    " TILES " + std::to_string(cachedTileEntities.size()) +
+                                    " DT " + std::to_string(static_cast<int>(dt*1000)) + "ms";
+                renderer.drawTextString(stats, -5.75f, 2.4f, camera.projection(), pe::TextAlign::Left);
             }
 
             // --- Game Build Phase 3/4: UI layer — survival timer + high score ---

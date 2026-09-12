@@ -84,10 +84,24 @@ public:
         return static_cast<float>(clampedDelta);
     }
 
+    // Step 92: optional timeScale / pause-aware clock (non-breaking)
+    // Default 1.0 unscaled, not paused — existing callers using tick() unchanged.
+    // scaledTick() returns 0 when paused else tick()*scale; wall time via tick().
+    void setTimeScale(float s) { timeScale = (s < 0.0f ? 0.0f : s); }
+    float getTimeScale() const { return timeScale; }
+    void setPaused(bool p) { paused = p; }
+    bool isPaused() const { return paused; }
+    float scaledTick() {
+        float dt = tick();
+        return paused ? 0.0f : dt * timeScale;
+    }
+
 private:
     // The previous frame's timestamp — the class's ONLY state.
     // Seeded by start(); advanced by tick(); touched by nothing else.
     double lastTime = 0.0;
+    float timeScale = 1.0f; // Step 92
+    bool paused = false;    // Step 92
 };
 
 } // namespace pe

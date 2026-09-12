@@ -26,6 +26,9 @@
  *    clear()): a stale token can never alias a future subscription.
  *  - Single-threaded ONLY — the engine is single-threaded, and this
  *    bus has no locking. Concurrent use is a caller bug.
+ *  - Handlers must be noexcept / must-not-throw (Step 91). emit() catches
+ *    any exception, drops that handler's exception, and continues to
+ *    the next handler — a throwing handler never breaks the bus.
  *
  * Header-only, same discipline as every project module: no events.cpp,
  * no CMakeLists.txt change. std::function is pure stdlib (C++17 is
@@ -86,13 +89,14 @@ struct EventBus {
 
     // Deliver event to the type's handlers in subscription order (see
     // the snapshot contract in the file header). Unknown type: no-op.
+    // Step 91: noexcept — throwing handler is caught and bus continues.
     void emit(const GameEvent& event) {
         if (!valid(event.type)) {
             return;
         }
         const std::vector<HandlerSlot> snapshot = slots_[index(event.type)];
         for (std::size_t i = 0; i < snapshot.size(); ++i) {
-            snapshot[i].handler(event);
+            try { snapshot[i].handler(event); } catch (...) {}
         }
     }
 
@@ -102,6 +106,21 @@ struct EventBus {
         for (std::size_t t = 0; t < COUNT; ++t) {
             slots_[t].clear();
         }
+    }
+
+    // Subscribe once: auto-unsubscribes after first delivery. Returns token
+    // or -1 on refusal (same as subscribe). Handler must be noexcept.
+    int once(EventType type, EventHandler handler) {
+        if (!handler || !valid(type)) return -1;
+        int token = nextToken_;
+        // Wrap to unsubscribe after first call; capture token by value, bus by ptr
+        EventHandler wrapped = [this, token, type, handler](const GameEvent& e) {
+            try { handler(e); } catch (...) {}
+            this->unsubscribe(type, token);
+        };
+        slots_[index(type)].push_back(HandlerSlot{token, wrapped});
+        ++nextToken_;
+        return token;
     }
 
     // Registrations currently held for type (0 for unknown types).

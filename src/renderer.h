@@ -766,6 +766,19 @@ private:
         entityTextures.push_back(tex);
         return static_cast<int>(entityTextures.size() - 1);
     }
+    // Step 94: basic unload — release non-core ids (keep 0..4 alive)
+    bool releaseTexture(int id) {
+        if (id < 5 || id < 0 || id >= static_cast<int>(entityTextures.size())) return false;
+        if (entityTextures[id] == 0) return false;
+        glDeleteTextures(1, &entityTextures[id]);
+        entityTextures[id] = 0;
+        return true;
+    }
+    void clearNonCoreTextures() {
+        for (int i = 5; i < static_cast<int>(entityTextures.size()); ++i) {
+            if (entityTextures[i] != 0) { glDeleteTextures(1, &entityTextures[i]); entityTextures[i] = 0; }
+        }
+    }
 
     // Delete every owned GL object. All names default to 0 and GL
     // delete calls on 0 are no-ops, so this is safe at ANY point of a
