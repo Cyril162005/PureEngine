@@ -856,6 +856,17 @@
       "depends_on": [
         14
       ]
+    },
+    {
+      "id": 102,
+      "name": "pe_core static lib (header-only still alive)",
+      "status": "completed",
+      "definition_of_done": "CMake adds pe_core STATIC lib (src/pe_core.cpp + stb_impl + glad), header-only path stays alive (games still include headers directly), arcade/platformer/Pong build in both modes, no behaviour change.",
+      "notes": "Optional compiled core, games keep header-only; pe_core links glfw/miniaudio, provides pe_core_version().",
+      "implementation": "src/pe_core.cpp includes all core headers, add_library(pe_core STATIC ...), target_include/link. Header-only still works.",
+      "verification": "Build clean (4/4 + pe_core.lib), CTest 55/55, arcade/platformer/Pong alive both modes.",
+      "commit": "7bce2c2",
+      "depends_on": []
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
