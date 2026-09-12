@@ -1813,6 +1813,35 @@ static bool checkTextureRegistry() {
     return true;
 }
 
+static bool checkConsoleHistoryRecall() {
+    pe::Console c;
+    c.open = true;
+    // submit two commands
+    c.input = "echo hello";
+    pe::submit(c);
+    c.input = "echo world";
+    pe::submit(c);
+    if (c.submitHistory.size() != 2) { std::cerr << "History size 2 failed\n"; return false; }
+    // Up should recall last
+    pe::feedKey(c, GLFW_KEY_UP, false);
+    if (c.input != "echo world") { std::cerr << "Up recall 1 failed: " << c.input << "\n"; return false; }
+    pe::feedKey(c, GLFW_KEY_UP, false);
+    if (c.input != "echo hello") { std::cerr << "Up recall 2 failed: " << c.input << "\n"; return false; }
+    // Down should go forward
+    pe::feedKey(c, GLFW_KEY_DOWN, false);
+    if (c.input != "echo world") { std::cerr << "Down recall failed\n"; return false; }
+    pe::feedKey(c, GLFW_KEY_DOWN, false);
+    if (!c.input.empty()) { std::cerr << "Down past end should clear\n"; return false; }
+    // History cap: push 64+5, oldest dropped
+    for (int i = 0; i < 70; ++i) {
+        c.input = "cmd" + std::to_string(i);
+        pe::submit(c);
+    }
+    if (c.submitHistory.size() != 64) { std::cerr << "History cap 64 failed: " << c.submitHistory.size() << "\n"; return false; }
+    if (c.submitHistory.front() != "cmd6") { std::cerr << "History oldest drop failed\n"; return false; }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1867,6 +1896,7 @@ int main() {
     const bool fixedStepOk = checkFixedTimestepNoTunnel();
     const bool actionMapOk = checkActionMap();
     const bool textureRegOk = checkTextureRegistry();
+    const bool consoleHistRecallOk = checkConsoleHistoryRecall();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1884,7 +1914,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

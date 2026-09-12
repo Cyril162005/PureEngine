@@ -791,16 +791,17 @@ int main() {
     // is behavior-free — untracked keys simply report no edge — so the
     // pre-existing game edges are unaffected.
     pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, GLFW_KEY_2, GLFW_KEY_F1,
-                    GLFW_KEY_GRAVE_ACCENT, GLFW_KEY_ENTER, GLFW_KEY_BACKSPACE,
-                    GLFW_KEY_A, GLFW_KEY_B, GLFW_KEY_C, GLFW_KEY_D, GLFW_KEY_E,
-                    GLFW_KEY_F, GLFW_KEY_G, GLFW_KEY_H, GLFW_KEY_I, GLFW_KEY_J,
-                    GLFW_KEY_K, GLFW_KEY_L, GLFW_KEY_M, GLFW_KEY_N, GLFW_KEY_O,
-                    GLFW_KEY_P, GLFW_KEY_Q, GLFW_KEY_R, GLFW_KEY_S, GLFW_KEY_T,
-                    GLFW_KEY_U, GLFW_KEY_V, GLFW_KEY_W, GLFW_KEY_X, GLFW_KEY_Y,
-                    GLFW_KEY_Z,
-                    GLFW_KEY_0, GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4,
-                    GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9,
-                    GLFW_KEY_PERIOD, GLFW_KEY_MINUS};
+                     GLFW_KEY_GRAVE_ACCENT, GLFW_KEY_ENTER, GLFW_KEY_BACKSPACE,
+                     GLFW_KEY_UP, GLFW_KEY_DOWN,
+                     GLFW_KEY_A, GLFW_KEY_B, GLFW_KEY_C, GLFW_KEY_D, GLFW_KEY_E,
+                     GLFW_KEY_F, GLFW_KEY_G, GLFW_KEY_H, GLFW_KEY_I, GLFW_KEY_J,
+                     GLFW_KEY_K, GLFW_KEY_L, GLFW_KEY_M, GLFW_KEY_N, GLFW_KEY_O,
+                     GLFW_KEY_P, GLFW_KEY_Q, GLFW_KEY_R, GLFW_KEY_S, GLFW_KEY_T,
+                     GLFW_KEY_U, GLFW_KEY_V, GLFW_KEY_W, GLFW_KEY_X, GLFW_KEY_Y,
+                     GLFW_KEY_Z,
+                     GLFW_KEY_0, GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4,
+                     GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9,
+                     GLFW_KEY_PERIOD, GLFW_KEY_MINUS};
 
     // --- Step 8: Player movement speed (before the loop) ---
     // World units per second for the ARROW-key-driven entity
@@ -1145,6 +1146,12 @@ int main() {
                 }
                 if (input.isEdge(window, GLFW_KEY_MINUS)) {
                     pe::feedKey(console, GLFW_KEY_MINUS, false);
+                }
+                if (input.isEdge(window, GLFW_KEY_UP)) {
+                    pe::feedKey(console, GLFW_KEY_UP, false);
+                }
+                if (input.isEdge(window, GLFW_KEY_DOWN)) {
+                    pe::feedKey(console, GLFW_KEY_DOWN, false);
                 }
             }
         };

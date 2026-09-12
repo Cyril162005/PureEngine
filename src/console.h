@@ -68,6 +68,8 @@ struct Console {
     std::string input;  // line being typed
     std::vector<std::string> lines;  // output history (capped, see below)
     std::vector<std::pair<std::string, ConsoleHandler>> commands;
+    std::vector<std::string> submitHistory; // Step 90: submitted lines ring (Up/Down recall)
+    std::size_t historyPos = 0; // next recall index (0..size, size = blank)
 };
 
 namespace console_detail {
@@ -131,6 +133,22 @@ inline void feedKey(Console& c, int glfwKey, bool shift) {
                 c.input.pop_back();
             }
             break;
+        case GLFW_KEY_UP:
+            if (!c.submitHistory.empty() && c.historyPos > 0) {
+                --c.historyPos;
+                c.input = c.submitHistory[c.historyPos];
+            }
+            break;
+        case GLFW_KEY_DOWN:
+            if (c.historyPos < c.submitHistory.size()) {
+                ++c.historyPos;
+                if (c.historyPos < c.submitHistory.size()) {
+                    c.input = c.submitHistory[c.historyPos];
+                } else {
+                    c.input.clear();
+                }
+            }
+            break;
         default:
             break;  // not typeable: ignored
     }
@@ -163,8 +181,15 @@ inline std::string submit(Console& c) {
     if (tokens.empty()) {
         return "";
     }
+    const std::string rawLine = c.input;
     console_detail::pushLine(c, "> " + c.input);
     c.input.clear();
+    // Step 90: remember for Up/Down recall (ring, oldest dropped)
+    c.submitHistory.push_back(rawLine);
+    while (c.submitHistory.size() > console_detail::MAX_HISTORY) {
+        c.submitHistory.erase(c.submitHistory.begin());
+    }
+    c.historyPos = c.submitHistory.size();
 
     const std::string name = console_detail::lower(tokens[0]);
     const std::vector<std::string> args(tokens.begin() + 1, tokens.end());

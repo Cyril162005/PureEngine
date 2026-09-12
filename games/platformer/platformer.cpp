@@ -202,7 +202,7 @@ int main() {
 
     pe::Camera camera;
     pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, GLFW_KEY_GRAVE_ACCENT,
-                    GLFW_KEY_ENTER, GLFW_KEY_BACKSPACE, GLFW_KEY_W, GLFW_KEY_UP,
+                    GLFW_KEY_ENTER, GLFW_KEY_BACKSPACE, GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_W,
                     GLFW_KEY_A, GLFW_KEY_B, GLFW_KEY_C, GLFW_KEY_D, GLFW_KEY_E,
                     GLFW_KEY_F, GLFW_KEY_G, GLFW_KEY_H, GLFW_KEY_I, GLFW_KEY_J,
                     GLFW_KEY_K, GLFW_KEY_L, GLFW_KEY_M, GLFW_KEY_N, GLFW_KEY_O,
@@ -295,6 +295,12 @@ int main() {
                 }
                 if (input.isEdge(window, GLFW_KEY_MINUS)) {
                     pe::feedKey(console, GLFW_KEY_MINUS, false);
+                }
+                if (input.isEdge(window, GLFW_KEY_UP)) {
+                    pe::feedKey(console, GLFW_KEY_UP, false);
+                }
+                if (input.isEdge(window, GLFW_KEY_DOWN)) {
+                    pe::feedKey(console, GLFW_KEY_DOWN, false);
                 }
             }
         };
