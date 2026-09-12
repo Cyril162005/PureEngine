@@ -108,7 +108,7 @@ constexpr ClearColor clearColorFor(GameState state, bool blueToggled) {
     if (blueToggled) {
         return ClearColor{0.0f, 0.0f, 0.25f};
     }
-    return ClearColor{0.0f, 0.0f, 0.0f};
+    return ClearColor{0.02f, 0.02f, 0.08f};
 }
 
 } // namespace pe

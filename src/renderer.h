@@ -361,7 +361,7 @@ public:
     }
 
 private:
-    void setLightUniforms(const LightingState& lights, const Mat4& projView) {
+    void setLightUniforms(const LightingState& lights, const Mat4& /*projView*/) {
         glUseProgram(litProgram);
         glUniform3f(glGetUniformLocation(litProgram, "u_ambientColor"),
                     lights.ambient.color.x, lights.ambient.color.y, lights.ambient.color.z);
@@ -371,11 +371,9 @@ private:
                     lights.lightCount());
         for (int i = 0; i < 4; ++i) {
             char name[32];
-            // Position — transform world -> clip on CPU so shader distance is in same space as vWorldPos
             Vec3 pos = (i < lights.lightCount()) ? lights.lights[i].position : Vec3(0,0,0);
-            Vec3 clip = projView.transformPoint(pos);
             snprintf(name, sizeof(name), "u_lightPos[%d]", i);
-            glUniform3f(glGetUniformLocation(litProgram, name), clip.x, clip.y, clip.z);
+            glUniform3f(glGetUniformLocation(litProgram, name), pos.x, pos.y, pos.z);
             Vec3 col = (i < lights.lightCount()) ? lights.lights[i].color : Vec3(0,0,0);
             snprintf(name, sizeof(name), "u_lightColor[%d]", i);
             glUniform3f(glGetUniformLocation(litProgram, name), col.x, col.y, col.z);
@@ -457,10 +455,11 @@ private:
             groups.back().indices.push_back(k);
         }
 
-        // Per-entity draw info (MVP + color) — built during batch construction.
+        // Per-entity draw info (MVP + color + world pos for lighting) — built during batch construction.
         struct DrawInfo {
             Mat4 mvp;
             float color[3];
+            Vec3 worldPos;
         };
 
         for (const auto& group : groups) {
@@ -507,7 +506,8 @@ private:
                 float r = 1.0f, g = 1.0f, b = 1.0f;
                 if (colliding[i]) { r = 1.0f; g = 0.0f; b = 0.0f; }
 
-                drawInfos.push_back({mvp, {r, g, b}});
+                Vec3 wp = (entity.parentIndex != -1) ? worldPosition(entities, i) : entity.position;
+                drawInfos.push_back({mvp, {r, g, b}, wp});
             }
 
             // One VBO upload for the entire texture group.
@@ -519,12 +519,19 @@ private:
                          GL_DYNAMIC_DRAW);
 
             // One draw call per entity (offset into batched VBO), uniforms per entity.
+            GLint entityWorldLoc = -1;
+            if (program == litProgram) {
+                entityWorldLoc = glGetUniformLocation(program, "u_entityWorldPos");
+            }
             for (size_t e = 0; e < drawInfos.size(); ++e) {
                 glUniformMatrix4fv(transformLoc, 1, GL_FALSE, &drawInfos[e].mvp.m[0][0]);
                 glUniform3f(colorLoc,
                             drawInfos[e].color[0],
                             drawInfos[e].color[1],
                             drawInfos[e].color[2]);
+                if (entityWorldLoc >= 0) {
+                    glUniform2f(entityWorldLoc, drawInfos[e].worldPos.x, drawInfos[e].worldPos.y);
+                }
                 glDrawArrays(GL_TRIANGLES, static_cast<GLint>(e * 3), 3);
             }
         }

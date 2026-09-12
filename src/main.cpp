@@ -1542,10 +1542,10 @@ int main() {
             // other states keep flat rendering (non-breaking).
             if (currentState == pe::GameState::PLAYING) {
                 pe::LightingState lights;
-                lights.ambient = {pe::Vec3(0.15f, 0.15f, 0.2f), 1.0f};
+                lights.ambient = {pe::Vec3(0.05f, 0.05f, 0.08f), 1.0f};
                 for (const auto& e : activeScene->entities) {
                     if (e.roleId == static_cast<int>(pe::ArcadeRole::Player)) {
-                        lights.addLight({e.position, pe::Vec3(1.0f, 0.8f, 0.6f), 6.0f, 1.0f});
+                        lights.addLight({e.position, pe::Vec3(1.0f, 0.85f, 0.6f), 4.0f, 1.5f});
                         break;
                     }
                 }
