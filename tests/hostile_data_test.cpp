@@ -1835,6 +1835,20 @@ static bool checkEventThrowAndOnce() {
     return true;
 }
 
+static bool checkBinaryBlob() {
+    std::vector<uint8_t> out;
+    if (!pe::loadBinaryBlob("beep.wav", out) || out.empty()) { std::cerr << "Binary blob beep.wav failed\n"; return false; }
+    std::vector<uint8_t> out2;
+    pe::clearBinaryCache();
+    if (!pe::loadBinaryBlobCached("beep.wav", out2) || out2.empty()) { std::cerr << "Cached blob failed\n"; return false; }
+    std::vector<uint8_t> out3;
+    if (!pe::loadBinaryBlobCached("beep.wav", out3) || out3 != out2) { std::cerr << "Cache hit failed\n"; return false; }
+    std::vector<uint8_t> packOut;
+    if (!pe::loadPackEntry("no_such_pack.bin", "beep.wav", packOut) || packOut.empty()) { std::cerr << "Pack fallback failed\n"; return false; }
+    pe::clearBinaryCache();
+    return true;
+}
+
 static bool checkTimeScale() {
     pe::FrameTime ft;
     if (!assertFloatClose(ft.getTimeScale(), 1.0f) || ft.isPaused()) { std::cerr << "Time default failed\n"; return false; }
@@ -1975,6 +1989,7 @@ int main() {
     const bool timeScaleOk = checkTimeScale();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
+    const bool binaryBlobOk = checkBinaryBlob();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1992,7 +2007,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

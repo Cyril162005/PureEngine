@@ -46,6 +46,10 @@
 #include <stb_image.h>   // declarations only — implementation lives in
                          // src/stb_impl.cpp (Step 10's pattern), so PNG
                          // decoding compiles exactly once in the program.
+#include <cstdint>       // Step 101: binary blob bytes
+#include <fstream>       // Step 101: binary file reading
+#include <unordered_map> // Step 101: optional cache
+#include <vector>        // Step 101: blob storage
 
 namespace pe {
 
@@ -110,6 +114,53 @@ inline GLuint loadRgbaTexture(const char* candidates[3]) {
     stbi_image_free(px);
     return id;
 }
+
+// --- Step 101: binary blob + optional pack loader (read-only, header-only) ---
+// Keeps existing text/PNG/WAV probe unchanged. New path is opt-in, no cache
+// required for correctness; a tiny static cache is provided for reuse.
+inline bool loadBinaryBlob(const std::string& fileName, std::vector<uint8_t>& out) {
+    out.clear();
+    const std::string candidates[3] = {std::string("assets/") + fileName, std::string("../assets/") + fileName, std::string("../../assets/") + fileName};
+    std::ifstream in;
+    for (int k = 0; k < 3; ++k) {
+        in.open(candidates[k], std::ios::binary);
+        if (in) break;
+        in.clear();
+    }
+    if (!in) return false;
+    in.seekg(0, std::ios::end);
+    std::streamsize sz = in.tellg();
+    if (sz < 0) return false;
+    in.seekg(0, std::ios::beg);
+    out.resize(static_cast<std::size_t>(sz));
+    if (sz > 0) in.read(reinterpret_cast<char*>(out.data()), sz);
+    return static_cast<bool>(in);
+}
+
+// Pack entry: for v1 pack format is just the pack file itself (read-only).
+// If packFile exists, returns its bytes; entryName is reserved for future
+// indexed packs and currently ignored (keeps pack API stable). Fallback:
+// if packFile not found, tries entryName as direct file (so existing assets
+// continue to work even if pack is absent).
+inline bool loadPackEntry(const std::string& packFile, const std::string& entryName, std::vector<uint8_t>& out) {
+    if (loadBinaryBlob(packFile, out)) return true;
+    if (!entryName.empty()) return loadBinaryBlob(entryName, out);
+    return false;
+}
+
+inline std::unordered_map<std::string, std::vector<uint8_t>>& binaryCache() {
+    static std::unordered_map<std::string, std::vector<uint8_t>> cache;
+    return cache;
+}
+inline bool loadBinaryBlobCached(const std::string& fileName, std::vector<uint8_t>& out) {
+    auto& cache = binaryCache();
+    auto it = cache.find(fileName);
+    if (it != cache.end()) { out = it->second; return true; }
+    if (!loadBinaryBlob(fileName, out)) return false;
+    cache[fileName] = out;
+    return true;
+}
+inline void clearBinaryCache() { binaryCache().clear(); }
 
 } // namespace pe
 
