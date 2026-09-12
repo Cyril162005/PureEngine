@@ -1763,6 +1763,25 @@ static bool checkParticleColorAndEmit() {
     return true;
 }
 
+static bool checkFixedTimestepNoTunnel() {
+    // Large dt (0.1s) with fast fall would tunnel a 1-unit tile in one variable step.
+    // Fixed substeps (1/60) must keep character on top of floor.
+    pe::Entity floor(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.0f), 1);
+    floor.isStatic = true;
+    std::vector<pe::Entity> statics = {floor};
+    pe::Entity player(pe::Vec3(0.0f, 1.5f, 0.0f), 0.0f, pe::Vec3(0.8f, 0.8f, 1.0f), pe::Vec3(0.4f, 0.4f, 0.0f), 0);
+    player.gravityScale = 0.0f;
+    player.velocity = pe::Vec3(0.0f, -20.0f, 0.0f); // fast down
+    player.coyoteTime = 0.0f;
+    bool grounded = pe::updateCharacterControllerFixed(player, statics, 0.1f, false, 1.0f/60.0f);
+    // Must be grounded and not tunneled below floor top (0.5)
+    float bottom = player.position.y - player.halfExtents.y * player.scale.y;
+    float floorTop = floor.position.y + floor.halfExtents.y * floor.scale.y;
+    if (!grounded) { std::cerr << "Fixed step should be grounded\n"; return false; }
+    if (bottom < floorTop - 0.05f) { std::cerr << "Fixed step tunneled: bottom " << bottom << " floorTop " << floorTop << "\n"; return false; }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1814,6 +1833,7 @@ int main() {
     const bool sceneSerOk = checkSceneSerialization();
     const bool pongScoreOk = checkPongScore();
     const bool particleColorOk = checkParticleColorAndEmit();
+    const bool fixedStepOk = checkFixedTimestepNoTunnel();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1831,7 +1851,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

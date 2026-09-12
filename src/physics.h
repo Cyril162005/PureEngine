@@ -295,6 +295,48 @@ inline bool updateCharacterController(Entity& character,
     return character.wasGrounded;
 }
 
+// --- Step 87: optional fixed-dt substeps (header-only, non-breaking) ---
+// Splits a large dt into fixedDt chunks (default 1/60) so a fast mover cannot
+// tunnel a 1-unit tile in one variable step. Existing callers keep variable-dt;
+// platformer or future movers opt in via the *Fixed wrappers. No new systems,
+// no broadphase, no change to resolve math — just substeps.
+inline bool updateCharacterControllerFixed(Entity& character,
+                                           const std::vector<Entity>& staticEntities,
+                                           float dt, bool jumpPressed,
+                                           float fixedDt = 1.0f / 60.0f) {
+    if (dt <= 0.0f) return checkGrounded(character, staticEntities);
+    if (fixedDt <= 0.0f) fixedDt = 1.0f / 60.0f;
+    int steps = static_cast<int>(std::ceil(dt / fixedDt));
+    if (steps < 1) steps = 1;
+    if (steps > 8) steps = 8; // clamp — avoids spiral on huge dt
+    float sub = dt / static_cast<float>(steps);
+    bool grounded = false;
+    for (int i = 0; i < steps; ++i) {
+        bool jp = (i == 0) ? jumpPressed : false; // consume jump once
+        grounded = updateCharacterController(character, staticEntities, sub, jp);
+    }
+    return grounded;
+}
+
+inline void applyPhysicsFixed(std::vector<Entity>& entities, float dt,
+                              float fixedDt = 1.0f / 60.0f) {
+    if (dt <= 0.0f) return;
+    if (fixedDt <= 0.0f) fixedDt = 1.0f / 60.0f;
+    int steps = static_cast<int>(std::ceil(dt / fixedDt));
+    if (steps < 1) steps = 1;
+    if (steps > 8) steps = 8;
+    float sub = dt / static_cast<float>(steps);
+    for (int i = 0; i < steps; ++i) {
+        for (Entity& e : entities) {
+            if (e.gravityScale > 0.0f) applyGravity(e.velocity, e.gravityScale, sub);
+            if (e.velocity.x != 0.0f || e.velocity.y != 0.0f || e.velocity.z != 0.0f) integrate(e.position, e.velocity, sub);
+        }
+        // Static resolve per substep would need statics list; caller can
+        // loop updateCharacterControllerFixed for character cases. This
+        // helper covers free-physics movers (no statics).
+    }
+}
+
 } // namespace pe
 
 #endif // PUREENGINE_PHYSICS_H
