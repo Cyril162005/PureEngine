@@ -599,7 +599,7 @@
       "notes": "Builds on Step75 master*sfx. No new deps, no batching/lighting/scene/physics changes.",
       "implementation": "audio.h: enum Sound, beep/gameOver/newScore vol floats, get/setVolume, applyVolumes base*perSound. main.cpp: audio.setVolume(Beep,0.5f) proof.",
       "verification": "Build clean (4/4), CTest 47/47, arcade/platformer alive, per-sound volumes applied.",
-      "commit": "[HASH]",
+      "commit": "1478208",
       "depends_on": [
         75
       ]
