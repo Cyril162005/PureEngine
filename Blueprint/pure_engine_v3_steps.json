@@ -694,6 +694,19 @@
       "depends_on": [
         72
       ]
+    },
+    {
+      "id": 88,
+      "name": "Basic input action map (Move/Jump/Pause/Confirm)",
+      "status": "completed",
+      "definition_of_done": "input.h adds Action enum + keysForAction + isActionDown/isActionEdge (thin mapping over raw GLFW codes). Raw isDown/isEdge unchanged. Platformer jump demo uses isActionEdge(Jump). Header-only, non-breaking.",
+      "notes": "No rebind UI, no contexts, no buffering. Mapping: Move 4 dirs, Jump (SPACE/W/UP), Pause (ESC), Confirm (SPACE/ENTER), Back (ESC/BACKSPACE).",
+      "implementation": "input.h: Action enum, keysForAction switch, Input::isActionDown/Edge loops over mapped keys. platformer.cpp: jumpEdge via isActionEdge(Jump). Test checkActionMap verifies mappings.",
+      "verification": "Build clean (4/4), CTest 51/51 (new action map test), platformer jump via Action, arcade raw path untouched.",
+      "commit": "7b339c6",
+      "depends_on": [
+        16
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
