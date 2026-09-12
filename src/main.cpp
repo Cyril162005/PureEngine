@@ -592,6 +592,8 @@ int main() {
         glfwTerminate();
         return -1;
     }
+    // Step 80 proof: beep quieter (0.5), events remain full — master*sfx*perSound
+    audio.setVolume(pe::Sound::Beep, 0.5f);
 
     // --- Step 10 REFACTOR (Step 9 seam #1): per-entity edge state ---
     // Step 9 collapsed every collision into ONE scalar flag, so a NEW

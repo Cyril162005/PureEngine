@@ -590,6 +590,19 @@
         77,
         78
       ]
+    },
+    {
+      "id": 80,
+      "name": "Per-sound volume (Beep/GameOver/NewHighScore)",
+      "status": "completed",
+      "definition_of_done": "audio.h enum Sound + get/setVolume per sound (master*sfx*perSound), defaults 1.0 clamp [0,1], safe pre-init. Arcade sets Beep 0.5 after init (collision quieter, events full). Header-only, non-breaking.",
+      "notes": "Builds on Step75 master*sfx. No new deps, no batching/lighting/scene/physics changes.",
+      "implementation": "audio.h: enum Sound, beep/gameOver/newScore vol floats, get/setVolume, applyVolumes base*perSound. main.cpp: audio.setVolume(Beep,0.5f) proof.",
+      "verification": "Build clean (4/4), CTest 47/47, arcade/platformer alive, per-sound volumes applied.",
+      "commit": "[HASH]",
+      "depends_on": [
+        75
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -53,6 +53,8 @@
 
 namespace pe {
 
+enum class Sound { Beep, GameOver, NewHighScore };
+
 class Audio {
 public:
     // The pool size Steps 9/10 established: 4 independent slots for a
@@ -233,6 +235,22 @@ public:
     float getMasterVolume() const { return masterVolume; }
     float getSfxVolume() const { return sfxVolume; }
 
+    // --- Step 80: per-sound gain (master * sfx * perSound) ---
+    // Builds on Step 75 master*sfx; per-sound defaults 1.0 keep existing
+    // behaviour identical. Clamp [0,1], store, apply — safe pre-init.
+    float getVolume(Sound s) const {
+        if (s == Sound::Beep) return beepVolume;
+        if (s == Sound::GameOver) return gameOverVolume;
+        return newHighScoreVolume;
+    }
+    void setVolume(Sound s, float v) {
+        v = clampVolume01(v);
+        if (s == Sound::Beep) beepVolume = v;
+        else if (s == Sound::GameOver) gameOverVolume = v;
+        else newHighScoreVolume = v;
+        applyVolumes();
+    }
+
     // --- Teardown, reverse creation order ---
     // Every initialized pool slot first (each registered WITH the
     // engine), then the engine itself — which stops the mixing thread
@@ -267,19 +285,18 @@ private:
         return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
     }
 
-    // Push master*sfx to every initialized sound. Guards mirror the
-    // triggers (slotsValid count, loaded flags) — uninitialized objects
-    // are never touched, so this is safe pre-init and post-shutdown.
+    // Push master*sfx*perSound to every initialized sound. Guards mirror
+    // triggers — safe pre-init and post-shutdown.
     void applyVolumes() {
-        const float effective = masterVolume * sfxVolume;
+        const float base = masterVolume * sfxVolume;
         for (std::size_t i = 0; i < slotsValid; ++i) {
-            ma_sound_set_volume(&sounds[i], effective);
+            ma_sound_set_volume(&sounds[i], base * beepVolume);
         }
         if (gameOverSoundLoaded) {
-            ma_sound_set_volume(&gameOverSound, effective);
+            ma_sound_set_volume(&gameOverSound, base * gameOverVolume);
         }
         if (newHighScoreSoundLoaded) {
-            ma_sound_set_volume(&newHighScoreSound, effective);
+            ma_sound_set_volume(&newHighScoreSound, base * newHighScoreVolume);
         }
     }
 
@@ -313,6 +330,10 @@ private:
     // Step 75 gains: 1.0/1.0 preserves pre-Step-75 behavior exactly.
     float masterVolume = 1.0f;
     float sfxVolume = 1.0f;
+    // Step 80 per-sound gains: 1.0 preserves pre-Step-80 behaviour.
+    float beepVolume = 1.0f;
+    float gameOverVolume = 1.0f;
+    float newHighScoreVolume = 1.0f;
 };
 
 } // namespace pe
