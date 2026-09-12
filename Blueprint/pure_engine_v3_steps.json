@@ -603,6 +603,19 @@
       "depends_on": [
         75
       ]
+    },
+    {
+      "id": 81,
+      "name": "Scene serialization (scene_*.txt v1)",
+      "status": "completed",
+      "definition_of_done": "scene.h extends Scene with tilemapFile and save/loadSceneFromFile (text v1, strict whole-file fallback, atomic tmp+rename). Round-trip save->load asserts entity count/positions/tilemap match. Header-only, non-breaking.",
+      "notes": "Reuses 3-candidate probe + loadTilemap discipline. No binary/versioning beyond # scene v1 header. Tilemap reference basename only.",
+      "implementation": "scene.h: Scene.tilemapFile, sceneTrim/parse helpers, saveSceneToFile (fixed 4), loadSceneFromFile (strict), saveSceneManagerToFile optional. loadTilemapIntoScene sets tilemapFile. Test checkSceneSerialization round-trip + strict fallback.",
+      "verification": "Build clean (4/4), CTest 48/48 (new test), arcade/platformer alive, round-trip proved.",
+      "commit": "[HASH]",
+      "depends_on": [
+        64
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

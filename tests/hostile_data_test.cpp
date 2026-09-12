@@ -1671,6 +1671,52 @@ static bool checkVolumeClamp() {
     return true;
 }
 
+static bool checkSceneSerialization() {
+    pe::Scene src;
+    src.name = "test_roundtrip";
+    pe::Entity e1(pe::Vec3(1.0f, 2.0f, 0.0f), 1.0f, pe::Vec3(1.0f, 1.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.0f), 2);
+    e1.depth = 2; e1.roleId = 2; e1.moveSpeed = 1.8f;
+    pe::Entity e2(pe::Vec3(-1.0f, 0.5f, 0.0f), -1.2f, pe::Vec3(0.8f, 0.8f, 1.0f), pe::Vec3(0.4f, 0.4f, 0.0f), 0);
+    e2.depth = 3; e2.roleId = 0; e2.moveSpeed = 0.0f;
+    src.entities = {e1, e2};
+    src.tilemapFile = "arcade_arena.txt";
+    src.tilemap = pe::loadTilemap(src.tilemapFile);
+    if (src.tilemap.width <= 0) { std::cerr << "Scene ser: tilemap load failed\n"; return false; }
+    const std::string fname = "scene_test_roundtrip.txt";
+    std::remove(("assets/" + fname).c_str());
+    if (!pe::saveSceneToFile(src, fname)) { std::cerr << "Scene ser: save failed\n"; return false; }
+    pe::Scene loaded;
+    loaded.name = "before";
+    if (!pe::loadSceneFromFile(fname, loaded)) { std::cerr << "Scene ser: load failed\n"; std::remove(("assets/" + fname).c_str()); return false; }
+    if (loaded.name != src.name) { std::cerr << "Scene ser: name mismatch\n"; std::remove(("assets/" + fname).c_str()); return false; }
+    if (loaded.entities.size() != src.entities.size()) { std::cerr << "Scene ser: entity count\n"; std::remove(("assets/" + fname).c_str()); return false; }
+    for (size_t i = 0; i < src.entities.size(); ++i) {
+        const pe::Entity& a = src.entities[i];
+        const pe::Entity& b = loaded.entities[i];
+        if (!assertFloatClose(a.position.x, b.position.x) || !assertFloatClose(a.position.y, b.position.y) || !assertFloatClose(a.position.z, b.position.z) ||
+            !assertFloatClose(a.rotationSpeed, b.rotationSpeed) || !assertFloatClose(a.scale.x, b.scale.x) || !assertFloatClose(a.moveSpeed, b.moveSpeed) ||
+            a.textureId != b.textureId || a.depth != b.depth || a.roleId != b.roleId) {
+            std::cerr << "Scene ser: entity mismatch at " << i << "\n"; std::remove(("assets/" + fname).c_str()); return false;
+        }
+    }
+    if (loaded.tilemap.tiles.size() != src.tilemap.tiles.size() || loaded.tilemap.width != src.tilemap.width) {
+        std::cerr << "Scene ser: tilemap mismatch\n"; std::remove(("assets/" + fname).c_str()); return false;
+    }
+    // Strict fallback: malformed file must leave out untouched
+    {
+        std::ofstream bad("assets/scene_malformed.txt");
+        bad << "scene=bad\nentity=not_a_number\n";
+        bad.close();
+        pe::Scene out;
+        out.name = "keep";
+        bool ok = pe::loadSceneFromFile("scene_malformed.txt", out);
+        std::remove("assets/scene_malformed.txt");
+        if (ok || out.name != "keep") { std::cerr << "Scene ser: malformed should fail and leave untouched\n"; std::remove(("assets/" + fname).c_str()); return false; }
+    }
+    std::remove(("assets/" + fname).c_str());
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1719,6 +1765,7 @@ int main() {
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
+    const bool sceneSerOk = checkSceneSerialization();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1736,7 +1783,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
