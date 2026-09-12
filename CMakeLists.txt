@@ -185,6 +185,16 @@ target_link_libraries(hostile_data_test PRIVATE miniaudio)
 # This avoids exposing the whole src/ directory, which is what makes
 # src/time.h shadow the CRT's time.h during compilation.
 
+# Step 102: optional pe_core static library — compiled core, header-only remains.
+# Same headers, same inline functions, just precompiled. Games may either
+# include headers directly (header-only, current) or link pe_core. No behaviour
+# change; arcade/platformer/Pong keep header-only and stay green.
+add_library(pe_core STATIC src/pe_core.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
+target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/deps")
+target_include_directories(pe_core PUBLIC "${stb_SOURCE_DIR}")
+target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/include")
+target_link_libraries(pe_core PUBLIC glfw miniaudio)
+
 # Pong API-gate target: a second game built ONLY on public engine headers
 # (math, entity, renderer, camera, input). Headers are included by relative
 # path from games/pong/pong.cpp — src/ is deliberately NOT on this target's
