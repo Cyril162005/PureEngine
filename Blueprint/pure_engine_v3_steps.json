@@ -7,7 +7,7 @@
     "GLFW or SDL",
     "OpenGL"
   ],
-  "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
+  "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 â€” engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
   "status_note": "This continuation tracker supersedes pure_engine_v2_steps.json for future work. Steps 25 through 50 are tracked (Step 44 superseded by Step 48), covering engine hardening (25-34), data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation.",
   "steps": [
     {
@@ -101,9 +101,9 @@
       "name": "Debug hitbox overlay (F1) + fix untracked audio assets",
       "status": "completed",
       "definition_of_done": "Two real bugs fixed (dist-breaking untracked audio assets + orphan clutter PNG removed); a temporary F1-toggle debug AABB overlay added; the Step-37 collision-perception open question visually resolved (not a bug).",
-      "notes": "Asset-tracking bug found via repo-verification process (not trusted tracker): assets/GAMEOVER.wav and assets/win_sound.wav were referenced by CMake POST_BUILD, audio.h, and package.ps1, but were NEVER git-added despite Step-36/40 tracker claims. Reproduction: fresh git clone + Release build FAILED because CMake POST_BUILD copy commands could not find the files. Fix: git add both + commit pushed as e8eb867, then re-verified by cloning to D:\\tmp-verify-clone from origin/main and rebuilding Release end-to-end \u00e2\u20ac\u201d 11/11 assets copied into build\\Release\\assets\\ with exact byte counts. Separately, assets/game over.png (1024x1024 mockup) was deleted from disk as untracked dead weight \u00e2\u20ac\u201d 0 code references, 0 CMake copies, 0 texture loads. Step-42 feature: F1 edge-toggle debug overlay added. renderer.h introduces a tiny static 4-vertex GL_LINE_LOOP unit square (aabbVAO/aabbVBO, 80 bytes) using the EXISTING interleaved 5-float attribute layout, same shader, same color/transform uniforms, no new shader sources, no new assets, no new uniforms. drawAABBs() draws each entity's NON-rotated, scale*halfExtents*2 rectangle \u00e2\u20ac\u201d the EXACT value collision.h's aabbOverlap tests \u00e2\u20ac\u201d with orange for player (i==0) and yellow for hostiles/scenery. main.cpp: Input ctor adds GLFW_KEY_F1, adds bool debugHitboxes=false at the collisionFlashFrames scope, toggles it on F1 edge in PLAYING/PLAYING_ALT, and conditionally calls drawAABBs() between drawWorld and HUD in all drawsWorld() states (both scenes). Runtime visual verification by Cyril: F1 shows a larger non-rotating axis-aligned square wireframe behind each rotating triangle sprite \u00e2\u20ac\u201d visually confirming the Step-37 open question: the AABB rotation-safe hitbox (1.414x1.414 units) intentionally extends past the sprite edges. Resolved: the earlier 'catches in the gap, not on contact' perception was a sprite-vs-hitbox visual gap, NOT a logic bug. aabbOverlap() has been mathematically correct all along.",
+      "notes": "Asset-tracking bug found via repo-verification process (not trusted tracker): assets/GAMEOVER.wav and assets/win_sound.wav were referenced by CMake POST_BUILD, audio.h, and package.ps1, but were NEVER git-added despite Step-36/40 tracker claims. Reproduction: fresh git clone + Release build FAILED because CMake POST_BUILD copy commands could not find the files. Fix: git add both + commit pushed as e8eb867, then re-verified by cloning to D:\\tmp-verify-clone from origin/main and rebuilding Release end-to-end â€” 11/11 assets copied into build\\Release\\assets\\ with exact byte counts. Separately, assets/game over.png (1024x1024 mockup) was deleted from disk as untracked dead weight â€” 0 code references, 0 CMake copies, 0 texture loads. Step-42 feature: F1 edge-toggle debug overlay added. renderer.h introduces a tiny static 4-vertex GL_LINE_LOOP unit square (aabbVAO/aabbVBO, 80 bytes) using the EXISTING interleaved 5-float attribute layout, same shader, same color/transform uniforms, no new shader sources, no new assets, no new uniforms. drawAABBs() draws each entity's NON-rotated, scale*halfExtents*2 rectangle â€” the EXACT value collision.h's aabbOverlap tests â€” with orange for player (i==0) and yellow for hostiles/scenery. main.cpp: Input ctor adds GLFW_KEY_F1, adds bool debugHitboxes=false at the collisionFlashFrames scope, toggles it on F1 edge in PLAYING/PLAYING_ALT, and conditionally calls drawAABBs() between drawWorld and HUD in all drawsWorld() states (both scenes). Runtime visual verification by Cyril: F1 shows a larger non-rotating axis-aligned square wireframe behind each rotating triangle sprite â€” visually confirming the Step-37 open question: the AABB rotation-safe hitbox (1.414x1.414 units) intentionally extends past the sprite edges. Resolved: the earlier 'catches in the gap, not on contact' perception was a sprite-vs-hitbox visual gap, NOT a logic bug. aabbOverlap() has been mathematically correct all along.",
       "implementation": "Step A (e8eb867): git add assets/GAMEOVER.wav assets/win_sound.wav, commit, push. Step B: fresh clone of origin/main to D:\\tmp-verify-clone confirmed all 11 asset files cloned, cmake -S. -Bbuild succeeded, cmake --build build --config Release succeeded, dir build\\Release\\assets\\ showed both wav files with correct sizes (GAMEOVER=3,025,034; win_sound=785,082). Step C: assets/game over.png deleted from working tree (was untracked, no commit needed, git index never knew it existed). Step D: src/renderer.h gains 4 members (aabbVAO/aabbVBO handles, destroyAll cleanup, 4-vertex GL_LINE_LOOP VAO/VBO init) + drawAABBs(projection,view,entities) public method reusing shaderProgram, transformLocation, colorLocation, checkerTexture. src/main.cpp: Input{..., GLFW_KEY_F1}, bool debugHitboxes=false, F1 edge toggle in PLAYING/PLAYING_ALT, conditional drawAABBs() call after drawWorld before HUD.",
-      "verification": "Verified with real command output. (1) Git-state: before fix, git ls-files assets/ had 9 tracked files only; after e8eb867, both wav files tracked. (2) Fresh-clone build: clone \u00e2\u2020\u2019 cmake configure \u00e2\u2020\u2019 Release build exit 0, PureEngine.exe + hostile_data_test.exe produced, all 11 files copied to build/Release/assets/. (3) src changes: git diff confirmed exactly 8 hunks \u00e2\u20ac\u201d +77/-0 renderer.h, +15/-1 main.cpp. (4) Release rebuild: exit 0, zero warnings. (5) Runtime visual test by Cyril: F1 toggled square wireframes drawn per entity, non-rotating (axis-aligned while triangle sprite spins), visibly larger than the sprite. Step-37 open question resolved: perception mismatch, not bug.",
+      "verification": "Verified with real command output. (1) Git-state: before fix, git ls-files assets/ had 9 tracked files only; after e8eb867, both wav files tracked. (2) Fresh-clone build: clone â†’ cmake configure â†’ Release build exit 0, PureEngine.exe + hostile_data_test.exe produced, all 11 files copied to build/Release/assets/. (3) src changes: git diff confirmed exactly 8 hunks â€” +77/-0 renderer.h, +15/-1 main.cpp. (4) Release rebuild: exit 0, zero warnings. (5) Runtime visual test by Cyril: F1 toggled square wireframes drawn per entity, non-rotating (axis-aligned while triangle sprite spins), visibly larger than the sprite. Step-37 open question resolved: perception mismatch, not bug.",
       "depends_on": [
         37,
         41
@@ -114,9 +114,9 @@
       "name": "Shorten GAMEOVER.wav clip (8.6s -> 2.5s)",
       "status": "completed",
       "definition_of_done": "Original 8.6s GAMEOVER.wav (3,025,034 bytes, float32 stereo 44.1kHz) replaced with a 2.5s version under the SAME filename so 0 code references change; build deploys the new blob via the existing CMake copy rule; runtime death event plays the new noticeably shorter clip with smooth fade.",
-      "notes": "Known follow-up since Step 36: original GAMEOVER.wav was 8.6 seconds long, absurd for sub-second arcade deaths where a fresh run starts with SPACE immediately. Replaced via Scenario B (same filename, pure binary blob swap) so zero code or config files need string edits. Expected references (audited pre-swap via grep) were 3 production-code sites: audio.h:138 loadNamedSound string, CMakeLists.txt:103-104 POST_BUILD copy_if_different src/dst, scripts/package.ps1:13 asset-bundle list item. All three retained unchanged because filename stayed 'GAMEOVER.wav'. Expected byte size for 2.5s float32 stereo 44.1kHz: ~882,044 bytes plus header/metadata; actual on-disk size after swap = 887,824 bytes (within ~5.8KB overhead of theoretical size \u00e2\u20ac\u201d confirms ~2.5s at the claimed format). Build-time copy_if_different propagated the 887,824-byte blob into build/Release/assets/GAMEOVER.wav with a post-build timestamp, replacing the old 3,025,034-byte file \u00e2\u20ac\u201d verified by dir listing before and after rebuild. Runtime sound quality (smooth fade vs abrupt cut) and perceived duration difference require actual speaker playback from a user session, which a headless build agent cannot verify.",
+      "notes": "Known follow-up since Step 36: original GAMEOVER.wav was 8.6 seconds long, absurd for sub-second arcade deaths where a fresh run starts with SPACE immediately. Replaced via Scenario B (same filename, pure binary blob swap) so zero code or config files need string edits. Expected references (audited pre-swap via grep) were 3 production-code sites: audio.h:138 loadNamedSound string, CMakeLists.txt:103-104 POST_BUILD copy_if_different src/dst, scripts/package.ps1:13 asset-bundle list item. All three retained unchanged because filename stayed 'GAMEOVER.wav'. Expected byte size for 2.5s float32 stereo 44.1kHz: ~882,044 bytes plus header/metadata; actual on-disk size after swap = 887,824 bytes (within ~5.8KB overhead of theoretical size â€” confirms ~2.5s at the claimed format). Build-time copy_if_different propagated the 887,824-byte blob into build/Release/assets/GAMEOVER.wav with a post-build timestamp, replacing the old 3,025,034-byte file â€” verified by dir listing before and after rebuild. Runtime sound quality (smooth fade vs abrupt cut) and perceived duration difference require actual speaker playback from a user session, which a headless build agent cannot verify.",
       "implementation": "Blob-only swap: assets/GAMEOVER.wav bytes replaced in-place on disk at 9/4/2026 12:33 AM, timestamp changed from 9/2 12:45 AM (old), length dropped from 3,025,034 bytes to 887,824 bytes. Zero source files edited. Zero CMake strings edited. Zero package.ps1 list entries changed. CMake POST_BUILD's copy_if_different rule deployed the new blob automatically during the next Release rebuild because mtime/size differed from the build-output copy. Only non-binary artifact change: this Step 43 tracker entry.",
-      "verification": "Verified with real command output: (1) dir assets/GAMEOVER.wav before swap = 3,025,034 bytes / 9/2; after swap = 887,824 bytes / 9/4 12:33 AM \u00e2\u20ac\u201d confirmed. (2) git status assets/GAMEOVER.wav returned ' M' (tracked modified; not ??), proving the blob is a real tracked update to an already-indexed file \u00e2\u20ac\u201d no new git add trap like Step 36's original bug. (3) cmake --build build --config Release exit 0. (4) dir build/Release/assets/GAMEOVER.wav after rebuild = 887,824 bytes / 9/4 12:36 AM (freshly copied, mtime matches build run) \u00e2\u20ac\u201d POST_BUILD copy rule worked. (5) Runtime ear-test confirmation by Cyril: normal-death death event plays the noticeably shortened ~2.5s clip with a smooth fade-out and no abrupt cut. Perceived length matches the 8.6s -> 2.5s intent.",
+      "verification": "Verified with real command output: (1) dir assets/GAMEOVER.wav before swap = 3,025,034 bytes / 9/2; after swap = 887,824 bytes / 9/4 12:33 AM â€” confirmed. (2) git status assets/GAMEOVER.wav returned ' M' (tracked modified; not ??), proving the blob is a real tracked update to an already-indexed file â€” no new git add trap like Step 36's original bug. (3) cmake --build build --config Release exit 0. (4) dir build/Release/assets/GAMEOVER.wav after rebuild = 887,824 bytes / 9/4 12:36 AM (freshly copied, mtime matches build run) â€” POST_BUILD copy rule worked. (5) Runtime ear-test confirmation by Cyril: normal-death death event plays the noticeably shortened ~2.5s clip with a smooth fade-out and no abrupt cut. Perceived length matches the 8.6s -> 2.5s intent.",
       "depends_on": [
         36,
         42
@@ -235,7 +235,7 @@
       "name": "Stress measurement: frame-time scaling at 50/500/2000/5000 hostiles",
       "status": "completed",
       "definition_of_done": "Measure average frame time at four hostile counts using stress-test fixtures. Determine if broad-phase spatial partitioning is needed based on scaling curve.",
-      "notes": "Results show O(n) scaling: 1.21ms (50) -> 2.22ms (500) -> 5.46ms (2000) -> 12.09ms (5000). Engine handles 50-2000 hostiles comfortably. At 5000, approaching frame-budget limits but still playable. Broad-phase optimization deferred \u00e2\u20ac\u201d recommended for future games needing 2000+ entities, not blocking Phase 2.",
+      "notes": "Results show O(n) scaling: 1.21ms (50) -> 2.22ms (500) -> 5.46ms (2000) -> 12.09ms (5000). Engine handles 50-2000 hostiles comfortably. At 5000, approaching frame-budget limits but still playable. Broad-phase optimization deferred â€” recommended for future games needing 2000+ entities, not blocking Phase 2.",
       "implementation": "Used pre-built stress fixtures (hostile_stress_50/500/2000/5000.txt, tracked in commit 2d583d7). User ran each for ~15s survival, collected three 5-second frame-time averages per count. Frame reporter (main.cpp:813-877) printed 'avg frame: X ms' every 5s window.",
       "verification": "Verified by user playtest: four complete measurements collected, scaling curve plotted, verdict rendered.",
       "commit": "2d583d7",
@@ -276,8 +276,8 @@
       "name": "Genericize renderer.h: texture index slots",
       "status": "completed",
       "definition_of_done": "Renderer texture selection switched from role-gated branches to index-slot array. Role params deleted from drawWorld. All textureIds assigned uniquely: 0=player (green), 1=scenery (blue), 2=hostile (crimson), 3=hostile_alt (orange). Playtest verified all archetypes render correctly.",
-      "notes": "Crux: textureId 0 was shared by three entity types \u00e2\u20ac\u201d Step 55 reassigns slots to eliminate conflict. Data files rewritten for consistency (including all stress fixtures). drawAABBs playerRoleId param kept (debug highlighting, role-agnostic).",
-      "implementation": "renderer.h: replaced named texture fields with entityTextures[4] array, deleted role params from drawWorld, added bounds-check fallback. lifecycle.h: assigned explicit textureIds (0/1). hostile_data.h: default textureId 0\u00e2\u2020\u20192. All data files: updated with new slot numbers. main.cpp: dropped role args at drawWorld call.",
+      "notes": "Crux: textureId 0 was shared by three entity types â€” Step 55 reassigns slots to eliminate conflict. Data files rewritten for consistency (including all stress fixtures). drawAABBs playerRoleId param kept (debug highlighting, role-agnostic).",
+      "implementation": "renderer.h: replaced named texture fields with entityTextures[4] array, deleted role params from drawWorld, added bounds-check fallback. lifecycle.h: assigned explicit textureIds (0/1). hostile_data.h: default textureId 0â†’2. All data files: updated with new slot numbers. main.cpp: dropped role args at drawWorld call.",
       "verification": "Verified by playtest: player green (0), scenery blue (1), hostile crimson (2), alt orange (3), collision tint, F1 overlay, both scenes.",
       "commit": "83f7477",
       "depends_on": [
@@ -289,7 +289,7 @@
       "name": "Animation system foundation: data structures + Entity fields",
       "status": "completed",
       "definition_of_done": "animation.h defines Animation (frame sequence), AnimationFrame (index+duration), AnimationState (runtime playback state). Entity extended with animationState + animationSpeed fields. AnimationState::update(dt) advances frames autonomously. Non-breaking: Arcade/Pong both run unchanged. Verified: build clean, CTest 1/1, both games alive 6s.",
-      "notes": "Step 56 is data structure only \u00e2\u20ac\u201d no rendering integration yet (Step 57). AnimationState tracks current frame, elapsed time, playback state. Zero-duration frame hang fixed with bounded advance loop. Ownership contract documented (non-owning pointer, game-managed lifetime). Entity size +28 bytes (well under limit). No createAnimation helper (Part 3 rejected: header-only project convention, single-helper .cpp unjustified).",
+      "notes": "Step 56 is data structure only â€” no rendering integration yet (Step 57). AnimationState tracks current frame, elapsed time, playback state. Zero-duration frame hang fixed with bounded advance loop. Ownership contract documented (non-owning pointer, game-managed lifetime). Entity size +28 bytes (well under limit). No createAnimation helper (Part 3 rejected: header-only project convention, single-helper .cpp unjustified).",
       "implementation": "Created animation.h (AnimationFrame, Animation, AnimationState with bounded update + private advance helper). Extended entity.h: added #include, two new fields (animationState, animationSpeed), updated both ctors. No changes to existing functionality.",
       "verification": "Build clean (all 3 targets), CTest 1/1 passed (0.36s), Arcade alive 6s, Pong alive 6s, entity.h compiles animation.h successfully, +28 bytes per Entity (acceptable).",
       "commit": "6d3b1d2",
@@ -341,7 +341,7 @@
       "name": "Physics foundation: velocity and gravity fields",
       "status": "completed",
       "definition_of_done": "Entity gains velocity (Vec3) and gravityScale (float, default 0). physics.h defines GRAVITY constant and free functions (applyGravity, applyForce, integrate). Non-breaking: gravityScale=0 opt-in. Build clean, CTest 1/1, Arcade/Pong unchanged.",
-      "notes": "Foundation only \u00e2\u20ac\u201d no call sites yet. Step 61 wires gravity into simulation. Vec3 throughout (z=0), no Vec2. Massless model: force = acceleration. gravityScale=0 default preserves all existing entity behavior.",
+      "notes": "Foundation only â€” no call sites yet. Step 61 wires gravity into simulation. Vec3 throughout (z=0), no Vec2. Massless model: force = acceleration. gravityScale=0 default preserves all existing entity behavior.",
       "implementation": "Created physics.h: GRAVITY constexpr(-9.8), applyGravity/applyForce/integrate free functions. Extended entity.h: velocity Vec3(0,0,0), gravityScale 0.0f, both ctors updated.",
       "verification": "Build clean (all 3 targets), CTest 1/1 (0.35s), Arcade alive 6s, Pong alive 6s, gravityScale=0 non-breaking confirmed.",
       "commit": "b9ca280",
@@ -351,7 +351,7 @@
       "id": 61,
       "name": "Physics integration: applyPhysics in simulation.h",
       "status": "completed",
-      "definition_of_done": "simulation.h gains applyPhysics() \u00e2\u20ac\u201d gravity + velocity integration per entity. Gravity conditional, integration runs for any nonzero-velocity entity. Non-breaking: all existing entities have velocity=0, gravityScale=0.",
+      "definition_of_done": "simulation.h gains applyPhysics() â€” gravity + velocity integration per entity. Gravity conditional, integration runs for any nonzero-velocity entity. Non-breaking: all existing entities have velocity=0, gravityScale=0.",
       "notes": "Semantic correction: gravity gated on gravityScale>0, integration runs for any nonzero velocity (velocity-without-gravity works correctly). No game-side changes.",
       "implementation": "Added applyPhysics() to simulation.h. Includes physics.h.",
       "verification": "Build clean, CTest 1/1, Arcade/Pong unchanged.",
@@ -364,8 +364,8 @@
       "id": 62,
       "name": "Collision response: impulse-based resolveCollision",
       "status": "completed",
-      "definition_of_done": "physics.h gains resolveCollision() \u00e2\u20ac\u201d AABB overlap detection, push-out separation, velocity reflection with restitution [0,1]. Non-breaking: no callers yet.",
-      "notes": "Lives in physics.h (not collision.h \u00e2\u20ac\u201d detection stays pure). Equal-mass model. Static body limit documented (platformer prerequisite). Runtime proof pending first caller.",
+      "definition_of_done": "physics.h gains resolveCollision() â€” AABB overlap detection, push-out separation, velocity reflection with restitution [0,1]. Non-breaking: no callers yet.",
+      "notes": "Lives in physics.h (not collision.h â€” detection stays pure). Equal-mass model. Static body limit documented (platformer prerequisite). Runtime proof pending first caller.",
       "implementation": "resolveCollision() in physics.h: overlap detection, push-out, impulse reflection, restitution clamp.",
       "verification": "Build clean, CTest 1/1, Arcade/Pong unchanged. Logic hand-verified (elastic case, guard cases).",
       "commit": "85bcb02",
@@ -508,7 +508,7 @@
       "name": "Camera lerp follow (followLerp)",
       "status": "completed",
       "definition_of_done": "Camera::followLerp() added to camera.h. Arcade uses lerp (speed=5.0) instead of snap. Platformer/Pong keep snap. Non-breaking: sim unchanged (0.55s canary identical).",
-      "notes": "Purely additive \u00e2\u20ac\u201d follow() untouched. Blend clamped [0,1] against low-fps overshoot. Arcade movement now feels smoother without touching physics.",
+      "notes": "Purely additive â€” follow() untouched. Blend clamped [0,1] against low-fps overshoot. Arcade movement now feels smoother without touching physics.",
       "implementation": "Added followLerp(target, dt, speed=5.0) to camera.h. One call-site swap in main.cpp:1174.",
       "verification": "Build clean, CTest 45/45, arcade 0.55s death identical, Pong alive.",
       "commit": "db53a13",
@@ -575,6 +575,20 @@
       "commit": "b1a1acb",
       "depends_on": [
         77
+      ]
+    },
+    {
+      "id": 79,
+      "name": "2D point lighting (lit.frag + LightingState)",
+      "status": "completed",
+      "definition_of_done": "lighting.h defines PointLight + LightingState. lit.frag adds point light attenuation. drawWorld() overload accepts LightingState. Default behavior unchanged. Arcade demonstrates player light source.",
+      "notes": "Up to 4 point lights per frame. No shadows (v2.0). Default shader unchanged. Non-breaking: existing calls use flat ambient. Deviation: CMakeLists unchanged — shaders already copied via copy_directory (no per-file POST_BUILD needed).",
+      "implementation": "lighting.h: structs. lit.vert/lit.frag: attenuation 1/(1+(d*d)/(r*r)). renderer.h: litProgram + litTransform/litColor + setLightUniforms (clip-space transform) + drawWorldInternal helper (no duplication) + overloads. main.cpp: PLAYING uses warm player light (ambient 0.15,0.15,0.2 + light 1,0.8,0.6 r6), other states flat.",
+      "verification": "Build clean (4/4), CTest 47/47, canary 0.549s unchanged (PLAYING lighting visual only), Pong/Platformer alive, lit shaders copied to build/Release/assets/shaders, visual lighting verified (ambient dark + warm light follows player, edges darker).",
+      "commit": "e9fc4de",
+      "depends_on": [
+        77,
+        78
       ]
     }
   ],
