@@ -355,73 +355,102 @@ public:
                 return entities[a].depth < entities[b].depth;
             });
 
+        // --- Step 78: texture-group batching ---
+        // Group consecutive entities in depth order by textureId.
+        // For each group: one VBO upload, one texture bind, then per-entity
+        // uniform updates + offset draw calls. This reduces VBO uploads
+        // and texture binds from O(n) to O(texture groups) while keeping
+        // per-entity MVP and collision tint (shader unchanged).
+        struct BatchGroup {
+            int textureId = -2;
+            GLuint texture = 0;
+            std::vector<size_t> indices;  // indices into drawOrder
+        };
+        std::vector<BatchGroup> groups;
+        groups.reserve(8);
+
         for (size_t k = 0; k < drawOrder.size(); ++k) {
-            const size_t i = drawOrder[k];
-            const Entity& entity = entities[i];
-            // --- Step 55: per-entity texture selection by slot ---
-            // entity.textureId indexes entityTextures[] directly ([0]=player,
-            // [1]=scenery, [2]=hostile, [3]=alt — assigned game-side at
-            // construction / in data files). Out-of-range ids fall back to
-            // the legacy checker. One bind per entity is cheap (tiny
-            // textures, no state thrash).
+            const Entity& entity = entities[drawOrder[k]];
             const int slot = entity.textureId;
-            const GLuint entityTexture = (slot >= 0 && slot < TEXTURE_SLOTS)
-                ? entityTextures[slot]
-                : checkerTexture;
-            glBindTexture(GL_TEXTURE_2D, entityTexture);
-            // --- Step 57: animation frame UVs ---
-            // Base positions are constant — only the UV pairs vary per
-            // frame rect. Rebuilt + re-uploaded for EVERY draw (static
-            // or animated): a uniform path with no stale-VBO hazard
-            // where one animated draw would leak its UVs into the next
-            // static draw. Same stack-array + DYNAMIC re-upload idiom as
-            // the digit path; 60 bytes per entity per frame.
-            int frame = 0;
-            if (entity.animationState.isPlaying) {
-                const AnimationFrame* clipFrame = entity.animationState.getCurrentFrame();
-                if (clipFrame) {
-                    frame = clipFrame->frameIndex;
+            if (groups.empty() || groups.back().textureId != slot) {
+                const GLuint tex = (slot >= 0 && slot < TEXTURE_SLOTS)
+                    ? entityTextures[slot]
+                    : checkerTexture;
+                groups.push_back({slot, tex, {}});
+            }
+            groups.back().indices.push_back(k);
+        }
+
+        // Per-entity draw info (MVP + color) — built during batch construction.
+        struct DrawInfo {
+            Mat4 mvp;
+            float color[3];
+        };
+
+        for (const auto& group : groups) {
+            if (group.indices.empty()) continue;
+
+            // Build combined vertex buffer for this texture group.
+            const size_t vertexCount = group.indices.size() * 3;
+            std::vector<float> batchVerts;
+            batchVerts.reserve(vertexCount * 5);  // 5 floats per vertex (pos3 + uv2)
+
+            std::vector<DrawInfo> drawInfos;
+            drawInfos.reserve(group.indices.size());
+
+            for (size_t idx : group.indices) {
+                const size_t i = drawOrder[idx];
+                const Entity& entity = entities[i];
+
+                // --- Animation frame UVs (same as before) ---
+                int frame = 0;
+                if (entity.animationState.isPlaying) {
+                    const AnimationFrame* clipFrame = entity.animationState.getCurrentFrame();
+                    if (clipFrame) frame = clipFrame->frameIndex;
                 }
+                const UVRect frameUV = calculateFrameUV(frame, entity.cols,
+                                                        entity.cols * entity.rows);
+                const float midU = (frameUV.minU + frameUV.maxU) * 0.5f;
+                const float frameVerts[] = {
+                    -0.5f, -0.5f, 0.0f,     frameUV.minU, frameUV.minV,
+                     0.5f, -0.5f, 0.0f,     frameUV.maxU, frameUV.minV,
+                     0.0f,  0.5f, 0.0f,     midU, frameUV.maxV
+                };
+                for (int v = 0; v < 15; ++v) batchVerts.push_back(frameVerts[v]);
+
+                // --- MVP (same logic as before) ---
+                Mat4 model = entity.modelMatrix();
+                if (entity.parentIndex != -1) {
+                    model = Mat4::translation(worldPosition(entities, i))
+                          * Mat4::rotationZ(entity.rotationAngle)
+                          * Mat4::scale(entity.scale);
+                }
+                Mat4 mvp = projection * view * model;
+
+                // --- Collision tint (same as before) ---
+                float r = 1.0f, g = 1.0f, b = 1.0f;
+                if (colliding[i]) { r = 1.0f; g = 0.0f; b = 0.0f; }
+
+                drawInfos.push_back({mvp, {r, g, b}});
             }
-            // Per-entity sheet grid (full grids only: total = cols*rows).
-            const UVRect frameUV = calculateFrameUV(frame, entity.cols,
-                                                    entity.cols * entity.rows);
-            const float midU = (frameUV.minU + frameUV.maxU) * 0.5f;
-            const float frameVerts[] = {
-                -0.5f, -0.5f, 0.0f,     frameUV.minU, frameUV.minV,
-                 0.5f, -0.5f, 0.0f,     frameUV.maxU, frameUV.minV,
-                 0.0f,  0.5f, 0.0f,     midU, frameUV.maxV
-            };
+
+            // One VBO upload for the entire texture group.
+            glBindTexture(GL_TEXTURE_2D, group.texture);
             glBindBuffer(GL_ARRAY_BUFFER, worldVBO);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(frameVerts), frameVerts, GL_DYNAMIC_DRAW);
-            // Build this entity's MVP from its own data.
-            // Integration sprint: a PARENTED entity renders at its WORLD
-            // position (translation-only, Step 65 design — the adoption
-            // step the hierarchy header always deferred to). The
-            // parentless expression below is character-identical to
-            // modelMatrix(), so every pre-existing entity renders
-            // byte-identically; only parentIndex != -1 takes the branch.
-            Mat4 model = entity.modelMatrix();
-            if (entity.parentIndex != -1) {
-                model = Mat4::translation(worldPosition(entities, i))
-                      * Mat4::rotationZ(entity.rotationAngle)
-                      * Mat4::scale(entity.scale);
+            glBufferData(GL_ARRAY_BUFFER,
+                         batchVerts.size() * sizeof(float),
+                         batchVerts.data(),
+                         GL_DYNAMIC_DRAW);
+
+            // One draw call per entity (offset into batched VBO), uniforms per entity.
+            for (size_t e = 0; e < drawInfos.size(); ++e) {
+                glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &drawInfos[e].mvp.m[0][0]);
+                glUniform3f(colorLocation,
+                            drawInfos[e].color[0],
+                            drawInfos[e].color[1],
+                            drawInfos[e].color[2]);
+                glDrawArrays(GL_TRIANGLES, static_cast<GLint>(e * 3), 3);
             }
-            Mat4 mvp = projection * view * model;
-            // Upload to the 'transform' uniform (GL_FALSE: our Mat4 is
-            // already column-major, the layout OpenGL expects).
-            glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
-            // Step 10: per-draw TINT — white (1,1,1) leaves the texture
-            // untouched; red (1,0,0) zeroes green and blue, so a
-            // colliding entity renders red-tinted. Step 8's collision
-            // feedback, unchanged.
-            if (colliding[i]) {
-                glUniform3f(colorLocation, 1.0f, 0.0f, 0.0f);
-            } else {
-                glUniform3f(colorLocation, 1.0f, 1.0f, 1.0f);
-            }
-            // One draw call for this entity.
-            glDrawArrays(GL_TRIANGLES, 0, 3);
         }
     }
 
