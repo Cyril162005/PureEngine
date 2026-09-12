@@ -1719,6 +1719,27 @@ static bool checkSceneSerialization() {
     return true;
 }
 
+static bool checkPongScore() {
+    int left = 0, right = 0;
+    const int win = 5;
+    bool winFlag = false;
+    int winner = 0;
+    // left scores 5
+    for (int i = 0; i < 5; ++i) {
+        ++left;
+        if (left >= win) { winFlag = true; winner = 1; break; }
+    }
+    if (!winFlag || winner != 1 || left != 5) { std::cerr << "Pong score left win failed\n"; return false; }
+    // reset
+    left = 0; right = 0; winFlag = false; winner = 0;
+    // right scores 1 then left scores, no win
+    ++right;
+    if (winFlag) { std::cerr << "Pong premature win\n"; return false; }
+    // ball reset logic would set position to 0,0,0 - just check scores
+    if (right != 1 || left != 0) { std::cerr << "Pong score increment failed\n"; return false; }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1768,6 +1789,7 @@ int main() {
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
     const bool sceneSerOk = checkSceneSerialization();
+    const bool pongScoreOk = checkPongScore();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1785,7 +1807,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

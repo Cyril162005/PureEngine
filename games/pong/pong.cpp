@@ -114,6 +114,10 @@ int main() {
     pe::Vec3 ballVelocity(3.0f, 2.0f, 0.0f);   // world units/s, game-side state
     const float paddleSpeed = 3.0f;
     const float paddleLimitY = 3.0f;           // keeps paddles on screen
+    int leftScore = 0, rightScore = 0;
+    const int winScore = 5;
+    bool win = false;
+    int winner = 0; // 0 none, 1 left, 2 right
 
     // 8. Main loop: poll -> input -> simulate -> draw -> swap
     pe::FrameTime frameTime;
@@ -123,8 +127,15 @@ int main() {
         if (pe::Input::isDown(window, GLFW_KEY_ESCAPE)) {
             glfwSetWindowShouldClose(window, GLFW_TRUE);
         }
+        // Win reset: SPACE or R restarts after win
+        if (win && (pe::Input::isDown(window, GLFW_KEY_SPACE) || pe::Input::isDown(window, GLFW_KEY_R))) {
+            leftScore = 0; rightScore = 0; win = false; winner = 0;
+            entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
+            ballVelocity = pe::Vec3(3.0f, 2.0f, 0.0f);
+        }
         const float dt = frameTime.tick();
 
+        if (!win) {
         // Paddles (game-owned indices 0/1), clamped to the view
         if (pe::Input::isDown(window, GLFW_KEY_W)) { entities[0].position.y += paddleSpeed * dt; }
         if (pe::Input::isDown(window, GLFW_KEY_S)) { entities[0].position.y -= paddleSpeed * dt; }
@@ -179,9 +190,19 @@ int main() {
             ballVelocity.x *= -1.0f;
             entities[2].position.x = entities[1].position.x - 0.6f;   // clear overlap
         }
-        if (entities[2].position.x < -7.0f || entities[2].position.x > 7.0f) {
+        // Score: ball past side edge → point for opposite side, reset ball, win check
+        if (entities[2].position.x < -7.0f) {
+            ++rightScore;
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
+            ballVelocity.x = 3.0f; ballVelocity.y = 2.0f;
+            if (rightScore >= winScore) { win = true; winner = 2; }
+        } else if (entities[2].position.x > 7.0f) {
+            ++leftScore;
+            entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
+            ballVelocity.x = -3.0f; ballVelocity.y = 2.0f;
+            if (leftScore >= winScore) { win = true; winner = 1; }
         }
+        } // end !win
 
         // --- Step 59B: tick playing clips (ball idles on frame 0: not playing) ---
         for (pe::Entity& entity : entities) {
@@ -192,6 +213,18 @@ int main() {
 
         renderer.clear(0.0f, 0.0f, 0.0f);
         renderer.drawWorld(camera.projection(), camera.view(), entities, colliding);
+        // Scores HUD (existing digit path) + win label
+        {
+            std::string ls = std::to_string(leftScore);
+            std::string rs = std::to_string(rightScore);
+            renderer.drawDigitString(ls, -2.0f, 4.0f, camera.projection());
+            renderer.drawDigitString(rs, 1.5f, 4.0f, camera.projection());
+            if (win) {
+                std::string msg = (winner == 1 ? "LEFT WINS" : "RIGHT WINS");
+                renderer.drawTextString(msg, 0.0f, 0.5f, camera.projection(), pe::TextAlign::Center);
+                renderer.drawTextString("SPACE/R TO RESTART", 0.0f, -0.5f, camera.projection(), pe::TextAlign::Center);
+            }
+        }
         glfwSwapBuffers(window);
     }
 
