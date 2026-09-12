@@ -5,7 +5,7 @@ OpenGL, plus a small arcade game built entirely on top of it. No engine
 framework, no game library — every engine layer was written as part of the
 project itself.
 
-- **Engine** (74 tracked steps, 25–74): window/context, rendering pipeline,
+- **Engine** (83 tracked steps, 25–83): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio), file-based asset loading (stb_image PNG),
   scene structure, animation, physics (gravity, impulse, statics, character
@@ -27,7 +27,7 @@ The full build history and design decisions live in
 machine-readable twin: [`Blueprint/pure_engine_v3_steps.json`](Blueprint/pure_engine_v3_steps.json)).
 Steps 63–70 were built as tested foundations first and then adopted by the
 arcade game (Step 71); Step 72 hardened physics; Steps 73–74 added camera
-lerp and the platformer proof game (46 behavior cases green, 15/15 human
+lerp and the platformer proof game (48 behavior cases green, 15/15 human
 playtest items pass).
 
 ## Requirements
@@ -141,6 +141,8 @@ src/main.cpp            arcade game: window, audio, entities, state machine,
                          tilemap/scenes/events/console/gamepad/particles/text
 src/renderer.h          the renderer boundary: shader, VAO/VBOs, textures,
                          world draw loop, digit + full-text UI, debug overlay
+src/shader.h            shader loading: file probe, compile, link (lit/default)
+src/lighting.h          2D point lights: PointLight/LightingState, world-space
 src/resources.h         the resource-loading boundary: texture load/upload
                          (3-candidate path probe, stb_image)
 src/camera.h            the camera boundary: follow, lookAt view,
@@ -173,7 +175,7 @@ src/stb_impl.cpp        stb_image implementation unit
 games/pong/pong.cpp     Pong: second-game API proof (own CMake target)
 games/platformer/       Platformer proof game: 2 tile levels + controller +
                          scenes/events/console/particles (own CMake target)
-tests/                  hostile_data_test.cpp, 46 behavior cases (CTest)
+tests/                  hostile_data_test.cpp, 48 behavior cases (CTest)
 assets/                 committed assets (scripts generate most, not all)
 Blueprint/              blueprints + step trackers (source of step history)
 make_*.ps1              in-tree asset generators
@@ -187,7 +189,7 @@ state: the arcade game exercises rendering, input (+gamepad), audio,
 config, HUD, save, tilemaps, scenes, events, console, particles, text,
 and hierarchy; the platformer proves physics (statics, controller),
 tilemap levels, scene switching, goal events, and full TITLE→L1→L2→WIN
-flow. 46 behavior cases green; 15/15 human playtest items pass (particles
+flow. 48 behavior cases green; 15/15 human playtest items pass (particles
 and audio verified by ear/eye; Up-arrow jump shares the proven W/Space
 path but this VM never delivers that key). Deliberately deferred:
 sprite batching (measured: unneeded, see below), lighting, audio mixer,

@@ -41,6 +41,8 @@ For every claim such as "works," "passes," or "fixed," include the actual comman
 
 - `src/main.cpp`: orchestration and game loop
 - `src/renderer.h`: rendering boundary
+- `src/shader.h`: shader loading boundary
+- `src/lighting.h`: 2D lighting state boundary
 - `src/resources.h`: resource loading boundary
 - `src/camera.h`: camera boundary
 - `src/input.h`: input boundary

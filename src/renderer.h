@@ -449,9 +449,9 @@ private:
             const Entity& entity = entities[drawOrder[k]];
             const int slot = entity.textureId;
             if (groups.empty() || groups.back().textureId != slot) {
-                const GLuint tex = (slot >= 0 && slot < TEXTURE_SLOTS)
-                    ? entityTextures[slot]
-                    : checkerTexture;
+                const bool oob = (slot < 0 || slot >= TEXTURE_SLOTS);
+                if (oob) std::cerr << "renderer: textureId OOB " << slot << " -> checker fallback\n";
+                const GLuint tex = !oob ? entityTextures[slot] : checkerTexture;
                 groups.push_back({slot, tex, {}});
             }
             groups.back().indices.push_back(k);
