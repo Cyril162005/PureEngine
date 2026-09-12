@@ -23,12 +23,14 @@ $runtimeAssets = @(
     "animation_default.txt"
     "arcade_arena.txt"
     "paddle_spritesheet.png"
+    "paddle_animations.txt"
+    "platformer_step72_proof.txt"
 )
-# Single source of truth for the shipped arcade zip (F-08). CMake POST_BUILD
-# arcade bundle mirrors this list for dev runs (14 files: renderer's fixed
-# 7-texture set requires paddle_spritesheet.png even for arcade). Deliberately
-# excluded: tilemap_default.txt (sample), stress fixtures, platformer_* (own
-# bundle), paddle_animations.txt (Pong-only). This zip ships PureEngine.exe.
+# Single source of truth for the shipped arcade zip (F-08 re-fix). CMake POST_BUILD
+# arcade bundle mirrors this list for dev runs (16 files: renderer's fixed
+# 7-texture set requires paddle_* even for arcade; platformer proof ships for
+# verification). Deliberately excluded: tilemap_default.txt (sample), stress
+# fixtures, platformer_level*.txt (Platformer own bundle). This zip ships PureEngine.exe.
 
 if (-not (Test-Path $executablePath -PathType Leaf)) {
     throw "Release executable not found: $executablePath"

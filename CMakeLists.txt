@@ -95,8 +95,8 @@ target_link_libraries(${PROJECT_NAME} glfw miniaudio)
 # still find its data when launched from build/Release/ without relying
 # on the repo root working directory. This includes both the parser data
 # and the audio assets used at runtime.
-# Runtime asset bundle: copies the 14 files matching scripts/package.ps1
-# (package.ps1 is the shipping single source of truth). Build-local copy
+# Runtime asset bundle: copies the 16 files matching scripts/package.ps1
+# (package.ps1 is the shipping single source of truth, F-08). Build-local copy
 # is for dev runs; hostile_stress_*.txt are stress-test-only, excluded.
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
@@ -121,12 +121,17 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/arcade_arena.txt"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/arcade_arena.txt"
-    # paddle_spritesheet.png is a Pong/Platformer asset, but the shared
-    # renderer unconditionally loads slot 4 at init (fatal if missing), so
-    # every game bundle must carry it even when the game never draws it.
+    # paddle_* are Pong assets, but renderer slot 4 is fatal if missing, so
+    # every bundle carries them; platformer proof ships for verification (F-08).
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/paddle_spritesheet.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/paddle_animations.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/platformer_step72_proof.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/platformer_step72_proof.txt"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/checker.png"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/checker.png"
