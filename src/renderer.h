@@ -206,15 +206,27 @@ public:
         // resource boundary by Step 14. Tint rule reminder:
         // every palette color keeps red-channel content, or it would
         // render BLACK under the collision tint.
-        entityTextures[0] = loadRgbAsset("tex_player.png");
-        entityTextures[1] = loadRgbAsset("tex_scenery.png");
-        entityTextures[2] = loadRgbAsset("tex_hostile.png");
-        entityTextures[3] = loadRgbAsset("tex_hostile_alt.png");
-        entityTextures[4] = loadRgbAsset("paddle_spritesheet.png");
-        if (entityTextures[0] == 0 || entityTextures[1] == 0 || entityTextures[2] == 0 || entityTextures[3] == 0 || entityTextures[4] == 0) {
+        // Step 89: growable registry — 0..4 legacy identical, 5+ via registerTexture
+        entityTextures.clear();
+        entityTextures.reserve(8);
+        entityTextures.push_back(loadRgbAsset("tex_player.png"));       // 0
+        entityTextures.push_back(loadRgbAsset("tex_scenery.png"));      // 1
+        entityTextures.push_back(loadRgbAsset("tex_hostile.png"));      // 2
+        entityTextures.push_back(loadRgbAsset("tex_hostile_alt.png"));  // 3
+        entityTextures.push_back(loadRgbAsset("paddle_spritesheet.png")); // 4
+        if (entityTextures.size() < 5 || entityTextures[0] == 0 || entityTextures[1] == 0 || entityTextures[2] == 0 || entityTextures[3] == 0 || entityTextures[4] == 0) {
             std::cerr << "Failed to load Phase 5 entity textures (tried: assets/, ../assets/, ../../assets/)" << std::endl;
             destroyAll();
             return false;
+        }
+        // Step 89 proof: 6th texture reusing existing asset under new id 5
+        {
+            int id5 = registerTexture("tex_player.png");
+            if (id5 != 5 || entityTextures.size() != 6 || entityTextures[5] == 0) {
+                std::cerr << "Failed to register 6th texture (proof)\n";
+                destroyAll();
+                return false;
+            }
         }
 
         // --- Game Build Phase 3: the digit font atlas ---
@@ -449,7 +461,7 @@ private:
             const Entity& entity = entities[drawOrder[k]];
             const int slot = entity.textureId;
             if (groups.empty() || groups.back().textureId != slot) {
-                const bool oob = (slot < 0 || slot >= TEXTURE_SLOTS);
+                const bool oob = (slot < 0 || slot >= static_cast<int>(entityTextures.size()));
                 if (oob) std::cerr << "renderer: textureId OOB " << slot << " -> checker fallback\n";
                 const GLuint tex = !oob ? entityTextures[slot] : checkerTexture;
                 groups.push_back({slot, tex, {}});
@@ -747,6 +759,14 @@ private:
         return pe::loadRgbTexture(candidates);
     }
 
+    // Step 89: thin register helper — growable, returns new textureId (or -1 on failure)
+    int registerTexture(const std::string& baseFilename) {
+        GLuint tex = loadRgbAsset(baseFilename.c_str());
+        if (tex == 0) return -1;
+        entityTextures.push_back(tex);
+        return static_cast<int>(entityTextures.size() - 1);
+    }
+
     // Delete every owned GL object. All names default to 0 and GL
     // delete calls on 0 are no-ops, so this is safe at ANY point of a
     // partial init — the property that replaces main.cpp's four
@@ -761,9 +781,7 @@ private:
         glDeleteProgram(shaderProgram);
         glDeleteProgram(litProgram);
         glDeleteTextures(1, &fontTexture);
-        for (int i = 0; i < TEXTURE_SLOTS; ++i) {
-            glDeleteTextures(1, &entityTextures[i]);
-        }
+        for (GLuint id : entityTextures) glDeleteTextures(1, &id);
         glDeleteTextures(1, &checkerTexture);
         textVAO = 0;
         textVBO = 0;
@@ -774,9 +792,7 @@ private:
         litTransformLocation = -1;
         litColorLocation = -1;
         fontTexture = 0;
-        for (int i = 0; i < TEXTURE_SLOTS; ++i) {
-            entityTextures[i] = 0;
-        }
+        entityTextures.clear();
         checkerTexture = 0;
     }
 
@@ -791,8 +807,7 @@ private:
     GLuint textVAO = 0, textVBO = 0;    // Phase 3: the glyph quad geometry
     GLuint aabbVAO = 0, aabbVBO = 0;    // Step 42: debug unit-square line loop
     GLuint checkerTexture = 0;       // Step 10: legacy, out-of-range fallback
-    static constexpr int TEXTURE_SLOTS = 5;
-    GLuint entityTextures[TEXTURE_SLOTS] = {};  // Step 55 slots: [0]=player green, [1]=scenery blue, [2]=hostile crimson, [3]=hostile alt; Step 59B: [4]=paddle sheet
+    std::vector<GLuint> entityTextures; // Step 89: growable registry (0..4 legacy, 5+ dynamic)
     GLuint fontTexture = 0;          // Phase 3: the RGBA digit atlas
 
     // The atlas's geometry, known FROM THE GENERATOR (not queried):

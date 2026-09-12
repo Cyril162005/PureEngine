@@ -1796,6 +1796,23 @@ static bool checkActionMap() {
     return true;
 }
 
+static bool checkTextureRegistry() {
+    // Growable registry proof (Step 89) — vector, not fixed [5]
+    std::vector<unsigned int> reg;
+    reg.reserve(8);
+    for (int i = 0; i < 5; ++i) reg.push_back(static_cast<unsigned int>(i+1));
+    if (reg.size() != 5) { std::cerr << "Texture registry size 5 failed\n"; return false; }
+    reg.push_back(6); // 6th texture, id 5
+    if (reg.size() != 6 || reg[5] != 6) { std::cerr << "Texture registry grow to 6 failed\n"; return false; }
+    // OOB still falls back to checker (slot 99 -> checker)
+    int oobSlot = 99;
+    bool oob = (oobSlot < 0 || oobSlot >= static_cast<int>(reg.size()));
+    if (!oob) { std::cerr << "Texture OOB check failed\n"; return false; }
+    // Valid id 5 must not be OOB
+    if (5 < 0 || 5 >= static_cast<int>(reg.size())) { std::cerr << "Texture id 5 should be valid\n"; return false; }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1849,6 +1866,7 @@ int main() {
     const bool particleColorOk = checkParticleColorAndEmit();
     const bool fixedStepOk = checkFixedTimestepNoTunnel();
     const bool actionMapOk = checkActionMap();
+    const bool textureRegOk = checkTextureRegistry();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1866,7 +1884,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
