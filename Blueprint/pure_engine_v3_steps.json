@@ -668,6 +668,19 @@
       "verification": "Build clean (4/4), CTest 49/49 (new pong score test), Pong alive with scores/win, arcade/platformer untouched.",
       "commit": "5c70453",
       "depends_on": []
+    },
+    {
+      "id": 86,
+      "name": "Particle system depth (color via tint + emit wired)",
+      "status": "completed",
+      "definition_of_done": "Particle.color renders via Entity.tint; particlesToEntities passes p.color; Emitter::emit wired via unit test (and burst path unchanged). Header-only, non-breaking, no new features.",
+      "notes": "Minimal depth — makes existing system honest. Burst remains white, emitter colors now visible.",
+      "implementation": "entity.h: Vec3 tint (1,1,1) + ctors; particles.h: tint passthrough + header note update; renderer.h: colliding ? red : entity.tint; test checkParticleColorAndEmit verifies tint + emit no longer orphan.",
+      "verification": "Build clean (4/4), CTest 49/49 (new test), arcade burst + emitter path working.",
+      "commit": "ec4ccf2",
+      "depends_on": [
+        70
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
