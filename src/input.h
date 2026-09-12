@@ -50,6 +50,33 @@
 
 namespace pe {
 
+// Step 88: minimal action map — thin layer over raw GLFW codes.
+// Raw isDown/isEdge remain; games may opt into isAction* for cleaner code.
+enum class Action {
+    MoveLeft,
+    MoveRight,
+    MoveUp,
+    MoveDown,
+    Jump,
+    Pause,
+    Confirm,
+    Back
+};
+
+inline std::vector<int> keysForAction(Action a) {
+    switch (a) {
+        case Action::MoveLeft:  return {GLFW_KEY_A, GLFW_KEY_LEFT};
+        case Action::MoveRight: return {GLFW_KEY_D, GLFW_KEY_RIGHT};
+        case Action::MoveUp:    return {GLFW_KEY_W, GLFW_KEY_UP};
+        case Action::MoveDown:  return {GLFW_KEY_S, GLFW_KEY_DOWN};
+        case Action::Jump:      return {GLFW_KEY_SPACE, GLFW_KEY_W, GLFW_KEY_UP};
+        case Action::Pause:     return {GLFW_KEY_ESCAPE};
+        case Action::Confirm:   return {GLFW_KEY_SPACE, GLFW_KEY_ENTER};
+        case Action::Back:      return {GLFW_KEY_ESCAPE, GLFW_KEY_BACKSPACE};
+        default: return {};
+    }
+}
+
 class Input {
 public:
     // Construct with the keys that need EDGE detection (their
@@ -79,6 +106,18 @@ public:
                 return isDown(window, key) && !wasDownLastFrame[i];
             }
         }
+        return false;
+    }
+
+    // --- Step 88: action reads (thin mapping over raw keys) ---
+    // isActionDown: any mapped key down now. isActionEdge: any mapped
+    // key edge this frame. Raw isDown/isEdge remain unchanged.
+    bool isActionDown(GLFWwindow* window, Action a) const {
+        for (int k : keysForAction(a)) if (isDown(window, k)) return true;
+        return false;
+    }
+    bool isActionEdge(GLFWwindow* window, Action a) const {
+        for (int k : keysForAction(a)) if (isEdge(window, k)) return true;
         return false;
     }
 

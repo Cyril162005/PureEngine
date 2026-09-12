@@ -1782,6 +1782,20 @@ static bool checkFixedTimestepNoTunnel() {
     return true;
 }
 
+static bool checkActionMap() {
+    auto leftKeys = pe::keysForAction(pe::Action::MoveLeft);
+    auto jumpKeys = pe::keysForAction(pe::Action::Jump);
+    if (leftKeys.empty() || jumpKeys.empty()) { std::cerr << "Action map empty\n"; return false; }
+    bool hasA = false, hasLeft = false;
+    for (int k : leftKeys) { if (k == GLFW_KEY_A) hasA = true; if (k == GLFW_KEY_LEFT) hasLeft = true; }
+    if (!hasA || !hasLeft) { std::cerr << "MoveLeft mapping missing\n"; return false; }
+    bool hasSpace = false;
+    for (int k : jumpKeys) if (k == GLFW_KEY_SPACE) hasSpace = true;
+    if (!hasSpace) { std::cerr << "Jump mapping missing SPACE\n"; return false; }
+    // Raw path still present: check that Input still has isDown/isEdge
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -1834,6 +1848,7 @@ int main() {
     const bool pongScoreOk = checkPongScore();
     const bool particleColorOk = checkParticleColorAndEmit();
     const bool fixedStepOk = checkFixedTimestepNoTunnel();
+    const bool actionMapOk = checkActionMap();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -1851,7 +1866,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

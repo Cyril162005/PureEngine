@@ -373,9 +373,7 @@ int main() {
                 }
                 player->velocity.x = move * kMoveSpeed;
                 const bool jumpEdge =
-                    input.isEdge(window, GLFW_KEY_SPACE) ||
-                    input.isEdge(window, GLFW_KEY_W) ||
-                    input.isEdge(window, GLFW_KEY_UP) || padJump;
+                    input.isActionEdge(window, pe::Action::Jump) || padJump;
                 if (jumpEdge && player->wasGrounded) {
                     audio.playNext();
                     std::cout << "platformer: jump" << std::endl;
