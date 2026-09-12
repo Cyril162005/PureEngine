@@ -629,6 +629,21 @@
       "depends_on": [
         66
       ]
+    },
+    {
+      "id": 83,
+      "name": "Orphan annotation + contract freeze (docs-only)",
+      "status": "completed",
+      "definition_of_done": "simulation.h applyPhysics and particles.h Emitter::emit marked foundation-only; camera.h header states arcade uses follow()/followLerp() and move() retained; entity.h hierarchy frozen as translation-only with re-establish rule. No behavior change, docs only.",
+      "notes": "No wiring of orphans, no TRS, no follow change. Header comments only.",
+      "implementation": "simulation.h: applyPhysics comment foundation-only; particles.h: emit comment foundation-only; camera.h: contract freeze follow/move; entity.h: hierarchy attachment-only + invalid after erase note.",
+      "verification": "Build clean (4/4), CTest 48/48, no behavior change.",
+      "commit": "de4baa4",
+      "depends_on": [
+        61,
+        65,
+        70
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
