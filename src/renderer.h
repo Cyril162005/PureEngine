@@ -408,6 +408,13 @@ private:
         assert(entities.size() == colliding.size()); // F-04: contract — flags 1:1 with entities
         glUseProgram(program);
 
+        // --- Step 112: world-sprite alpha blending ---
+        // The world never enabled blending (only the text paths did), so
+        // sprites with transparent texels rendered opaque. Enable for the
+        // whole world pass; opaque sprites are unaffected (alpha == 1).
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
         // Bind the world VAO ONCE: every entity shares this vertex data —
         // only the transform differs per instance.
         glBindVertexArray(worldVAO);
@@ -564,6 +571,9 @@ private:
                 glDrawArrays(GL_TRIANGLES, static_cast<GLint>(e * 3), 3);
             }
         }
+
+        // --- Step 112: restore opaque state for anything after the world ---
+        glDisable(GL_BLEND);
     }
 
 public:
