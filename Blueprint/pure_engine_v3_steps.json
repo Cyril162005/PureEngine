@@ -983,6 +983,32 @@
       "depends_on": [
         104
       ]
+    },
+    {
+      "id": 112,
+      "name": "World-sprite alpha blending",
+      "status": "completed",
+      "definition_of_done": "World sprites render with correct alpha blending (GL_BLEND + SRC_ALPHA/ONE_MINUS_SRC_ALPHA around the world pass). Opaque sprites identical. Text paths untouched.",
+      "notes": "High-priority gap per three independent audits. Two GL state changes in drawWorldInternal; text rendering manages its own blending.",
+      "implementation": "renderer.h drawWorldInternal: glEnable(GL_BLEND)+glBlendFunc after glUseProgram, glDisable(GL_BLEND) after group loop.",
+      "verification": "Build clean (all targets), CTest 1/1 pass, arcade/platformer/pong alive, opaque visuals identical.",
+      "commit": "e69addc",
+      "depends_on": [
+        111
+      ]
+    },
+    {
+      "id": 113,
+      "name": "Runtime entity lifecycle (alive flag + spawn/kill)",
+      "status": "completed",
+      "definition_of_done": "Entity::alive (default true) + spawnEntity/killEntity helpers. Dead skipped in rendering/collision/physics/chase/anim/catch. Persistence drops dead. Index-stable, no erase. Non-breaking.",
+      "notes": "Critical gap per audit. Enables bullets/pickups/waves without manual vector manipulation. colliding[] rebuilt-from-zero each frame already yields 0 for dead slots.",
+      "implementation": "entity.h: alive field + both ctors. scene.h: spawnEntity/killEntity + save skips dead. renderer.h: batch-build skip. simulation.h: 4 loops skip. main.cpp: anim + catch guards. tests: checkEntityLifecycle (+simulation.h include).",
+      "verification": "Build clean, CTest 1/1 pass (fresh binary), all 3 games alive, default alive=true = identical behavior.",
+      "commit": "682d022",
+      "depends_on": [
+        112
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
