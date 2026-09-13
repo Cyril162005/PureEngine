@@ -781,6 +781,22 @@ if (clip != animations.end()) {
     // tuning note), built once; nothing about it changes per frame.
     pe::Camera camera;
 
+    // --- Step 116: viewport / projection follows window size ---
+    // Framebuffer resize keeps world proportions (vertical ±4.5 locked,
+    // horizontal scales with aspect). 800×600 default is identical.
+    glfwSetWindowUserPointer(window, &camera);
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int w, int h) {
+        glViewport(0, 0, w, h);
+        auto* cam = static_cast<pe::Camera*>(glfwGetWindowUserPointer(win));
+        if (cam) cam->onResize(w, h);
+    });
+    {
+        int fw, fh;
+        glfwGetFramebufferSize(window, &fw, &fh);
+        camera.onResize(fw, fh);
+        glViewport(0, 0, fw, fh);
+    }
+
     // --- Step 16: the input boundary (before the loop) ---
     // ESC and SPACE are the only GAME keys with EDGE semantics, so they are
     // the only keys registered for previous-frame tracking (snapshot

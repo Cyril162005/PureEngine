@@ -73,6 +73,20 @@ int main() {
     // 6. Camera boundary (public API): default 12x9 ortho view
     pe::Camera camera;
 
+    // --- Step 116: viewport / projection follows window size ---
+    glfwSetWindowUserPointer(window, &camera);
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int w, int h) {
+        glViewport(0, 0, w, h);
+        auto* cam = static_cast<pe::Camera*>(glfwGetWindowUserPointer(win));
+        if (cam) cam->onResize(w, h);
+    });
+    {
+        int fw, fh;
+        glfwGetFramebufferSize(window, &fw, &fh);
+        camera.onResize(fw, fh);
+        glViewport(0, 0, fw, fh);
+    }
+
     // 7. Pong entities: two paddles + one ball. Game-owned vector and
     //    game-owned indices — the engine never interprets positions.
     //    roleIds are distinct but unused by the engine (drawWorld takes

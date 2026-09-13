@@ -119,6 +119,17 @@ public:
         position.y += (target.y - position.y) * blend;
     }
 
+    // --- Step 116: aspect-correct resize ---
+    // Called on framebuffer resize; vertical world size locked at ±4.5,
+    // horizontal scales with aspect. Zero/negative size is a no-op (minimized).
+    void onResize(int width, int height) {
+        if (width <= 0 || height <= 0) return;
+        float aspect = static_cast<float>(width) / static_cast<float>(height);
+        float halfH = 4.5f;
+        float halfW = halfH * aspect;
+        proj = Mat4::orthographic(-halfW, halfW, -halfH, halfH, -1.0f, 1.0f);
+    }
+
 private:
     Vec3 position = Vec3(0.0f, 0.0f, 0.0f);   // Step 6: world-space camera position
 
@@ -133,7 +144,7 @@ private:
     // their proportions (no stretching); a world unit simply covers
     // fewer pixels (66.7 instead of 100), which is why everything
     // renders visually smaller.
-    const Mat4 proj = Mat4::orthographic(-6.0f, 6.0f, -4.5f, 4.5f, -1.0f, 1.0f);
+    Mat4 proj = Mat4::orthographic(-6.0f, 6.0f, -4.5f, 4.5f, -1.0f, 1.0f);
 };
 
 } // namespace pe

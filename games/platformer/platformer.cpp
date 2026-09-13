@@ -207,6 +207,20 @@ int main() {
     }
 
     pe::Camera camera;
+
+    // --- Step 116: viewport / projection follows window size ---
+    glfwSetWindowUserPointer(window, &camera);
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int w, int h) {
+        glViewport(0, 0, w, h);
+        auto* cam = static_cast<pe::Camera*>(glfwGetWindowUserPointer(win));
+        if (cam) cam->onResize(w, h);
+    });
+    {
+        int fw, fh;
+        glfwGetFramebufferSize(window, &fw, &fh);
+        camera.onResize(fw, fh);
+        glViewport(0, 0, fw, fh);
+    }
     pe::Input input{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE, GLFW_KEY_GRAVE_ACCENT,
                     GLFW_KEY_ENTER, GLFW_KEY_BACKSPACE, GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_W,
                     GLFW_KEY_A, GLFW_KEY_B, GLFW_KEY_C, GLFW_KEY_D, GLFW_KEY_E,
