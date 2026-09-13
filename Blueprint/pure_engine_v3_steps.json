@@ -878,6 +878,20 @@
       "verification": "Build clean (4/4), CTest 56/56 (new component test), games alive.",
       "commit": "364d52b",
       "depends_on": []
+    },
+    {
+      "id": 104,
+      "name": "Editor-time scene dump/load (console commands)",
+      "status": "completed",
+      "definition_of_done": "Console commands scene_dump and scene_reload. Round-trip test proves entity count + position + tilemap survive serialization. Uses Step 81 format exactly.",
+      "notes": "No visual editor. No new format. Reuses saveSceneToFile/loadSceneFromFile. savedata/ already exists.",
+      "implementation": "main.cpp: two console commands (dump to savedata/scene_dump.txt with counts, reload replaces activeScene entities/tilemap and rebuilds cache). scene.h: save/load handle explicit savedata/ paths via filesystem create_directories and 4-candidate probe. Test checkSceneDumpReload round-trip.",
+      "verification": "Build clean (4/4), CTest 58/58 (new dump test), console dump/reload works, round-trip proven.",
+      "commit": "5a683fd",
+      "depends_on": [
+        81,
+        103
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
