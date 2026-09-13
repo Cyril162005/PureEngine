@@ -109,6 +109,7 @@ inline std::vector<Entity> buildInitialEntities(const HostileDefaults& hostile =
         entities.back().depth = 2;  // hostile — draws last (foreground layer)
         entities.back().roleId = static_cast<int>(ArcadeRole::Hostile);
         entities.back().moveSpeed = definition.baseSpeed;
+        entities.back().currentClipName = "walk_left"; // Step 106: keep clip name for rebuild
     }
     // --- Integration sprint: the hierarchy companion ---
     // A small spinning satellite PARENTED to the player (index 0 by the
