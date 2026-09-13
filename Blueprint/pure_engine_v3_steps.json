@@ -892,6 +892,19 @@
         81,
         103
       ]
+    },
+    {
+      "id": 105,
+      "name": "Loadable input rebinding table",
+      "status": "completed",
+      "definition_of_done": "loadInputBindings() parses Action=Key1,Key2 from file. Hard-coded defaults remain fallback. isActionDown/isActionEdge unchanged. CTest proves remap + missing-file safety. All 3 games work with defaults.",
+      "notes": "Mirrors hostile_data.h discipline (no-throw, warn, fallback, 3-probe). No UI, no hot-reload. Key name lookup covers common GLFW keys.",
+      "implementation": "input.h: loadInputBindings() + keyNameToGLFW(). assets/input_bindings.txt. main.cpp: load at startup. CMake: copy asset. Test checkInputBindings.",
+      "verification": "Build clean, CTest 59/59, binding file loads, missing file safe, canary unchanged.",
+      "commit": "4119ea1",
+      "depends_on": [
+        88
+      ]
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
