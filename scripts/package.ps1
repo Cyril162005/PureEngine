@@ -25,6 +25,7 @@ $runtimeAssets = @(
     "paddle_spritesheet.png"
     "paddle_animations.txt"
     "platformer_step72_proof.txt"
+    "input_bindings.txt"
 )
 # Single source of truth for the shipped arcade zip (F-08 re-fix). CMake POST_BUILD
 # arcade bundle mirrors this list for dev runs (16 files: renderer's fixed

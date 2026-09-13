@@ -1850,6 +1850,35 @@ static bool checkBinaryBlob() {
     return true;
 }
 
+static bool checkInputBindings() {
+    const std::string fname = "input_bindings_test_tmp.txt";
+    {
+        std::filesystem::create_directories("assets");
+        std::ofstream out("assets/" + fname);
+        if (!out) {
+            std::filesystem::create_directories("../assets");
+            out.open("../assets/" + fname);
+        }
+        if (!out) { std::cerr << "Failed to write bindings test file\n"; return false; }
+        out << "MoveLeft=A,LEFT\nJump=SPACE\nUnknownAction=SPACE\nBadLineNoEquals\nMoveRight=UNKNOWNKEY\n";
+    }
+    bool ok = pe::loadInputBindings(fname);
+    std::remove(("assets/" + fname).c_str());
+    std::remove(("../assets/" + fname).c_str());
+    std::remove(("../../assets/" + fname).c_str());
+    if (!ok) { std::cerr << "Bindings load should succeed with some valid lines\n"; return false; }
+    auto leftKeys = pe::keysForAction(pe::Action::MoveLeft);
+    bool hasA = false;
+    for (int k : leftKeys) if (k == GLFW_KEY_A) hasA = true;
+    if (!hasA) { std::cerr << "MoveLeft remap failed\n"; return false; }
+    auto jumpKeys = pe::keysForAction(pe::Action::Jump);
+    if (jumpKeys.size() != 1 || jumpKeys[0] != GLFW_KEY_SPACE) { std::cerr << "Jump remap failed\n"; return false; }
+    bool missing = pe::loadInputBindings("no_such_bindings_xyz.txt");
+    if (missing) { std::cerr << "Missing file should return false\n"; return false; }
+    pe::loadInputBindings("input_bindings.txt");
+    return true;
+}
+
 static bool checkSceneDumpReload() {
     pe::Scene src;
     src.name = "dump_test";
@@ -2033,6 +2062,7 @@ int main() {
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
+    const bool inputBindingsOk = checkInputBindings();
     const bool componentOk = checkComponentHelpers();
     const bool sceneDumpOk = checkSceneDumpReload();
 
@@ -2052,7 +2082,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !componentOk || !sceneDumpOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

@@ -1,0 +1,10 @@
+# Input bindings for PureEngine
+# Format: Action=Key1,Key2 (comma-separated)
+MoveLeft=A,LEFT
+MoveRight=D,RIGHT
+MoveUp=W,UP
+MoveDown=S,DOWN
+Jump=SPACE,W,UP
+Pause=ESCAPE
+Confirm=SPACE,ENTER
+Console=GRAVE

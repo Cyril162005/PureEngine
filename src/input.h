@@ -47,6 +47,12 @@
 
 #include <GLFW/glfw3.h>   // glfwGetKey, GLFW_PRESS, raw GLFW key codes
 #include <vector>         // the tracked-key list and previous-frame state
+#include <string>         // Step 105: action/key names
+#include <map>            // Step 105: override table (ordered, no hash needed)
+#include <cctype>         // Step 105: key name parsing
+#include <fstream>        // Step 105: bindings file probe
+#include <iostream>       // Step 105: unknown action/key warnings
+#include <sstream>        // Step 105: line parsing
 
 namespace pe {
 
@@ -63,7 +69,15 @@ enum class Action {
     Back
 };
 
+inline std::map<Action, std::vector<int>>& actionOverrides() {
+    static std::map<Action, std::vector<int>> m;
+    return m;
+}
+
 inline std::vector<int> keysForAction(Action a) {
+    auto& ov = actionOverrides();
+    auto it = ov.find(a);
+    if (it != ov.end()) return it->second;
     switch (a) {
         case Action::MoveLeft:  return {GLFW_KEY_A, GLFW_KEY_LEFT};
         case Action::MoveRight: return {GLFW_KEY_D, GLFW_KEY_RIGHT};
@@ -75,6 +89,93 @@ inline std::vector<int> keysForAction(Action a) {
         case Action::Back:      return {GLFW_KEY_ESCAPE, GLFW_KEY_BACKSPACE};
         default: return {};
     }
+}
+
+inline int keyNameToGLFW(const std::string& name) {
+    std::string n;
+    n.reserve(name.size());
+    for (char c : name) n.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+    if (n == "A") return GLFW_KEY_A; if (n == "B") return GLFW_KEY_B; if (n == "C") return GLFW_KEY_C;
+    if (n == "D") return GLFW_KEY_D; if (n == "E") return GLFW_KEY_E; if (n == "F") return GLFW_KEY_F;
+    if (n == "G") return GLFW_KEY_G; if (n == "H") return GLFW_KEY_H; if (n == "I") return GLFW_KEY_I;
+    if (n == "J") return GLFW_KEY_J; if (n == "K") return GLFW_KEY_K; if (n == "L") return GLFW_KEY_L;
+    if (n == "M") return GLFW_KEY_M; if (n == "N") return GLFW_KEY_N; if (n == "O") return GLFW_KEY_O;
+    if (n == "P") return GLFW_KEY_P; if (n == "Q") return GLFW_KEY_Q; if (n == "R") return GLFW_KEY_R;
+    if (n == "S") return GLFW_KEY_S; if (n == "T") return GLFW_KEY_T; if (n == "U") return GLFW_KEY_U;
+    if (n == "V") return GLFW_KEY_V; if (n == "W") return GLFW_KEY_W; if (n == "X") return GLFW_KEY_X;
+    if (n == "Y") return GLFW_KEY_Y; if (n == "Z") return GLFW_KEY_Z;
+    if (n == "0") return GLFW_KEY_0; if (n == "1") return GLFW_KEY_1; if (n == "2") return GLFW_KEY_2;
+    if (n == "3") return GLFW_KEY_3; if (n == "4") return GLFW_KEY_4; if (n == "5") return GLFW_KEY_5;
+    if (n == "6") return GLFW_KEY_6; if (n == "7") return GLFW_KEY_7; if (n == "8") return GLFW_KEY_8;
+    if (n == "9") return GLFW_KEY_9;
+    if (n == "LEFT") return GLFW_KEY_LEFT; if (n == "RIGHT") return GLFW_KEY_RIGHT;
+    if (n == "UP") return GLFW_KEY_UP; if (n == "DOWN") return GLFW_KEY_DOWN;
+    if (n == "SPACE") return GLFW_KEY_SPACE; if (n == "ESCAPE") return GLFW_KEY_ESCAPE; if (n == "ESC") return GLFW_KEY_ESCAPE;
+    if (n == "ENTER") return GLFW_KEY_ENTER; if (n == "GRAVE") return GLFW_KEY_GRAVE_ACCENT; if (n == "GRAVE_ACCENT") return GLFW_KEY_GRAVE_ACCENT;
+    if (n == "BACKSPACE") return GLFW_KEY_BACKSPACE; if (n == "PERIOD") return GLFW_KEY_PERIOD; if (n == "MINUS") return GLFW_KEY_MINUS;
+    return -1;
+}
+
+inline bool loadInputBindings(const std::string& filename) {
+    const std::string candidates[3] = {std::string("assets/") + filename, std::string("../assets/") + filename, std::string("../../assets/") + filename};
+    std::ifstream in;
+    for (int k = 0; k < 3; ++k) { in.open(candidates[k]); if (in) break; in.clear(); }
+    if (!in) return false; // missing → keep defaults
+    auto trim = [](std::string s) -> std::string {
+        std::size_t a = s.find_first_not_of(" \t\r\n");
+        if (a == std::string::npos) return "";
+        std::size_t b = s.find_last_not_of(" \t\r\n");
+        return s.substr(a, b - a + 1);
+    };
+    auto toLower = [](std::string s) {
+        for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        return s;
+    };
+    std::string line;
+    bool anyOk = false;
+    std::unordered_map<Action, std::vector<int>> parsed;
+    while (std::getline(in, line)) {
+        std::string t = trim(line);
+        if (t.empty() || t[0] == '#') continue;
+        auto eq = t.find('=');
+        if (eq == std::string::npos) { std::cerr << "input_bindings: malformed line (no '='): " << t << "\n"; continue; }
+        std::string actName = trim(t.substr(0, eq));
+        std::string keysStr = trim(t.substr(eq + 1));
+        if (actName.empty() || keysStr.empty()) { std::cerr << "input_bindings: malformed line (empty action/keys): " << t << "\n"; continue; }
+        std::string lowerAct;
+        lowerAct.reserve(actName.size());
+        for (char c : actName) lowerAct.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        Action act;
+        bool known = true;
+        if (lowerAct == "moveleft") act = Action::MoveLeft;
+        else if (lowerAct == "moveright") act = Action::MoveRight;
+        else if (lowerAct == "moveup") act = Action::MoveUp;
+        else if (lowerAct == "movedown") act = Action::MoveDown;
+        else if (lowerAct == "jump") act = Action::Jump;
+        else if (lowerAct == "pause") act = Action::Pause;
+        else if (lowerAct == "confirm") act = Action::Confirm;
+        else if (lowerAct == "back") act = Action::Back;
+        else if (lowerAct == "console") act = Action::Back; // alias
+        else { std::cerr << "input_bindings: unknown action '" << actName << "'\n"; continue; }
+        std::vector<int> keys;
+        std::stringstream ss(keysStr);
+        std::string tok;
+        while (std::getline(ss, tok, ',')) {
+            std::string kn = trim(tok);
+            if (kn.empty()) continue;
+            int k = keyNameToGLFW(kn);
+            if (k < 0) { std::cerr << "input_bindings: unknown key '" << kn << "'\n"; continue; }
+            keys.push_back(k);
+        }
+        if (keys.empty()) { std::cerr << "input_bindings: no valid keys for action '" << actName << "'\n"; continue; }
+        parsed[act] = keys;
+        anyOk = true;
+    }
+    if (!anyOk) return false;
+    // Commit parsed overrides atomically
+    auto& ov = actionOverrides();
+    for (auto& kv : parsed) ov[kv.first] = kv.second;
+    return true;
 }
 
 class Input {
