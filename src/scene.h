@@ -35,6 +35,7 @@
 
 #include <cstddef>  // std::size_t
 #include <cstdio>    // std::rename for atomic save
+#include <filesystem>
 #include <fstream>   // scene file I/O
 #include <iomanip>   // fixed setprecision for save
 #include <sstream>   // line parsing
@@ -240,18 +241,34 @@ inline std::vector<std::string> sceneSplitComma(const std::string& s) {
 // entity=px,py,pz,rotSpeed,sx,sy,sz,hx,hy,hz,texId,depth,roleId,moveSpeed  (repeated)
 inline bool saveSceneToFile(const Scene& s, const std::string& fileName) {
     if (fileName.empty() || s.name.empty()) return false;
-    const std::string dirs[3] = {"assets/", "../assets/", "../../assets/"};
+    // Handle explicit paths (savedata/...) directly; else probe assets/
+    bool explicitPath = fileName.find('/') != std::string::npos || fileName.find('\\') != std::string::npos || (fileName.size() > 1 && fileName[1] == ':');
     std::string writePath;
     std::string tmpPath;
     std::ofstream out;
-    for (int i = 0; i < 3; ++i) {
-        writePath = dirs[i] + fileName;
+    if (explicitPath) {
+        // Ensure directory exists for savedata/ etc.
+        std::size_t slash = fileName.find_last_of("/\\");
+        if (slash != std::string::npos) {
+            std::string dir = fileName.substr(0, slash);
+            std::error_code ec;
+            std::filesystem::create_directories(dir, ec);
+        }
+        writePath = fileName;
         tmpPath = writePath + ".tmp";
         out.open(tmpPath, std::ios::binary | std::ios::trunc);
-        if (out) break;
-        out.clear();
+        if (!out) return false;
+    } else {
+        const std::string dirs[3] = {"assets/", "../assets/", "../../assets/"};
+        for (int i = 0; i < 3; ++i) {
+            writePath = dirs[i] + fileName;
+            tmpPath = writePath + ".tmp";
+            out.open(tmpPath, std::ios::binary | std::ios::trunc);
+            if (out) break;
+            out.clear();
+        }
+        if (!out) return false;
     }
-    if (!out) return false;
     out << "# scene v1\n";
     out << "scene=" << s.name << "\n";
     if (!s.tilemapFile.empty()) {
@@ -278,14 +295,28 @@ inline bool saveSceneToFile(const Scene& s, const std::string& fileName) {
 
 // Load Scene from assets/<fileName> via 3-candidate probe. Strict whole-file:
 // any malformed line or missing scene= causes false and leaves out untouched.
+// Explicit paths (savedata/...) are tried directly first.
 inline bool loadSceneFromFile(const std::string& fileName, Scene& out) {
     if (fileName.empty()) return false;
-    const std::string candidates[3] = {std::string("assets/") + fileName, std::string("../assets/") + fileName, std::string("../../assets/") + fileName};
+    bool explicitPath = fileName.find('/') != std::string::npos || fileName.find('\\') != std::string::npos || (fileName.size() > 1 && fileName[1] == ':');
+    std::string candidates[4];
+    int candCount = 0;
+    if (explicitPath) {
+        candidates[candCount++] = fileName;
+        candidates[candCount++] = std::string("../") + fileName;
+        candidates[candCount++] = std::string("../../") + fileName;
+    } else {
+        candidates[0] = std::string("assets/") + fileName;
+        candidates[1] = std::string("../assets/") + fileName;
+        candidates[2] = std::string("../../assets/") + fileName;
+        candCount = 3;
+    }
     std::ifstream in;
     std::string used;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < candCount; ++i) {
         in.open(candidates[i]);
         if (in) { used = candidates[i]; break; }
+        in.clear();
     }
     if (!in) return false;
     Scene tmp;

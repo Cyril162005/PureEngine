@@ -1850,6 +1850,29 @@ static bool checkBinaryBlob() {
     return true;
 }
 
+static bool checkSceneDumpReload() {
+    pe::Scene src;
+    src.name = "dump_test";
+    pe::Entity e1(pe::Vec3(1.0f, 2.0f, 0.0f), 0.5f, pe::Vec3(1,1,1));
+    e1.roleId = 1; e1.textureId = 0; e1.depth = 1;
+    pe::Entity e2(pe::Vec3(-1.0f, 0.0f, 0.0f), -1.0f, pe::Vec3(0.8f,0.8f,1));
+    e2.roleId = 2; e2.textureId = 2; e2.depth = 2;
+    src.entities = {e1, e2, e1};
+    src.tilemapFile = "arcade_arena.txt";
+    src.tilemap = pe::loadTilemap(src.tilemapFile);
+    std::filesystem::create_directories("savedata");
+    const std::string path = "savedata/scene_dump.txt";
+    std::remove(path.c_str()); std::remove(("../" + path).c_str());
+    if (!pe::saveSceneToFile(src, path)) { std::cerr << "Scene dump save failed\n"; return false; }
+    pe::Scene loaded;
+    if (!pe::loadSceneFromFile(path, loaded)) { std::cerr << "Scene dump load failed\n"; std::remove(path.c_str()); return false; }
+    if (loaded.entities.size() != 3) { std::cerr << "Dump entity count\n"; std::remove(path.c_str()); return false; }
+    if (!assertFloatClose(loaded.entities[0].position.x, 1.0f)) { std::cerr << "Dump pos mismatch\n"; std::remove(path.c_str()); return false; }
+    if (loaded.tilemap.width != src.tilemap.width || loaded.tilemap.tiles.size() != src.tilemap.tiles.size()) { std::cerr << "Dump tilemap mismatch\n"; std::remove(path.c_str()); return false; }
+    std::remove(path.c_str()); std::remove(("../" + path).c_str()); std::remove(("../../" + path).c_str());
+    return true;
+}
+
 static bool checkTimeScale() {
     pe::FrameTime ft;
     if (!assertFloatClose(ft.getTimeScale(), 1.0f) || ft.isPaused()) { std::cerr << "Time default failed\n"; return false; }
@@ -2011,6 +2034,7 @@ int main() {
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
     const bool componentOk = checkComponentHelpers();
+    const bool sceneDumpOk = checkSceneDumpReload();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -2028,7 +2052,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !componentOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !componentOk || !sceneDumpOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

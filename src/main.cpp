@@ -1021,6 +1021,24 @@ int main() {
              << " sfx " << audio.getSfxVolume();
         return echo.str();
     });
+    pe::registerCommand(console, "scene_dump", [&](const std::vector<std::string>&) {
+        std::filesystem::create_directories("savedata");
+        bool ok = pe::saveSceneToFile(*activeScene, "savedata/scene_dump.txt");
+        if (ok) return std::string("Scene dumped to savedata/scene_dump.txt: " + std::to_string(activeScene->entities.size()) + " entities, tilemap " + std::to_string(activeScene->tilemap.tiles.size()) + " tiles");
+        return std::string("scene_dump failed");
+    });
+    pe::registerCommand(console, "scene_reload", [&](const std::vector<std::string>&) {
+        pe::Scene loaded;
+        if (!pe::loadSceneFromFile("savedata/scene_dump.txt", loaded)) return std::string("scene_reload failed: file not found or malformed");
+        activeScene->entities = loaded.entities;
+        activeScene->tilemap = loaded.tilemap;
+        activeScene->tilemapFile = loaded.tilemapFile;
+        activeScene->name = loaded.name;
+        colliding = pe::flagsForCount(activeScene->entities.size());
+        cachedTileEntities = pe::tilemapToEntities(activeScene->tilemap, 0, 3);
+        cachedTileClear.assign(cachedTileEntities.size(), 0);
+        return std::string("Scene reloaded: " + std::to_string(loaded.entities.size()) + " entities");
+    });
 
     // --- Step 13: the digit-string glyph path moved to the renderer ---
     // The lambda that used to live here — per-glyph atlas UVs, quad
