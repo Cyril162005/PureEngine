@@ -107,13 +107,12 @@ inline void chasePlayer(std::vector<Entity>& entities,
     }
 }
 
-// --- Physics integration (Step 61, new — no main.cpp predecessor) ---
-// Step 83: foundation-only — no caller yet (arcade + platformer use character
-// controller; this remains for future free-physics games). Gravity is
-// conditional (inert entities skip it); integration runs for any entity with
-// nonzero velocity, so a hurled object coasts even with gravityScale 0.
-// Static entities are never written (no FP churn, no observable change while
-// nothing opts in).
+// --- Physics integration (Step 61; wired in Step 108) ---
+// Called in main.cpp PLAYING loop (Step 108): pe::applyPhysics(activeScene->entities, dt).
+// Gravity is conditional (inert entities skip it); integration runs for any
+// entity with nonzero velocity, so a hurled object coasts even with
+// gravityScale 0. Static entities are never written (no FP churn, no
+// observable change while nothing opts in).
 inline void applyPhysics(std::vector<Entity>& entities, float dt) {
     for (Entity& entity : entities) {
         if (!entity.alive) continue;  // Step 113: dead bodies don't integrate

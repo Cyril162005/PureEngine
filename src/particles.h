@@ -87,11 +87,10 @@ inline void spawnParticle(std::vector<Particle>& out, const Vec3& pos,
 
 // Rate-based emission: accumulator += rate*dt, each whole unit spawns
 // one particle (uniform XY-disc direction, uniform speed/life ranges).
-// Step 83: foundation-only — no caller yet (arcade uses spawnParticle
-// burst directly; this continuous emitter remains for future games).
-// dt <= 0 or non-positive rate: nothing. While out is at maxParticles
-// the spawn is SKIPPED (drop-newest) and its budget unit is consumed —
-// no backlog burst when room frees. See the header note for the rng.
+// Called in main.cpp PLAYING loop (Step 110): pe::emit(dustEmitter, burst, dt)
+// for player dust. dt <= 0 or non-positive rate: nothing. While out is at
+// maxParticles the spawn is SKIPPED (drop-newest) and its budget unit is
+// consumed — no backlog burst when room frees. See the header note for rng.
 inline void emit(Emitter& e, std::vector<Particle>& out, float dt) {
     if (dt <= 0.0f || e.spawnRate <= 0.0f) {
         return;
