@@ -1724,6 +1724,108 @@ static bool checkSceneSerialization() {
     return true;
 }
 
+// --- Step 111: persistence v2 round-trip (all extended fields survive) ---
+static bool checkScenePersistenceV2() {
+    pe::Scene src;
+    src.name = "persist_v2";
+    pe::Entity e(pe::Vec3(1.5f, -2.25f, 0.5f), 2.0f, pe::Vec3(1.5f, 0.5f, 1.0f), pe::Vec3(0.4f, 0.3f, 0.0f), 3);
+    e.rotationAngle = 1.234f;
+    e.depth = 2; e.roleId = 7; e.moveSpeed = 3.5f;
+    e.velocity = pe::Vec3(4.0f, -5.0f, 0.25f);
+    e.gravityScale = 1.5f;
+    e.isStatic = true;
+    e.coyoteTime = 0.2f; e.jumpImpulse = 9.5f; e.maxFallSpeed = 30.0f;
+    e.tint = pe::Vec3(0.5f, 0.25f, 0.75f);
+    e.cols = 4; e.rows = 2;
+    e.health = 42.5f; e.timer = 3.25f;
+    e.tag = "enemy, fast";  // embedded comma exercises quote-aware split
+    e.parentIndex = 0;
+    e.animationSpeed = 2.0f;
+    e.currentClipName = "run";
+    pe::Entity e2;  // all defaults must round-trip too
+    src.entities = {e, e2};
+    const std::string fname = "scene_test_persist_v2.txt";
+    auto rmAll = [&](const std::string& f){ std::remove(("assets/" + f).c_str()); std::remove(("../assets/" + f).c_str()); std::remove(("../../assets/" + f).c_str()); std::remove(("assets/" + f + ".tmp").c_str()); std::remove(("../assets/" + f + ".tmp").c_str()); };
+    rmAll(fname);
+    if (!pe::saveSceneToFile(src, fname)) { std::cerr << "PersistV2: save failed\n"; return false; }
+    pe::Scene loaded;
+    if (!pe::loadSceneFromFile(fname, loaded)) { std::cerr << "PersistV2: load failed\n"; rmAll(fname); return false; }
+    if (loaded.name != src.name || loaded.entities.size() != 2) { std::cerr << "PersistV2: header/entity count\n"; rmAll(fname); return false; }
+    const pe::Entity& a = src.entities[0];
+    const pe::Entity& b = loaded.entities[0];
+    bool ok = assertFloatClose(a.position.x, b.position.x) && assertFloatClose(a.position.y, b.position.y) && assertFloatClose(a.position.z, b.position.z)
+        && assertFloatClose(a.rotationAngle, b.rotationAngle) && assertFloatClose(a.rotationSpeed, b.rotationSpeed)
+        && assertFloatClose(a.scale.x, b.scale.x) && assertFloatClose(a.scale.y, b.scale.y) && assertFloatClose(a.scale.z, b.scale.z)
+        && assertFloatClose(a.halfExtents.x, b.halfExtents.x) && assertFloatClose(a.halfExtents.y, b.halfExtents.y) && assertFloatClose(a.halfExtents.z, b.halfExtents.z)
+        && assertFloatClose(a.moveSpeed, b.moveSpeed)
+        && assertFloatClose(a.velocity.x, b.velocity.x) && assertFloatClose(a.velocity.y, b.velocity.y) && assertFloatClose(a.velocity.z, b.velocity.z)
+        && assertFloatClose(a.gravityScale, b.gravityScale)
+        && assertFloatClose(a.coyoteTime, b.coyoteTime) && assertFloatClose(a.jumpImpulse, b.jumpImpulse) && assertFloatClose(a.maxFallSpeed, b.maxFallSpeed)
+        && assertFloatClose(a.tint.x, b.tint.x) && assertFloatClose(a.tint.y, b.tint.y) && assertFloatClose(a.tint.z, b.tint.z)
+        && assertFloatClose(a.health, b.health) && assertFloatClose(a.timer, b.timer)
+        && assertFloatClose(a.animationSpeed, b.animationSpeed)
+        && a.textureId == b.textureId && a.depth == b.depth && a.roleId == b.roleId
+        && a.isStatic == b.isStatic && a.cols == b.cols && a.rows == b.rows
+        && a.parentIndex == b.parentIndex && a.tag == b.tag && a.currentClipName == b.currentClipName;
+    if (!ok) { std::cerr << "PersistV2: extended field mismatch\n"; rmAll(fname); return false; }
+    // Defaults entity round-trips identically (incl. jumpImpulse 12.0 ctor default)
+    const pe::Entity& d0 = src.entities[1];
+    const pe::Entity& d1 = loaded.entities[1];
+    if (!assertFloatClose(d0.jumpImpulse, d1.jumpImpulse) || !assertFloatClose(d0.coyoteTime, d1.coyoteTime)
+        || d0.tag != d1.tag || d0.currentClipName != d1.currentClipName || d0.isStatic != d1.isStatic
+        || d0.parentIndex != d1.parentIndex || d0.cols != d1.cols) { std::cerr << "PersistV2: default entity mismatch\n"; rmAll(fname); return false; }
+    rmAll(fname);
+    return true;
+}
+
+// --- Step 111: v1 backward compatibility (14 fields + correct defaults) ---
+static bool checkScenePersistenceV1Compat() {
+    const std::string fname = "scene_test_persist_v1.txt";
+    auto rmAll = [&](const std::string& f){ std::remove(("assets/" + f).c_str()); std::remove(("../assets/" + f).c_str()); std::remove(("../../assets/" + f).c_str()); };
+    rmAll(fname);
+    {
+        std::ofstream f("assets/" + fname, std::ios::binary | std::ios::trunc);
+        if (!f) { std::cerr << "PersistV1: cannot write fixture\n"; return false; }
+        f << "# scene v1\nscene=v1compat\nentity=1.0000,2.0000,0.0000,1.0000,1.0000,1.0000,1.0000,0.5000,0.5000,0.0000,2,2,2,1.8000\n";
+    }
+    pe::Scene loaded;
+    loaded.name = "before";
+    if (!pe::loadSceneFromFile(fname, loaded)) { std::cerr << "PersistV1: load failed\n"; rmAll(fname); return false; }
+    if (loaded.name != "v1compat" || loaded.entities.size() != 1) { std::cerr << "PersistV1: header/count\n"; rmAll(fname); return false; }
+    const pe::Entity& b = loaded.entities[0];
+    bool ok = assertFloatClose(b.position.x, 1.0f) && assertFloatClose(b.position.y, 2.0f)
+        && assertFloatClose(b.rotationSpeed, 1.0f) && assertFloatClose(b.moveSpeed, 1.8f)
+        && b.textureId == 2 && b.depth == 2 && b.roleId == 2
+        && assertFloatClose(b.rotationAngle, 0.0f)
+        && assertFloatClose(b.velocity.x, 0.0f) && assertFloatClose(b.gravityScale, 0.0f) && !b.isStatic
+        && assertFloatClose(b.coyoteTime, 0.1f) && assertFloatClose(b.jumpImpulse, 7.0f) && assertFloatClose(b.maxFallSpeed, 25.0f)
+        && assertFloatClose(b.tint.x, 1.0f) && b.cols == 1 && b.rows == 1
+        && assertFloatClose(b.health, 100.0f) && assertFloatClose(b.timer, 0.0f)
+        && b.tag.empty() && b.parentIndex == -1
+        && assertFloatClose(b.animationSpeed, 1.0f) && b.currentClipName.empty();
+    if (!ok) { std::cerr << "PersistV1: field/default mismatch\n"; rmAll(fname); return false; }
+    rmAll(fname);
+    return true;
+}
+
+// --- Step 111: unknown version is rejected without touching out ---
+static bool checkSceneVersionUnknown() {
+    const std::string fname = "scene_test_persist_v99.txt";
+    auto rmAll = [&](const std::string& f){ std::remove(("assets/" + f).c_str()); std::remove(("../assets/" + f).c_str()); std::remove(("../../assets/" + f).c_str()); };
+    rmAll(fname);
+    {
+        std::ofstream f("assets/" + fname, std::ios::binary | std::ios::trunc);
+        if (!f) { std::cerr << "PersistV99: cannot write fixture\n"; return false; }
+        f << "# scene v99\nscene=nope\nentity=1.0000,2.0000,0.0000,1.0000,1.0000,1.0000,1.0000,0.5000,0.5000,0.0000,2,2,2,1.8000\n";
+    }
+    pe::Scene out;
+    out.name = "keep";
+    bool ok = pe::loadSceneFromFile(fname, out);
+    rmAll(fname);
+    if (ok || out.name != "keep") { std::cerr << "PersistV99: should fail and leave out untouched\n"; return false; }
+    return true;
+}
+
 static bool checkPongScore() {
     int left = 0, right = 0;
     const int win = 5;
@@ -2114,6 +2216,9 @@ int main() {
     const bool sceneDumpOk = checkSceneDumpReload();
     const bool animClipKeepOk = checkAnimClipKeep();
     const bool scenePtrOk = checkScenePointerStability();
+    const bool persistV2Ok = checkScenePersistenceV2();
+    const bool persistV1Ok = checkScenePersistenceV1Compat();
+    const bool persistV99Ok = checkSceneVersionUnknown();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -2131,7 +2236,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
