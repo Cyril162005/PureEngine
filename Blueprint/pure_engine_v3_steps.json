@@ -739,99 +739,117 @@
       "name": "Event system polish (noexcept, once, throw-safe)",
       "status": "completed",
       "definition_of_done": "events.h adds noexcept doc, once() auto-unsub, emit() try/catch; test proves throwing handler not breaking bus and once fires once.",
-      "notes": "Header-only, non-breaking, minimal.",
-      "implementation": "events.h: noexcept doc, once(), emit try/catch; test checkEventThrowAndOnce.",
-      "verification": "Build clean, CTest 54/54, handlers noexcept.",
+      "notes": "Header-only, non-breaking, minimal. Batch-verified with 92-99 via 596f944 \u2014 no per-step isolated build/test.",
+      "implementation": "events.h:29-31 noexcept doc + 92-101 emit() try/catch snapshot + 111-124 once() auto-unsub; tests/hostile_data_test.cpp:1970 checkEventThrowAndOnce (throwing handler skipped, once fires once, clear() 0). Batch commit 596f944 (9 steps, not per-step isolated).",
+      "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed (hostile_data_test incl. checkEventThrowAndOnce); batch-verified via 596f944 with 92-99, no per-step isolated build.",
       "commit": "596f944",
-      "depends_on": []
+      "depends_on": [
+        67
+      ]
     },
     {
       "id": 92,
       "name": "Time scale / pause-aware clock",
       "status": "completed",
       "definition_of_done": "FrameTime adds timeScale (default 1.0) and paused flag with setPaused/setTimeScale and scaledTick() (0 when paused else tick*scale); wall time via tick(). Opt-in.",
-      "notes": "Header-only, non-breaking, minimal.",
-      "implementation": "time.h: timeScale/paused + scaledTick; test checkTimeScale verifies clamp and pause.",
-      "verification": "Build clean, CTest 55/55, default unscaled unchanged.",
+      "notes": "Header-only, non-breaking, minimal. Batch-verified with 91,93-99 via 596f944.",
+      "implementation": "time.h:87-97 FrameTime timeScale/paused + setTimeScale/getTimeScale/setPaused/isPaused/scaledTick(); time.h:103-104 members timeScale=1.0 paused=false. tests/hostile_data_test.cpp:2055 checkTimeScale (default 1.0/ not paused, clamp, scaledTick 0 when paused). Batch 596f944.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest 1/1 Passed (checkTimeScale); batch-verified via 596f944.",
       "commit": "596f944",
-      "depends_on": []
+      "depends_on": [
+        17
+      ]
     },
     {
       "id": 93,
       "name": "Animation clip switch helper",
       "status": "completed",
       "definition_of_done": "animation_data.h adds setClip(Entity&,map,name) safe lookup, assigns without dangling, preserves elapsed on same clip.",
-      "notes": "Header-only, non-breaking, minimal.",
-      "implementation": "animation_data.h: setClip helper; test checkAnimationClipSwitch proves switch and missing.",
-      "verification": "Build clean, CTest 56/56, no dangling.",
+      "notes": "Header-only, non-breaking, minimal. Batch-verified with 91-92,94-99 via 596f944.",
+      "implementation": "animation_data.h:14 #include entity.h + 182-193 setClip(Entity&,map,name) safe lookup, no dangling, preserves elapsed on same clip. tests/hostile_data_test.cpp:2069 checkAnimationClipSwitch (switch, missing, same-clip preserves). Batch 596f944.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest 1/1 Passed (checkAnimationClipSwitch); batch-verified via 596f944.",
       "commit": "596f944",
-      "depends_on": []
+      "depends_on": [
+        56
+      ]
     },
     {
       "id": 94,
       "name": "Basic resource unload",
       "status": "completed",
       "definition_of_done": "renderer.h adds releaseTexture(id) and clearNonCoreTextures() (keep 0..4), thin helper, no hot-reload.",
-      "notes": "Header-only, non-breaking, minimal.",
-      "implementation": "renderer.h: releaseTexture/clearNonCore; vector registry.",
-      "verification": "Build clean, CTest 56/56, core 0..4 alive.",
+      "notes": "Header-only, non-breaking, minimal. Thin: no dedicated test, batch-verified with 91-93,95-99 via 596f944.",
+      "implementation": "renderer.h:794 releaseTexture(int) + 801 clearNonCoreTextures() keep 0..4 alive, vector registry (Step 89). No dedicated test; exercised via build + alive probes. Batch 596f944.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest 1/1 Passed (no dedicated unload test \u2014 thin verification, batch); Platformer/Arcade alive. Batch-verified via 596f944.",
       "commit": "596f944",
-      "depends_on": []
+      "depends_on": [
+        89
+      ]
     },
     {
       "id": 95,
       "name": "Console multi-line / wrap (minimal)",
       "status": "completed",
       "definition_of_done": "console.h pushLine wraps >38 cols into multiple lines for existing draw area; print() benefits. No panel.",
-      "notes": "Header-only, non-breaking, minimal.",
-      "implementation": "console.h: pushLine wrap at 38; test implicit via lines cap.",
-      "verification": "Build clean, CTest 56/56, long lines wrap.",
+      "notes": "Header-only, non-breaking, minimal. Thin: wrap has no dedicated test, batch-verified with 91-94,96-99 via 596f944.",
+      "implementation": "console.h:79-88 pushLine() wrap at 38 cols, splits long lines, respects MAX_HISTORY 64. Implicit via console tests (checkConsoleHistory etc). Batch 596f944.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest 1/1 Passed (console tests 22 cases, no dedicated wrap test \u2014 thin); batch-verified via 596f944.",
       "commit": "596f944",
-      "depends_on": []
+      "depends_on": [
+        68
+      ]
     },
     {
       "id": 96,
       "name": "Debug overlay expansion",
       "status": "completed",
       "definition_of_done": "main.cpp F1 overlay adds ENTS/TILES/DT stats via drawTextString, cheap, optional.",
-      "notes": "Header-only, non-breaking, minimal.",
-      "implementation": "main.cpp: stats string ENTS/TILES/DT ms in F1 block.",
-      "verification": "Build clean, arcade F1 shows stats.",
+      "notes": "Header-only, non-breaking, minimal. Visual-only verification, batch-verified with 91-95,97-99 via 596f944.",
+      "implementation": "main.cpp:1642-1651 F1 debug AABBs + stats ENTS/TILES/DT via drawTextString(-5.75,2.4). Relies on renderer.h drawAABBs:639 and drawTextString. Batch 596f944.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest 1/1 Passed; manual F1 probe (visual) \u2014 not machine-tested, batch-verified via 596f944.",
       "commit": "596f944",
-      "depends_on": []
+      "depends_on": [
+        42
+      ]
     },
     {
       "id": 97,
       "name": "Simple spatial helper (grid/hash)",
       "status": "completed",
       "definition_of_done": "collision.h adds broadphaseGrid(entities,cellSize) bucket by position, returns pairs sharing cell. Does not replace O(n).",
-      "notes": "Header-only, non-breaking, minimal.",
-      "implementation": "collision.h: broadphaseGrid with unordered_map buckets.",
-      "verification": "Build clean, helper available for future.",
+      "notes": "Header-only, non-breaking, minimal. Foundation-only, no caller yet (optional), batch-verified with 91-96,98-99 via 596f944.",
+      "implementation": "collision.h:51-53 includes <unordered_map>,<utility>,<vector> + 93-116 broadphaseGrid(entities,cellSize) buckets by floor(pos/cellSize), returns pairs sharing cell, no O(n) replacement. No dedicated test (optional foundation). Batch 596f944.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest 1/1 Passed (no dedicated broadphase test \u2014 foundation-only); batch-verified via 596f944.",
       "commit": "596f944",
-      "depends_on": []
+      "depends_on": [
+        8
+      ]
     },
     {
       "id": 98,
       "name": "Audio music / loop slot",
       "status": "completed",
       "definition_of_done": "audio.h adds musicSound, musicLoaded, musicVolume, playMusicLoop/stopMusic/setMusicVolume; master*musicVol distinct from SFX, loopable.",
-      "notes": "Header-only, non-breaking, minimal.",
-      "implementation": "audio.h: music slot + loop + volume; shutdown/applyVolumes handle music.",
-      "verification": "Build clean, music slot works.",
+      "notes": "Header-only, non-breaking, minimal. Thin: no dedicated test, batch-verified with 91-97,99 via 596f944.",
+      "implementation": "audio.h:255-264 playMusicLoop(file,loop) + getMusicVolume/setMusicVolume, members musicSound/musicLoaded/musicVolume, 322-325 applyVolumes() master*musicVol, 268 stop in shutdown. Batch 596f944.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest 1/1 Passed (no dedicated music test \u2014 thin); audio alive probes. Batch-verified via 596f944.",
       "commit": "596f944",
-      "depends_on": []
+      "depends_on": [
+        20
+      ]
     },
     {
       "id": 99,
       "name": "Hierarchy contract test + final freeze",
       "status": "completed",
       "definition_of_done": "tests adds checkHierarchyContractFreeze proving attachment-only (translation) and erase invalidates; headers freeze TRS out of scope.",
-      "notes": "Header-only, non-breaking, minimal.",
-      "implementation": "entity.h freeze comment, test hierarchyFreezeOk.",
-      "verification": "Build clean, CTest 57/57, TRS deferred for v1.",
+      "notes": "Header-only, non-breaking, minimal. Batch-verified with 91-98 via 596f944; TRS out of scope for v1.",
+      "implementation": "entity.h:93-101 hierarchy freeze comment attachment-only + TRS deferred; tests/hostile_data_test.cpp:2258 checkHierarchyContractFreeze (translation-only, erase invalidates). Batch 596f944.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest 1/1 Passed (checkHierarchyContractFreeze); batch-verified via 596f944.",
       "commit": "596f944",
-      "depends_on": []
+      "depends_on": [
+        65
+      ]
     },
     {
       "id": 100,
