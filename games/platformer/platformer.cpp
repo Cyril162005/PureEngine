@@ -130,6 +130,12 @@ int main() {
     const auto moveClip = animations.find("paddle_move");
     const auto idleClip = animations.find("paddle_idle");
 
+    // --- Step 115: file-driven input bindings (same file as arcade) ---
+    // Return ignored: a missing file keeps the Step 88 defaults, and the
+    // shipped file matches those defaults, so behavior is unchanged —
+    // this call proves the rebinding path end-to-end in a second game.
+    pe::loadInputBindings("input_bindings.txt");
+
     // --- Scenes own everything (level entity lists + tilemaps) ---
     // Creation calls come FIRST and bare: each loadScene may reallocate
     // the vector, so NO reference is held across them (a held ref would
@@ -350,6 +356,7 @@ int main() {
         if (pe::simulates(currentState)) {
             pe::Entity* player = nullptr;
             for (auto& e : activeScene->entities) {
+                if (!e.alive) continue;  // Step 114: lifecycle guard (all alive here — no behavior change)
                 if (e.roleId == 0) {
                     player = &e;
                     break;

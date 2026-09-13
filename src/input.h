@@ -49,6 +49,7 @@
 #include <vector>         // the tracked-key list and previous-frame state
 #include <string>         // Step 105: action/key names
 #include <map>            // Step 105: override table (ordered, no hash needed)
+#include <unordered_map>  // Step 115: parsed table in loadInputBindings (was transitive-only via MSVC)
 #include <cctype>         // Step 105: key name parsing
 #include <fstream>        // Step 105: bindings file probe
 #include <iostream>       // Step 105: unknown action/key warnings

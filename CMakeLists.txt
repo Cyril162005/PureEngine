@@ -292,6 +292,9 @@ add_custom_command(TARGET Platformer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"
         "$<TARGET_FILE_DIR:Platformer>/assets/win_sound.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/input_bindings.txt"
+        "$<TARGET_FILE_DIR:Platformer>/assets/input_bindings.txt"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/assets/shaders"
         "$<TARGET_FILE_DIR:Platformer>/assets/shaders"
