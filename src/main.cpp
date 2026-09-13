@@ -702,7 +702,8 @@ int main() {
     // active-scene pointer is safe (re-taken from currentScene() on every
     // switch regardless — belt and braces, never trust a pointer).
     pe::SceneManager sceneManager;
-    sceneManager.scenes.reserve(4); // F-01: avoid reallocation during setup; re-take after any structural change
+    sceneManager.scenes.reserve(8); // Step 107: prevent vector reallocation, keeps activeScene* valid
+    sceneManager.scenes.reserve(8); // Step 107: prevent realloc for up to 8 scenes; re-take pointer after any structural change
     pe::loadScene(sceneManager, "arena");
     pe::loadScene(sceneManager, "arena_alt");
     // Initial placement, NOT a transition: take the arena address directly
@@ -724,14 +725,14 @@ int main() {
     std::vector<char> cachedTileClear(cachedTileEntities.size(), 0);
     // --- Step 58: assign clips BEFORE the snapshot (else resets wipe them) ---
     // First hostile dances: role lookup, never entities[0] (that's the
-    // player). Known limit: activateScene() rebuilds without assignment,
-    // so the alt scene loses clips until lifecycle integration (later).
+    // player). Step 106: also store clip name for rebuild keep.
     for (pe::Entity& entity : activeScene->entities) {
         if (entity.roleId == static_cast<int>(pe::ArcadeRole::Hostile)) {
             const auto clip = animations.find("walk_left");
-            if (clip != animations.end()) {
+if (clip != animations.end()) {
                 entity.animationState.currentAnimation = &clip->second;
                 entity.animationState.isPlaying = true;
+                entity.currentClipName = "walk_left";
             }
             break;  // first hostile only (Step 58 scope)
         }
@@ -832,11 +833,10 @@ int main() {
         activeHostileDefaults = &scene;
         pe::Scene& target = pe::loadScene(sceneManager, sceneName);  // find-or-create (both exist since setup)
         target.entities = pe::buildInitialEntities(*activeHostileDefaults);
-        // P-02: keep anim clips across scene rebuild — alt scene lost walk_left
-        // after Step 58 (initial assign was before snapshot; rebuild rewrote entities).
+        // Step 106: keep anim clips via stored name — generic, not hard-coded walk_left
         for (pe::Entity& e : target.entities) {
-            if (e.roleId == static_cast<int>(pe::ArcadeRole::Hostile)) {
-                auto it = animations.find("walk_left");
+            if (!e.currentClipName.empty()) {
+                auto it = animations.find(e.currentClipName);
                 if (it != animations.end()) {
                     e.animationState.currentAnimation = &it->second;
                     e.animationState.isPlaying = true;

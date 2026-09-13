@@ -134,6 +134,10 @@ struct Entity {
     float timer = 0.0f;    // Timer component (generic countdown)
     std::string tag;       // Tag component (free-form)
 
+    // --- Step 106: clip name for non-owning AnimationState* keep ---
+    // Stored name allows activateScene to restore pointer after rebuild.
+    std::string currentClipName; // "" = no clip
+
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
     // in the initializer list: no garbage state possible, same standard
@@ -160,7 +164,8 @@ gravityScale(0.0f),
             tint(1.0f, 1.0f, 1.0f),
             health(100.0f),
             timer(0.0f),
-            tag() {}
+            tag(),
+            currentClipName() {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -193,7 +198,8 @@ gravityScale(0.0f),
             tint(1.0f, 1.0f, 1.0f),
             health(100.0f),
             timer(0.0f),
-            tag() {}
+            tag(),
+            currentClipName() {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the

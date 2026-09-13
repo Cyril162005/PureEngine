@@ -66,6 +66,9 @@ struct Scene {
 // Owns every scene and which one is current. current is an INDEX (not a
 // pointer) so growing scenes/addEntity traffic cannot silently dangle it;
 // -1 means "no current scene" (fresh manager, or nothing switched to yet).
+// POINTER DISCIPLINE (Step 107): activeScene* is a raw pointer into scenes vector.
+// Call scenes.reserve(N) before loadScene() to prevent reallocation.
+// Re-take activeScene* after any structural change (loadScene, switchTo, etc.).
 struct SceneManager {
     std::vector<Scene> scenes;
     int current = -1;

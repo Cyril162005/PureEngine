@@ -11,6 +11,7 @@
 #include "../src/events.h"
 #include "../src/gamepad.h"
 #include "../src/input.h"
+#include "../src/lifecycle.h"
 #include "../src/particles.h"
 #include "../src/physics.h"
 #include "../src/font.h"
@@ -2002,6 +2003,52 @@ static bool checkConsoleHistoryRecall() {
     return true;
 }
 
+static bool checkAnimClipKeep() {
+    std::map<std::string, pe::Animation> clips;
+    pe::Animation a; a.name = "walk_left"; a.frames = {{0, 0.1f}};
+    clips["walk_left"] = a;
+    pe::Entity e(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+    e.currentClipName = "walk_left";
+    e.animationState.currentAnimation = nullptr;
+    // Simulate activateScene rebuild: new vector copy retains currentClipName via Entity copy
+    std::vector<pe::Entity> rebuilt = {e};
+    // Reassign via stored name (Step 106)
+    for (auto& ent : rebuilt) {
+        if (!ent.currentClipName.empty()) {
+            auto it = clips.find(ent.currentClipName);
+            if (it != clips.end()) { ent.animationState.currentAnimation = &it->second; ent.animationState.isPlaying = true; }
+        }
+    }
+    if (rebuilt[0].animationState.currentAnimation == nullptr) { std::cerr << "Anim clip keep failed: nullptr after rebuild\n"; return false; }
+    if (rebuilt[0].currentClipName != "walk_left") { std::cerr << "Clip name not preserved\n"; return false; }
+    // Simulate snapshot copy: buildInitialEntities sets name, ensure it survives
+    pe::HostileDefaults hd;
+    hd.hostiles.push_back(pe::HostileDefinition{1.0f, pe::Vec3(0,0,0), 0.0f, 0});
+    auto ents = pe::buildInitialEntities(hd);
+    bool found = false;
+    for (auto& en : ents) if (en.roleId == static_cast<int>(pe::ArcadeRole::Hostile) && en.currentClipName == "walk_left") found = true;
+    if (!found) { std::cerr << "buildInitialEntities should set currentClipName\n"; return false; }
+    return true;
+}
+
+static bool checkScenePointerStability() {
+    pe::SceneManager m;
+    m.scenes.reserve(4);
+    pe::loadScene(m, "s1");
+    pe::loadScene(m, "s2");
+    pe::Scene* p1 = pe::sceneByName(m, "s1");
+    if (!p1) { std::cerr << "s1 not found\n"; return false; }
+    std::string nameBefore = p1->name;
+    void* addrBefore = static_cast<void*>(p1);
+    pe::loadScene(m, "s3");
+    pe::Scene* p1After = pe::sceneByName(m, "s1");
+    if (!p1After) { std::cerr << "s1 lost after third load\n"; return false; }
+    if (p1After->name != nameBefore) { std::cerr << "s1 name corrupted after realloc\n"; return false; }
+    // With reserve(4), address should be stable (no realloc for 3 pushes)
+    if (static_cast<void*>(p1After) != addrBefore) { std::cerr << "Pointer moved despite reserve\n"; return false; }
+    return true;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -2065,6 +2112,8 @@ int main() {
     const bool inputBindingsOk = checkInputBindings();
     const bool componentOk = checkComponentHelpers();
     const bool sceneDumpOk = checkSceneDumpReload();
+    const bool animClipKeepOk = checkAnimClipKeep();
+    const bool scenePtrOk = checkScenePointerStability();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -2082,7 +2131,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
