@@ -40,6 +40,7 @@
 #include <filesystem>  // absolute-path guard (Step-34 pattern)
 #include <fstream>     // the candidate files
 #include <iostream>    // malformed-line / missing-file warnings
+#include <set>         // Step 109: track warned OOB textureIds in tilemap
 #include <sstream>     // strict token parsing without exceptions
 #include <string>      // lines, keys, values
 #include <vector>      // the tile grid + entity conversion output
@@ -48,6 +49,9 @@
 #include "entity.h"     // Entity built by tilemapToEntities / moved by collide
 
 namespace pe {
+
+// Step 109: texture slot limit (matches Renderer::TEXTURE_SLOTS in renderer.h)
+static constexpr int TEXTURE_SLOTS = 5;
 
 struct Tile {
     int tileId = 0;      // 0 = empty (skipped by draw + collide)
@@ -266,6 +270,19 @@ inline std::vector<Entity> tilemapToEntities(const Tilemap& map, float depth, in
             entity.textureId = tile->textureId;
             entity.depth = static_cast<int>(depth);
             entity.roleId = roleId;
+            // Step 109: OOB textureId warning (debug builds only)
+#ifndef NDEBUG
+            if (entity.textureId < 0 || entity.textureId >= TEXTURE_SLOTS) {
+                static std::set<int> warned;
+                if (warned.find(entity.textureId) == warned.end()) {
+                    std::cerr << "[PureEngine] Warning: tilemap textureId "
+                              << entity.textureId
+                              << " out of range [0,"
+                              << TEXTURE_SLOTS - 1
+                              << "], using checker fallback\n";
+                    warned.insert(entity.textureId);
+                }
+#endif
             out.push_back(entity);
         }
     }

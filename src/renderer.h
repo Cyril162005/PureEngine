@@ -57,6 +57,7 @@
 #include <cassert>       // F-04: drawWorld contract assert
 #include <glad/gl.h>     // every GL call below goes through the GLAD loader
 #include <iostream>      // the same stderr diagnostics main.cpp always used
+#include <set>           // Step 109: track warned OOB textureIds
 #include <string>        // drawDigitString takes formatted game text
 #include <vector>        // entity list + collision flags arrive by reference
 
@@ -462,7 +463,19 @@ private:
             const int slot = entity.textureId;
             if (groups.empty() || groups.back().textureId != slot) {
                 const bool oob = (slot < 0 || slot >= static_cast<int>(entityTextures.size()));
-                if (oob) std::cerr << "renderer: textureId OOB " << slot << " -> checker fallback\n";
+#ifndef NDEBUG
+                if (oob) {
+                    static std::set<int> warned;
+                    if (warned.find(slot) == warned.end()) {
+                        std::cerr << "[PureEngine] Warning: textureId "
+                                  << slot
+                                  << " out of range [0,"
+                                  << static_cast<int>(entityTextures.size()) - 1
+                                  << "], using checker fallback\n";
+                        warned.insert(slot);
+                    }
+                }
+#endif
                 const GLuint tex = !oob ? entityTextures[slot] : checkerTexture;
                 groups.push_back({slot, tex, {}});
             }

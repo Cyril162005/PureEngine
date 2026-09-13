@@ -1270,6 +1270,21 @@ if (clip != animations.end()) {
                     pe::collideEntityWithTilemap(*player, activeScene->tilemap);
                 }
                 if (player) {
+// Step 110: dust emitter for player movement (was orphan Emitter::emit)
+                static pe::Emitter dustEmitter;
+                dustEmitter.position = player->position;
+                dustEmitter.spawnRate = 3.0f;
+                dustEmitter.speedMin = 0.5f;
+                dustEmitter.speedMax = 1.0f;
+                dustEmitter.lifeMin = 0.3f;
+                dustEmitter.lifeMax = 0.6f;
+                dustEmitter.size = 0.1f;
+                dustEmitter.maxParticles = 10;
+                bool playerMoving = input.isActionDown(window, pe::Action::MoveLeft)
+                                 || input.isActionDown(window, pe::Action::MoveRight);
+                if (playerMoving) {
+                    pe::emit(dustEmitter, burst, dt);
+                }
                     // Smooth follow: the camera trails the player so motion
                     // reads against the world (snap follow kept one call
                     // away in camera.h). Simulation is untouched — only the
@@ -1353,6 +1368,11 @@ if (clip != animations.end()) {
             // into pe::advanceRotations (src/simulation.h); the
             // per-frame semantics are byte-identical.
             pe::advanceRotations(activeScene->entities, dt);
+
+            // --- Step 108: physics integration (was orphan) ---
+            // gravityScale=0 default preserves pre-Step-108 behavior;
+            // call is opt-in for entities with gravityScale > 0.
+            pe::applyPhysics(activeScene->entities, dt);
 
             // --- Phase 2: this frame's difficulty scale ---
             // Computed ONCE per frame (all hostiles share the same clock):
