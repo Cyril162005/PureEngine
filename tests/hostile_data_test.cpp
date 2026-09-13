@@ -17,6 +17,7 @@
 #include "../src/font.h"
 #include "../src/hostile_data.h"
 #include "../src/scene.h"
+#include "../src/simulation.h"
 #include "../src/tilemap.h"
 #include "../src/time.h"
 #include "../src/animation_data.h"
@@ -1826,6 +1827,52 @@ static bool checkSceneVersionUnknown() {
     return true;
 }
 
+// --- Step 113: runtime entity lifecycle (alive + spawn/kill) ---
+static bool checkEntityLifecycle() {
+    // Default: every entity is born alive (non-breaking).
+    pe::Entity def;
+    if (!def.alive) { std::cerr << "Lifecycle: default entity not alive\n"; return false; }
+    pe::Scene s;
+    s.name = "lifecycle";
+    pe::Entity a(pe::Vec3(0.0f, 0.0f, 0.0f), 1.0f, pe::Vec3(1,1,1));
+    pe::Entity b(pe::Vec3(1.0f, 0.0f, 0.0f), 2.0f, pe::Vec3(1,1,1));
+    pe::Entity c(pe::Vec3(2.0f, 0.0f, 0.0f), 3.0f, pe::Vec3(1,1,1));
+    s.entities = {a, b, c};
+    // Kill the middle slot: no erase, indices stable.
+    pe::killEntity(s, 1);
+    if (s.entities.size() != 3) { std::cerr << "Lifecycle: kill changed size\n"; return false; }
+    if (s.entities[1].alive) { std::cerr << "Lifecycle: kill did not mark dead\n"; return false; }
+    if (!s.entities[0].alive || !s.entities[2].alive) { std::cerr << "Lifecycle: kill hit neighbors\n"; return false; }
+    // Out-of-range kill: safe no-op.
+    pe::killEntity(s, 99);
+    if (s.entities.size() != 3) { std::cerr << "Lifecycle: OOB kill changed size\n"; return false; }
+    // Rendering mirror: dead slots draw nothing, survivors draw.
+    size_t drawn = 0;
+    for (const auto& e : s.entities) { if (!e.alive) continue; ++drawn; }
+    if (drawn != 2) { std::cerr << "Lifecycle: drawn count\n"; return false; }
+    // advanceRotations skips the dead slot (angle frozen) but moves the rest.
+    pe::advanceRotations(s.entities, 1.0f);
+    if (!assertFloatClose(s.entities[0].rotationAngle, 1.0f) || !assertFloatClose(s.entities[2].rotationAngle, 3.0f)) { std::cerr << "Lifecycle: survivors did not rotate\n"; return false; }
+    if (!assertFloatClose(s.entities[1].rotationAngle, 0.0f)) { std::cerr << "Lifecycle: dead entity rotated\n"; return false; }
+    // Spawn appends a live entity and returns its stable index.
+    std::size_t idx = pe::spawnEntity(s, a);
+    if (idx != 3 || s.entities.size() != 4) { std::cerr << "Lifecycle: spawn index/size\n"; return false; }
+    size_t alive = 0;
+    for (const auto& e : s.entities) { if (e.alive) ++alive; }
+    if (alive != 3) { std::cerr << "Lifecycle: alive count after spawn\n"; return false; }
+    // Persistence drops the dead slot: save + load yields 3 live entities.
+    const std::string fname = "scene_test_lifecycle.txt";
+    auto rmAll = [&](const std::string& f){ std::remove(("assets/" + f).c_str()); std::remove(("../assets/" + f).c_str()); std::remove(("../../assets/" + f).c_str()); std::remove(("assets/" + f + ".tmp").c_str()); std::remove(("../assets/" + f + ".tmp").c_str()); };
+    rmAll(fname);
+    if (!pe::saveSceneToFile(s, fname)) { std::cerr << "Lifecycle: save failed\n"; return false; }
+    pe::Scene loaded;
+    if (!pe::loadSceneFromFile(fname, loaded)) { std::cerr << "Lifecycle: load failed\n"; rmAll(fname); return false; }
+    rmAll(fname);
+    if (loaded.entities.size() != 3) { std::cerr << "Lifecycle: dead entity persisted\n"; return false; }
+    for (const auto& e : loaded.entities) { if (!e.alive) { std::cerr << "Lifecycle: loaded entity dead\n"; return false; } }
+    return true;
+}
+
 static bool checkPongScore() {
     int left = 0, right = 0;
     const int win = 5;
@@ -2219,6 +2266,7 @@ int main() {
     const bool persistV2Ok = checkScenePersistenceV2();
     const bool persistV1Ok = checkScenePersistenceV1Compat();
     const bool persistV99Ok = checkSceneVersionUnknown();
+    const bool lifecycleOk = checkEntityLifecycle();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -2236,7 +2284,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

@@ -467,6 +467,7 @@ private:
 
         for (size_t k = 0; k < drawOrder.size(); ++k) {
             const Entity& entity = entities[drawOrder[k]];
+            if (!entity.alive) continue;  // Step 113: dead entities draw nothing
             const int slot = entity.textureId;
             if (groups.empty() || groups.back().textureId != slot) {
                 const bool oob = (slot < 0 || slot >= static_cast<int>(entityTextures.size()));

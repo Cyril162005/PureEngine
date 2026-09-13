@@ -138,6 +138,14 @@ struct Entity {
     // Stored name allows activateScene to restore pointer after rebuild.
     std::string currentClipName; // "" = no clip
 
+    // --- Step 113: runtime lifecycle flag ---
+    // alive = false means "logically removed": rendering, collision,
+    // physics, and chase loops skip the entity, and persistence drops
+    // it on save. Default true preserves all pre-Step-113 behavior.
+    // Kills never erase, so indices stay stable and colliding[] plus
+    // parentIndex keep addressing the same slots.
+    bool alive = true;
+
     // Default constructor: at the origin, unrotated, unscaled — an entity
     // that transforms nothing until configured. Every member initialized
     // in the initializer list: no garbage state possible, same standard
@@ -162,10 +170,11 @@ gravityScale(0.0f),
             parentIndex(-1),
             isStatic(false),
             tint(1.0f, 1.0f, 1.0f),
-            health(100.0f),
-            timer(0.0f),
-            tag(),
-            currentClipName() {}
+           health(100.0f),
+           timer(0.0f),
+           tag(),
+           currentClipName(),
+           alive(true) {}
 
     // Configured constructor: the things that differ per instance.
     // rotationAngle always STARTS at 0 — instances begin unrotated and
@@ -199,7 +208,8 @@ gravityScale(0.0f),
             health(100.0f),
             timer(0.0f),
             tag(),
-            currentClipName() {}
+            currentClipName(),
+            alive(true) {}
 
     // Per-frame simulation: advance this entity's angle. This is the
     // universal state += rate * deltaTime pattern — the same one the

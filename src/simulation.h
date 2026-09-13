@@ -68,6 +68,7 @@ namespace pe {
 // rotationAngle update; it has never been anything but this loop.
 inline void advanceRotations(std::vector<Entity>& entities, float dt) {
     for (pe::Entity& entity : entities) {
+        if (!entity.alive) continue;  // Step 113: dead entities don't spin
         entity.update(dt);
     }
 }
@@ -85,6 +86,7 @@ inline void chasePlayer(std::vector<Entity>& entities,
                         int playerRoleId, int hostileRoleId) {
     const pe::Entity* player = nullptr;
     for (const pe::Entity& entity : entities) {
+        if (!entity.alive) continue;  // Step 113: a dead player is no target
         if (entity.roleId == playerRoleId) {
             player = &entity;
             break;
@@ -95,6 +97,7 @@ inline void chasePlayer(std::vector<Entity>& entities,
     }
 
     for (pe::Entity& entity : entities) {
+        if (!entity.alive) continue;  // Step 113: dead hostiles don't chase
         if (entity.roleId == hostileRoleId) {
             const pe::Vec3 toPlayer = player->position - entity.position;
             if (toPlayer.length() > 0.0f) {
@@ -113,6 +116,7 @@ inline void chasePlayer(std::vector<Entity>& entities,
 // nothing opts in).
 inline void applyPhysics(std::vector<Entity>& entities, float dt) {
     for (Entity& entity : entities) {
+        if (!entity.alive) continue;  // Step 113: dead bodies don't integrate
         if (entity.gravityScale > 0.0f) {
             applyGravity(entity.velocity, entity.gravityScale, dt);
         }
@@ -137,6 +141,7 @@ inline void scanSceneryCollisions(const std::vector<Entity>& entities,
                                   int playerRoleId, int sceneryRoleId) {
     std::vector<size_t> pool;
     for (size_t i = 0; i < entities.size(); ++i) {
+        if (!entities[i].alive) continue;  // Step 113: dead entities collide with nothing
         if (entities[i].roleId == playerRoleId || entities[i].roleId == sceneryRoleId) {
             pool.push_back(i);
         }

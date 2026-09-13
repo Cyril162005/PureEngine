@@ -1419,6 +1419,7 @@ if (clip != animations.end()) {
                                           static_cast<int>(pe::ArcadeRole::Scenery));
             // --- Step 58: advance playing clips (caller applies speed) ---
             for (pe::Entity& entity : activeScene->entities) {
+                if (!entity.alive) continue;  // Step 113: dead entities freeze
                 if (entity.animationState.isPlaying) {
                     entity.animationState.update(dt * entity.animationSpeed);
                 }
@@ -1471,6 +1472,7 @@ if (clip != animations.end()) {
             // Step 47/54: identify player and hostiles via ArcadeRole roleIds
             const pe::Entity* player = nullptr;
             for (const pe::Entity& entity : activeScene->entities) {
+                if (!entity.alive) continue;  // Step 113: a dead player can't be caught
                 if (entity.roleId == static_cast<int>(pe::ArcadeRole::Player)) {
                     player = &entity;
                     break;
@@ -1479,6 +1481,7 @@ if (clip != animations.end()) {
             bool caught = false;
             if (player) {
                 for (const pe::Entity& entity : activeScene->entities) {
+                    if (!entity.alive) continue;  // Step 113: dead hostiles can't catch
                     if (entity.roleId == static_cast<int>(pe::ArcadeRole::Hostile)) {
                         if (pe::aabbOverlap(*player, entity)) {
                             caught = true;

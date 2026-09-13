@@ -186,6 +186,24 @@ inline bool removeEntity(SceneManager& manager, std::size_t index) {
     return true;
 }
 
+// --- Step 113: runtime entity lifecycle (index-stable, no erase) ---
+// spawnEntity appends a live copy and returns its index. killEntity marks
+// the slot dead WITHOUT erasing, so every index-addressed structure
+// (colliding[] flags, parentIndex links, renderer drawOrder) keeps
+// addressing the same slots. Out-of-range kill: safe no-op. Dead slots
+// are skipped by rendering/collision/physics loops and dropped on save.
+inline std::size_t spawnEntity(Scene& scene, const Entity& e) {
+    scene.entities.push_back(e);
+    scene.entities.back().alive = true;
+    return scene.entities.size() - 1;
+}
+
+inline void killEntity(Scene& scene, std::size_t index) {
+    if (index < scene.entities.size()) {
+        scene.entities[index].alive = false;
+    }
+}
+
 // Load tilemap DATA into the scene. Data only — does NOT call
 // tilemapToEntities (the game decides if/when tiles become entities).
 // Missing/malformed file: returns false and leaves scene.tilemap
@@ -343,6 +361,7 @@ inline bool saveSceneToFile(const Scene& s, const std::string& fileName) {
     }
     out << std::fixed << std::setprecision(4);
     for (const Entity& e : s.entities) {
+        if (!e.alive) continue;  // Step 113: dead entities don't exist in saved state
         out << "entity=" << e.position.x << "," << e.position.y << "," << e.position.z << ","
             << e.rotationAngle << "," << e.rotationSpeed << ","
             << e.scale.x << "," << e.scale.y << "," << e.scale.z << ","
