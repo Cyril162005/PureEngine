@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 115 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 116 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1055,6 +1055,19 @@
         88,
         105
       ]
+    },
+    {
+      "id": 116,
+      "name": "Resolution/viewport handling (Camera::onResize + resize callback)",
+      "status": "completed",
+      "definition_of_done": "Camera::onResize() recomputes aspect-correct orthographic projection. glfwSetFramebufferSizeCallback wired in all 3 games. 800x600 default identical. Window resize maintains world proportions.",
+      "notes": "Critical gap per three independent audits. Fixed 800x600 was the most visible engine limitation. Vertical world size locked at \u00b14.5; horizontal scales with aspect.",
+      "commit": "ab0987b",
+      "depends_on": [
+        79
+      ],
+      "implementation": "camera.h:129-138 onResize(width,height) halfH=4.5 halfW=halfH*aspect orthographic; main.cpp:786-800, pong.cpp:77-88, platformer.cpp:211-225 set WindowUserPointer + FramebufferSizeCallback (glViewport+onResize) + startup GetFramebufferSize/onResize/glViewport.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed; arcade/platformer/pong alive True (platformer 80 cells); 800x600 identical (halfW=6.0), resize preserves \u00b14.5 vertical."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
