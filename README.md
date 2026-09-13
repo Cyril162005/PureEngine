@@ -5,7 +5,7 @@ OpenGL, plus a small arcade game built entirely on top of it. No engine
 framework, no game library — every engine layer was written as part of the
 project itself.
 
-- **Engine** (100 tracked steps, 25–100): window/context, rendering pipeline,
+- **Engine** (115 tracked steps, 25–115): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio), file-based asset loading (stb_image PNG),
   scene structure, animation, physics (gravity, impulse, statics, character
@@ -192,8 +192,10 @@ tilemap levels, scene switching, goal events, and full TITLE→L1→L2→WIN
 flow. 48 behavior cases green; 15/15 human playtest items pass (particles
 and audio verified by ear/eye; Up-arrow jump shares the proven W/Space
 path but this VM never delivers that key). Deliberately deferred:
-sprite batching (measured: unneeded, see below), lighting, audio mixer,
-editor, ECS, 3D, networking.
+sprite batching (measured: unneeded, see below), editor, ECS, 3D, networking.
+Phase 2 (101–115) added cache/blob, pe_core, dump/load, input rebinding,
+persistence v2, alpha blending, and lifecycle (alive/spawn/kill) without
+changing the frozen v1.0 core.
 
 ## Performance note
 
