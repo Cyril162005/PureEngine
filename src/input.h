@@ -39,6 +39,11 @@
  *  ONE edge event per physical press.
  *
  *  Header-only, like every project module: no CMakeLists.txt change.
+ *
+ *  Step 117 adds a THIRD responsibility on the same pattern: MOUSE
+ *  SNAPSHOT POLLING (position + left/right buttons), following the
+ *  gamepad.h pure-helper style so the edge logic is testable without
+ *  hardware. Games opt in; keyboard/action paths are untouched.
  * =====================================================================
  */
 
@@ -179,6 +184,35 @@ inline bool loadInputBindings(const std::string& filename) {
     return true;
 }
 
+// --- Step 117: mouse snapshot (gamepad.h pattern) ---
+// Plain snapshot struct: window-coordinate position plus left/right
+// button levels. Left + right only — no middle/other buttons, no
+// scroll, no cursor management. Games opt in; existing keyboard /
+// action / gamepad paths are untouched.
+struct MouseState {
+    float x = 0.0f, y = 0.0f;      // window coords (GLFW cursor position)
+    bool left = false;             // GLFW_MOUSE_BUTTON_LEFT
+    bool right = false;            // GLFW_MOUSE_BUTTON_RIGHT
+};
+
+// Pure level read of one button in a snapshot (gamepadButton
+// precedent). Only GLFW_MOUSE_BUTTON_LEFT and GLFW_MOUSE_BUTTON_RIGHT
+// are meaningful; every other button code reports false. Directly
+// testable without GLFW hardware.
+inline bool mouseButtonDown(const MouseState& state, int button) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT) return state.left;
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) return state.right;
+    return false;
+}
+
+// Pure rising-edge read across two snapshots: down NOW and NOT down
+// in prev. The owner rotates prev/cur once per update(); this helper
+// never mutates anything.
+inline bool mouseButtonEdge(const MouseState& prev,
+                            const MouseState& curr, int button) {
+    return mouseButtonDown(curr, button) && !mouseButtonDown(prev, button);
+}
+
 class Input {
 public:
     // Construct with the keys that need EDGE detection (their
@@ -223,6 +257,34 @@ public:
         return false;
     }
 
+    // --- Step 117: mouse snapshot poll (gamepad.h precedent) ---
+    // One live poll of position + left/right levels. Static because it
+    // is stateless: the caller decides what to do with the snapshot.
+    // Never crashes on any window state GLFW accepts.
+    static MouseState pollMouse(GLFWwindow* window) {
+        MouseState s;
+        double px = 0.0, py = 0.0;
+        glfwGetCursorPos(window, &px, &py);
+        s.x = static_cast<float>(px);
+        s.y = static_cast<float>(py);
+        s.left = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+        s.right = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+        return s;
+    }
+
+    // --- Step 117: mouse reads (snapshot cadence, gamepad-style) ---
+    // These reflect the most recent update() poll, not this frame's
+    // hardware state — the same expressive power as the gamepad path.
+    // For a same-frame live read, use pollMouse(window) directly.
+    bool mouseDown(int button) const {
+        return mouseButtonDown(curMouse, button);
+    }
+    bool mouseEdge(int button) const {
+        return mouseButtonEdge(prevMouse, curMouse, button);
+    }
+    float mouseX() const { return curMouse.x; }
+    float mouseY() const { return curMouse.y; }
+
     // --- Frame-end snapshot update ---
     // Call ONCE per frame, AFTER the state switch has consumed the
     // edges. Stores every tracked key's CURRENT level as the next
@@ -233,6 +295,11 @@ public:
         for (std::size_t i = 0; i < trackedKeys.size(); ++i) {
             wasDownLastFrame[i] = isDown(window, trackedKeys[i]) ? 1 : 0;
         }
+        // Step 117: rotate the mouse snapshot after the keyboard
+        // snapshot. curMouse becomes this frame's poll; prevMouse the
+        // one before it — mouseEdge() reads that pair.
+        prevMouse = curMouse;
+        curMouse = pollMouse(window);
     }
 
 private:
@@ -243,6 +310,9 @@ private:
     // keeps the storage trivial (0/1), matching the engine's
     // collision-flag convention.
     std::vector<char> wasDownLastFrame;
+    // Step 117: mouse snapshots, rotated once per update() call.
+    MouseState curMouse;
+    MouseState prevMouse;
 };
 
 } // namespace pe

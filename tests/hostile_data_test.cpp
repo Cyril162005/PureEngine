@@ -985,6 +985,77 @@ static bool checkGamepadPollSafety() {
     return true;
 }
 
+static bool checkMouseInput() {
+    // Step 117: pure mouse snapshot/edge logic — the exact helpers the
+    // Input members delegate to. No GLFW hardware involved (gamepad
+    // check pattern).
+    bool ok = true;
+    const pe::MouseState up;  // nothing pressed
+    pe::MouseState leftDown;
+    leftDown.left = true;
+    leftDown.x = 320.0f;
+    leftDown.y = 240.0f;
+    pe::MouseState rightDown;
+    rightDown.right = true;
+    // Level reads: only left/right meaningful, everything else false.
+    if (pe::mouseButtonDown(up, GLFW_MOUSE_BUTTON_LEFT) ||
+        pe::mouseButtonDown(up, GLFW_MOUSE_BUTTON_RIGHT)) {
+        std::cerr << "Idle mouse must read no buttons\n";
+        ok = false;
+    }
+    if (!pe::mouseButtonDown(leftDown, GLFW_MOUSE_BUTTON_LEFT) ||
+        pe::mouseButtonDown(leftDown, GLFW_MOUSE_BUTTON_RIGHT)) {
+        std::cerr << "leftDown must read left-only\n";
+        ok = false;
+    }
+    if (!pe::mouseButtonDown(rightDown, GLFW_MOUSE_BUTTON_RIGHT) ||
+        pe::mouseButtonDown(rightDown, GLFW_MOUSE_BUTTON_LEFT)) {
+        std::cerr << "rightDown must read right-only\n";
+        ok = false;
+    }
+    if (pe::mouseButtonDown(leftDown, GLFW_MOUSE_BUTTON_MIDDLE) ||
+        pe::mouseButtonDown(leftDown, 42) || pe::mouseButtonDown(leftDown, -1)) {
+        std::cerr << "Non-left/right buttons must read false\n";
+        ok = false;
+    }
+    // Edges: rising only, never on hold or release.
+    if (!pe::mouseButtonEdge(up, leftDown, GLFW_MOUSE_BUTTON_LEFT)) {
+        std::cerr << "prev=false,cur=true must be a left edge\n";
+        ok = false;
+    }
+    if (pe::mouseButtonEdge(leftDown, leftDown, GLFW_MOUSE_BUTTON_LEFT)) {
+        std::cerr << "Held button must not edge\n";
+        ok = false;
+    }
+    if (pe::mouseButtonEdge(leftDown, up, GLFW_MOUSE_BUTTON_LEFT)) {
+        std::cerr << "Release must not be a rising edge\n";
+        ok = false;
+    }
+    if (!pe::mouseButtonEdge(up, rightDown, GLFW_MOUSE_BUTTON_RIGHT)) {
+        std::cerr << "prev=false,cur=true must be a right edge\n";
+        ok = false;
+    }
+    if (pe::mouseButtonEdge(up, leftDown, GLFW_MOUSE_BUTTON_RIGHT) ||
+        pe::mouseButtonEdge(up, rightDown, GLFW_MOUSE_BUTTON_LEFT) ||
+        pe::mouseButtonEdge(up, leftDown, GLFW_MOUSE_BUTTON_MIDDLE)) {
+        std::cerr << "Unrelated button pair must not edge\n";
+        ok = false;
+    }
+    // Input-class wiring: default-constructed members read their
+    // zeroed snapshot (no window, no update() yet).
+    pe::Input input{};
+    if (input.mouseDown(GLFW_MOUSE_BUTTON_LEFT) ||
+        input.mouseDown(GLFW_MOUSE_BUTTON_RIGHT) || input.mouseEdge(GLFW_MOUSE_BUTTON_LEFT)) {
+        std::cerr << "Fresh Input must read no mouse buttons\n";
+        ok = false;
+    }
+    if (input.mouseX() != 0.0f || input.mouseY() != 0.0f) {
+        std::cerr << "Fresh Input must read zero mouse position\n";
+        ok = false;
+    }
+    return ok;
+}
+
 static bool checkParticleSpawn() {
     std::vector<pe::Particle> pool;
     pe::spawnParticle(pool, pe::Vec3(1.0f, 2.0f, 0.0f),
@@ -2225,6 +2296,7 @@ int main() {
     const bool gamepadButtonsOk = checkGamepadButtons();
     const bool gamepadEdgeOk = checkGamepadEdge();
     const bool gamepadPollOk = checkGamepadPollSafety();
+    const bool mouseInputOk = checkMouseInput();
     const bool particleSpawnOk = checkParticleSpawn();
     const bool emitterRateOk = checkEmitterRateAndCap();
     const bool particleMotionOk = checkParticleMotion();
@@ -2277,7 +2349,7 @@ int main() {
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
-        !gamepadPollOk ||
+        !gamepadPollOk || !mouseInputOk ||
         !particleSpawnOk || !emitterRateOk || !particleMotionOk ||
         !particleDeathOk || !particleConvertOk ||
         !staticFloorOk || !groundedOk || !wallOk || !ceilingOk ||
