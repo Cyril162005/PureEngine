@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 116 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 117 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1068,6 +1068,19 @@
       ],
       "implementation": "camera.h:129-138 onResize(width,height) halfH=4.5 halfW=halfH*aspect orthographic; main.cpp:786-800, pong.cpp:77-88, platformer.cpp:211-225 set WindowUserPointer + FramebufferSizeCallback (glViewport+onResize) + startup GetFramebufferSize/onResize/glViewport.",
       "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed; arcade/platformer/pong alive True (platformer 80 cells); 800x600 identical (halfW=6.0), resize preserves \u00b14.5 vertical."
+    },
+    {
+      "id": 117,
+      "name": "Mouse input (position + button polling + edge detection)",
+      "status": "completed",
+      "definition_of_done": "MouseState struct + Input::mouseDown/mouseEdge/mouseX/mouseY. Snapshot/edge pattern matches keyboard style. Headless test proves edge logic. Non-breaking.",
+      "notes": "No UI, no cursor, no picking. Games opt in. Left + right buttons only. Interactive mouse verification not performed headlessly - honestly noted. Logic lives in pure free helpers mouseButtonDown/mouseButtonEdge (gamepad.h pattern); Input members delegate to them.",
+      "commit": "20749f7",
+      "depends_on": [
+        116
+      ],
+      "implementation": "input.h:192-198 MouseState (x,y,left,right); input.h:202-207 mouseButtonDown (left/right only, else false); input.h:211-215 mouseButtonEdge (rising edge, pure); input.h:264-274 static Input::pollMouse (glfwGetCursorPos + two glfwGetMouseButton reads); input.h:279-286 mouseDown/mouseEdge/mouseX/mouseY members (snapshot cadence); input.h:298-302 update() rotates prevMouse=curMouse; curMouse=pollMouse(window); private curMouse/prevMouse at input.h:314-315.",
+      "verification": "cmake --build build --config Release -> zero errors (all targets); ctest --test-dir build -C Release -> 1/1 Passed 3.17 sec (checkMouseInput registered at hostile_data_test.cpp:1004 + runner); alive probes arcade/platformer/pong all True (platformer stdout level1 (80 cells), level2 (80 cells)); git diff: input.h 70 insertions 0 deletions, only test-runner line modified - keyboard paths byte-identical. Interactive mouse testing NOT performed."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
