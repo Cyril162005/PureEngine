@@ -1081,6 +1081,17 @@
       ],
       "implementation": "input.h:192-198 MouseState (x,y,left,right); input.h:202-207 mouseButtonDown (left/right only, else false); input.h:211-215 mouseButtonEdge (rising edge, pure); input.h:264-274 static Input::pollMouse (glfwGetCursorPos + two glfwGetMouseButton reads); input.h:279-286 mouseDown/mouseEdge/mouseX/mouseY members (snapshot cadence); input.h:298-302 update() rotates prevMouse=curMouse; curMouse=pollMouse(window); private curMouse/prevMouse at input.h:314-315.",
       "verification": "cmake --build build --config Release -> zero errors (all targets); ctest --test-dir build -C Release -> 1/1 Passed 3.17 sec (checkMouseInput registered at hostile_data_test.cpp:1004 + runner); alive probes arcade/platformer/pong all True (platformer stdout level1 (80 cells), level2 (80 cells)); git diff: input.h 70 insertions 0 deletions, only test-runner line modified - keyboard paths byte-identical. Interactive mouse testing NOT performed."
+    },
+    {
+      "id": 118,
+      "name": "Minimal Button widget",
+      "status": "completed",
+      "definition_of_done": "Button struct (x, y, width, height, label) plus pure hitTest() and drawButton() free functions in src/ui.h. Games opt in.",
+      "notes": "The engine's first interactive element. Plain data struct + pure helpers - no GL of its own, no new subsystem. drawButton renders the label via pe::drawTextString (Step 66) centered on (x, y). hitTest checks window coordinates (same space as pe::Input::pollMouse from Step 117). The existing HUD (Step 21) and all other ui.h content are untouched.",
+      "implementation": "src/ui.h: Button struct at lines 98-102, hitTest() at lines 107-112, drawButton() at lines 118-121. Header-only, no new includes, no CMakeLists.txt change.",
+      "verification": "cmake --build build --config Release: zero errors, zero warnings. ctest --test-dir build -C Release: 1/1 Passed (hostile_data_test). PureEngine.exe and hostile_data_test.exe both produced. Interactive click testing NOT performed (headless environment, no keyboard/mouse injection).",
+      "depends_on": [66, 117],
+      "commit": "b97a3c5"
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
