@@ -592,6 +592,10 @@ int main() {
         glfwTerminate();
         return -1;
     }
+    // Step 119: music loop — attempt to start on MENU entry.
+    // No dedicated music asset exists yet; call returns false gracefully if
+    // file not found. Wiring proves the start/stop path end-to-end.
+    audio.playMusicLoop("music_loop.wav", true);
     // Step 80 proof: beep quieter (0.5), events remain full — master*sfx*perSound
     audio.setVolume(pe::Sound::Beep, 0.5f);
 
@@ -1335,6 +1339,7 @@ if (clip != animations.end()) {
             // us back to the purple menu.
             if (spaceEdge) {
                 audio.stopEventSounds();   // Step 48: stop GAMEOVER.wav if still playing
+                audio.stopMusic();         // Step 119: stop music loop if playing
                 currentState = pe::GameState::MENU;
             }
             break;
@@ -1343,6 +1348,7 @@ if (clip != animations.end()) {
             // world stays frozen until SPACE returns to the menu.
             if (spaceEdge) {
                 audio.stopEventSounds();   // Step 48: stop win_sound.wav if still playing
+                audio.stopMusic();         // Step 119: stop music loop if playing
                 currentState = pe::GameState::MENU;
             }
             break;
