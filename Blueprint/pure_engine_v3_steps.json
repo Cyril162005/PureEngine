@@ -1064,7 +1064,7 @@
       "notes": "Critical gap per three independent audits. Fixed 800x600 was the most visible engine limitation. Vertical world size locked at \u00b14.5; horizontal scales with aspect.",
       "commit": "ab0987b",
       "depends_on": [
-        79
+        15
       ],
       "implementation": "camera.h:129-138 onResize(width,height) halfH=4.5 halfW=halfH*aspect orthographic; main.cpp:786-800, pong.cpp:77-88, platformer.cpp:211-225 set WindowUserPointer + FramebufferSizeCallback (glViewport+onResize) + startup GetFramebufferSize/onResize/glViewport.",
       "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed; arcade/platformer/pong alive True (platformer 80 cells); 800x600 identical (halfW=6.0), resize preserves \u00b14.5 vertical."
@@ -1090,7 +1090,10 @@
       "notes": "The engine's first interactive element. Plain data struct + pure helpers - no GL of its own, no new subsystem. drawButton renders the label via pe::drawTextString (Step 66) centered on (x, y). hitTest checks window coordinates (same space as pe::Input::pollMouse from Step 117). The existing HUD (Step 21) and all other ui.h content are untouched.",
       "implementation": "src/ui.h: Button struct at lines 98-102, hitTest() at lines 107-112, drawButton() at lines 118-121. Header-only, no new includes, no CMakeLists.txt change.",
       "verification": "cmake --build build --config Release: zero errors, zero warnings. ctest --test-dir build -C Release: 1/1 Passed (hostile_data_test). PureEngine.exe and hostile_data_test.exe both produced. Interactive click testing NOT performed (headless environment, no keyboard/mouse injection).",
-      "depends_on": [66, 117],
+      "depends_on": [
+        66,
+        117
+      ],
       "commit": "b97a3c5"
     }
   ],
