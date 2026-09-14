@@ -18,9 +18,12 @@
  *     current run first, all-time record second.
  *
  * What it deliberately is NOT (the blueprint's explicit constraint):
- *   - no letters, no menus, no widgets, no layout system, no general
- *     UI framework. Two digit strings, one verb.
- *
+ *   - no menus, no general UI framework, no layout system beyond
+ *     a plain Button (data + pure helpers, no GL of its own).
+ * What it adds — the minimum viable interactive element:
+ *   - one plain Button struct: position, dimensions, label;
+ *     pure hit-test and draw helpers; the glyph is drawn via
+ *     drawTextString — no GL resources owned here.
  * Ownership rule (B5-A ruling): ALL glyph GL stays in pe::Renderer —
  * the text VAO/VBO, the font atlas texture, the shared shader
  * program, the blending toggle, the atlas UV mechanics inside
@@ -84,6 +87,37 @@ inline void drawHud(Renderer& renderer, const Mat4& projection,
     renderer.drawTextString("BEST", hudTimerX + 3.0f, hudBestY, projection, TextAlign::Left);
     renderer.drawDigitString(formatDecimal1(survivalTime), hudTimerX, hudTimerY, projection);
     renderer.drawDigitString(formatDecimal1(highScore), hudTimerX, hudBestY, projection);
+}
+
+// --- Step (next): minimal Button widget ---
+// A plain data struct + pure helpers — no GL of its own,
+// no new subsystem. drawButton renders the label via
+// pe::drawTextString (Step 66, screen space). hitTest uses
+// window coordinates (same space as pe::Input::pollMouse /
+// mouseX() / mouseY()). Games opt in; the HUD is untouched.
+struct Button {
+    float x = 0.0f, y = 0.0f;         // screen-space center position
+    float width = 0.0f, height = 0.0f; // hit-test dimensions
+    const char* label = "";           // text drawn via drawTextString
+};
+
+// Pure hit-test: is the cursor inside the button rect?
+// Takes coordinates, not a MouseState — directly testable
+// without hardware (same gamepad.h pure-helper discipline).
+inline bool hitTest(const Button& btn, float mouseX, float mouseY) {
+    float halfW = btn.width * 0.5f;
+    float halfH = btn.height * 0.5f;
+    return mouseX >= btn.x - halfW && mouseX <= btn.x + halfW &&
+           mouseY >= btn.y - halfH && mouseY <= btn.y + halfH;
+}
+
+// Draw the button label, centered on (x, y), in screen space
+// (projection * model, NO VIEW) — same contract as drawHud.
+// The GLYPH is owned by pe::Renderer; this boundary owns
+// nothing graphical.
+inline void drawButton(Renderer& renderer, const Mat4& projection,
+                         const Button& btn) {
+    renderer.drawTextString(btn.label, btn.x, btn.y, projection, TextAlign::Center);
 }
 
 } // namespace pe
