@@ -1108,6 +1108,19 @@
       ],
       "implementation": "main.cpp:599 audio.playMusicLoop(\"music_loop.wav\", true) after audio.init(); main.cpp:1344 audio.stopMusic() in GAME_OVER->MENU; main.cpp:1354 audio.stopMusic() in WIN->MENU. Uses existing Step 98 API (master*musicVolume, loopable).",
       "verification": "cmake --build build --config Release: zero errors. ctest --test-dir build -C Release: 1/1 Passed. Arcade/Platformer/Pong alive True. No crash on missing music asset."
+    },
+    {
+      "id": 120,
+      "name": "Prefab/template system (loadPrefab + instantiatePrefab)",
+      "status": "completed",
+      "definition_of_done": "src/prefab.h with Prefab struct + loadPrefab() + instantiatePrefab(). assets/prefabs/enemy.txt sample. CTest checkPrefabSystem passes. Optional console spawn_prefab command. Non-breaking.",
+      "notes": "Mirrors hostile_data.h parse discipline (trim, 3-probe, strict, no-throw). Configuration fields only in Prefab (position/velocity/runtime state excluded). Caller passes position to instantiatePrefab. Opt-in for games.",
+      "commit": "43781df",
+      "depends_on": [
+        113
+      ],
+      "implementation": "src/prefab.h:33 Prefab struct (config only: scale/halfExtents/tint/textureId/depth/roleId/moveSpeed/gravityScale/isStatic/health/coyoteTime/jumpImpulse/maxFallSpeed/cols/rows/tag/clip), :103 loadPrefab (3-candidate probe + CWD fallback + absolute guard, header check, key=value parse, warn+skip malformed), :181 instantiatePrefab (copies config, position arg, runtime state at defaults). assets/prefabs/enemy.txt sample. CMakeLists.txt POST_BUILD copy_directory for all 4 targets. tests/hostile_data_test.cpp:1151 checkPrefabSystem + :2387 registered. main.cpp spawn_prefab console command.",
+      "verification": "cmake --build build --config Release -> zero errors (all targets); ctest --test-dir build -C Release -> 1/1 Passed 3.35 sec (checkPrefabSystem passes: load, instantiate, runtime-defaults, missing-file, malformed-line); arcade/platformer/pong alive True. First build failed (test CWD probe) - fixed by adding bare-filename fallback to loadPrefab. Interactive verification beyond alive probes NOT performed."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
