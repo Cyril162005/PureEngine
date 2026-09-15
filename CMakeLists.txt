@@ -158,6 +158,10 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/assets/shaders"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/shaders"
+    # Step 120: prefab templates
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/prefabs"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/prefabs"
 )
 
 # Minimal parser validation target: exercises the real hostile-data loading
@@ -183,6 +187,14 @@ target_link_libraries(hostile_data_test PRIVATE glfw)
 # the test links the already-fetched static miniaudio too — headers arrive
 # via its interface includes. Same pattern as Step 69, still no new dep.
 target_link_libraries(hostile_data_test PRIVATE miniaudio)
+
+# Step 120: copy prefabs for test
+add_custom_command(TARGET hostile_data_test POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:hostile_data_test>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/prefabs"
+        "$<TARGET_FILE_DIR:hostile_data_test>/assets/prefabs"
+)
 
 # Keep the test translation unit scoped to the exact header it needs.
 # This avoids exposing the whole src/ directory, which is what makes
@@ -217,20 +229,23 @@ target_include_directories(Pong PRIVATE "${stb_SOURCE_DIR}")
 target_link_libraries(Pong glfw)
 
 # Step 59B: deliver Pong's animation assets next to its exe (same
-# copy_if_different pattern as the arcade bundle). Without these, the
-# paddle sheet + clip file resolve only from a repo-root CWD.
-add_custom_command(TARGET Pong POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Pong>/assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"
-        "$<TARGET_FILE_DIR:Pong>/assets/paddle_spritesheet.png"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"
-        "$<TARGET_FILE_DIR:Pong>/assets/paddle_animations.txt"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/assets/shaders"
-        "$<TARGET_FILE_DIR:Pong>/assets/shaders"
-)
+    # copy_if_different pattern as the arcade bundle). Without these, the
+    # paddle sheet + clip file resolve only from a repo-root CWD.
+    add_custom_command(TARGET Pong POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Pong>/assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"
+            "$<TARGET_FILE_DIR:Pong>/assets/paddle_spritesheet.png"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"
+            "$<TARGET_FILE_DIR:Pong>/assets/paddle_animations.txt"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets/shaders"
+            "$<TARGET_FILE_DIR:Pong>/assets/shaders"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets/prefabs"
+            "$<TARGET_FILE_DIR:Pong>/assets/prefabs"
+    )
 
 # Platformer proof game (Session 4): third game proving the engine without
 # bypassing it — tilemap + scenes + character controller + animation +
@@ -298,6 +313,9 @@ add_custom_command(TARGET Platformer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/assets/shaders"
         "$<TARGET_FILE_DIR:Platformer>/assets/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/prefabs"
+        "$<TARGET_FILE_DIR:Platformer>/assets/prefabs"
 )
 
 # On Linux, we might need extra libs

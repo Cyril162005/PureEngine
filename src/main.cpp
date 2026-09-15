@@ -140,6 +140,11 @@
 // Header-only: no CMakeLists.txt change.
 #include "ui.h"
 
+// --- Step 120: Prefab/Template System ---
+// Entity configuration templates: Prefab struct, loadPrefab(),
+// instantiatePrefab(). Header-only.
+#include "prefab.h"
+
 // --- Step 22: World/Game Separation (simulation mechanics) ---
 // Three pure MECHANICS moved out of this file into free functions in
 // src/simulation.h: the rotation update (advanceRotations), the
@@ -990,6 +995,21 @@ if (clip != animations.end()) {
         resetGame();
         return std::string("world reset");
     });
+    // --- Step 120: prefab system console command ---
+    // spawn_prefab [filename] — load a prefab from assets/prefabs/,
+    // instantiate at (0,0,0), and spawn into the active scene.
+    pe::registerCommand(console, "spawn_prefab",
+        [&](const std::vector<std::string>& args) {
+            pe::Prefab p;
+            std::string file = args.empty() ? "enemy.txt" : args[0];
+            if (!pe::loadPrefab(file, p)) {
+                return std::string("spawn_prefab: file not found: ") + file;
+            }
+            pe::Vec3 pos(0.0f, 0.0f, 0.0f);
+            pe::Entity e = pe::instantiatePrefab(p, pos);
+            pe::spawnEntity(*activeScene, e);
+            return std::string("Spawned '") + p.name + "' at (0,0,0)";
+        });
     // --- Step 75: runtime volume tuning (no recompile) ---
     // "volume" reports both gains; "volume <number>" sets master (clamped
     // [0,1] by the setter). Strict no-throw parse: empty, non-numeric, or

@@ -13,6 +13,7 @@
 #include "../src/input.h"
 #include "../src/lifecycle.h"
 #include "../src/particles.h"
+#include "../src/prefab.h"
 #include "../src/physics.h"
 #include "../src/font.h"
 #include "../src/hostile_data.h"
@@ -1143,6 +1144,92 @@ static bool checkEmitterRateAndCap() {
         std::cerr << "Fresh 0.1s emit must yield exactly 1\n";
         return false;
     }
+    return true;
+}
+
+// --- Step 120: Prefab system test ---
+static bool checkPrefabSystem() {
+    // Write temp prefab file
+    const std::string tmpFile = "test_prefab_tmp.txt";
+    {
+        std::ofstream f(tmpFile);
+        f << "# PureEngine prefab v1\n";
+        f << "name=test_entity\n";
+        f << "textureId=3\n";
+        f << "depth=5\n";
+        f << "roleId=1\n";
+        f << "moveSpeed=2.5\n";
+        f << "gravityScale=1.0\n";
+        f << "isStatic=false\n";
+        f << "health=75.0\n";
+        f << "tag=player\n";
+        f << "clip=walk_right\n";
+        f << "cols=4\n";
+        f << "rows=2\n";
+        f << "scale=2.0,2.0,1.0\n";
+        f << "halfExtents=1.0,1.0,0.5\n";
+        f << "tint=0.5,0.8,1.0\n";
+    }
+
+    // Load prefab
+    pe::Prefab p;
+    if (!pe::loadPrefab(tmpFile, p)) {
+        std::cerr << "loadPrefab should succeed\n";
+        return false;
+    }
+    if (p.name != "test_entity") { std::cerr << "name mismatch\n"; return false; }
+    if (p.textureId != 3) { std::cerr << "textureId mismatch\n"; return false; }
+    if (p.depth != 5) { std::cerr << "depth mismatch\n"; return false; }
+    if (p.roleId != 1) { std::cerr << "roleId mismatch\n"; return false; }
+    if (std::abs(p.moveSpeed - 2.5f) >= 1e-5f) { std::cerr << "moveSpeed mismatch\n"; return false; }
+    if (std::abs(p.gravityScale - 1.0f) >= 1e-5f) { std::cerr << "gravityScale mismatch\n"; return false; }
+    if (p.isStatic) { std::cerr << "isStatic mismatch\n"; return false; }
+    if (std::abs(p.health - 75.0f) >= 1e-5f) { std::cerr << "health mismatch\n"; return false; }
+    if (p.tag != "player") { std::cerr << "tag mismatch\n"; return false; }
+    if (p.currentClipName != "walk_right") { std::cerr << "clip mismatch\n"; return false; }
+    if (p.cols != 4) { std::cerr << "cols mismatch\n"; return false; }
+    if (p.rows != 2) { std::cerr << "rows mismatch\n"; return false; }
+
+    // Instantiate at known position
+    pe::Vec3 pos(3.0f, -1.0f, 0.0f);
+    pe::Entity e = pe::instantiatePrefab(p, pos);
+    if (std::abs(e.position.x - 3.0f) >= 1e-5f) { std::cerr << "position.x mismatch\n"; return false; }
+    if (std::abs(e.position.y + 1.0f) >= 1e-5f) { std::cerr << "position.y mismatch\n"; return false; }
+    if (e.textureId != 3) { std::cerr << "entity textureId mismatch\n"; return false; }
+    if (!e.alive) { std::cerr << "entity should be alive\n"; return false; }
+    if (e.tag != "player") { std::cerr << "entity tag mismatch\n"; return false; }
+
+    // Runtime state must be at defaults (not taken from prefab)
+    if (std::abs(e.velocity.x) >= 1e-5f) { std::cerr << "velocity should be zero\n"; return false; }
+    if (e.parentIndex != -1) { std::cerr << "parentIndex should be -1\n"; return false; }
+    if (e.wasGrounded) { std::cerr << "wasGrounded should be false\n"; return false; }
+
+    // Missing file -> false, no crash
+    pe::Prefab p2;
+    if (pe::loadPrefab("nonexistent_prefab.txt", p2)) {
+        std::cerr << "missing file should return false\n";
+        return false;
+    }
+
+    // Malformed line -> warn + continue (valid fields still parsed)
+    const std::string malformedFile = "test_prefab_malformed_tmp.txt";
+    {
+        std::ofstream f(malformedFile);
+        f << "# PureEngine prefab v1\n";
+        f << "name=partial\n";
+        f << "THIS IS NOT VALID\n";   // no '='
+        f << "textureId=7\n";
+    }
+    pe::Prefab p3;
+    pe::loadPrefab(malformedFile, p3);  // should not crash
+    if (p3.name != "partial") { std::cerr << "valid fields before malformed should parse\n"; return false; }
+    if (p3.textureId != 7) { std::cerr << "valid fields after malformed should parse\n"; return false; }
+
+    // Cleanup
+    std::filesystem::remove(tmpFile);
+    std::filesystem::remove(malformedFile);
+
+    std::cout << "checkPrefabSystem PASSED\n";
     return true;
 }
 
@@ -2297,6 +2384,7 @@ int main() {
     const bool gamepadEdgeOk = checkGamepadEdge();
     const bool gamepadPollOk = checkGamepadPollSafety();
     const bool mouseInputOk = checkMouseInput();
+    const bool prefabSystemOk = checkPrefabSystem();
     const bool particleSpawnOk = checkParticleSpawn();
     const bool emitterRateOk = checkEmitterRateAndCap();
     const bool particleMotionOk = checkParticleMotion();
@@ -2349,7 +2437,7 @@ int main() {
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
-        !gamepadPollOk || !mouseInputOk ||
+        !gamepadPollOk || !mouseInputOk || !prefabSystemOk ||
         !particleSpawnOk || !emitterRateOk || !particleMotionOk ||
         !particleDeathOk || !particleConvertOk ||
         !staticFloorOk || !groundedOk || !wallOk || !ceilingOk ||
