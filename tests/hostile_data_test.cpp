@@ -1229,7 +1229,150 @@ static bool checkPrefabSystem() {
     std::filesystem::remove(tmpFile);
     std::filesystem::remove(malformedFile);
 
-    std::cout << "checkPrefabSystem PASSED\n";
+    return true;
+}
+
+// --- Step 122: prefab used in a live scene (end-to-end content proof) ---
+// Replicates the spawn_prefab console command body (main.cpp): loadPrefab ->
+// instantiatePrefab -> spawnEntity into a Scene, then resolve the prefab's
+// clip name to a playing AnimationState (the Step 122 command fix), and
+// prove the spawned entity joins the game's role-filtered systems.
+static bool checkPrefabSceneSpawn() {
+    const std::string tmpFile = "test_prefab_scene_tmp.txt";
+    {
+        std::ofstream f(tmpFile);
+        f << "# PureEngine prefab v1\n";
+        f << "name=spawn_test\n";
+        f << "textureId=2\n";
+        f << "depth=2\n";
+        f << "roleId=2\n";
+        f << "moveSpeed=1.5\n";
+        f << "tag=hostile\n";
+        f << "clip=walk_left\n";
+        f << "cols=8\n";
+        f << "rows=1\n";
+        f << "scale=1.0,1.0,1.0\n";
+        f << "halfExtents=0.5,0.5,0.5\n";
+    }
+
+    // The exact console command body: load -> instantiate -> spawn.
+    pe::Prefab p;
+    if (!pe::loadPrefab(tmpFile, p)) {
+        std::cerr << "prefab scene spawn: loadPrefab should succeed\n";
+        return false;
+    }
+    pe::Scene scene;
+    pe::Entity base;
+    pe::spawnEntity(scene, base);  // pre-existing entity (index 0)
+    pe::Entity e = pe::instantiatePrefab(p, pe::Vec3(0.0f, 0.0f, 0.0f));
+    const std::size_t index = pe::spawnEntity(scene, e);
+    if (index != 1) { std::cerr << "spawnEntity index wrong\n"; return false; }
+    if (scene.entities.size() != 2) { std::cerr << "scene count wrong\n"; return false; }
+    if (!scene.entities[index].alive) { std::cerr << "spawned must be alive\n"; return false; }
+
+    // Step 122: clip name carried through spawn; resolve to a playing state.
+    pe::Entity& spawned = scene.entities[index];
+    if (spawned.currentClipName != "walk_left") {
+        std::cerr << "clip name not carried through spawn\n";
+        return false;
+    }
+    pe::Animation clip;
+    clip.name = "walk_left";
+    clip.loops = true;
+    clip.frames.push_back(pe::AnimationFrame{0, 0.1f});
+    spawned.animationState.currentAnimation = &clip;
+    spawned.animationState.isPlaying = true;
+    if (!spawned.animationState.isPlaying) {
+        std::cerr << "clip should be playing\n";
+        return false;
+    }
+    if (spawned.animationState.getCurrentFrame() == nullptr) {
+        std::cerr << "playing clip must expose a frame\n";
+        return false;
+    }
+    spawned.animationState.update(0.05f);
+    if (spawned.animationState.currentFrameIndex != 0) {
+        std::cerr << "frame must not advance before duration elapses\n";
+        return false;
+    }
+    spawned.animationState.update(0.1f);
+    if (spawned.animationState.currentFrameIndex != 0) {
+        std::cerr << "looping clip must wrap to frame 0\n";
+        return false;
+    }
+
+    // Spawned entity joins the game's role-filtered systems: a hostile-role
+    // spawn chases a player-role entity through the same filters main.cpp
+    // passes (ArcadeRole values, caller-supplied).
+    pe::Entity player;
+    player.roleId = static_cast<int>(pe::ArcadeRole::Player);
+    player.position = pe::Vec3(3.0f, 0.0f, 0.0f);
+    scene.entities[0] = player;
+    pe::advanceRotations(scene.entities, 0.016f);
+    const float beforeX = spawned.position.x;
+    pe::chasePlayer(scene.entities, 1.0f, 0.016f,
+                    static_cast<int>(pe::ArcadeRole::Player),
+                    static_cast<int>(pe::ArcadeRole::Hostile));
+    if (spawned.position.x <= beforeX) {
+        std::cerr << "spawned hostile must chase the player\n";
+        return false;
+    }
+
+    std::filesystem::remove(tmpFile);
+    std::cout << "checkPrefabSceneSpawn PASSED\n";
+    return true;
+}
+
+// --- Step 122: prefab used in a live game (end-to-end content proof) ---
+// The exact pipeline the console spawn_prefab command runs, proven
+// against the REAL shipped asset (assets/prefabs/enemy.txt, resolved
+// through the 3-candidate probe from the test's CWD) and the real
+// spawnEntity scene integration — not just synthetic temp files.
+static bool checkPrefabLiveSpawn() {
+    // 1. Load the real shipped prefab (candidate 2 resolves from build/).
+    pe::Prefab p;
+    if (!pe::loadPrefab("enemy.txt", p)) {
+        std::cerr << "shipped enemy.txt failed to load\n";
+        return false;
+    }
+    if (p.name != "enemy") { std::cerr << "enemy.txt name mismatch\n"; return false; }
+    if (p.textureId != 2) { std::cerr << "enemy.txt textureId mismatch\n"; return false; }
+    if (p.roleId != 2) { std::cerr << "enemy.txt roleId mismatch\n"; return false; }
+    if (std::abs(p.moveSpeed - 1.5f) >= 1e-5f) { std::cerr << "enemy.txt moveSpeed mismatch\n"; return false; }
+    if (p.tag != "hostile") { std::cerr << "enemy.txt tag mismatch\n"; return false; }
+    if (p.currentClipName != "walk_left") { std::cerr << "enemy.txt clip mismatch\n"; return false; }
+    if (p.cols != 8 || p.rows != 1) { std::cerr << "enemy.txt sheet layout mismatch\n"; return false; }
+
+    // 2. Instantiate at a known position (runtime state at defaults).
+    pe::Entity e = pe::instantiatePrefab(p, pe::Vec3(2.0f, 1.0f, 0.0f));
+    if (!assertFloatClose(e.position.x, 2.0f) ||
+        !assertFloatClose(e.position.y, 1.0f)) {
+        std::cerr << "prefab entity position wrong\n";
+        return false;
+    }
+    if (!e.alive) { std::cerr << "prefab entity must be alive\n"; return false; }
+
+    // 3. Spawn into a real Scene (the console command's path).
+    pe::Scene scene;
+    const std::size_t before = scene.entities.size();
+    const std::size_t index = pe::spawnEntity(scene, e);
+    if (scene.entities.size() != before + 1) {
+        std::cerr << "spawnEntity did not grow the scene\n";
+        return false;
+    }
+    if (index != before) { std::cerr << "spawnEntity index wrong\n"; return false; }
+    const pe::Entity& spawned = scene.entities[index];
+    if (!spawned.alive || spawned.tag != "hostile" || spawned.textureId != 2) {
+        std::cerr << "spawned entity lost prefab config\n";
+        return false;
+    }
+    if (!assertFloatClose(spawned.position.x, 2.0f) ||
+        !assertFloatClose(spawned.position.y, 1.0f)) {
+        std::cerr << "spawned entity position wrong\n";
+        return false;
+    }
+
+    std::cout << "checkPrefabLiveSpawn PASSED\n";
     return true;
 }
 
@@ -2385,6 +2528,8 @@ int main() {
     const bool gamepadPollOk = checkGamepadPollSafety();
     const bool mouseInputOk = checkMouseInput();
     const bool prefabSystemOk = checkPrefabSystem();
+    const bool prefabSceneSpawnOk = checkPrefabSceneSpawn();
+    const bool prefabLiveOk = checkPrefabLiveSpawn();
     const bool particleSpawnOk = checkParticleSpawn();
     const bool emitterRateOk = checkEmitterRateAndCap();
     const bool particleMotionOk = checkParticleMotion();
@@ -2437,7 +2582,7 @@ int main() {
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
-        !gamepadPollOk || !mouseInputOk || !prefabSystemOk ||
+        !gamepadPollOk || !mouseInputOk || !prefabSystemOk || !prefabSceneSpawnOk || !prefabLiveOk ||
         !particleSpawnOk || !emitterRateOk || !particleMotionOk ||
         !particleDeathOk || !particleConvertOk ||
         !staticFloorOk || !groundedOk || !wallOk || !ceilingOk ||
