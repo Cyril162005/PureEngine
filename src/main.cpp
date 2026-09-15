@@ -1088,6 +1088,14 @@ if (clip != animations.end()) {
     // same layout constants. main.cpp formats the NUMBERS (game data)
     // and the renderer draws the GLYPHS (rendering).
 
+    // --- Step 121: MENU buttons (end-to-end UI proof) ---
+    // Two screen-space buttons below the Step 82 instructions: START
+    // mirrors the SPACE keyboard path, ALT mirrors the key-2 path.
+    // Pure data — clicking runs the SAME activateScene/resetGame
+    // sequence the keyboard branch runs; keyboard keeps precedence.
+    static const pe::Button menuStartButton{ 0.0f, -1.7f, 3.0f, 0.8f, "START" };
+    static const pe::Button menuAltButton  { 0.0f, -2.7f, 3.0f, 0.8f, "ALT"   };
+
     // 6. The Main Loop
     while (!glfwWindowShouldClose(window)) {
         // --- Step 2 / Step 17: Delta Time Calculation (top of the frame) ---
@@ -1230,6 +1238,21 @@ if (clip != animations.end()) {
                 resetGame();
                 currentState = pe::GameState::PLAYING;
             } else if (input.isEdge(window, GLFW_KEY_2)) {
+                activateScene("arena_alt", alternateHostileDefaults);
+                resetGame();
+                currentState = pe::GameState::PLAYING_ALT;
+            // --- Step 121: MENU button clicks, ADDITIVE after keyboard ---
+            // Left-click edge over a button performs the SAME action the
+            // keyboard branch above performs. The ladder order keeps
+            // keyboard precedence; a held/missed click cannot double-fire
+            // because the chain consumes at most one action per frame.
+            } else if (input.mouseEdge(GLFW_MOUSE_BUTTON_LEFT) &&
+                       pe::hitTest(menuStartButton, input.mouseX(), input.mouseY())) {
+                activateScene("arena", defaultHostileDefaults);
+                resetGame();
+                currentState = pe::GameState::PLAYING;
+            } else if (input.mouseEdge(GLFW_MOUSE_BUTTON_LEFT) &&
+                       pe::hitTest(menuAltButton, input.mouseX(), input.mouseY())) {
                 activateScene("arena_alt", alternateHostileDefaults);
                 resetGame();
                 currentState = pe::GameState::PLAYING_ALT;
@@ -1722,6 +1745,11 @@ if (clip != animations.end()) {
             renderer.drawTextString("SPACE START  2 ALT", 0.0f, 0.6f, camera.projection(), pe::TextAlign::Center);
             renderer.drawTextString("ARROWS/WASD MOVE  ESC PAUSE", 0.0f, -0.1f, camera.projection(), pe::TextAlign::Center);
             renderer.drawTextString("AVOID RED  SURVIVE", 0.0f, -0.8f, camera.projection(), pe::TextAlign::Center);
+            // --- Step 121: MENU buttons, additive below the instructions ---
+            // Labels only (no backdrop, no styling): drawButton draws the
+            // centered label; the hit rects above are invisible but live.
+            pe::drawButton(renderer, camera.projection(), menuStartButton);
+            pe::drawButton(renderer, camera.projection(), menuAltButton);
         }
 
         // C. Swap buffers
