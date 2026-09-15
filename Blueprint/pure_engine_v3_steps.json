@@ -1121,6 +1121,20 @@
       ],
       "implementation": "src/prefab.h:33 Prefab struct (config only: scale/halfExtents/tint/textureId/depth/roleId/moveSpeed/gravityScale/isStatic/health/coyoteTime/jumpImpulse/maxFallSpeed/cols/rows/tag/clip), :103 loadPrefab (3-candidate probe + CWD fallback + absolute guard, header check, key=value parse, warn+skip malformed), :181 instantiatePrefab (copies config, position arg, runtime state at defaults). assets/prefabs/enemy.txt sample. CMakeLists.txt POST_BUILD copy_directory for all 4 targets. tests/hostile_data_test.cpp:1151 checkPrefabSystem + :2387 registered. main.cpp spawn_prefab console command.",
       "verification": "cmake --build build --config Release -> zero errors (all targets); ctest --test-dir build -C Release -> 1/1 Passed 3.35 sec (checkPrefabSystem passes: load, instantiate, runtime-defaults, missing-file, malformed-line); arcade/platformer/pong alive True. First build failed (test CWD probe) - fixed by adding bare-filename fallback to loadPrefab. Interactive verification beyond alive probes NOT performed."
+    },
+    {
+      "id": 121,
+      "name": "MENU Button integration (end-to-end UI proof)",
+      "status": "completed",
+      "definition_of_done": "Arcade MENU draws 2 buttons (START, ALT) via pe::Button/drawButton; left-click edge over a button performs the same action as the existing keyboard path (start game / alt). Keyboard SPACE/2 paths unchanged. Non-breaking.",
+      "notes": "Additive only: buttons are else-if branches after the keyboard ladder in the MENU case, and draw calls after the Step 82 text. mouseEdge/mouseX/mouseY read the update() snapshot (gamepad-style cadence from Step 117) - one-frame-late edge is fine for a menu. hitTest uses the Step 118 pure helper. No styling, no hover, no layout system. Interactive click testing NOT performed in this headless environment - compile + alive probes only.",
+      "commit": "54bd0a8",
+      "depends_on": [
+        117,
+        118
+      ],
+      "implementation": "main.cpp:1096-1097 static const pe::Button menuStartButton/menuAltButton (0,-1.7,3,0.8,\"START\") / (0,-2.7,3,0.8,\"ALT\"); main.cpp:1244-1257 MENU case else-if: input.mouseEdge(GLFW_MOUSE_BUTTON_LEFT) && pe::hitTest(...) then same activateScene/resetGame/state-set as keyboard; main.cpp:1751-1752 pe::drawButton(renderer, camera.projection(), ...) in MENU draw branch.",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 3.74 s; arcade/platformer/pong alive True (platformer stdout level1 (80 cells), level2 (80 cells)). Interactive click NOT verified (no input injection in this environment)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
