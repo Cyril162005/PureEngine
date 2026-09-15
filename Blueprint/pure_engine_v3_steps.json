@@ -1095,6 +1095,19 @@
         117
       ],
       "commit": "b97a3c5"
+    },
+    {
+      "id": 119,
+      "name": "Music integration (playMusicLoop/stopMusic wired)",
+      "status": "completed",
+      "definition_of_done": "Existing music API (playMusicLoop, stopMusic, setMusicVolume) wired end-to-end. Start call on MENU entry; stop calls on GAME_OVER->MENU and WIN->MENU. No new audio architecture. Graceful failure if music asset missing.",
+      "notes": "No dedicated music loop asset exists (only SFX/event WAVs). playMusicLoop returns false gracefully. Audible playback NOT verified. Existing SFX/per-sound/master volume paths unchanged.",
+      "commit": "df210e8",
+      "depends_on": [
+        98
+      ],
+      "implementation": "main.cpp:599 audio.playMusicLoop(\"music_loop.wav\", true) after audio.init(); main.cpp:1344 audio.stopMusic() in GAME_OVER->MENU; main.cpp:1354 audio.stopMusic() in WIN->MENU. Uses existing Step 98 API (master*musicVolume, loopable).",
+      "verification": "cmake --build build --config Release: zero errors. ctest --test-dir build -C Release: 1/1 Passed. Arcade/Platformer/Pong alive True. No crash on missing music asset."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
