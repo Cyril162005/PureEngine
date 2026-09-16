@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 117 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 122 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1135,6 +1135,16 @@
       ],
       "implementation": "main.cpp:1096-1097 static const pe::Button menuStartButton/menuAltButton (0,-1.7,3,0.8,\"START\") / (0,-2.7,3,0.8,\"ALT\"); main.cpp:1244-1257 MENU case else-if: input.mouseEdge(GLFW_MOUSE_BUTTON_LEFT) && pe::hitTest(...) then same activateScene/resetGame/state-set as keyboard; main.cpp:1751-1752 pe::drawButton(renderer, camera.projection(), ...) in MENU draw branch.",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 3.74 s; arcade/platformer/pong alive True (platformer stdout level1 (80 cells), level2 (80 cells)). Interactive click NOT verified (no input injection in this environment)."
+    },
+    {
+      "id": 122,
+      "name": "Prefab used in a live game (end-to-end content proof)",
+      "status": "completed",
+      "definition_of_done": "The console spawn_prefab path is verified end-to-end: a prefab-spawned entity carries its clip name and resolves it to a playing AnimationState at spawn time (the one real gap - instantiatePrefab sets currentClipName but not the pointer, and activateScene's rebuild wipes console spawns). Default arcade behavior untouched when the command is never used. Non-breaking.",
+      "notes": "Inspection found spawn_prefab already existed (main.cpp:1001-1012, Step 120) and the prefab asset copy for all targets already existed (CMakeLists.txt:161-164/191-196/246-247/317-318), so no CMake change was needed. The gap: instantiatePrefab (prefab.h:181) carries currentClipName but NOT animationState (documented NOT-set); name-to-pointer resolution existed only inside activateScene (main.cpp:861-870), which rebuilds and wipes console-spawned entities. Fix: the command now resolves the clip name right after spawnEntity using the game-owned animations map (same loop body as activateScene's Step 106 keep). Spawned hostile at (0,0,0) is safe by geometry: player at (-1.5,0), dx=1.5 > 0.7071+0.5=1.2071, no immediate catch; it joins chase/catch automatically via roleId=2. Interactive typing NOT performed in this headless environment - compile + ctest + alive probes only.",
+      "implementation": "src/main.cpp:998-1031 spawn_prefab command: pe::loadPrefab(file) -> pe::instantiatePrefab(p, (0,0,0)) -> pe::spawnEntity(*activeScene, e) -> clip resolution (animations.find(spawned.currentClipName) -> currentAnimation/isPlaying). tests/hostile_data_test.cpp:1236 checkPrefabSceneSpawn (end-to-end: temp prefab file -> loadPrefab -> instantiatePrefab -> spawnEntity into Scene with pre-existing entity -> index/count/alive/clip-name asserts -> playing state + frame advance/wrap asserts -> spawned hostile chases player-role entity via pe::chasePlayer with ArcadeRole ids) + registered in main().",
+      "verification": "cmake --build build --config Release -> EXIT=0, zero errors, all 7 targets (only main.cpp + hostile_data_test.cpp recompiled); ctest --test-dir build -C Release -> 1/1 Passed 9.25 sec; direct run: checkPrefabSceneSpawn PASSED + checkPrefabLiveSpawn PASSED + hostile_data_test: PASS; alive probes: PureEngine alive=True, Platformer alive=True, Pong alive=True (5s each, full init survived). Interactive in-game typing NOT verified (no input injection in this environment).",
+      "commit": "4e80201"
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
