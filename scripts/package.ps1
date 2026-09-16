@@ -12,6 +12,7 @@ $runtimeAssets = @(
     "beep.wav"
     "GAMEOVER.wav"
     "win_sound.wav"
+    "music_loop.wav"
     "checker.png"
     "font_digits.png"
     "tex_player.png"

@@ -109,6 +109,12 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/win_sound.wav"
+    # Step 123: the Step 119 music loop asset — playMusicLoop probes
+    # assets/music_loop.wav at startup; missing file = silent graceful
+    # failure, so every bundle that inits audio carries it.
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/music_loop.wav"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/music_loop.wav"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/hostile_default.txt"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_default.txt"
@@ -307,6 +313,10 @@ add_custom_command(TARGET Platformer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"
         "$<TARGET_FILE_DIR:Platformer>/assets/win_sound.wav"
+    # Step 123: music loop asset (same rule as the arcade bundle).
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/music_loop.wav"
+        "$<TARGET_FILE_DIR:Platformer>/assets/music_loop.wav"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/input_bindings.txt"
         "$<TARGET_FILE_DIR:Platformer>/assets/input_bindings.txt"
