@@ -995,9 +995,13 @@ if (clip != animations.end()) {
         resetGame();
         return std::string("world reset");
     });
-    // --- Step 120: prefab system console command ---
+    // --- Step 120/122: prefab system console command ---
     // spawn_prefab [filename] — load a prefab from assets/prefabs/,
     // instantiate at (0,0,0), and spawn into the active scene.
+    // Step 122: resolve the prefab's clip name to the animation map RIGHT
+    // HERE. instantiatePrefab carries only the NAME (documented NOT-set:
+    // animationState), and activateScene's rebuild wipes console spawns —
+    // without this, a spawned entity carries currentClipName but never plays.
     pe::registerCommand(console, "spawn_prefab",
         [&](const std::vector<std::string>& args) {
             pe::Prefab p;
@@ -1008,6 +1012,15 @@ if (clip != animations.end()) {
             pe::Vec3 pos(0.0f, 0.0f, 0.0f);
             pe::Entity e = pe::instantiatePrefab(p, pos);
             pe::spawnEntity(*activeScene, e);
+            // Step 122: same resolution loop body as activateScene's Step 106 keep.
+            pe::Entity& spawned = activeScene->entities.back();
+            if (!spawned.currentClipName.empty()) {
+                const auto clip = animations.find(spawned.currentClipName);
+                if (clip != animations.end()) {
+                    spawned.animationState.currentAnimation = &clip->second;
+                    spawned.animationState.isPlaying = true;
+                }
+            }
             return std::string("Spawned '") + p.name + "' at (0,0,0)";
         });
     // --- Step 75: runtime volume tuning (no recompile) ---
