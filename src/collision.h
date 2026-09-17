@@ -115,6 +115,56 @@ inline std::vector<std::pair<std::size_t, std::size_t>> broadphaseGrid(
     return out;
 }
 
+// ------------------------------------------------------------------
+// Step 127: point pick against entity AABBs (pure, O(n) scan).
+// Returns the index of the entity whose scaled AABB contains the world
+// point, or -1 when nothing is picked.
+//
+// Containment rule (the separating-axis principle against a zero-size
+// box): |point - center| < scaledHalf on BOTH axes — strict '<', so a
+// point exactly ON an edge is NOT a hit, the same touching-is-not-
+// collision rule aabbOverlap applies. Half-extents are scaled by the
+// entity's per-axis scale — the box matches what is RENDERED, the same
+// no-invisible-fat-collider rule the entity overload above follows.
+//
+// Overlap rule when several AABBs contain the point: the HIGHEST depth
+// wins — the foreground entity is what the player sees under the
+// cursor, so it is what a pick must return. Ties break to the LOWEST
+// index (first-constructed wins) — stable and deterministic.
+//
+// alive: entities flagged dead (Step 113) are skipped entirely — a
+// logically-removed entity cannot be picked.
+//
+// Pure: no GLFW, no camera dependency. A caller that picks from the
+// SCREEN converts first with Camera::screenToWorld (Steps 125/126),
+// then calls this — composition, not coupling.
+// ------------------------------------------------------------------
+inline int pickEntity(const std::vector<Entity>& entities,
+                      float worldX, float worldY) {
+    int best = -1;
+    int bestDepth = 0;
+    for (std::size_t i = 0; i < entities.size(); ++i) {
+        const Entity& e = entities[i];
+        if (!e.alive) {
+            continue;
+        }
+        const float hx = e.halfExtents.x * e.scale.x;
+        const float hy = e.halfExtents.y * e.scale.y;
+        const float dx = worldX > e.position.x ? worldX - e.position.x
+                                               : e.position.x - worldX;
+        const float dy = worldY > e.position.y ? worldY - e.position.y
+                                               : e.position.y - worldY;
+        if (dx < hx && dy < hy) {
+            if (best == -1 || e.depth > bestDepth) {
+                best = static_cast<int>(i);
+                bestDepth = e.depth;
+            }
+            // e.depth == bestDepth keeps the earlier index: first-constructed wins.
+        }
+    }
+    return best;
+}
+
 } // namespace pe
 
 #endif // PUREENGINE_COLLISION_H

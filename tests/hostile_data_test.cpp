@@ -1649,6 +1649,86 @@ static bool checkStaticResolve() {
     return true;
 }
 
+// --- Step 127: point pick against entity AABBs (headless) ---
+// Locks the documented pick contract: strict '<' containment on the
+// scaled bounds (edge-touching is not a hit), highest depth wins the
+// overlap, ties break to the lowest index, dead entities never match,
+// and an empty/no-match scan returns -1.
+static bool checkEntityPick() {
+    bool ok = true;
+    pe::Entity e1(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                  pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    e1.depth = 1;
+    pe::Entity e2(pe::Vec3(0.2f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                  pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    e2.depth = 2;
+    pe::Entity dead(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                    pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    dead.depth = 9;  // highest depth, but dead — must never win
+    dead.alive = false;
+
+    // Empty vector: -1.
+    {
+        std::vector<pe::Entity> none;
+        if (pe::pickEntity(none, 0.0f, 0.0f) != -1) {
+            std::cerr << "Empty pick must be -1\n";
+            ok = false;
+        }
+    }
+    // No match (outside all boxes): -1.
+    std::vector<pe::Entity> all = {e1, e2, dead};
+    if (pe::pickEntity(all, 5.0f, 5.0f) != -1) {
+        std::cerr << "Miss must be -1\n";
+        ok = false;
+    }
+    // Center of e1 (outside e2's box): e1's index, dead never wins.
+    if (pe::pickEntity(all, -0.3f, 0.0f) != 0) {
+        std::cerr << "e1 center must pick index 0\n";
+        ok = false;
+    }
+    // Overlap region (inside both): highest depth wins -> e2 (index 1).
+    if (pe::pickEntity(all, 0.2f, 0.0f) != 1) {
+        std::cerr << "Overlap must pick highest depth (e2)\n";
+        ok = false;
+    }
+    // Tie-break: equal depths -> lowest index wins.
+    e2.depth = 1;
+    if (pe::pickEntity(all, 0.2f, 0.0f) != 0) {
+        std::cerr << "Depth tie must pick lowest index\n";
+        ok = false;
+    }
+    e2.depth = 2;
+    // Strict '<': point exactly ON e1's edge is not a hit. e1 box is
+    // [-0.5, 0.5] on x; e2 box is [-0.3, 0.7]. Point (0.5, 0.5) is on
+    // both boxes' top/right edges — must be -1.
+    if (pe::pickEntity(all, 0.5f, 0.5f) != -1) {
+        std::cerr << "Edge-touching point must not hit\n";
+        ok = false;
+    }
+    // Scale respected: a 0.5-scale entity occupies a half-size box.
+    pe::Entity small(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(0.5f, 0.5f, 1.0f),
+                     pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    small.depth = 3;
+    std::vector<pe::Entity> withSmall = {small};
+    if (pe::pickEntity(withSmall, 0.24f, 0.0f) != 0) {
+        std::cerr << "Scaled-in point must hit\n";
+        ok = false;
+    }
+    if (pe::pickEntity(withSmall, 0.26f, 0.0f) != -1) {
+        std::cerr << "Point past the scaled bound must miss\n";
+        ok = false;
+    }
+    // Dead-only vector: -1 even at its center.
+    {
+        std::vector<pe::Entity> onlyDead = {dead};
+        if (pe::pickEntity(onlyDead, 0.0f, 0.0f) != -1) {
+            std::cerr << "Dead entity must never be picked\n";
+            ok = false;
+        }
+    }
+    return ok;
+}
+
 static bool checkSceneByName() {
     pe::SceneManager scenes;
     if (pe::sceneByName(scenes, "nope") != nullptr) {
@@ -2759,6 +2839,7 @@ int main() {
     const bool muteToggleOk = checkMuteToggle();
     const bool screenToWorldOk = checkScreenToWorld();
     const bool worldToScreenOk = checkWorldToScreen();
+    const bool entityPickOk = checkEntityPick();
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
@@ -2800,7 +2881,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
