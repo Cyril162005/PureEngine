@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 126 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 127 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1200,6 +1200,20 @@
       ],
       "implementation": "camera.h:75-101 pe::uiToScreen pure core (ndc inverse math + Y-flip back + degenerate (0,0,0) guard, comment documents uiToScreen(screenToUi(p))==p); camera.h:206-221 Camera::worldToScreenUi (uiToScreen with stored halfWidth/halfHeight) and Camera::worldToScreen (subtracts position.x/y then worldToScreenUi). tests/hostile_data_test.cpp:2099 checkWorldToScreen (center (0,0)->(400,300), corners, quarter point inverse, degenerate halves, 4-pixel round-trip px->world->px, 4-world round-trip world->px->world, resized camera worldToScreenUi round-trip at halfW=12, worldToScreen subtracts camera (2,1)->center, screenToWorld/worldToScreen round-trip) + :2761 registered + :2803 gated.",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 1.55 s (checkWorldToScreen passes: known values + both-direction round-trips); arcade/platformer/pong alive True (platformer 80 cells). In-game overlay demo NOT implemented (none claimed)."
+    },
+    {
+      "id": 127,
+      "name": "Point pick against entity AABBs (pickEntity + overlap rule)",
+      "status": "completed",
+      "definition_of_done": "Pure pe::pickEntity(entities, worldX, worldY) O(n) scan returns winning index or -1. Containment: strict < on both axes (edge-touching not a hit), scaled half-extents. Overlap rule: highest depth wins, ties to lowest index. alive respected (dead never picked). Headless checkEntityPick passes. Non-breaking; no broadphase.",
+      "notes": "Engine-pure: lives in collision.h beside aabbOverlap, no collision-camera coupling (games convert screen->world first via Camera::screenToWorld from Steps 125/126, then pick - composition, not coupling). No MENU changes, no in-game click-to-select demo. Z ignored (flat 2D scene, same as aabbOverlap).",
+      "commit": "c517b53",
+      "depends_on": [
+        113,
+        126
+      ],
+      "implementation": "collision.h:119-141 pickEntity contract comment (containment/overlap/alive rules); collision.h:142-167 pickEntity (strict < on scaled halfExtents*scale, manual constexpr-style abs, highest depth wins via bestDepth, tie keeps lowest index, alive skip, -1 none). Step 97 broadphaseGrid untouched above. tests/hostile_data_test.cpp:1657 checkEntityPick (empty -1, miss -1, e1 center, overlap highest-depth, depth tie lowest index, edge-touch (0.5,0.5) not a hit, scale 0.5 box in/out, dead-only -1) + :2842 registered + :2884 gated.",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 2.91 s (checkEntityPick passes); arcade/platformer/pong alive True (platformer 80 cells). In-game click-to-select demo NOT implemented (none claimed)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
