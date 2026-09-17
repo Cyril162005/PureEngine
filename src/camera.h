@@ -72,6 +72,29 @@ inline Vec3 screenToUi(float mouseX, float mouseY,
     return Vec3(ndcX * halfW, ndcY * halfH, 0.0f);
 }
 
+// --- Step 126: world-to-screen conversion core (pure, testable) ---
+// The EXACT inverse of screenToUi: one world/UI WORLD-UNIT coordinate
+// into its window/framebuffer PIXEL position, given the box half-
+// extents the projection was built from:
+//   ndcX   = worldX / halfW                pixelX = (ndcX + 1) * 0.5 * fbWidth
+//   ndcY   = worldY / halfH                pixelY = (1 - ndcY) * 0.5 * fbHeight
+// The Y term flips BACK to top-left/y-down pixels, mirroring screenToUi's
+// flip. Guard: degenerate HALF-EXTENTS (zero/negative) yield (0,0,0) —
+// the half-extents are this direction's only divisor; a zero framebuffer
+// needs no guard (pixel (0,0) falls out with no division). Pure: no
+// GLFW, no state, directly testable; uiToScreen(screenToUi(p)) == p.
+inline Vec3 uiToScreen(float worldX, float worldY,
+                       float fbWidth, float fbHeight,
+                       float halfW, float halfH) {
+    if (halfW <= 0.0f || halfH <= 0.0f) {
+        return Vec3(0.0f, 0.0f, 0.0f);
+    }
+    const float ndcX = worldX / halfW;
+    const float ndcY = worldY / halfH;
+    return Vec3((ndcX + 1.0f) * 0.5f * fbWidth,
+                (1.0f - ndcY) * 0.5f * fbHeight, 0.0f);
+}
+
 class Camera {
 public:
     // --- Step 11's reset line, relocated: back to the world origin ---
@@ -178,6 +201,23 @@ public:
     Vec3 screenToWorld(float mouseX, float mouseY,
                        float fbWidth, float fbHeight) const {
         return screenToWorldUi(mouseX, mouseY, fbWidth, fbHeight) + position;
+    }
+
+    // --- Step 126: world-to-screen wrappers (Step 125 naming) ---
+    // worldToScreenUi IGNORES camera position: converts a screen-space
+    // (UI) world-unit position to its framebuffer pixel — the inverse of
+    // screenToWorldUi. worldToScreen SUBTRACTS the camera position first
+    // (this view is a pure translation), the exact inverse of
+    // screenToWorld. Both round-trip against their Step 125 twins.
+    Vec3 worldToScreenUi(float worldX, float worldY,
+                         float fbWidth, float fbHeight) const {
+        return uiToScreen(worldX, worldY, fbWidth, fbHeight,
+                          halfWidth, halfHeight);
+    }
+    Vec3 worldToScreen(const Vec3& worldPos,
+                       float fbWidth, float fbHeight) const {
+        return worldToScreenUi(worldPos.x - position.x, worldPos.y - position.y,
+                               fbWidth, fbHeight);
     }
 
 private:

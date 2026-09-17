@@ -2093,6 +2093,99 @@ static bool checkScreenToWorld() {
     return ok;
 }
 
+// --- Step 126: world-to-screen conversion (headless, known numbers) ---
+// Pure math mirroring checkScreenToWorld, plus round-trip proofs
+// against screenToUi in both directions — no GLFW, no device.
+static bool checkWorldToScreen() {
+    bool ok = true;
+    // World origin on the default 12x9 box maps to the window center.
+    const pe::Vec3 c = pe::uiToScreen(0.0f, 0.0f, 800.0f, 600.0f, 6.0f, 4.5f);
+    if (!assertFloatClose(c.x, 400.0f) || !assertFloatClose(c.y, 300.0f)) {
+        std::cerr << "uiToScreen center must be (400,300)\n";
+        ok = false;
+    }
+    // World (-6, 4.5) = top-left pixel (0,0); (6, -4.5) = bottom-right.
+    const pe::Vec3 tl = pe::uiToScreen(-6.0f, 4.5f, 800.0f, 600.0f, 6.0f, 4.5f);
+    if (!assertFloatClose(tl.x, 0.0f) || !assertFloatClose(tl.y, 0.0f)) {
+        std::cerr << "uiToScreen top-left corner wrong\n";
+        ok = false;
+    }
+    const pe::Vec3 br = pe::uiToScreen(6.0f, -4.5f, 800.0f, 600.0f, 6.0f, 4.5f);
+    if (!assertFloatClose(br.x, 800.0f) || !assertFloatClose(br.y, 600.0f)) {
+        std::cerr << "uiToScreen bottom-right corner wrong\n";
+        ok = false;
+    }
+    // World (-3, 2.25) = pixel (200, 150) (inverse of Step 125's quarter point).
+    const pe::Vec3 q = pe::uiToScreen(-3.0f, 2.25f, 800.0f, 600.0f, 6.0f, 4.5f);
+    if (!assertFloatClose(q.x, 200.0f) || !assertFloatClose(q.y, 150.0f)) {
+        std::cerr << "uiToScreen quarter point wrong\n";
+        ok = false;
+    }
+    // Degenerate half-extents: (0,0,0), never divide by zero.
+    const pe::Vec3 d = pe::uiToScreen(1.0f, 1.0f, 800.0f, 600.0f, 0.0f, 0.0f);
+    if (!assertFloatClose(d.x, 0.0f) || !assertFloatClose(d.y, 0.0f)) {
+        std::cerr << "uiToScreen degenerate half-extents must be (0,0)\n";
+        ok = false;
+    }
+    // Round-trip pixel -> world -> pixel for sample points.
+    const float pixels[4][2] = {{0.0f, 0.0f}, {400.0f, 300.0f},
+                                {800.0f, 600.0f}, {200.0f, 150.0f}};
+    for (int i = 0; i < 4; ++i) {
+        const pe::Vec3 world = pe::screenToUi(pixels[i][0], pixels[i][1],
+                                              800.0f, 600.0f, 6.0f, 4.5f);
+        const pe::Vec3 back = pe::uiToScreen(world.x, world.y,
+                                             800.0f, 600.0f, 6.0f, 4.5f);
+        if (!assertFloatClose(back.x, pixels[i][0]) ||
+            !assertFloatClose(back.y, pixels[i][1])) {
+            std::cerr << "screenToUi/uiToScreen round-trip failed at " << i << "\n";
+            ok = false;
+        }
+    }
+    // Round-trip world -> pixel -> world for sample points.
+    const float worlds[4][2] = {{-6.0f, 4.5f}, {0.0f, 0.0f},
+                                {3.0f, -1.5f}, {5.9f, 4.4f}};
+    for (int i = 0; i < 4; ++i) {
+        const pe::Vec3 px = pe::uiToScreen(worlds[i][0], worlds[i][1],
+                                           800.0f, 600.0f, 6.0f, 4.5f);
+        const pe::Vec3 back = pe::screenToUi(px.x, px.y,
+                                             800.0f, 600.0f, 6.0f, 4.5f);
+        if (!assertFloatClose(back.x, worlds[i][0]) ||
+            !assertFloatClose(back.y, worlds[i][1])) {
+            std::cerr << "uiToScreen/screenToUi round-trip failed at " << i << "\n";
+            ok = false;
+        }
+    }
+    // Camera wrapper round-trips on a resized camera (halfW = 12 at 1600x600).
+    pe::Camera cam;
+    cam.onResize(1600, 600);
+    const pe::Vec3 edge = cam.worldToScreenUi(12.0f, -4.5f, 1600.0f, 600.0f);
+    if (!assertFloatClose(edge.x, 1600.0f) || !assertFloatClose(edge.y, 600.0f)) {
+        std::cerr << "resized worldToScreenUi right edge wrong\n";
+        ok = false;
+    }
+    const pe::Vec3 back2 = cam.screenToWorldUi(edge.x, edge.y, 1600.0f, 600.0f);
+    if (!assertFloatClose(back2.x, 12.0f) || !assertFloatClose(back2.y, -4.5f)) {
+        std::cerr << "worldToScreenUi/screenToWorldUi round-trip failed\n";
+        ok = false;
+    }
+    // worldToScreen subtracts the camera position (inverse of screenToWorld):
+    // camera at (2,1) looking at world (2,1) shows it at the window center.
+    pe::Camera moved;
+    moved.move(2.0f, 1.0f, 1.0f);
+    const pe::Vec3 px = moved.worldToScreen(pe::Vec3(2.0f, 1.0f, 0.0f),
+                                            800.0f, 600.0f);
+    if (!assertFloatClose(px.x, 400.0f) || !assertFloatClose(px.y, 300.0f)) {
+        std::cerr << "worldToScreen must subtract camera position\n";
+        ok = false;
+    }
+    const pe::Vec3 back3 = moved.screenToWorld(px.x, px.y, 800.0f, 600.0f);
+    if (!assertFloatClose(back3.x, 2.0f) || !assertFloatClose(back3.y, 1.0f)) {
+        std::cerr << "screenToWorld/worldToScreen round-trip failed\n";
+        ok = false;
+    }
+    return ok;
+}
+
 static bool checkSceneSerialization() {
     pe::Scene src;
     src.name = "test_roundtrip";
@@ -2665,6 +2758,7 @@ int main() {
     const bool volumeClampOk = checkVolumeClamp();
     const bool muteToggleOk = checkMuteToggle();
     const bool screenToWorldOk = checkScreenToWorld();
+    const bool worldToScreenOk = checkWorldToScreen();
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
@@ -2706,7 +2800,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
