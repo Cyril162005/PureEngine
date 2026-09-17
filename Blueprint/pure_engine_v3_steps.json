@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 125 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 126 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1187,6 +1187,19 @@
       ],
       "implementation": "camera.h:53-75 pe::screenToUi pure core (ndc math + Y-flip + degenerate (0,0,0) guard); camera.h:149-155 onResize stores halfWidth/halfHeight (defaults 6.0/4.5 at :193-194, so a never-resized camera converts correctly); camera.h:173-180 Camera::screenToWorldUi (ignores position - UI screen-space rule) and Camera::screenToWorld (adds position - view is a pure translation); main.cpp:1271-1291 MENU click branch converts pixels->UI units before hitTest (fixes dead code). tests/hostile_data_test.cpp:2034 checkScreenToWorld (center, corners, quarter point, degenerate fb, resized 32:12 box via cam.onResize(1600,600), fresh camera, screenToWorld adds position) + :2667 registered + :2709 gated.",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 3.16 s (checkScreenToWorld passes with known numbers: (400,300)->(0,0), (0,0)->(-6,4.5), (800,600)->(6,-4.5), (200,150)->(-3,2.25), resize halfW=12); arcade/platformer/pong alive True (platformer 80 cells; arcade stdout clean). In-game click-to-world demo NOT verified (no input injection in this environment)."
+    },
+    {
+      "id": 126,
+      "name": "World-to-screen helper (uiToScreen + Camera wrappers)",
+      "status": "completed",
+      "definition_of_done": "Pure pe::uiToScreen(worldX,worldY,fbW,fbH,halfW,halfH) is the exact inverse of screenToUi (world units -> framebuffer pixels, Y-flip back, degenerate half-extents guard). Camera::worldToScreenUi/worldToScreen wrappers mirror Step 125 naming. Headless checkWorldToScreen with known numbers AND round-trip proofs in both directions passes. Non-breaking.",
+      "notes": "No gameplay/MENU changes - pure helper + tests only. Guard is on half-extents (this direction only divides by them); a zero framebuffer needs no guard (pixel (0,0) falls out with no division). Camera wrappers: worldToScreenUi ignores camera position (UI screen-space rule); worldToScreen subtracts position first (view is a pure translation) - exact inverse of screenToWorld. In-game overlay demo NOT implemented.",
+      "commit": "ec3f4f8",
+      "depends_on": [
+        125
+      ],
+      "implementation": "camera.h:75-101 pe::uiToScreen pure core (ndc inverse math + Y-flip back + degenerate (0,0,0) guard, comment documents uiToScreen(screenToUi(p))==p); camera.h:206-221 Camera::worldToScreenUi (uiToScreen with stored halfWidth/halfHeight) and Camera::worldToScreen (subtracts position.x/y then worldToScreenUi). tests/hostile_data_test.cpp:2099 checkWorldToScreen (center (0,0)->(400,300), corners, quarter point inverse, degenerate halves, 4-pixel round-trip px->world->px, 4-world round-trip world->px->world, resized camera worldToScreenUi round-trip at halfW=12, worldToScreen subtracts camera (2,1)->center, screenToWorld/worldToScreen round-trip) + :2761 registered + :2803 gated.",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 1.55 s (checkWorldToScreen passes: known values + both-direction round-trips); arcade/platformer/pong alive True (platformer 80 cells). In-game overlay demo NOT implemented (none claimed)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
