@@ -1978,6 +1978,55 @@ static bool checkVolumeClamp() {
     return true;
 }
 
+// --- Step 124: mute toggle logic (headless, no device) ---
+// The exact Audio-class logic the M key and the console mute command
+// run: masterVolume = 0 silences (both SFX and music multiply by
+// master), unmute restores the remembered value, mute cycles never
+// lose a volume change made while muted. applyVolumes() guards no-op
+// safely pre-init (same pattern as checkVolumeClamp).
+static bool checkMuteToggle() {
+    pe::Audio audio;  // never init()ed: guards must no-op safely
+    // Defaults: unmuted at master 1.0 — pre-Step-124 behavior.
+    if (audio.isMuted() || !assertFloatClose(audio.getMasterVolume(), 1.0f)) {
+        std::cerr << "Fresh Audio must be unmuted at master 1.0\n";
+        return false;
+    }
+    // User sets a custom volume, then mutes: output silences.
+    audio.setMasterVolume(0.7f);
+    audio.setMuted(true);
+    if (!audio.isMuted() || !assertFloatClose(audio.getMasterVolume(), 0.0f)) {
+        std::cerr << "Muted master must be 0\n";
+        return false;
+    }
+    // Idempotent: muting again keeps state (no double-restore later).
+    audio.setMuted(true);
+    if (!audio.isMuted()) { std::cerr << "Double mute must stay muted\n"; return false; }
+    // Unmute restores the remembered custom volume.
+    audio.setMuted(false);
+    if (audio.isMuted() || !assertFloatClose(audio.getMasterVolume(), 0.7f)) {
+        std::cerr << "Unmute must restore remembered volume\n";
+        return false;
+    }
+    // Volume change WHILE muted: recorded, takes effect on unmute.
+    audio.setMuted(true);
+    audio.setMasterVolume(0.4f);
+    if (!assertFloatClose(audio.getMasterVolume(), 0.0f)) {
+        std::cerr << "Muted output must stay silent\n";
+        return false;
+    }
+    audio.setMuted(false);
+    if (!assertFloatClose(audio.getMasterVolume(), 0.4f)) {
+        std::cerr << "Unmute must apply muted-period volume change\n";
+        return false;
+    }
+    // toggleMute flips state both ways.
+    audio.toggleMute();
+    if (!audio.isMuted()) { std::cerr << "toggleMute must mute\n"; return false; }
+    audio.toggleMute();
+    if (audio.isMuted()) { std::cerr << "toggleMute must unmute\n"; return false; }
+    return true;
+}
+
 static bool checkSceneSerialization() {
     pe::Scene src;
     src.name = "test_roundtrip";
@@ -2548,6 +2597,7 @@ int main() {
     const bool platClimbOk = checkPlatformerClimb();
     const bool inputEdgesOk = checkInputEdges();
     const bool volumeClampOk = checkVolumeClamp();
+    const bool muteToggleOk = checkMuteToggle();
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
@@ -2589,7 +2639,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

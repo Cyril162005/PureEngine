@@ -222,8 +222,15 @@ public:
     // initialized sound; init() applies the stored values at the end so
     // a pre-init set is never silently lost. ma_sound_set_volume is
     // mixer-thread-safe; these run on the game thread like the triggers.
+    //
+    // Step 124: the user's chosen master volume is remembered in
+    // savedMasterVolume even while muted, so a volume change made during
+    // mute takes effect on unmute and mute/unmute cycles never lose it.
     void setMasterVolume(float v) {
-        masterVolume = clampVolume01(v);
+        savedMasterVolume = clampVolume01(v);
+        if (!muted) {
+            masterVolume = savedMasterVolume;
+        }
         applyVolumes();
     }
 
@@ -234,6 +241,26 @@ public:
 
     float getMasterVolume() const { return masterVolume; }
     float getSfxVolume() const { return sfxVolume; }
+
+    // --- Step 124: mute toggle (no new bus, master==0 is the silence) ---
+    // Both SFX and music paths multiply by masterVolume, so muting is
+    // exactly masterVolume = 0 and unmute restores the remembered
+    // value. Idempotent: muting twice keeps the FIRST saved volume.
+    // Defaults preserve pre-Step-124 behavior until the first toggle.
+    void setMuted(bool m) {
+        if (m == muted) {
+            return;
+        }
+        muted = m;
+        if (muted) {
+            masterVolume = 0.0f;
+        } else {
+            masterVolume = savedMasterVolume;
+        }
+        applyVolumes();
+    }
+    void toggleMute() { setMuted(!muted); }
+    bool isMuted() const { return muted; }
 
     // --- Step 80: per-sound gain (master * sfx * perSound) ---
     // Builds on Step 75 master*sfx; per-sound defaults 1.0 keep existing
@@ -363,6 +390,11 @@ private:
     // Step 98: music slot — long-lived, loopable, distinct from one-shot SFX
     // Master + musicVolume apply (sfx/per-sound do not). No mixer graph.
     float musicVolume = 1.0f;
+    // Step 124: mute state. muted silences via masterVolume = 0;
+    // savedMasterVolume remembers the user's chosen volume across
+    // mute/unmute cycles (and volume changes made while muted).
+    bool muted = false;
+    float savedMasterVolume = 1.0f;
 };
 
 } // namespace pe

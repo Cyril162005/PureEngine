@@ -1075,6 +1075,15 @@ if (clip != animations.end()) {
              << " sfx " << audio.getSfxVolume();
         return echo.str();
     });
+    // --- Step 124: mute console toggle (reports state + volume) ---
+    pe::registerCommand(console, "mute", [&](const std::vector<std::string>&) {
+        audio.toggleMute();
+        std::ostringstream echo;
+        echo << std::fixed << std::setprecision(2);
+        echo << (audio.isMuted() ? "muted" : "unmuted")
+             << " master " << audio.getMasterVolume();
+        return echo.str();
+    });
     pe::registerCommand(console, "scene_dump", [&](const std::vector<std::string>&) {
         std::filesystem::create_directories("savedata");
         bool ok = pe::saveSceneToFile(*activeScene, "savedata/scene_dump.txt");
@@ -1294,6 +1303,13 @@ if (clip != animations.end()) {
                 // --- Step 42: F1 = AABB debug overlay toggle (edge) ---
                 if (input.isEdge(window, GLFW_KEY_F1)) {
                     debugHitboxes = !debugHitboxes;
+                }
+                // --- Step 124: M = mute toggle (edge) ---
+                // Silences/restores ALL output (SFX + music) through the
+                // Audio boundary; the remembered volume survives the
+                // cycle. Keyboard-only: Platformer/Pong unchanged.
+                if (input.isEdge(window, GLFW_KEY_M)) {
+                    audio.toggleMute();
                 }
                 // --- Step 6 / Steps 15-16: Camera Movement (WASD,
                 // polled every frame) ---
