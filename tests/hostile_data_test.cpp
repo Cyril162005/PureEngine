@@ -2027,6 +2027,72 @@ static bool checkMuteToggle() {
     return true;
 }
 
+// --- Step 125: screen-to-world conversion (headless, known numbers) ---
+// Pure math against the default 12x9 ortho box (halfW=6, halfH=4.5) and
+// a resized 32:12 box — no GLFW, no device. Locks the coordinate
+// contract: pixels are top-left/y-down, world is center-origin/y-up.
+static bool checkScreenToWorld() {
+    bool ok = true;
+    // Center of an 800x600 window is the world origin.
+    const pe::Vec3 c = pe::screenToUi(400.0f, 300.0f, 800.0f, 600.0f, 6.0f, 4.5f);
+    if (!assertFloatClose(c.x, 0.0f) || !assertFloatClose(c.y, 0.0f)) {
+        std::cerr << "screenToUi center must be (0,0)\n";
+        ok = false;
+    }
+    // Top-left pixel = world (-halfW, +halfH); bottom-right the opposite.
+    const pe::Vec3 tl = pe::screenToUi(0.0f, 0.0f, 800.0f, 600.0f, 6.0f, 4.5f);
+    if (!assertFloatClose(tl.x, -6.0f) || !assertFloatClose(tl.y, 4.5f)) {
+        std::cerr << "screenToUi top-left corner wrong\n";
+        ok = false;
+    }
+    const pe::Vec3 br = pe::screenToUi(800.0f, 600.0f, 800.0f, 600.0f, 6.0f, 4.5f);
+    if (!assertFloatClose(br.x, 6.0f) || !assertFloatClose(br.y, -4.5f)) {
+        std::cerr << "screenToUi bottom-right corner wrong\n";
+        ok = false;
+    }
+    // Quarter point: pixel (200,150) -> ndc (-0.5, +0.5) -> world (-3, 2.25).
+    const pe::Vec3 q = pe::screenToUi(200.0f, 150.0f, 800.0f, 600.0f, 6.0f, 4.5f);
+    if (!assertFloatClose(q.x, -3.0f) || !assertFloatClose(q.y, 2.25f)) {
+        std::cerr << "screenToUi quarter point wrong\n";
+        ok = false;
+    }
+    // Degenerate framebuffer: (0,0,0), never divide by zero.
+    const pe::Vec3 d = pe::screenToUi(100.0f, 100.0f, 0.0f, 0.0f, 6.0f, 4.5f);
+    if (!assertFloatClose(d.x, 0.0f) || !assertFloatClose(d.y, 0.0f)) {
+        std::cerr << "screenToUi degenerate framebuffer must be (0,0)\n";
+        ok = false;
+    }
+    // Resize consistency: onResize(1600,600) gives halfW = 4.5*1600/600 = 12.
+    // Center still (0,0); right edge pixel now maps to (12, -4.5).
+    pe::Camera cam;
+    cam.onResize(1600, 600);
+    const pe::Vec3 rc = cam.screenToWorldUi(800.0f, 300.0f, 1600.0f, 600.0f);
+    if (!assertFloatClose(rc.x, 0.0f) || !assertFloatClose(rc.y, 0.0f)) {
+        std::cerr << "resized screenToWorldUi center wrong\n";
+        ok = false;
+    }
+    const pe::Vec3 re = cam.screenToWorldUi(1600.0f, 600.0f, 1600.0f, 600.0f);
+    if (!assertFloatClose(re.x, 12.0f) || !assertFloatClose(re.y, -4.5f)) {
+        std::cerr << "resized screenToWorldUi right edge wrong\n";
+        ok = false;
+    }
+    // Default (never-resized) camera converts with the 12x9 box.
+    pe::Camera fresh;
+    const pe::Vec3 fe = fresh.screenToWorldUi(800.0f, 600.0f, 800.0f, 600.0f);
+    if (!assertFloatClose(fe.x, 6.0f) || !assertFloatClose(fe.y, -4.5f)) {
+        std::cerr << "fresh screenToWorldUi right edge wrong\n";
+        ok = false;
+    }
+    // screenToWorld adds the camera position (view is a pure translation).
+    fresh.move(2.0f, 1.0f, 1.0f);
+    const pe::Vec3 w = fresh.screenToWorld(0.0f, 0.0f, 800.0f, 600.0f);
+    if (!assertFloatClose(w.x, -4.0f) || !assertFloatClose(w.y, 5.5f)) {
+        std::cerr << "screenToWorld must add camera position\n";
+        ok = false;
+    }
+    return ok;
+}
+
 static bool checkSceneSerialization() {
     pe::Scene src;
     src.name = "test_roundtrip";
@@ -2598,6 +2664,7 @@ int main() {
     const bool inputEdgesOk = checkInputEdges();
     const bool volumeClampOk = checkVolumeClamp();
     const bool muteToggleOk = checkMuteToggle();
+    const bool screenToWorldOk = checkScreenToWorld();
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
@@ -2639,7 +2706,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

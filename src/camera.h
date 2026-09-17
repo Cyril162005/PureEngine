@@ -50,6 +50,28 @@
 
 namespace pe {
 
+// --- Step 125: screen-to-world conversion core (pure, testable) ---
+// Converts one window/framebuffer PIXEL coordinate into the ortho box's
+// WORLD-UNIT coordinates, given the box half-extents the projection was
+// built from. The inverse of the ortho mapping the renderer applies:
+//   ndcX = (pixelX / fbWidth)  * 2 - 1      worldX = ndcX * halfW
+//   ndcY = 1 - (pixelY / fbHeight) * 2      worldY = ndcY * halfH
+// The Y term FLIPS the axis: mouse pixels are (0,0) TOP-LEFT with y-down
+// (the raw glfwGetCursorPos space), while world/UI space is origin-at-
+// CENTER with y-up. Degenerate framebuffer (zero/negative size) yields
+// (0,0,0) — never divide by zero. Pure: no GLFW, no state, directly
+// testable with known projection numbers.
+inline Vec3 screenToUi(float mouseX, float mouseY,
+                       float fbWidth, float fbHeight,
+                       float halfW, float halfH) {
+    if (fbWidth <= 0.0f || fbHeight <= 0.0f) {
+        return Vec3(0.0f, 0.0f, 0.0f);
+    }
+    const float ndcX = (mouseX / fbWidth) * 2.0f - 1.0f;
+    const float ndcY = 1.0f - (mouseY / fbHeight) * 2.0f;
+    return Vec3(ndcX * halfW, ndcY * halfH, 0.0f);
+}
+
 class Camera {
 public:
     // --- Step 11's reset line, relocated: back to the world origin ---
@@ -122,12 +144,40 @@ public:
     // --- Step 116: aspect-correct resize ---
     // Called on framebuffer resize; vertical world size locked at ±4.5,
     // horizontal scales with aspect. Zero/negative size is a no-op (minimized).
+    // Step 125: the half-extents are also STORED so the screen-to-world
+    // conversion helpers read the same values the projection was built from.
     void onResize(int width, int height) {
         if (width <= 0 || height <= 0) return;
         float aspect = static_cast<float>(width) / static_cast<float>(height);
-        float halfH = 4.5f;
-        float halfW = halfH * aspect;
-        proj = Mat4::orthographic(-halfW, halfW, -halfH, halfH, -1.0f, 1.0f);
+        halfHeight = 4.5f;
+        halfWidth = halfHeight * aspect;
+        proj = Mat4::orthographic(-halfWidth, halfWidth, -halfHeight, halfHeight, -1.0f, 1.0f);
+    }
+
+    // --- Step 125: screen-to-world conversion (thin wrappers) ---
+    // COORDINATE CONTRACT (documented here, owned here):
+    //   - mouse input: window/framebuffer PIXELS, (0,0) at the TOP-LEFT,
+    //     y-down — the raw glfwGetCursorPos space (pe::MouseState, Step 117).
+    //   - world/UI space: origin at the CENTER, y-up, in WORLD UNITS —
+    //     the ortho box [-halfWidth, halfWidth] x [-halfHeight, halfHeight]
+    //     that the projection maps onto the framebuffer.
+    //   - resize: onResize keeps halfHeight locked at 4.5 and scales
+    //     halfWidth with aspect, so conversion always matches the live
+    //     projection (Step 116 behavior unchanged).
+    //   - screenToWorldUi IGNORES camera position: it converts into the
+    //     screen-space rectangle UI elements are drawn in (projection *
+    //     model, NO VIEW — the Step 21/drawHud contract).
+    //   - screenToWorld ADDS the camera position: this camera's view is
+    //     a pure translation (identity basis, lookAt straight down -Z),
+    //     so world = uiCoords + position — the inverse of the world MVP.
+    Vec3 screenToWorldUi(float mouseX, float mouseY,
+                         float fbWidth, float fbHeight) const {
+        return screenToUi(mouseX, mouseY, fbWidth, fbHeight,
+                          halfWidth, halfHeight);
+    }
+    Vec3 screenToWorld(float mouseX, float mouseY,
+                       float fbWidth, float fbHeight) const {
+        return screenToWorldUi(mouseX, mouseY, fbWidth, fbHeight) + position;
     }
 
 private:
@@ -136,6 +186,12 @@ private:
     // Camera speed in WORLD UNITS PER SECOND. Multiplied by deltaTime
     // per frame, so panning is frame-rate independent.
     const float moveSpeed = 3.0f;
+
+    // Step 125: the visible ortho box's half-extents, mirrored from
+    // whatever onResize last built (defaults = the 12x9 launch box, so
+    // a camera that never resized converts correctly too).
+    float halfWidth = 6.0f;
+    float halfHeight = 4.5f;
 
     // The PROJECTION matrix: maps the visible slice of world space
     // onto the clip cube. BALANCE TUNING: widened from Step 6's 8 x 6

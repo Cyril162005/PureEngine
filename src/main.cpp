@@ -1268,16 +1268,27 @@ if (clip != animations.end()) {
             // keyboard branch above performs. The ladder order keeps
             // keyboard precedence; a held/missed click cannot double-fire
             // because the chain consumes at most one action per frame.
-            } else if (input.mouseEdge(GLFW_MOUSE_BUTTON_LEFT) &&
-                       pe::hitTest(menuStartButton, input.mouseX(), input.mouseY())) {
-                activateScene("arena", defaultHostileDefaults);
-                resetGame();
-                currentState = pe::GameState::PLAYING;
-            } else if (input.mouseEdge(GLFW_MOUSE_BUTTON_LEFT) &&
-                       pe::hitTest(menuAltButton, input.mouseX(), input.mouseY())) {
-                activateScene("arena_alt", alternateHostileDefaults);
-                resetGame();
-                currentState = pe::GameState::PLAYING_ALT;
+            // --- Step 125: convert mouse PIXELS -> UI WORLD UNITS first ---
+            // Raw mouseX/mouseY are framebuffer pixels (top-left, y-down)
+            // while the button rects are world units (origin center, y-up);
+            // comparing them directly could never hit (dead code by
+            // construction). screenToWorldUi uses the live projection's
+            // stored half-extents, so conversion matches Step 116 resize.
+            } else if (input.mouseEdge(GLFW_MOUSE_BUTTON_LEFT)) {
+                int fbw, fh;
+                glfwGetFramebufferSize(window, &fbw, &fh);
+                const pe::Vec3 mouseUi = camera.screenToWorldUi(
+                    input.mouseX(), input.mouseY(),
+                    static_cast<float>(fbw), static_cast<float>(fh));
+                if (pe::hitTest(menuStartButton, mouseUi.x, mouseUi.y)) {
+                    activateScene("arena", defaultHostileDefaults);
+                    resetGame();
+                    currentState = pe::GameState::PLAYING;
+                } else if (pe::hitTest(menuAltButton, mouseUi.x, mouseUi.y)) {
+                    activateScene("arena_alt", alternateHostileDefaults);
+                    resetGame();
+                    currentState = pe::GameState::PLAYING_ALT;
+                }
             }
             break;
         case pe::GameState::PLAYING:
