@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 129 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 130 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1241,6 +1241,21 @@
       ],
       "implementation": "collision.h:95-107 contract comment (scale rule shared, refactors declined); collision.h:108-111 struct WorldAABB {center, halfExtents}; collision.h:113-121 constexpr entityWorldAABB (halfExtents*scale per-axis, z forced 0). tests/hostile_data_test.cpp:1738 checkEntityWorldAABB (default 0.7071 bound, scale (0.5,0.5)x(2,2)->(1,1), non-uniform (0.5,1.5)x(2,0.5)->(1.0,0.75), z forced 0, helper bounds == pickEntity containment (ex*0.999 hits, ex misses), aabbOverlap consistency) + :2988 registered + :3030 gated.",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 3.00 s; direct binary run zero failure messages (existing pick/bounds tests still pass); arcade/platformer/pong alive True (platformer 80 cells). Debug overlay demo NOT implemented (none claimed)."
+    },
+    {
+      "id": 130,
+      "name": "Arcade console pick command (live consumer for Steps 127-129)",
+      "status": "completed",
+      "definition_of_done": "Console command pick: mouse snapshot -> pickEntityAtScreen (Step 128 wrapper) -> reports index/role/tag + world AABB half-extents (entityWorldAABB, Step 129) or none. Steps 127-129 now have a live game consumer. No selection system, no UI framework, no broadphase.",
+      "notes": "Thin glue: the composition (pickEntityAtScreen) was already proven by checkScreenPick (Step 128) - no new headless test needed; the command exercises it in the real arcade. Console-only (reachable in PLAYING/PAUSED via grave accent). Interactive console typing NOT verified - compile + alive probes only.",
+      "commit": "2d01f39",
+      "depends_on": [
+        127,
+        128,
+        129
+      ],
+      "implementation": "main.cpp:1087-1116 pick command: glfwGetFramebufferSize(window,&fw,&fh) at :1094-1095; camera.screenToWorld (world echo) at :1096-1098; pe::pickEntityAtScreen(activeScene->entities, camera, mouseX, mouseY, fw, fh) at :1099-1103; pe::entityWorldAABB(picked) at :1111; prints mouse/world/index/role/tag/aabb half or none. Registered after mute (:1079-1086).",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 2.18 s; arcade/platformer/pong alive True (platformer 80 cells). Interactive console typing NOT verified (no input injection in this environment); the underlying pick composition is proven headlessly by checkScreenPick."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
