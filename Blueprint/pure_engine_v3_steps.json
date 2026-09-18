@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 132 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 133 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1282,6 +1282,20 @@
       ],
       "implementation": "main.cpp:153-156 explicit #include \"components.h\"; main.cpp:1148-1153 target-rule comment + parseEntityIndex lambda (:1154-1164, strict long long, range-checked against live scene size) + parseAmount lambda (:1165-1169, strict eof, >= 0); main.cpp:1170-1181 health command; main.cpp:1182-1198 damage (before -> after via pe::damage); main.cpp:1199-1215 heal (before -> after via pe::heal).",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 6.26 s; arcade/platformer/pong alive True (platformer 80 cells). Interactive console typing NOT verified (no input injection in this environment); the underlying helpers are proven headlessly by checkComponentHelpers (Step 103 tests). One intermediate compile issue (undeclared amtTmp) caught and fixed before build."
+    },
+    {
+      "id": 133,
+      "name": "Arcade console unload proof (live consumer for Step 94)",
+      "status": "completed",
+      "definition_of_done": "Console command textures: report count -> registerNonCoreTexture (Step 89, checker.png at slot >=5) -> report -> unloadNonCoreTextures (Step 94, core 0..4 guarded) -> report. Ends back at the original count: renderer never left broken. Three thin PUBLIC wrappers added over the PRIVATE Step 89/94 APIs. No registry redesign.",
+      "notes": "Unload-only command would be a no-op (nothing registers at runtime currently), so the proof is a register+unload round-trip that exercises both Step 89 and Step 94. SAFETY RULE (enforced inside the private paths, unchanged): core slots 0..4 protected by the id<5 guard in releaseTexture AND clearNonCoreTextures - a runtime unload can never break the running frame. clearNonCoreTextures itself stays void and byte-identical; unloadNonCoreTextures adds only a released-count. Interactive console typing NOT verified - compile + alive probes only.",
+      "commit": "56478e0",
+      "depends_on": [
+        94,
+        89
+      ],
+      "implementation": "renderer.h:775-792 console-proof accessors (textureCount :784, registerNonCoreTexture :785-787 -> registerTexture, unloadNonCoreTextures :788-792 counts non-zero >=5 slots then clearNonCoreTextures, returns count); main.cpp:1234-1256 textures command (before :1241, registerNonCoreTexture('checker.png') :1242, unloadNonCoreTextures :1251, before -> registered id -> count -> unloaded N -> count output).",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 6.51 s; arcade/platformer/pong alive True (platformer 80 cells) after the code path exists - the command is never invoked at startup, so alive probes exercise startup only; interactive console typing NOT verified (no input injection in this environment); the underlying unload logic is proven headlessly by checkTextureRegistry (Step 89/94 tests)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
