@@ -1084,6 +1084,36 @@ if (clip != animations.end()) {
              << " master " << audio.getMasterVolume();
         return echo.str();
     });
+    // --- Step 130: pick console command (live consumer for Steps 127-129) ---
+    // Reads the current mouse snapshot, converts pixels -> world via the
+    // Step 128 wrapper (pickEntityAtScreen composes screenToWorld +
+    // pickEntity), and reports the picked entity's index/role/tag plus
+    // its world AABB half-extents (Step 129). No selection system, no UI.
+    pe::registerCommand(console, "pick", [&](const std::vector<std::string>&) {
+        int fw, fh;
+        glfwGetFramebufferSize(window, &fw, &fh);
+        const pe::Vec3 world = camera.screenToWorld(
+            input.mouseX(), input.mouseY(),
+            static_cast<float>(fw), static_cast<float>(fh));
+        const int index = pe::pickEntityAtScreen(
+            activeScene->entities, camera,
+            input.mouseX(), input.mouseY(),
+            static_cast<float>(fw), static_cast<float>(fh));
+        std::ostringstream echo;
+        echo << std::fixed << std::setprecision(2);
+        echo << "mouse (" << input.mouseX() << ", " << input.mouseY()
+             << ") world (" << world.x << ", " << world.y << ") -> ";
+        if (index < 0) {
+            echo << "none";
+            return echo.str();
+        }
+        const pe::Entity& picked = activeScene->entities[index];
+        const pe::WorldAABB box = pe::entityWorldAABB(picked);
+        echo << "index " << index << " role " << picked.roleId
+             << " tag '" << picked.tag << "'"
+             << " aabb half (" << box.halfExtents.x << ", " << box.halfExtents.y << ")";
+        return echo.str();
+    });
     pe::registerCommand(console, "scene_dump", [&](const std::vector<std::string>&) {
         std::filesystem::create_directories("savedata");
         bool ok = pe::saveSceneToFile(*activeScene, "savedata/scene_dump.txt");
