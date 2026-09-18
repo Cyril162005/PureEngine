@@ -48,6 +48,7 @@
 
 #include "math/vec3.h"  // centers and half-extents are Vec3s
 #include "entity.h"     // the entity overload reads Entity members
+#include "camera.h"     // Step 128: screen-space pick wrapper (acyclic — camera.h is math/state only)
 #include <unordered_map> // Step 97: grid buckets
 #include <utility>      // pair
 #include <vector>       // candidate list
@@ -163,6 +164,29 @@ inline int pickEntity(const std::vector<Entity>& entities,
         }
     }
     return best;
+}
+
+// ------------------------------------------------------------------
+// Step 128: screen-space pick convenience (thin composition wrapper).
+// Mouse framebuffer PIXELS + camera + framebuffer size + entity list ->
+// the picked entity index (pickEntity rules) or -1.
+//
+// Conversion choice: Camera::screenToWorld — the WORLD-space inverse
+// (adds the camera position). Entities live in world space and the
+// camera pans them, so the pick must run in world coordinates: a world
+// entity under the window center converts to world-space via position,
+// which screenToWorld does and screenToWorldUi deliberately does not
+// (UI-space conversion is for screen-space UI rects, if ever needed).
+//
+// No AABB math duplicated: one conversion + one pickEntity call. The
+// include of camera.h is acyclic — camera.h is math/state only.
+// ------------------------------------------------------------------
+inline int pickEntityAtScreen(const std::vector<Entity>& entities,
+                              const Camera& cam,
+                              float mouseX, float mouseY,
+                              float fbWidth, float fbHeight) {
+    const Vec3 world = cam.screenToWorld(mouseX, mouseY, fbWidth, fbHeight);
+    return pickEntity(entities, world.x, world.y);
 }
 
 } // namespace pe

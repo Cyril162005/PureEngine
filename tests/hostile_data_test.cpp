@@ -1,4 +1,4 @@
-#include <cstdio>
+﻿#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -513,7 +513,7 @@ static bool checkHierarchyEdgeCases() {
         std::cerr << "Out-of-range worldPosition must be (0,0,0)\n";
         return false;
     }
-    // Hand-written cycle (bypasses setParent — field is public): the
+    // Hand-written cycle (bypasses setParent â€” field is public): the
     // capped walk must terminate with the exact capped accumulation.
     // pos0=(1,0,0), pos1=(0,1,0), size 2 -> world=(1,0,0)+(0,1,0)+(1,0,0).
     std::vector<pe::Entity> loop(2);
@@ -987,7 +987,7 @@ static bool checkGamepadPollSafety() {
 }
 
 static bool checkMouseInput() {
-    // Step 117: pure mouse snapshot/edge logic — the exact helpers the
+    // Step 117: pure mouse snapshot/edge logic â€” the exact helpers the
     // Input members delegate to. No GLFW hardware involved (gamepad
     // check pattern).
     bool ok = true;
@@ -1327,7 +1327,7 @@ static bool checkPrefabSceneSpawn() {
 // The exact pipeline the console spawn_prefab command runs, proven
 // against the REAL shipped asset (assets/prefabs/enemy.txt, resolved
 // through the 3-candidate probe from the test's CWD) and the real
-// spawnEntity scene integration — not just synthetic temp files.
+// spawnEntity scene integration â€” not just synthetic temp files.
 static bool checkPrefabLiveSpawn() {
     // 1. Load the real shipped prefab (candidate 2 resolves from build/).
     pe::Prefab p;
@@ -1664,7 +1664,7 @@ static bool checkEntityPick() {
     e2.depth = 2;
     pe::Entity dead(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
                     pe::Vec3(0.5f, 0.5f, 0.0f), 0);
-    dead.depth = 9;  // highest depth, but dead — must never win
+    dead.depth = 9;  // highest depth, but dead â€” must never win
     dead.alive = false;
 
     // Empty vector: -1.
@@ -1691,16 +1691,18 @@ static bool checkEntityPick() {
         std::cerr << "Overlap must pick highest depth (e2)\n";
         ok = false;
     }
-    // Tie-break: equal depths -> lowest index wins.
-    e2.depth = 1;
+    // Tie-break: equal depths -> lowest index wins. (Mutate the VECTOR
+    // element: `all` holds copies, so writing e2.depth would not affect
+    // the scanned data — the Step 127 version of this line had that bug.)
+    all[1].depth = 1;
     if (pe::pickEntity(all, 0.2f, 0.0f) != 0) {
         std::cerr << "Depth tie must pick lowest index\n";
         ok = false;
     }
-    e2.depth = 2;
+    all[1].depth = 2;
     // Strict '<': point exactly ON e1's edge is not a hit. e1 box is
     // [-0.5, 0.5] on x; e2 box is [-0.3, 0.7]. Point (0.5, 0.5) is on
-    // both boxes' top/right edges — must be -1.
+    // both boxes' top/right edges â€” must be -1.
     if (pe::pickEntity(all, 0.5f, 0.5f) != -1) {
         std::cerr << "Edge-touching point must not hit\n";
         ok = false;
@@ -1725,6 +1727,74 @@ static bool checkEntityPick() {
             std::cerr << "Dead entity must never be picked\n";
             ok = false;
         }
+    }
+    return ok;
+}
+
+// --- Step 128: screen-space pick convenience (headless) ---
+// Matches pickEntity results for known screen points under the known
+// 800x600 / 12x9 projection, and proves the WORLD-space conversion
+// choice: with the camera moved, a world entity under the cursor is
+// still found (UI-space conversion would miss it).
+static bool checkScreenPick() {
+    bool ok = true;
+    pe::Entity e1(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                  pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    e1.depth = 1;
+    pe::Entity e2(pe::Vec3(2.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                  pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    e2.depth = 2;
+    pe::Entity dead(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                    pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    dead.depth = 9;
+    dead.alive = false;
+    std::vector<pe::Entity> all = {e1, e2, dead};
+
+    pe::Camera cam;  // origin, default 12x9 box (halfW=6, halfH=4.5)
+    // Window center pixel -> world (0,0) -> e1 (dead at same spot never wins).
+    if (pe::pickEntityAtScreen(all, cam, 400.0f, 300.0f, 800.0f, 600.0f) != 0) {
+        std::cerr << "Center screen point must pick e1\n";
+        ok = false;
+    }
+    // World (2,0) maps to pixel (533.33, 300): picks e2 (higher depth).
+    if (pe::pickEntityAtScreen(all, cam, 533.33f, 300.0f, 800.0f, 600.0f) != 1) {
+        std::cerr << "e2 screen point must pick e2\n";
+        ok = false;
+    }
+    // Miss: top-left pixel -> world (-6, 4.5) -> no entity.
+    if (pe::pickEntityAtScreen(all, cam, 0.0f, 0.0f, 800.0f, 600.0f) != -1) {
+        std::cerr << "Off-world screen point must miss\n";
+        ok = false;
+    }
+    // Equivalence with pickEntity at the converted point (contract match).
+    for (int i = 0; i < 3; ++i) {
+        const float px[3] = {400.0f, 533.33f, 0.0f};
+        const pe::Vec3 world = cam.screenToWorld(px[i], 300.0f, 800.0f, 600.0f);
+        const int direct = pe::pickEntity(all, world.x, world.y);
+        const int viaWrapper = pe::pickEntityAtScreen(all, cam, px[i], 300.0f, 800.0f, 600.0f);
+        if (direct != viaWrapper) {
+            std::cerr << "Wrapper must match pickEntity at converted point\n";
+            ok = false;
+        }
+    }
+    // WORLD-space proof: camera moved to (2,1), entity at world (2,1)
+    // appears at the window center â€” must be picked. (UI-space
+    // conversion would ignore the camera and miss.)
+    pe::Camera moved;
+    moved.follow(pe::Vec3(2.0f, 1.0f, 0.0f));
+    pe::Entity e3(pe::Vec3(2.0f, 1.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                  pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    e3.depth = 1;
+    std::vector<pe::Entity> withE3 = {e3};
+    if (pe::pickEntityAtScreen(withE3, moved, 400.0f, 300.0f, 800.0f, 600.0f) != 0) {
+        std::cerr << "Moved-camera world pick must find world entity at center\n";
+        ok = false;
+    }
+    // And the same screen point with an origin camera must MISS it â€”
+    // the camera position is what makes the world-space pick correct.
+    if (pe::pickEntityAtScreen(withE3, cam, 400.0f, 300.0f, 800.0f, 600.0f) != -1) {
+        std::cerr << "Origin camera must miss world (2,1) at center\n";
+        ok = false;
     }
     return ok;
 }
@@ -1799,7 +1869,7 @@ static bool checkPlatformerLevels() {
 
 static bool checkPlatformerLanding() {
     // Real L1 geometry through the real converter: drop from y=2 over the
-    // floor, land grounded at rest height (-2.5). No logic duplicated —
+    // floor, land grounded at rest height (-2.5). No logic duplicated â€”
     // converter builds, one flag marks, controller integrates.
     const pe::Tilemap l1 = pe::loadTilemap("platformer_level1.txt");
     std::vector<pe::Entity> tileStatics = pe::tilemapToEntities(l1, 0.0f, 3);
@@ -1834,7 +1904,7 @@ static bool checkPlatformerLevelSwitch() {
     s1.entities.push_back(makeCharacter(-4.0f, -2.5f));
     pe::loadTilemapIntoScene(s1, "platformer_level1.txt");
     // Snapshot the spot-check cell NOW: the second loadScene below may
-    // reallocate the vector and invalidate s1 (documented scene caveat —
+    // reallocate the vector and invalidate s1 (documented scene caveat â€”
     // this test honors it instead of tripping it).
     const pe::Tile* preA = pe::tileAt(s1.tilemap, 4, 2);
     const int tileA = preA ? preA->tileId : -1;
@@ -1889,7 +1959,7 @@ static bool checkPlatformerClimb() {
     for (int i = 0; i < 600 && !overlapped; ++i) {
         c.velocity.x = 4.5f;
         // Jump like a player: only once, only when grounded (never waste
-        // the single jump on an airborne frame — that exact mistake failed
+        // the single jump on an airborne frame â€” that exact mistake failed
         // this test's first version).
         bool jump = false;
         if (!jumped && wasG && c.position.x >= -3.4f) {
@@ -2032,7 +2102,7 @@ static bool checkVolumeClamp() {
     // Gain contract without an audio device: setters clamp [0,1] and store;
     // applyVolumes() guards on slotsValid/loaded flags, so this never
     // touches miniaudio uninitialized. (clampVolume01 itself is private;
-    // this exercises it through both public setters — same code path.)
+    // this exercises it through both public setters â€” same code path.)
     pe::Audio audio;  // never init()ed: guards must no-op safely
     audio.setMasterVolume(-1.0f);
     audio.setSfxVolume(2.0f);
@@ -2066,7 +2136,7 @@ static bool checkVolumeClamp() {
 // safely pre-init (same pattern as checkVolumeClamp).
 static bool checkMuteToggle() {
     pe::Audio audio;  // never init()ed: guards must no-op safely
-    // Defaults: unmuted at master 1.0 — pre-Step-124 behavior.
+    // Defaults: unmuted at master 1.0 â€” pre-Step-124 behavior.
     if (audio.isMuted() || !assertFloatClose(audio.getMasterVolume(), 1.0f)) {
         std::cerr << "Fresh Audio must be unmuted at master 1.0\n";
         return false;
@@ -2109,7 +2179,7 @@ static bool checkMuteToggle() {
 
 // --- Step 125: screen-to-world conversion (headless, known numbers) ---
 // Pure math against the default 12x9 ortho box (halfW=6, halfH=4.5) and
-// a resized 32:12 box — no GLFW, no device. Locks the coordinate
+// a resized 32:12 box â€” no GLFW, no device. Locks the coordinate
 // contract: pixels are top-left/y-down, world is center-origin/y-up.
 static bool checkScreenToWorld() {
     bool ok = true;
@@ -2164,7 +2234,7 @@ static bool checkScreenToWorld() {
         ok = false;
     }
     // screenToWorld adds the camera position (view is a pure translation).
-    fresh.move(2.0f, 1.0f, 1.0f);
+    fresh.follow(pe::Vec3(2.0f, 1.0f, 0.0f));
     const pe::Vec3 w = fresh.screenToWorld(0.0f, 0.0f, 800.0f, 600.0f);
     if (!assertFloatClose(w.x, -4.0f) || !assertFloatClose(w.y, 5.5f)) {
         std::cerr << "screenToWorld must add camera position\n";
@@ -2175,7 +2245,7 @@ static bool checkScreenToWorld() {
 
 // --- Step 126: world-to-screen conversion (headless, known numbers) ---
 // Pure math mirroring checkScreenToWorld, plus round-trip proofs
-// against screenToUi in both directions — no GLFW, no device.
+// against screenToUi in both directions â€” no GLFW, no device.
 static bool checkWorldToScreen() {
     bool ok = true;
     // World origin on the default 12x9 box maps to the window center.
@@ -2251,7 +2321,7 @@ static bool checkWorldToScreen() {
     // worldToScreen subtracts the camera position (inverse of screenToWorld):
     // camera at (2,1) looking at world (2,1) shows it at the window center.
     pe::Camera moved;
-    moved.move(2.0f, 1.0f, 1.0f);
+    moved.follow(pe::Vec3(2.0f, 1.0f, 0.0f));
     const pe::Vec3 px = moved.worldToScreen(pe::Vec3(2.0f, 1.0f, 0.0f),
                                             800.0f, 600.0f);
     if (!assertFloatClose(px.x, 400.0f) || !assertFloatClose(px.y, 300.0f)) {
@@ -2496,7 +2566,7 @@ static bool checkParticleColorAndEmit() {
     if (!assertFloatClose(ents[0].tint.x, 0.2f) || !assertFloatClose(ents[0].tint.y, 0.8f) || !assertFloatClose(ents[0].tint.z, 0.4f)) {
         std::cerr << "Particle color not passed to Entity.tint\n"; return false;
     }
-    // Emitter::emit no longer orphan — call it once
+    // Emitter::emit no longer orphan â€” call it once
     pe::Emitter e;
     e.position = pe::Vec3(0,0,0);
     e.spawnRate = 10.0f; e.maxParticles = 5;
@@ -2540,7 +2610,7 @@ static bool checkActionMap() {
 }
 
 static bool checkTextureRegistry() {
-    // Growable registry proof (Step 89) — vector, not fixed [5]
+    // Growable registry proof (Step 89) â€” vector, not fixed [5]
     std::vector<unsigned int> reg;
     reg.reserve(8);
     for (int i = 0; i < 5; ++i) reg.push_back(static_cast<unsigned int>(i+1));
@@ -2683,10 +2753,10 @@ static bool checkHierarchyContractFreeze() {
     if (!assertFloatClose(wp.x, 1.0f) || !assertFloatClose(wp.y, 1.0f)) {
         std::cerr << "Hierarchy attachment-only failed: wp " << wp.x << "," << wp.y << "\n"; return false;
     }
-    // Erase/reorder invalidates indices — re-establish required
+    // Erase/reorder invalidates indices â€” re-establish required
     ents.erase(ents.begin()); // remove parent, child now at 0 with stale parentIndex 0 (self-loop)
     pe::Vec3 wp2 = pe::worldPosition(ents, 0);
-    // After erase, stale index must no longer resolve to original (1,1) and must not crash — bounded walk
+    // After erase, stale index must no longer resolve to original (1,1) and must not crash â€” bounded walk
     if (assertFloatClose(wp2.x, 1.0f) && assertFloatClose(wp2.y, 1.0f)) {
         std::cerr << "Hierarchy erase should invalidate, still (1,1)\n"; return false;
     }
@@ -2840,6 +2910,7 @@ int main() {
     const bool screenToWorldOk = checkScreenToWorld();
     const bool worldToScreenOk = checkWorldToScreen();
     const bool entityPickOk = checkEntityPick();
+    const bool screenPickOk = checkScreenPick();
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
@@ -2881,7 +2952,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
