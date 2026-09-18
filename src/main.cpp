@@ -145,6 +145,11 @@
 // instantiatePrefab(). Header-only.
 #include "prefab.h"
 
+// --- Step 131: explicit resources include for the blob console command ---
+// resources.h was already transitive here (via renderer.h:64); the blob
+// command names the boundary directly, matching the include-block style.
+#include "resources.h"
+
 // --- Step 22: World/Game Separation (simulation mechanics) ---
 // Three pure MECHANICS moved out of this file into free functions in
 // src/simulation.h: the rotation update (advanceRotations), the
@@ -1113,6 +1118,27 @@ if (clip != animations.end()) {
              << " tag '" << picked.tag << "'"
              << " aabb half (" << box.halfExtents.x << ", " << box.halfExtents.y << ")";
         return echo.str();
+    });
+    // --- Step 131: blob console command (live consumer for Step 101) ---
+    // Loads a shipped file through loadBinaryBlobCached and reports the
+    // byte count plus a cache-hit note (hit detection via the public
+    // binaryCache() before the load). Defaults to beep.wav (shipped
+    // everywhere, small). blobclear proves the one-call cache reset.
+    pe::registerCommand(console, "blob", [&](const std::vector<std::string>& args) {
+        const std::string file = args.empty() ? "beep.wav" : args[0];
+        const bool wasCached = pe::binaryCache().count(file) > 0;
+        std::vector<uint8_t> bytes;
+        if (!pe::loadBinaryBlobCached(file, bytes)) {
+            return std::string("blob: file not found: ") + file;
+        }
+        std::ostringstream echo;
+        echo << "blob '" << file << "': " << bytes.size() << " bytes"
+             << (wasCached ? " (cache hit)" : " (loaded)");
+        return echo.str();
+    });
+    pe::registerCommand(console, "blobclear", [&](const std::vector<std::string>&) {
+        pe::clearBinaryCache();
+        return std::string("binary cache cleared");
     });
     pe::registerCommand(console, "scene_dump", [&](const std::vector<std::string>&) {
         std::filesystem::create_directories("savedata");
