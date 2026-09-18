@@ -1231,6 +1231,28 @@ if (clip != animations.end()) {
         cachedTileClear.assign(cachedTileEntities.size(), 0);
         return std::string("Scene reloaded: " + std::to_string(loaded.entities.size()) + " entities");
     });
+    // --- Step 133: textures console proof (Step 94 unload consumer) ---
+    // One round-trip: report count -> register a NON-CORE texture
+    // (Step 89, checker.png lands at slot >= 5) -> report -> unload all
+    // non-core (Step 94, core 0..4 guarded) -> report. Ends back at the
+    // original count: the renderer is never left broken, and normal
+    // drawing is untouched after the command.
+    pe::registerCommand(console, "textures", [&](const std::vector<std::string>&) {
+        const int before = renderer.textureCount();
+        const int newId = renderer.registerNonCoreTexture("checker.png");
+        std::ostringstream echo;
+        echo << "textures: " << before;
+        if (newId < 0) {
+            echo << " (register failed - nothing to unload)";
+            return echo.str();
+        }
+        echo << " -> registered id " << newId
+             << " -> " << renderer.textureCount();
+        const int released = renderer.unloadNonCoreTextures();
+        echo << " -> unloaded " << released << " non-core -> "
+             << renderer.textureCount();
+        return echo.str();
+    });
 
     // --- Step 13: the digit-string glyph path moved to the renderer ---
     // The lambda that used to live here — per-glyph atlas UVs, quad

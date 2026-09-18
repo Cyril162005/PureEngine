@@ -756,20 +756,42 @@ public:
             const Mat4 aabbMvp = projection * view * aabbModel;
             glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &aabbMvp.m[0][0]);
 
-            // Tint: player = bright orange (distinguish from
-            // collision-red 1,0,0), everything else = yellow. Two hues
-            // are enough: scenery and hostiles share yellow, since the
-            // debug question is "does this rotating triangle fill its
-            // square hitbox?", not "which type is which?" — textures
-            // already show that.
-            if (entity.roleId == playerRoleId) {
-                glUniform3f(colorLocation, 1.0f, 0.5f, 0.0f);   // orange — player
-            } else {
-                glUniform3f(colorLocation, 1.0f, 1.0f, 0.0f);   // yellow — scenery / hostiles
-            }
+    // Tint: player = bright orange (distinguish from
+    // collision-red 1,0,0), everything else = yellow. Two hues
+    // are enough: scenery and hostiles share yellow, since the
+    // debug question is "does this rotating triangle fill its
+    // square hitbox?", not "which type is which?" — textures
+    // already show that.
+    if (entity.roleId == playerRoleId) {
+        glUniform3f(colorLocation, 1.0f, 0.5f, 0.0f);   // orange — player
+    } else {
+        glUniform3f(colorLocation, 1.0f, 1.0f, 0.0f);   // yellow — scenery / hostiles
+    }
 
-            glDrawArrays(GL_LINE_LOOP, 0, 4);
+    glDrawArrays(GL_LINE_LOOP, 0, 4);
         }
+    }
+
+    // --- Step 133: console-proof accessors (thin, additive) ---
+    // Thin public wrappers over the PRIVATE Step 89/94 unload APIs so a
+    // console command can prove the registry end-to-end. SAFETY RULE
+    // (unchanged, enforced inside the private paths): core texture slots
+    // 0..4 are protected by the id < 5 guard in releaseTexture AND
+    // clearNonCoreTextures — a runtime unload can never break the
+    // running frame. unloadNonCoreTextures returns how many non-core
+    // slots were released (clearNonCoreTextures itself stays void and
+    // byte-identical).
+    int textureCount() const { return static_cast<int>(entityTextures.size()); }
+    int registerNonCoreTexture(const std::string& baseFilename) {
+        return registerTexture(baseFilename);
+    }
+    int unloadNonCoreTextures() {
+        int released = 0;
+        for (int i = 5; i < static_cast<int>(entityTextures.size()); ++i) {
+            if (entityTextures[i] != 0) ++released;
+        }
+        clearNonCoreTextures();
+        return released;
     }
 
 private:
