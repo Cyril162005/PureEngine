@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 128 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 129 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1228,6 +1228,19 @@
       ],
       "implementation": "collision.h:51 include camera.h; collision.h:170-183 pickEntityAtScreen contract comment (world-space conversion choice, no duplication); collision.h:184-189 pickEntityAtScreen (cam.screenToWorld then pickEntity, one-line composition). tests/hostile_data_test.cpp:1739 checkScreenPick (center->e1, e2 screen point->e2, miss, wrapper==pickEntity equivalence loop, moved-camera world pick finds world entity at center, origin camera misses it) + follow() fixes at :1782/:2235/:2322 + all[1].depth tie fix + :2913 registered + :2955 gated.",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 1.63 s; direct binary run: zero failure messages (checkScreenToWorld/checkWorldToScreen/checkEntityPick/checkScreenPick all green); arcade/platformer/pong alive True (platformer 80 cells). First ctest run of this step FAILED (4 assertions) - root causes were test bugs (move semantics + copy-vs-original), fixed this step. In-game click-select demo NOT implemented (none claimed)."
+    },
+    {
+      "id": 129,
+      "name": "Entity world AABB helper (WorldAABB + entityWorldAABB)",
+      "status": "completed",
+      "definition_of_done": "constexpr WorldAABB struct + pe::entityWorldAABB(e) returns world-space center + scaled half-extents (z forced 0) using the SAME scale rule as aabbOverlap/pickEntity. Headless checkEntityWorldAABB passes for known scale/position cases and proves helper==pick bounds. Non-breaking; no refactors of proven paths.",
+      "notes": "Optional refactors considered and DECLINED (honest): pickEntity inline math already minimal (struct per scan adds nothing); proven constexpr aabbOverlap entity overload stays byte-identical. Lives in collision.h beside the bounds math (entity.h is DATA; scale-for-collision is an ALGORITHM per collision.h own data/system split). No gameplay changes, no debug overlay.",
+      "commit": "d248f7e",
+      "depends_on": [
+        127
+      ],
+      "implementation": "collision.h:95-107 contract comment (scale rule shared, refactors declined); collision.h:108-111 struct WorldAABB {center, halfExtents}; collision.h:113-121 constexpr entityWorldAABB (halfExtents*scale per-axis, z forced 0). tests/hostile_data_test.cpp:1738 checkEntityWorldAABB (default 0.7071 bound, scale (0.5,0.5)x(2,2)->(1,1), non-uniform (0.5,1.5)x(2,0.5)->(1.0,0.75), z forced 0, helper bounds == pickEntity containment (ex*0.999 hits, ex misses), aabbOverlap consistency) + :2988 registered + :3030 gated.",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 3.00 s; direct binary run zero failure messages (existing pick/bounds tests still pass); arcade/platformer/pong alive True (platformer 80 cells). Debug overlay demo NOT implemented (none claimed)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
