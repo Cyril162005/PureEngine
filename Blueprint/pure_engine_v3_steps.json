@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 130 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 131 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1256,6 +1256,19 @@
       ],
       "implementation": "main.cpp:1087-1116 pick command: glfwGetFramebufferSize(window,&fw,&fh) at :1094-1095; camera.screenToWorld (world echo) at :1096-1098; pe::pickEntityAtScreen(activeScene->entities, camera, mouseX, mouseY, fw, fh) at :1099-1103; pe::entityWorldAABB(picked) at :1111; prints mouse/world/index/role/tag/aabb half or none. Registered after mute (:1079-1086).",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 2.18 s; arcade/platformer/pong alive True (platformer 80 cells). Interactive console typing NOT verified (no input injection in this environment); the underlying pick composition is proven headlessly by checkScreenPick."
+    },
+    {
+      "id": 131,
+      "name": "Arcade console blob command (live consumer for Step 101)",
+      "status": "completed",
+      "definition_of_done": "Console command blob [filename] (default beep.wav): loadBinaryBlobCached + byte count + cache-hit note (hit detection via public binaryCache().count() before load). blobclear proves the one-call clearBinaryCache reset. Step 101 now has a live game consumer. No pack format changes, no loader changes.",
+      "notes": "Thin glue: the composition was already proven by checkBinaryBlob (Step 101 tests) - no new headless test needed; the command exercises it in the real arcade. resources.h was transitive in main.cpp (renderer.h:64); now included explicitly (include-block style). Cache-hit vs loaded distinguished across two invocations interactively (not verified here). Interactive console typing NOT verified - compile + alive probes only.",
+      "commit": "10995a3",
+      "depends_on": [
+        101
+      ],
+      "implementation": "main.cpp:148-151 explicit #include \"resources.h\" (Step 131 comment); main.cpp:1122-1137 blob command (default beep.wav, wasCached via pe::binaryCache().count(file), pe::loadBinaryBlobCached(file, bytes), prints blob file bytes (cache hit)/(loaded)); main.cpp:1139-1142 blobclear (pe::clearBinaryCache() one call).",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 9.13 s; arcade/platformer/pong alive True (platformer 80 cells). Interactive console typing NOT verified (no input injection in this environment); the underlying blob/cached API is proven headlessly by checkBinaryBlob."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
