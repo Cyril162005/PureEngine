@@ -91,6 +91,34 @@ constexpr bool aabbOverlap(const Entity& a, const Entity& b) {
                             0.0f));
 }
 
+// ------------------------------------------------------------------
+// Step 129: world-space AABB of one entity (pure).
+// center = the entity's world position; halfExtents = its PRE-SCALE
+// half-extents multiplied by its per-axis scale — the SAME scale rule
+// aabbOverlap's entity overload and pickEntity's containment both
+// apply, so this box matches what is RENDERED and what a pick hits.
+// Z half-extent is FORCED to 0: the scene is flat (same rule as the
+// overload above). constexpr: pure arithmetic, same culture as the
+// math layer and aabbOverlap.
+//
+// Optional refactors were considered and DECLINED: pickEntity's inline
+// two-line math is already minimal (a struct per scan adds nothing),
+// and the proven constexpr overload above stays byte-identical.
+// ------------------------------------------------------------------
+struct WorldAABB {
+    Vec3 center;
+    Vec3 halfExtents;
+};
+
+constexpr WorldAABB entityWorldAABB(const Entity& e) {
+    return WorldAABB{
+        e.position,
+        Vec3(e.halfExtents.x * e.scale.x,
+             e.halfExtents.y * e.scale.y,
+             0.0f)
+    };
+}
+
 // Step 97: minimal grid helper — optional broadphase foundation.
 // Buckets entities by position/cellSize, returns pairs sharing a cell.
 // Does NOT replace existing O(n) scan; available for future use only.

@@ -1731,6 +1731,80 @@ static bool checkEntityPick() {
     return ok;
 }
 
+// --- Step 129: entity world AABB helper (headless) ---
+// Locks the scale rule shared by aabbOverlap and pickEntity: center =
+// position, half = halfExtents * scale (per-axis), z forced 0. Also
+// proves the helper's numbers match pickEntity containment exactly.
+static bool checkEntityWorldAABB() {
+    bool ok = true;
+    // Default entity: origin, 0.7071 rotation-safe bound, unit scale.
+    pe::Entity def;
+    const pe::WorldAABB defBox = pe::entityWorldAABB(def);
+    if (!assertFloatClose(defBox.center.x, 0.0f) ||
+        !assertFloatClose(defBox.center.y, 0.0f)) {
+        std::cerr << "Default AABB center wrong\n";
+        ok = false;
+    }
+    if (!assertFloatClose(defBox.halfExtents.x, 0.7071f) ||
+        !assertFloatClose(defBox.halfExtents.y, 0.7071f)) {
+        std::cerr << "Default AABB half-extents wrong\n";
+        ok = false;
+    }
+    // Known scale: halfExtents (0.5,0.5) at scale (2,2) occupies (1,1).
+    pe::Entity scaled(pe::Vec3(2.0f, 1.0f, 0.0f), 0.0f,
+                      pe::Vec3(2.0f, 2.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    const pe::WorldAABB scaledBox = pe::entityWorldAABB(scaled);
+    if (!assertFloatClose(scaledBox.center.x, 2.0f) ||
+        !assertFloatClose(scaledBox.center.y, 1.0f)) {
+        std::cerr << "Scaled AABB center wrong\n";
+        ok = false;
+    }
+    if (!assertFloatClose(scaledBox.halfExtents.x, 1.0f) ||
+        !assertFloatClose(scaledBox.halfExtents.y, 1.0f)) {
+        std::cerr << "Scaled AABB half-extents wrong\n";
+        ok = false;
+    }
+    // Non-uniform: halfExtents (0.5, 1.5) at scale (2, 0.5) -> (1.0, 0.75).
+    pe::Entity nonUniform(pe::Vec3(-1.0f, -2.0f, 0.0f), 0.0f,
+                          pe::Vec3(2.0f, 0.5f, 1.0f), pe::Vec3(0.5f, 1.5f, 0.0f), 0);
+    const pe::WorldAABB nuBox = pe::entityWorldAABB(nonUniform);
+    if (!assertFloatClose(nuBox.halfExtents.x, 1.0f) ||
+        !assertFloatClose(nuBox.halfExtents.y, 0.75f)) {
+        std::cerr << "Non-uniform AABB half-extents wrong\n";
+        ok = false;
+    }
+    // Z forced 0 regardless of the stored z half-extent (flat scene rule).
+    pe::Entity flat(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                    pe::Vec3(0.5f, 0.5f, 5.0f), 0);
+    const pe::WorldAABB flatBox = pe::entityWorldAABB(flat);
+    if (flatBox.halfExtents.z != 0.0f) {
+        std::cerr << "AABB z half-extent must be forced to 0\n";
+        ok = false;
+    }
+    // Consistency with pickEntity: the helper's numbers ARE the pick bounds.
+    pe::Entity pickProbe(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(2.0f, 2.0f, 1.0f),
+                         pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    const pe::WorldAABB box = pe::entityWorldAABB(pickProbe);
+    std::vector<pe::Entity> one = {pickProbe};
+    const float ex = box.halfExtents.x;
+    const float ey = box.halfExtents.y;
+    if (pe::pickEntity(one, ex * 0.999f, ey * 0.999f) != 0 ||
+        pe::pickEntity(one, ex, ey) != -1) {
+        std::cerr << "Helper bounds must match pickEntity containment\n";
+        ok = false;
+    }
+    // Consistency with aabbOverlap: entity vs itself overlaps; two boxes
+    // a full width apart do not.
+    pe::Entity other(pe::Vec3(2.0f * ex, 0.0f, 0.0f), 0.0f, pe::Vec3(2.0f, 2.0f, 1.0f),
+                     pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    if (!pe::aabbOverlap(pickProbe, pickProbe) ||
+        pe::aabbOverlap(pickProbe, other)) {
+        std::cerr << "AABB overlap consistency wrong\n";
+        ok = false;
+    }
+    return ok;
+}
+
 // --- Step 128: screen-space pick convenience (headless) ---
 // Matches pickEntity results for known screen points under the known
 // 800x600 / 12x9 projection, and proves the WORLD-space conversion
@@ -2911,6 +2985,7 @@ int main() {
     const bool worldToScreenOk = checkWorldToScreen();
     const bool entityPickOk = checkEntityPick();
     const bool screenPickOk = checkScreenPick();
+    const bool entityBoundsOk = checkEntityWorldAABB();
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
@@ -2952,7 +3027,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
