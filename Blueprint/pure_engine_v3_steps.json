@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 131 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 132 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1269,6 +1269,19 @@
       ],
       "implementation": "main.cpp:148-151 explicit #include \"resources.h\" (Step 131 comment); main.cpp:1122-1137 blob command (default beep.wav, wasCached via pe::binaryCache().count(file), pe::loadBinaryBlobCached(file, bytes), prints blob file bytes (cache hit)/(loaded)); main.cpp:1139-1142 blobclear (pe::clearBinaryCache() one call).",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 9.13 s; arcade/platformer/pong alive True (platformer 80 cells). Interactive console typing NOT verified (no input injection in this environment); the underlying blob/cached API is proven headlessly by checkBinaryBlob."
+    },
+    {
+      "id": 132,
+      "name": "Arcade console health/damage proof (live consumer for Step 103)",
+      "status": "completed",
+      "definition_of_done": "Console commands health [index] (getHealth+getTag+isAlive), damage <n> [index], heal <n> [index] using the Step 103 component helpers. Target rule documented: entity index arg, default 0 = player. Before/after values printed. Step 103 now has a live game consumer. No combat system, no ECS.",
+      "notes": "Operates on existing entities only (prefab-spawned entities with health/tag from enemy.txt are also targets). Zero gameplay effect by construction: no arcade logic reads health yet - console actions are debug data changes, undoable via reset. Strict no-throw parsing: amounts must be >= 0 (a negative damage would heal). components.h was not previously included in main.cpp (test-only until now); now explicit. Interactive console typing NOT verified - compile + alive probes only.",
+      "commit": "f283bc1",
+      "depends_on": [
+        103
+      ],
+      "implementation": "main.cpp:153-156 explicit #include \"components.h\"; main.cpp:1148-1153 target-rule comment + parseEntityIndex lambda (:1154-1164, strict long long, range-checked against live scene size) + parseAmount lambda (:1165-1169, strict eof, >= 0); main.cpp:1170-1181 health command; main.cpp:1182-1198 damage (before -> after via pe::damage); main.cpp:1199-1215 heal (before -> after via pe::heal).",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 6.26 s; arcade/platformer/pong alive True (platformer 80 cells). Interactive console typing NOT verified (no input injection in this environment); the underlying helpers are proven headlessly by checkComponentHelpers (Step 103 tests). One intermediate compile issue (undeclared amtTmp) caught and fixed before build."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
