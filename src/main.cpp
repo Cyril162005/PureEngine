@@ -150,6 +150,11 @@
 // command names the boundary directly, matching the include-block style.
 #include "resources.h"
 
+// --- Step 132: component helpers for the health console commands ---
+// components.h was not previously included here (test-only until now);
+// the health/damage/heal commands name the boundary directly.
+#include "components.h"
+
 // --- Step 22: World/Game Separation (simulation mechanics) ---
 // Three pure MECHANICS moved out of this file into free functions in
 // src/simulation.h: the rotation update (advanceRotations), the
@@ -1139,6 +1144,74 @@ if (clip != animations.end()) {
     pe::registerCommand(console, "blobclear", [&](const std::vector<std::string>&) {
         pe::clearBinaryCache();
         return std::string("binary cache cleared");
+    });
+    // --- Step 132: health/damage/heal console proof (Step 103 consumer) ---
+    // Target rule (documented): entity INDEX argument, default 0 = the
+    // player. Operates on existing entities only; no arcade logic reads
+    // health yet, so these are pure data changes (undoable via reset).
+    // Strict no-throw parsing: amounts must be >= 0 (a negative damage
+    // would heal). Before/after values make the helper path obvious.
+    auto parseEntityIndex = [&](const std::string& text, std::size_t& idx) -> bool {
+        std::stringstream ss(text);
+        long long v = -1;
+        ss >> v;
+        if (ss.fail() || !ss.eof() || v < 0 ||
+            v >= static_cast<long long>(activeScene->entities.size())) {
+            return false;
+        }
+        idx = static_cast<std::size_t>(v);
+        return true;
+    };
+    auto parseAmount = [](const std::string& text, float& amt) -> bool {
+        std::stringstream ss(text);
+        ss >> amt;
+        return !ss.fail() && ss.eof() && amt >= 0.0f;
+    };
+    pe::registerCommand(console, "health", [&](const std::vector<std::string>& args) {
+        std::size_t idx = 0;
+        if (!args.empty() && !parseEntityIndex(args[0], idx)) {
+            return std::string("usage: health [entity index]");
+        }
+        const pe::Entity& e = activeScene->entities[idx];
+        std::ostringstream echo;
+        echo << "entity " << idx << ": health " << pe::getHealth(e)
+             << ", tag '" << pe::getTag(e) << "', alive "
+             << (pe::isAlive(e) ? "true" : "false");
+        return echo.str();
+    });
+    pe::registerCommand(console, "damage", [&](const std::vector<std::string>& args) {
+        float amt = 0.0f;
+        if (args.empty() || !parseAmount(args[0], amt)) {
+            return std::string("usage: damage <amount> [entity index]");
+        }
+        std::size_t idx = 0;
+        if (args.size() > 1 && !parseEntityIndex(args[1], idx)) {
+            return std::string("usage: damage <amount> [entity index]");
+        }
+        pe::Entity& e = activeScene->entities[idx];
+        const float before = pe::getHealth(e);
+        pe::damage(e, amt);
+        std::ostringstream echo;
+        echo << "entity " << idx << ": health " << before
+             << " -> " << pe::getHealth(e);
+        return echo.str();
+    });
+    pe::registerCommand(console, "heal", [&](const std::vector<std::string>& args) {
+        float amt = 0.0f;
+        if (args.empty() || !parseAmount(args[0], amt)) {
+            return std::string("usage: heal <amount> [entity index]");
+        }
+        std::size_t idx = 0;
+        if (args.size() > 1 && !parseEntityIndex(args[1], idx)) {
+            return std::string("usage: heal <amount> [entity index]");
+        }
+        pe::Entity& e = activeScene->entities[idx];
+        const float before = pe::getHealth(e);
+        pe::heal(e, amt);
+        std::ostringstream echo;
+        echo << "entity " << idx << ": health " << before
+             << " -> " << pe::getHealth(e);
+        return echo.str();
     });
     pe::registerCommand(console, "scene_dump", [&](const std::vector<std::string>&) {
         std::filesystem::create_directories("savedata");
