@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 127 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 128 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1214,6 +1214,20 @@
       ],
       "implementation": "collision.h:119-141 pickEntity contract comment (containment/overlap/alive rules); collision.h:142-167 pickEntity (strict < on scaled halfExtents*scale, manual constexpr-style abs, highest depth wins via bestDepth, tie keeps lowest index, alive skip, -1 none). Step 97 broadphaseGrid untouched above. tests/hostile_data_test.cpp:1657 checkEntityPick (empty -1, miss -1, e1 center, overlap highest-depth, depth tie lowest index, edge-touch (0.5,0.5) not a hit, scale 0.5 box in/out, dead-only -1) + :2842 registered + :2884 gated.",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 2.91 s (checkEntityPick passes); arcade/platformer/pong alive True (platformer 80 cells). In-game click-to-select demo NOT implemented (none claimed)."
+    },
+    {
+      "id": 128,
+      "name": "Screen-space pick convenience wrapper (pickEntityAtScreen)",
+      "status": "completed",
+      "definition_of_done": "pe::pickEntityAtScreen(entities, cam, mouseX, mouseY, fbW, fbH) composes Camera::screenToWorld + pickEntity (no AABB math duplicated). Uses WORLD-space conversion (documented choice: entities live in world space; camera pans them). Headless checkScreenPick matches pickEntity results and proves moved-camera world pick. Non-breaking.",
+      "notes": "FIRST CONSUMER: collision.h now includes camera.h (acyclic - camera.h is math/state only). FIXED broken test expectations this step: (1) checkScreenToWorld/checkWorldToScreen/checkScreenPick used move(2,1,1) expecting position (2,1), but move() multiplies direction x moveSpeed(3.0) x dt = (6,3) - fixed with follow() (exact position); (2) checkEntityPick tie test wrote e2.depth on the ORIGINAL while all={...} holds COPIES - fixed with all[1].depth. These wrong expectations could never have passed a fresh binary - ctest passing at Steps 125-127 indicates the test binary was stale in those verification runs (verification-process gap, honestly owned). Engine code (pickEntity, screenToWorld, worldToScreen) is correct and unchanged.",
+      "commit": "0a039dd",
+      "depends_on": [
+        127,
+        125
+      ],
+      "implementation": "collision.h:51 include camera.h; collision.h:170-183 pickEntityAtScreen contract comment (world-space conversion choice, no duplication); collision.h:184-189 pickEntityAtScreen (cam.screenToWorld then pickEntity, one-line composition). tests/hostile_data_test.cpp:1739 checkScreenPick (center->e1, e2 screen point->e2, miss, wrapper==pickEntity equivalence loop, moved-camera world pick finds world entity at center, origin camera misses it) + follow() fixes at :1782/:2235/:2322 + all[1].depth tie fix + :2913 registered + :2955 gated.",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 1.63 s; direct binary run: zero failure messages (checkScreenToWorld/checkWorldToScreen/checkEntityPick/checkScreenPick all green); arcade/platformer/pong alive True (platformer 80 cells). First ctest run of this step FAILED (4 assertions) - root causes were test bugs (move semantics + copy-vs-original), fixed this step. In-game click-select demo NOT implemented (none claimed)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
