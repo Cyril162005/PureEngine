@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 135 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 136 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1322,6 +1322,21 @@
       ],
       "implementation": ".gitignore appended after the .qoder/.trae/.kiro block: comment line + .vscode/ + .kilo/ + audio_*.log + *_diag.log + *_diag.txt + comment + Blueprint/SESSION_HANDOFF.md (9 insertions).",
       "verification": "git status --short after ignore -> only ' M .gitignore' (all 6 junk items covered: .kilo/, .vscode/, SESSION_HANDOFF.md, audio_diag.log, audio_final_check.log, build_diag.txt); cmake --build build --config Release -> zero errors (sanity); ctest --test-dir build -C Release -> 1/1 Passed 1.99 s (sanity)."
+    },
+    {
+      "id": 136,
+      "name": "Spawn -> dump -> reload persistence interaction proof",
+      "status": "completed",
+      "definition_of_done": "Headless checkPrefabScenePersist composes Step 120 (prefab load/instantiate), Step 113 (spawnEntity/killEntity), and Step 111 (v2 serialization): prefab-spawned live entity + one killed entity saved; dead dropped (documented Step 113 save semantics); live entity config survives round-trip (count, role/tag/health/clip name/depth/textureId/cols/rows/position/halfExtents, alive=true). No format change needed.",
+      "notes": "v2 format persists 34 fields including health/tag (quoted)/currentClipName (quoted); load restores all (scene.h:544-563). alive is preserved SEMANTICALLY: dead entities are dropped on save (scene.h:364) and loaded entities are implicitly alive (constructor default) - documented honestly, no redesign. animationState pointer is not persisted (only the name; pointer keep is activateScene's Step 106 job) - also documented. New composition, not a duplicate of checkSceneSerialization/checkScenePersistenceV2.",
+      "commit": "f9adbc7",
+      "depends_on": [
+        120,
+        113,
+        111
+      ],
+      "implementation": "tests/hostile_data_test.cpp:2418-2510 checkPrefabScenePersist (scene + loadPrefab('enemy.txt') + instantiatePrefab + spawnEntity at (2,1) + second entity killed before save + saveSceneToFile + loadSceneFromFile + asserts: count==1 (dead dropped), role 2, tag 'hostile', textureId 2, depth 2, cols 8/rows 1, health 100.0, clip 'walk_left', position (2,1), halfExtents (0.5,0.5), alive true; rmAll 3-candidate cleanup) + :3109 registered + :3130 gated.",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 3.59 s; direct binary run: checkPrefabScenePersist PASSED with zero failure messages; arcade/platformer/pong alive True (platformer 80 cells). No interactive console requirement (headless by design)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
