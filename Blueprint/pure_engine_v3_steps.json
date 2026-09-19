@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 145 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 146 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1456,6 +1456,19 @@
       ],
       "implementation": "None required (no-code confirmation). Existing wiring: main.cpp:1121 pe::entityWorldAABB(picked) inside the pick command, printing aabb half-extents in the console output.",
       "verification": "cmake --build build --config Release -> zero errors (sanity); ctest --test-dir build -C Release -> 1/1 Passed (sanity); arcade/platformer/pong alive True (sanity). The aabb print path is exercised interactively via console typing (not verified in this environment) and its logic headlessly by checkEntityWorldAABB (Step 129)."
+    },
+    {
+      "id": 146,
+      "name": "GameState gate-table headless test (simulates/drawsWorld/clearColorFor)",
+      "status": "completed",
+      "definition_of_done": "checkGameStateGateTable locks the full gate table across all six states: simulates (PLAYING/PLAYING_ALT only), drawsWorld (all but MENU), clear-color palette (MENU purple, GAME_OVER dark red, WIN dark green, gameplay black/blue toggle, PAUSED honors toggle, GAME_OVER beats toggle, PLAYING_ALT shares gameplay palette). No gameplay change.",
+      "notes": "Not previously covered (zero hits for simulates/drawsWorld/clearColorFor in tests). gamestate.h was only included in main.cpp; the test now includes it explicitly. Pure constexpr helpers - no device needed.",
+      "commit": "7d96321",
+      "depends_on": [
+        19
+      ],
+      "implementation": "tests/hostile_data_test.cpp: checkGameStateGateTable (simulates 2-true/4-false, drawsWorld 1-false/5-true, 6-row clear-color table, GAME_OVER-over-toggle priority, PLAYING_ALT palette) + gamestate.h include added to the test include list + registered + gated.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed 2.15 s (gate-table test green)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
