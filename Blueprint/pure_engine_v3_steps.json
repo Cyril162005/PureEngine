@@ -1383,8 +1383,8 @@
       "name": "Tracker final consistency pass (docs-only)",
       "status": "completed",
       "definition_of_done": "pure_engine_v3_steps.json status_note + PURE_ENGINE_V3.md context/rule-tail/list verified against the true highest step after 139. Zero prose drift found - all already aligned at 139 by the Step 139 recording pass. No historical hashes invented.",
-      "notes": "Verified state: JSON status_note Steps 35 through 140, highest id 139->140 after record, 105 entries (104 + this entry), no dups, no gaps. MD context Steps 25 through 139->140, rule tail same, list bullet for 139 present, freeze section present, zero stale through-137/138 refs. The only file change in this step is this record itself.",
-      "commit": "PENDING",
+      "notes": "Verified state: JSON status_note Steps 35 through 140, highest id 139->140 after record, 105 entries (104 + this entry), no dups, no gaps. MD context Steps 25 through 139->140, rule tail same, list bullet for 139 present, freeze section present, zero stale through-137/138 refs. The only file change in this step is this record itself (commit = this record commit d8281be, which introduced the entry).",
+      "commit": "d8281be",
       "depends_on": [
         139
       ],
