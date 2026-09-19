@@ -5,13 +5,15 @@ OpenGL, plus a small arcade game built entirely on top of it. No engine
 framework, no game library — every engine layer was written as part of the
 project itself.
 
-- **Engine** (115 tracked steps, 25–115): window/context, rendering pipeline,
+- **Engine** (tracked steps 25–133): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
-  audio playback (miniaudio), file-based asset loading (stb_image PNG),
+  audio playback (miniaudio: SFX pool, event sounds, music loop, mute),
+  file-based asset loading (stb_image PNG) + binary blob/pack + cache,
   scene structure, animation, physics (gravity, impulse, statics, character
   controller), tilemaps, scenes, transform hierarchy, bitmap text,
-  event bus, debug console, gamepad input, particles, and full game loops
-  with states.
+  event bus, debug console, gamepad input, particles, prefab templates,
+  screen↔world conversion + entity picking, resize/viewport, mouse input,
+  UI buttons, and full game loops with states.
 - **Games**: arcade survival (dodge crimson hostiles; survival time is the
   score, persisted across runs; arena has tile walls, a companion satellite,
   catch-burst particles, debug console, gamepad support), Pong
@@ -65,6 +67,7 @@ reproduce them byte-for-byte:
 | `make_beep.ps1` | `assets/beep.wav` (collision/alert sound) |
 | `make_textures.ps1` | `assets/tex_player.png`, `assets/tex_scenery.png`, `assets/tex_hostile.png` (entity textures) |
 | `make_paddlesheet.ps1` | `assets/paddle_spritesheet.png` (Pong paddle frames) |
+| `make_music.ps1` | `assets/music_loop.wav` (4 s ambient loop, Step 123) |
 | — | `assets/tex_hostile_alt.png` (committed; no generator script) |
 | — | `assets/hostile_default.txt`, `assets/hostile_alt.txt` (data-driven hostile configs) |
 | — | `assets/animation_default.txt`, `assets/paddle_animations.txt` (clip definitions) |
@@ -77,6 +80,7 @@ reproduce them byte-for-byte:
 ```bat
 build\Release\PureEngine.exe
 build\Release\Pong.exe
+build\Release\Platformer.exe
 ```
 
 Each executable resolves its assets through a 3-candidate probe
@@ -92,7 +96,7 @@ the repo root, from `build/`, or from `build/Release/`.
 | Arrow keys | Move the player (gamepad left stick works too) |
 | ESC | Pause / resume; on the menu it quits (gamepad START works too) |
 | F1 | Toggle collision-box debug overlay |
-| ` (backtick) | Toggle the debug console (type `help`, `entities`, `reset`; ENTER submits) |
+| ` (backtick) | Toggle the debug console (type `help`, `entities`, `reset`, `volume`, `mute`, `pick`, `blob`, `spawn_prefab`, `textures`; ENTER submits) |
 
 The alternate scene uses `hostile_alt.txt` and demonstrates the orange hostile texture variant.
 The camera follows the player (the old WASD free-pan is gone). Blue tile
@@ -144,7 +148,8 @@ src/renderer.h          the renderer boundary: shader, VAO/VBOs, textures,
 src/shader.h            shader loading: file probe, compile, link (lit/default)
 src/lighting.h          2D point lights: PointLight/LightingState, world-space
 src/resources.h         the resource-loading boundary: texture load/upload
-                         (3-candidate path probe, stb_image)
+                         (3-candidate path probe, stb_image) + binary
+                         blob/pack loading + tiny binary cache
 src/camera.h            the camera boundary: follow, lookAt view,
                          orthographic projection
 src/input.h             the input boundary: key-state polling, edge detection,
@@ -166,6 +171,8 @@ src/scene.h             scenes: SceneManager own/load/switch/clear
 src/font.h              bitmap-text logic: cell map, width, alignment
 src/events.h            event bus: subscribe/emit, snapshot delivery
 src/console.h           debug console: toggle/type/commands/draw
+src/components.h        lightweight component helpers: health/tag/timer/velocity
+src/prefab.h            prefab templates: loadPrefab/instantiatePrefab
 src/particles.h         particles: pool, emitter, drawWorld converter
 src/animation*.h        animation clips, file loading, frame UVs
 src/math/               own math layer (Vec3, Mat4)
@@ -175,7 +182,7 @@ src/stb_impl.cpp        stb_image implementation unit
 games/pong/pong.cpp     Pong: second-game API proof (own CMake target)
 games/platformer/       Platformer proof game: 2 tile levels + controller +
                          scenes/events/console/particles (own CMake target)
-tests/                  hostile_data_test.cpp, 48 behavior cases (CTest)
+tests/                  hostile_data_test.cpp, 78 behavior cases (CTest)
 assets/                 committed assets (scripts generate most, not all)
 Blueprint/              blueprints + step trackers (source of step history)
 make_*.ps1              in-tree asset generators
@@ -193,9 +200,11 @@ flow. 48 behavior cases green; 15/15 human playtest items pass (particles
 and audio verified by ear/eye; Up-arrow jump shares the proven W/Space
 path but this VM never delivers that key). Deliberately deferred:
 sprite batching (measured: unneeded, see below), editor, ECS, 3D, networking.
-Phase 2 (101–115) added cache/blob, pe_core, dump/load, input rebinding,
-persistence v2, alpha blending, and lifecycle (alive/spawn/kill) without
-changing the frozen v1.0 core.
+Phase 2 (101–133) added cache/blob, pe_core, dump/load, input rebinding,
+persistence v2, alpha blending, lifecycle (alive/spawn/kill), resize/viewport,
+mouse input, UI Button, music loop + asset, prefabs, menu buttons, mute,
+screen/world conversion, point picking, and console proofs (pick/blob/health/
+textures) without changing the frozen v1.0 core.
 
 ## Performance note
 

@@ -61,6 +61,8 @@ For every claim such as "works," "passes," or "fixed," include the actual comman
 - `src/console.h`: debug console boundary
 - `src/gamepad.h`: gamepad snapshot boundary
 - `src/particles.h`: particle pool/emitter boundary
+- `src/components.h`: lightweight component helpers boundary (health/tag/timer/velocity)
+- `src/prefab.h`: prefab/template boundary (loadPrefab/instantiatePrefab)
 - `src/animation.h`, `src/animation_data.h`: animation clips + file loading
 - `src/math/`: custom math layer
 - `src/stb_impl.cpp`: stb implementation unit
