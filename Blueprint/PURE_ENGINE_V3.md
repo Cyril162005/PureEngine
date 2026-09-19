@@ -194,5 +194,25 @@ The four stress configuration files (`assets/hostile_stress_50.txt`, `assets/hos
 
 **Honest limits (not CI-verified, human-only — see Blueprint/SMOKE_TEST.md):** audible audio (music loop seamlessness, mute feel, event cue mix), mouse click feel in the MENU, console typing paths, resize feel. The automated suite (78 behavior cases) proves the underlying logic; the human checklist is the release gate.
 
+## Performance budget statement (Step 150, docs-only)
+
+Standing stance on the entity/draw path, unchanged by the post-freeze polish:
+
+- **Entity path scales O(n)** and is fine ≤2000 entities (Step 52:
+  ~1.21 ms at 50, ~12.09 ms at 5000; the post-Steps 46-49 re-measure
+  matched the baseline within noise). **Broadphase stays deferred** —
+  re-open ONLY on a measured superlinear breach below 2000 entities
+  (the v1.1 freeze OUT list carries the same ruling).
+- **Batching already present** (Step 78: texture-group draw-call
+  reduction); no further draw-path work is justified by any current
+  measurement.
+- Integration workload (README Performance note): tilemap→entities for
+  the 14-tile arena + 24-particle update/convert ~0.003 ms/frame;
+  10k-tile conversion ~3.8 ms one-off; tile collision ~70 ns; the live
+  arcade scene runs at several hundred fps.
+- Nothing here justifies new systems: the budget statement exists so a
+  future measurement is compared against these recorded numbers instead
+  of speculation.
+
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.
