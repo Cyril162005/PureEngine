@@ -217,5 +217,25 @@ Standing stance on the entity/draw path, unchanged by the post-freeze polish:
   future measurement is compared against these recorded numbers instead
   of speculation.
 
+## Recommended stop (Step 153, docs-only)
+
+**The v1.1 toolkit is COMPLETE for the stated goal** (Steps 141/151
+confirmations, all green). The project deliberately marks a clean
+recommended stop under the freeze:
+
+- Further steps happen ONLY on a measured need in the source, the
+  build, or a required conversation-driven follow-up — not as a queue,
+  not as polish momentum, not to justify activity.
+- The freeze guardrails (AGENTS.md, Step 142) and the OUT list above
+  remain binding: still no ECS, no editor, no networking, no 3D, no
+  hot-reload, no retained-mode UI, no mixer graph, no broadphase
+  without a measured >2000-entity breach.
+- Re-entry criteria: a measured superlinear frame-time breach, a
+  concrete engine-validation need demonstrated in real conditions, or
+  an explicitly requested step citing one.
+
+This note exists so a future session reading the tracker sees an
+explicit, sanctioned stopping point instead of inferring one.
+
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.
