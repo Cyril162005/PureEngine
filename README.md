@@ -5,7 +5,15 @@ OpenGL, plus a small arcade game built entirely on top of it. No engine
 framework, no game library — every engine layer was written as part of the
 project itself.
 
-- **Engine** (tracked steps 25–133): window/context, rendering pipeline,
+> **v1.1 toolkit FROZEN** (Step 141 confirmation). Scope guardrails are
+> binding: no ECS, no editor, no networking, no 3D. The human release gate
+> is [`Blueprint/SMOKE_TEST.md`](Blueprint/SMOKE_TEST.md); the authoritative
+> freeze scope (capability map + OUT list) lives in
+> [`Blueprint/PURE_ENGINE_V3.md`](Blueprint/PURE_ENGINE_V3.md). New
+> capabilities land only as additive, opt-in, engine-pure steps with honest
+> verification — frozen behavior is never changed or unfrozen.
+
+- **Engine** (tracked steps 25–148): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),
   file-based asset loading (stb_image PNG) + binary blob/pack + cache,
