@@ -73,5 +73,18 @@ if (-not (Test-Path $prefabSourceDir -PathType Container)) {
 }
 Copy-Item $prefabSourceDir (Join-Path $stageAssetsDir "prefabs") -Recurse
 
+# Step 143: dry-run / verification checklist (how to confirm this script):
+#   1. Build the exe first: cmake --build build --config Release
+#   2. Run:  powershell -ExecutionPolicy Bypass -File scripts\package.ps1
+#      -> prints "Created package\PureEngine-0.1.0-win64.zip"
+#   3. Confirm the zip contents (Step 138 verification):
+#        Add-Type -AssemblyName System.IO.Compression.FileSystem
+#        [System.IO.Compression.ZipFile]::OpenRead("$pwd\package\PureEngine-0.1.0-win64.zip").Entries.FullName
+#      Expected: 24 entries — PureEngine.exe + 18 runtime assets
+#      (MUST include music_loop.wav and input_bindings.txt) +
+#      prefabs/enemy.txt + shaders/ (4 files).
+#   Missing prefabs/ or music_loop.wav = the packaged game's spawn_prefab
+#   or music path breaks (the exact drift Step 138 fixed).
+
 Compress-Archive -Path $stageDir -DestinationPath $zipPath -CompressionLevel Optimal
 Write-Output "Created $zipPath"
