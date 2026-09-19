@@ -3014,6 +3014,13 @@ static bool checkInputBindings() {
     if (jumpKeys.size() != 1 || jumpKeys[0] != GLFW_KEY_SPACE) { std::cerr << "Jump remap failed\n"; return false; }
     bool missing = pe::loadInputBindings("no_such_bindings_xyz.txt");
     if (missing) { std::cerr << "Missing file should return false\n"; return false; }
+    // Step 148: a FAILED load must not clobber the committed overrides
+    // (loadInputBindings commits atomically after a successful parse).
+    auto jumpAfterFail = pe::keysForAction(pe::Action::Jump);
+    if (jumpAfterFail.size() != 1 || jumpAfterFail[0] != GLFW_KEY_SPACE) {
+        std::cerr << "Failed load must keep the remapped overrides\n";
+        return false;
+    }
     pe::loadInputBindings("input_bindings.txt");
     return true;
 }
