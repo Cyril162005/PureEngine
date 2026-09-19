@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 149 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 150 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1508,6 +1508,20 @@
       ],
       "implementation": "README.md:3-14 blockquote after the intro; :16 step count 25-133 -> 25-148 (current after Steps 134-148).",
       "verification": "Select-String confirmed the FROZEN blockquote and 25-148 step count present. No engine code touched."
+    },
+    {
+      "id": 150,
+      "name": "Performance budget statement (docs-only)",
+      "status": "completed",
+      "definition_of_done": "PURE_ENGINE_V3.md gains the standing performance budget statement: entity path O(n) fine <=2000 (Step 52 numbers), broadphase deferred (re-open only on measured breach), batching already present (Step 78) with no further draw-path work justified, README integration-workload numbers referenced. No new systems.",
+      "notes": "Docs-only post-freeze polish. The statement exists so future measurements are compared against recorded numbers instead of speculation. No engine code.",
+      "commit": "fd24228",
+      "depends_on": [
+        52,
+        78
+      ],
+      "implementation": "PURE_ENGINE_V3.md: new \"## Performance budget statement (Step 150, docs-only)\" section before Kill criteria: 4 bullets (entity path stance, batching present, integration workload, compare-dont-speculate).",
+      "verification": "Docs-only step: python parse confirmed the statement present; no engine code touched. Build/CTest/alive unchanged from Step 148/149 sanity runs."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
