@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 146 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 147 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1469,6 +1469,19 @@
       ],
       "implementation": "tests/hostile_data_test.cpp: checkGameStateGateTable (simulates 2-true/4-false, drawsWorld 1-false/5-true, 6-row clear-color table, GAME_OVER-over-toggle priority, PLAYING_ALT palette) + gamestate.h include added to the test include list + registered + gated.",
       "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed 2.15 s (gate-table test green)."
+    },
+    {
+      "id": 147,
+      "name": "Highscore file semantics headless test (round-trip + NaN/garbage reject)",
+      "status": "completed",
+      "definition_of_done": "checkHighscoreSemantics: round-trip with the EXACT save format (fixed/setprecision(1) + newline) and EXACT load guard (in >> stored && stored >= 0.0f); one-decimal format assert; NaN rejected (all NaN comparisons false); garbage rejected by stream parse; missing file opens nothing (no crash). No format redesign - no bug found.",
+      "notes": "The highscore save/load CODE PATH is main.cpp-only (load 921-954, save 1781+, not a header boundary) - this tests the SEMANTICS (the exact expressions main.cpp uses), documented honestly. Not previously covered (zero hits for highscore in tests).",
+      "commit": "61ec2f2",
+      "depends_on": [
+        136
+      ],
+      "implementation": "tests/hostile_data_test.cpp: checkHighscoreSemantics (5 cases: round-trip 12.7, format 12.34 -> \"12.3\", NaN reject, garbage reject, missing-file) + registered + gated.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed 1.44 s (semantics test green)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
