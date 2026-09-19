@@ -15,3 +15,12 @@ CMakeFiles/
 .qoder/
 .trae/
 .kiro/
+
+# Step 135: local IDE / agent-folder / diagnostic scratch (never project source)
+.vscode/
+.kilo/
+audio_*.log
+*_diag.log
+*_diag.txt
+# Point-in-time session-handoff scratch snapshot (2026-09-08); stays on disk, untracked.
+Blueprint/SESSION_HANDOFF.md
