@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 142 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 143 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1416,6 +1416,19 @@
       ],
       "implementation": "AGENTS.md: new \"## v1.1 freeze guardrails (Step 142)\" section between Standing priority and Guardrails for agents: 8 OUT bullets with step-number rulings, additive-only clause, pointers to the authoritative freeze + release-gate docs.",
       "verification": "Docs-only step: no engine code touched. Build/CTest/alive unchanged from Step 141 confirmation (zero errors, 1/1 Passed 1.88 s, all alive)."
+    },
+    {
+      "id": 143,
+      "name": "package.ps1 dry-run checklist note (script comment)",
+      "status": "completed",
+      "definition_of_done": "Script-comment checklist in package.ps1 documenting: build the exe, run the script, confirm zip contents (24 entries incl. music_loop.wav, input_bindings.txt, prefabs/enemy.txt, 4 shaders) referencing the Step 138 verification. No redesign.",
+      "notes": "Comment-only post-freeze polish (optional, not v1.1 debt). Missing prefabs/ or music_loop.wav = the exact drift Step 138 fixed - the note makes the regression visible to future maintainers.",
+      "commit": "9e7f8c2",
+      "depends_on": [
+        138
+      ],
+      "implementation": "scripts/package.ps1:66-78 Step 143 comment block before Compress-Archive: 3-step verify procedure + expected 24-entry listing + drift warning.",
+      "verification": "Comment-only step: script still runs (powershell -File scripts\\package.ps1 -> Created package\\PureEngine-0.1.0-win64.zip). No engine code touched."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
