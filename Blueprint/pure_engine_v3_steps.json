@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 140 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 141 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1390,6 +1390,19 @@
       ],
       "implementation": "Verification-only: python parse of JSON (status_note regex, id range, dup check) + MD (context/rule-tail regex, bullet/freeze presence, stale-ref count). No edits were needed; no code commit exists for this step.",
       "verification": "python parse output: JSON status_note Steps 35 through 139 | highest id 139 | total 105 | dups []; MD context Steps 25 through 139; MD rule tail Steps 35 through 139; list bullet present; freeze section present; stale refs 0."
+    },
+    {
+      "id": 141,
+      "name": "Final freeze confirmation (read-only audit + short record)",
+      "status": "completed",
+      "definition_of_done": "Read-only confirmation all green: Release build zero errors (all 7 targets), CTest 1/1 Passed 1.88 s, arcade/platformer/pong alive True, freeze text + OUT list present in PURE_ENGINE_V3.md, no ECS/editor/networking implementation in src (all grep hits are comment prose or substring false-positives), working tree clean. Project recorded as a complete small 2D learning engine toolkit under the standing constraints.",
+      "notes": "Freeze confirmation for the v1.1 toolkit (capability map in PURE_ENGINE_V3.md Step 139 section; human release gate in Blueprint/SMOKE_TEST.md). Honest limits stand: audible audio, mouse click feel, console typing, resize feel are human-only (not CI-verified). END STATE: documented, green, clean trackers.",
+      "commit": "PENDING",
+      "depends_on": [
+        140
+      ],
+      "implementation": "Verification-only: cmake --build build --config Release; ctest --test-dir build -C Release; alive probes (3 games); git rev-parse HEAD (a3605e0 pre-record); JSON parse (highest id 140 pre-record, 106 entries, no dups); MD freeze-text + OUT-list presence; src grep for ecs/editor/network/socket (comment-only hits). No engine code touched; no code commit for this step.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest -> 1/1 Passed 1.88 s; arcade_alive=True platformer_alive=True pong_alive=True; freeze text present=True, OUT list present=True; no ECS/editor/net implementation in src; working tree clean."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
