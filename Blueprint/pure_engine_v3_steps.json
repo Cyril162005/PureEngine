@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 148 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 149 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1495,6 +1495,19 @@
       ],
       "implementation": "tests/hostile_data_test.cpp (inside checkInputBindings, after the missing-file assert): jumpAfterFail = keysForAction(Jump) must still be {SPACE} after the failed load - 7 insertions.",
       "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed 2.04 s (reinforced bindings test green)."
+    },
+    {
+      "id": 149,
+      "name": "README \"v1.1 frozen\" section (docs-only)",
+      "status": "completed",
+      "definition_of_done": "README gains the v1.1 toolkit FROZEN blockquote at the top: Step 141 confirmation, binding scope guardrails (no ECS/editor/networking/3D), pointers to SMOKE_TEST.md (release gate) and PURE_ENGINE_V3.md (freeze scope + OUT list), additive-only clause. Step count current (25-148).",
+      "notes": "Docs-only post-freeze polish. The badge sits above the engine capability list so the frozen status is the first thing a reader sees.",
+      "commit": "68181c6",
+      "depends_on": [
+        142
+      ],
+      "implementation": "README.md:3-14 blockquote after the intro; :16 step count 25-133 -> 25-148 (current after Steps 134-148).",
+      "verification": "Select-String confirmed the FROZEN blockquote and 25-148 step count present. No engine code touched."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
