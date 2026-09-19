@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 138 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 139 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1364,6 +1364,19 @@
       ],
       "implementation": "scripts/package.ps1:31-37 comment count refresh (18 files + prefabs/ + shaders/); :66-76 prefab block: \\$prefabSourceDir probe + throw-if-missing + Copy-Item -Recurse to stage assets/prefabs. CMakeLists.txt:98-101 comment count refresh only (asset copies unchanged - already mirrored the list).",
       "verification": "powershell -ExecutionPolicy Bypass -File scripts\\package.ps1 -> 'Created package\\PureEngine-0.1.0-win64.zip'; zip listing (System.IO.Compression): 24 total entries, prefabs/enemy.txt + music_loop.wav + input_bindings.txt + 4 shaders present; cmake --build build --config Release -> zero errors (sanity); ctest -> 1/1 Passed 2.71 s (sanity); arcade/platformer/pong alive True (sanity)."
+    },
+    {
+      "id": 139,
+      "name": "v1.1 toolkit freeze document (docs-only)",
+      "status": "completed",
+      "definition_of_done": "PURE_ENGINE_V3.md gains the v1.1 toolkit freeze section: capability map (every system with consumer-or-test status), explicit OUT list (no ECS/editor/networking/3D/hot-reload/retained-UI/mixer/broadphase/materials), v1.0-at-100 lineage + Phase 2 additive through 138, honest human-only limits referencing SMOKE_TEST.md. No new features.",
+      "notes": "Docs-only. OUT items are do-not-plan (separate endeavor if ever needed). Honest limits: audible audio, mouse click feel, console typing, resize feel are NOT CI-verified - the 78-case suite proves logic, the human checklist is the release gate.",
+      "commit": "cd87797",
+      "depends_on": [
+        138
+      ],
+      "implementation": "PURE_ENGINE_V3.md: new \"## Engine freeze - v1.1 toolkit (Step 139)\" section before Kill criteria: In (capability map), OUT (do-not-plan list), freeze lineage (v1.0 at 100, Phase 2 additive through 138), honest limits (human-only, SMOKE_TEST.md reference).",
+      "verification": "Docs-only step: python parse confirmed freeze text present; no engine code touched. Build/CTest/alive unchanged from Step 138 sanity (zero errors, 1/1 Passed 2.71 s, all alive)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
