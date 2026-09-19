@@ -10,6 +10,7 @@
 #include "../src/console.h"
 #include "../src/events.h"
 #include "../src/gamepad.h"
+#include "../src/gamestate.h"
 #include "../src/input.h"
 #include "../src/lifecycle.h"
 #include "../src/particles.h"
@@ -2522,6 +2523,71 @@ static bool checkPrefabScenePersist() {
     return true;
 }
 
+// --- Step 146: GameState gate-table (headless, pure) ---
+// Locks the full gate table across all six states: which states simulate,
+// which draw the world, and the per-state clear-color palette. These are
+// the gates the whole frame loop sits behind (Step 19 boundary).
+static bool checkGameStateGateTable() {
+    using pe::GameState;
+    bool ok = true;
+    // simulates: PLAYING + PLAYING_ALT only.
+    if (!pe::simulates(GameState::PLAYING) ||
+        !pe::simulates(GameState::PLAYING_ALT)) {
+        std::cerr << "PLAYING states must simulate\n";
+        ok = false;
+    }
+    if (pe::simulates(GameState::MENU) || pe::simulates(GameState::PAUSED) ||
+        pe::simulates(GameState::GAME_OVER) || pe::simulates(GameState::WIN)) {
+        std::cerr << "MENU/PAUSED/GAME_OVER/WIN must not simulate\n";
+        ok = false;
+    }
+    // drawsWorld: everything except MENU.
+    if (pe::drawsWorld(GameState::MENU)) {
+        std::cerr << "MENU must not draw the world\n";
+        ok = false;
+    }
+    if (!pe::drawsWorld(GameState::PLAYING) ||
+        !pe::drawsWorld(GameState::PLAYING_ALT) ||
+        !pe::drawsWorld(GameState::PAUSED) ||
+        !pe::drawsWorld(GameState::GAME_OVER) ||
+        !pe::drawsWorld(GameState::WIN)) {
+        std::cerr << "Non-menu states must draw the world\n";
+        ok = false;
+    }
+    // Clear-color palette (Step 11/19 values): MENU purple, GAME_OVER
+    // dark red, WIN dark green, gameplay black or dark-blue on toggle.
+    struct Row { GameState state; bool toggled; float r, g, b; const char* what; };
+    const Row rows[] = {
+        {GameState::MENU,      false, 0.16f, 0.0f,  0.24f, "MENU purple"},
+        {GameState::GAME_OVER, false, 0.28f, 0.0f,  0.0f,  "GAME_OVER dark red"},
+        {GameState::WIN,       false, 0.0f,  0.28f, 0.08f, "WIN dark green"},
+        {GameState::PLAYING,   false, 0.02f, 0.02f, 0.08f, "PLAYING black"},
+        {GameState::PLAYING,   true,  0.0f,  0.0f,  0.25f, "PLAYING blue toggle"},
+        {GameState::PAUSED,    true,  0.0f,  0.0f,  0.25f, "PAUSED honors toggle"},
+    };
+    for (const Row& row : rows) {
+        const pe::ClearColor c = pe::clearColorFor(row.state, row.toggled);
+        if (!assertFloatClose(c.r, row.r) || !assertFloatClose(c.g, row.g) ||
+            !assertFloatClose(c.b, row.b)) {
+            std::cerr << row.what << " wrong\n";
+            ok = false;
+        }
+    }
+    // GAME_OVER/WIN palette wins over the toggle flag (priority order).
+    const pe::ClearColor goToggled = pe::clearColorFor(GameState::GAME_OVER, true);
+    if (!assertFloatClose(goToggled.r, 0.28f) || !assertFloatClose(goToggled.b, 0.0f)) {
+        std::cerr << "GAME_OVER palette must beat the blue toggle\n";
+        ok = false;
+    }
+    // PLAYING_ALT shares the gameplay palette (same path, by design).
+    const pe::ClearColor alt = pe::clearColorFor(GameState::PLAYING_ALT, false);
+    if (!assertFloatClose(alt.r, 0.02f) || !assertFloatClose(alt.b, 0.08f)) {
+        std::cerr << "PLAYING_ALT must share the gameplay palette\n";
+        ok = false;
+    }
+    return ok;
+}
+
 static bool checkSceneSerialization() {
     pe::Scene src;
     src.name = "test_roundtrip";
@@ -3098,6 +3164,7 @@ int main() {
     const bool entityPickOk = checkEntityPick();
     const bool screenPickOk = checkScreenPick();
     const bool entityBoundsOk = checkEntityWorldAABB();
+    const bool gateTableOk = checkGameStateGateTable();
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
@@ -3140,7 +3207,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
