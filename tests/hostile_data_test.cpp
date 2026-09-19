@@ -842,6 +842,19 @@ static bool checkConsoleSubmit() {
         std::cerr << "help output missing names: '" << help << "'\n";
         return false;
     }
+    // Step 144: newer commands appear in help by construction — the help
+    // loop lists EVERY registered command. Register one and assert it
+    // shows up (the arcade's 14 commands rely on this same loop).
+    pe::registerCommand(c, "mute", [](const std::vector<std::string>&) {
+        return std::string("toggled");
+    });
+    c.input = "help";
+    const std::string helpNewer = pe::submit(c);
+    if (helpNewer.find("mute") == std::string::npos ||
+        helpNewer.find("entities") == std::string::npos) {
+        std::cerr << "help must list newly registered commands: '" << helpNewer << "'\n";
+        return false;
+    }
     // Unknown command: exact format, token as typed.
     c.input = "frobnicate now";
     if (pe::submit(c) != "unknown command 'frobnicate' (try help)") {
