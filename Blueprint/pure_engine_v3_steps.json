@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 151 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 152 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1535,6 +1535,19 @@
       ],
       "implementation": "Verification-only read-only audit: cmake --build build --config Release; ctest --test-dir build -C Release; 3 alive probes; git rev-parse HEAD (7944adc pre-record, clean status); JSON parse (highest id, dups); MD/AGENTS/SMOKE presence checks. No engine code touched; no code commit for this step.",
       "verification": "cmake --build build --config Release -> zero errors; ctest -> 1/1 Passed 2.03 s; arcade_alive=True platformer_alive=True pong_alive=True; HEAD 7944adc clean; freeze text/OUT list/budget statement/AGENTS guardrails/SMOKE_TEST all present."
+    },
+    {
+      "id": 152,
+      "name": "README/AGENTS step-count catch-up (docs-only)",
+      "status": "completed",
+      "definition_of_done": "README/AGENTS/PURE_ENGINE_V3 inspected for stale highest-step prose after 151. One stale count found and fixed: README \"tracked steps 25-148\" -> \"25-151, incl. optional post-freeze polish through 151\". Phase 2 prose extended with the 134-141 docs/freeze pass and the 142-151 optional-polish note. AGENTS had no counts (clean); PURE_ENGINE_V3 already current (context/rule-tail 151, 151 bullet present). No engine code.",
+      "notes": "Docs-only post-freeze polish (optional, not v1.1 debt). Sanity: build/CTest/alive green.",
+      "commit": "5e0d116",
+      "depends_on": [
+        151
+      ],
+      "implementation": "README.md:16 step count 25-148 -> 25-151 + polish note; :211-218 Phase 2 prose + \"Steps 134-141 docs/freeze pass (v1.1 frozen at 141); Steps 142-151 OPTIONAL post-freeze polish - not v1.1 debt.\"",
+      "verification": "cmake --build build --config Release -> zero errors (sanity); ctest --test-dir build -C Release -> 1/1 Passed 2.46 s (sanity); arcade/platformer/pong alive True (sanity); Select-String confirmed no remaining 25-148 prose."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
