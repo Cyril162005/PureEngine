@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 139 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 140 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1377,6 +1377,19 @@
       ],
       "implementation": "PURE_ENGINE_V3.md: new \"## Engine freeze - v1.1 toolkit (Step 139)\" section before Kill criteria: In (capability map), OUT (do-not-plan list), freeze lineage (v1.0 at 100, Phase 2 additive through 138), honest limits (human-only, SMOKE_TEST.md reference).",
       "verification": "Docs-only step: python parse confirmed freeze text present; no engine code touched. Build/CTest/alive unchanged from Step 138 sanity (zero errors, 1/1 Passed 2.71 s, all alive)."
+    },
+    {
+      "id": 140,
+      "name": "Tracker final consistency pass (docs-only)",
+      "status": "completed",
+      "definition_of_done": "pure_engine_v3_steps.json status_note + PURE_ENGINE_V3.md context/rule-tail/list verified against the true highest step after 139. Zero prose drift found - all already aligned at 139 by the Step 139 recording pass. No historical hashes invented.",
+      "notes": "Verified state: JSON status_note Steps 35 through 140, highest id 139->140 after record, 105 entries (104 + this entry), no dups, no gaps. MD context Steps 25 through 139->140, rule tail same, list bullet for 139 present, freeze section present, zero stale through-137/138 refs. The only file change in this step is this record itself.",
+      "commit": "PENDING",
+      "depends_on": [
+        139
+      ],
+      "implementation": "Verification-only: python parse of JSON (status_note regex, id range, dup check) + MD (context/rule-tail regex, bullet/freeze presence, stale-ref count). No edits were needed; no code commit exists for this step.",
+      "verification": "python parse output: JSON status_note Steps 35 through 139 | highest id 139 | total 105 | dups []; MD context Steps 25 through 139; MD rule tail Steps 35 through 139; list bullet present; freeze section present; stale refs 0."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
