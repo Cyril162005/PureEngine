@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 133 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 134 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1296,6 +1296,19 @@
       ],
       "implementation": "renderer.h:775-792 console-proof accessors (textureCount :784, registerNonCoreTexture :785-787 -> registerTexture, unloadNonCoreTextures :788-792 counts non-zero >=5 slots then clearNonCoreTextures, returns count); main.cpp:1234-1256 textures command (before :1241, registerNonCoreTexture('checker.png') :1242, unloadNonCoreTextures :1251, before -> registered id -> count -> unloaded N -> count output).",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 6.51 s; arcade/platformer/pong alive True (platformer 80 cells) after the code path exists - the command is never invoked at startup, so alive probes exercise startup only; interactive console typing NOT verified (no input injection in this environment); the underlying unload logic is proven headlessly by checkTextureRegistry (Step 89/94 tests)."
+    },
+    {
+      "id": 134,
+      "name": "README + documentation drift sweep (docs-only)",
+      "status": "completed",
+      "definition_of_done": "README and AGENTS aligned to actual HEAD reality: step counts 25-133, Run section gains Platformer.exe, console command list refreshed (14 game commands), resources.h description gains binary blob, test count 48->78, Phase 2 prose extends to 133 with all new capabilities, asset table gains music_loop.ps1 row, repository layout gains components.h/prefab.h. No engine changes, no invented hashes.",
+      "notes": "PURE_ENGINE_V3.md and pure_engine_v3_steps.json had NO drift (context/rule-tail/status_note already at 133 from Step 133, highest id 133) - verified and left untouched. Historical freeze section (v1.0 core at Step 100) is a Step 100 record, not drift. Stale items fixed: 9 claims across README (7) + AGENTS (2). No historical hashes invented for steps 35-43/49.",
+      "commit": "0dbdd45",
+      "depends_on": [
+        133
+      ],
+      "implementation": "README.md:8-15 step count (115->tracked steps 25-133) + engine capability list refresh; :77-84 Run adds Platformer.exe; :99 console commands (help/entities/reset/volume/mute/pick/blob/spawn_prefab/textures); :146-148 resources.h + blob/pack/cache; :170-175 components.h/prefab.h in layout; :70 make_music.ps1 asset row; :185 test count 48->78; :203-208 Phase 2 (101-115 -> 101-133) with full capability list. AGENTS.md:64-66 components.h/prefab.h added to expected code structure.",
+      "verification": "cmake --build build --config Release -> zero errors (sanity); ctest --test-dir build -C Release -> 1/1 Passed 3.54 s (sanity); Select-String confirmed all fixed lines present (25-133, 78 behavior cases, Platformer.exe, Phase 2 (101-133), components.h, prefab.h, music_loop). Docs read consistently."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
