@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 147 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 148 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1482,6 +1482,19 @@
       ],
       "implementation": "tests/hostile_data_test.cpp: checkHighscoreSemantics (5 cases: round-trip 12.7, format 12.34 -> \"12.3\", NaN reject, garbage reject, missing-file) + registered + gated.",
       "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed 1.44 s (semantics test green)."
+    },
+    {
+      "id": 148,
+      "name": "Input bindings missing-file + remap headless reinforcement",
+      "status": "completed",
+      "definition_of_done": "checkInputBindings confirmed NOT thin: covers missing-file fallback (false), MoveLeft=A,LEFT + Jump=SPACE remaps, malformed-line handling (unknown action/no-equals/unknown key), shipped-file restore. Deepened: a FAILED missing-file load must not clobber the committed overrides (atomic-commit contract) - Jump remap survives.",
+      "notes": "No UI rebind, no format change. The deepening proves the loadInputBindings atomic-commit contract: parsed overrides commit only after a successful parse.",
+      "commit": "d5de513",
+      "depends_on": [
+        105
+      ],
+      "implementation": "tests/hostile_data_test.cpp (inside checkInputBindings, after the missing-file assert): jumpAfterFail = keysForAction(Jump) must still be {SPACE} after the failed load - 7 insertions.",
+      "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed 2.04 s (reinforced bindings test green)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
