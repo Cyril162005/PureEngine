@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 136 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 137 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1337,6 +1337,19 @@
       ],
       "implementation": "tests/hostile_data_test.cpp:2418-2510 checkPrefabScenePersist (scene + loadPrefab('enemy.txt') + instantiatePrefab + spawnEntity at (2,1) + second entity killed before save + saveSceneToFile + loadSceneFromFile + asserts: count==1 (dead dropped), role 2, tag 'hostile', textureId 2, depth 2, cols 8/rows 1, health 100.0, clip 'walk_left', position (2,1), halfExtents (0.5,0.5), alive true; rmAll 3-candidate cleanup) + :3109 registered + :3130 gated.",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed 3.59 s; direct binary run: checkPrefabScenePersist PASSED with zero failure messages; arcade/platformer/pong alive True (platformer 80 cells). No interactive console requirement (headless by design)."
+    },
+    {
+      "id": 137,
+      "name": "Manual smoke-test checklist (docs-only)",
+      "status": "completed",
+      "definition_of_done": "Blueprint/SMOKE_TEST.md: human-only release-gate checklist covering build/run (3 games), MENU keyboard+mouse buttons (Step 121), audio (music loop audible, mute M, event cues), console commands (help/entities/pick/blob/health/damage/heal/spawn_prefab/textures/mute/reset), resize (Step 116), Platformer/Pong quick pass. Every item marked HUMAN or HUMAN-ONLY vs the 78-case CI suite.",
+      "notes": "Docs-only, no engine code. The checklist is the RELEASE gate; ctest is the regression gate. Audible audio / mouse feel / resize behavior honestly marked HUMAN-ONLY (automated proofs referenced per item). Console command list matches the 14 registered game commands + 3 built-ins verified in source (main.cpp:1001-1256, console.h:103).",
+      "commit": "6520016",
+      "depends_on": [
+        136
+      ],
+      "implementation": "Blueprint/SMOKE_TEST.md:1-86: sections 1 (build/run), 2 (MENU keyboard+mouse), 3 (audio/music/mute), 4 (console commands with exact expected outputs), 5 (resize), 6 (Platformer/Pong). Header states human-verified-not-CI and cites the last automated pass.",
+      "verification": "Docs-only step: cmake --build build --config Release -> zero errors (sanity); ctest --test-dir build -C Release -> 1/1 Passed 0.85 sec (sanity). No human smoke-test items performed in this session - the checklist itself is the deliverable, items remain UNVERIFIED until a human runs them (never claimed)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
