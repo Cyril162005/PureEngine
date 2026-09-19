@@ -1529,7 +1529,7 @@
       "status": "completed",
       "definition_of_done": "Read-only post-freeze audit all green: Release build zero errors (all 7 targets), CTest 1/1 Passed 2.03 s, arcade/platformer/pong alive True, highest step 151 after record (116 entries, no dups/gaps), freeze text + OUT list + budget statement present in PURE_ENGINE_V3.md, AGENTS guardrails present, SMOKE_TEST.md present, working tree fully clean. Optional polish 142-150 landed; v1.1 freeze philosophy unchanged.",
       "notes": "Post-freeze health audit (optional, not v1.1 debt). No engine code touched. The v1.1 freeze (Step 139) and its guardrails (Step 142) remain authoritative; SMOKE_TEST.md remains the human release gate.",
-      "commit": "PENDING",
+      "commit": "3e68c80",
       "depends_on": [
         150
       ],
