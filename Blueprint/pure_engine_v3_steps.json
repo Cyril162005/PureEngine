@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 141 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 142 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1403,6 +1403,19 @@
       ],
       "implementation": "Verification-only: cmake --build build --config Release; ctest --test-dir build -C Release; alive probes (3 games); git rev-parse HEAD (a3605e0 pre-record); JSON parse (highest id 140 pre-record, 106 entries, no dups); MD freeze-text + OUT-list presence; src grep for ecs/editor/network/socket (comment-only hits). No engine code touched; no code commit for this step.",
       "verification": "cmake --build build --config Release -> zero errors; ctest -> 1/1 Passed 1.88 s; arcade_alive=True platformer_alive=True pong_alive=True; freeze text present=True, OUT list present=True; no ECS/editor/net implementation in src; working tree clean."
+    },
+    {
+      "id": 142,
+      "name": "Freeze guardrails in AGENTS.md (docs-only)",
+      "status": "completed",
+      "definition_of_done": "AGENTS.md gains the v1.1 freeze guardrails section: OUT list mirrored (no ECS/editor/networking/3D/retained-UI/mixer/broadphase/materials/generational handles), game-owns-the-loop rule, additive-only clause, authoritative pointers to PURE_ENGINE_V3.md + SMOKE_TEST.md. Binding on all future sessions.",
+      "notes": "Docs-only post-freeze polish (optional, not v1.1 debt). Prevents accidental scope growth: frozen behavior is never changed or unfrozen.",
+      "commit": "a3a1ebd",
+      "depends_on": [
+        141
+      ],
+      "implementation": "AGENTS.md: new \"## v1.1 freeze guardrails (Step 142)\" section between Standing priority and Guardrails for agents: 8 OUT bullets with step-number rulings, additive-only clause, pointers to the authoritative freeze + release-gate docs.",
+      "verification": "Docs-only step: no engine code touched. Build/CTest/alive unchanged from Step 141 confirmation (zero errors, 1/1 Passed 1.88 s, all alive)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
