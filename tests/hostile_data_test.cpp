@@ -2588,6 +2588,84 @@ static bool checkGameStateGateTable() {
     return ok;
 }
 
+// --- Step 147: highscore file semantics (headless) ---
+// Replicates the EXACT load guard and save format main.cpp uses for
+// savedata/highscore.txt (the code path itself is main.cpp-only, not a
+// header boundary — this tests the SEMANTICS: round-trip, NaN reject,
+// garbage reject, missing-file default). Guard verbatim:
+// `in >> stored && stored >= 0.0f` (NaN fails every comparison, so the
+// >= 0 guard rejects it). Format verbatim: fixed, setprecision(1), '\n'.
+static bool checkHighscoreSemantics() {
+    bool ok = true;
+    const std::string fname = "test_highscore_tmp.txt";
+    auto rm = [&]() { std::remove(fname.c_str()); };
+    rm();
+
+    // 1. Round-trip: same save format, same load guard.
+    {
+        std::ofstream out(fname);
+        out << std::fixed << std::setprecision(1) << 12.7f << '\n';
+        out.flush();
+        if (!out) { std::cerr << "highscore temp save failed\n"; rm(); return false; }
+        std::ifstream in(fname);
+        float stored = 0.0f;
+        if (in >> stored && stored >= 0.0f) {
+            if (!assertFloatClose(stored, 12.7f)) {
+                std::cerr << "highscore round-trip wrong: " << stored << "\n";
+                ok = false;
+            }
+        } else {
+            std::cerr << "highscore load guard rejected a valid value\n";
+            ok = false;
+        }
+    }
+    // 2. Format is exactly one decimal place.
+    {
+        std::ofstream out(fname);
+        out << std::fixed << std::setprecision(1) << 12.34f << '\n';
+        out.flush(); out.close();
+        std::ifstream in(fname);
+        std::string text;
+        std::getline(in, text);
+        if (text != "12.3") {
+            std::cerr << "highscore format must be one decimal: '" << text << "'\n";
+            ok = false;
+        }
+    }
+    // 3. NaN reject: the >= 0 guard fails on NaN (all comparisons false).
+    {
+        std::ofstream out(fname);
+        out << "nan\n";
+        out.close();
+        std::ifstream in(fname);
+        float stored = 99.0f;
+        if (in >> stored && stored >= 0.0f) {
+            std::cerr << "NaN must be rejected by the >= 0 guard\n";
+            ok = false;
+        }
+    }
+    // 4. Garbage reject: stream parse fails, default stands.
+    {
+        std::ofstream out(fname);
+        out << "not a number at all\n";
+        out.close();
+        std::ifstream in(fname);
+        float stored = 99.0f;
+        if (in >> stored && stored >= 0.0f) {
+            std::cerr << "Garbage must fail the stream parse\n";
+            ok = false;
+        }
+    }
+    // 5. Missing file: open fails, no crash, default stands.
+    {
+        rm();
+        std::ifstream in(fname);
+        if (in) { std::cerr << "Removed file must not open\n"; ok = false; }
+    }
+    rm();
+    return ok;
+}
+
 static bool checkSceneSerialization() {
     pe::Scene src;
     src.name = "test_roundtrip";
@@ -3165,6 +3243,7 @@ int main() {
     const bool screenPickOk = checkScreenPick();
     const bool entityBoundsOk = checkEntityWorldAABB();
     const bool gateTableOk = checkGameStateGateTable();
+    const bool highscoreOk = checkHighscoreSemantics();
     const bool platLandingOk = checkPlatformerLanding();
     const bool platSwitchOk = checkPlatformerLevelSwitch();
     const bool platGoalOk = checkPlatformerGoalEvent();
@@ -3207,7 +3286,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
