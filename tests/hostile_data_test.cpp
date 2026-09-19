@@ -2410,6 +2410,105 @@ static bool checkWorldToScreen() {
     return ok;
 }
 
+// --- Step 136: spawn -> dump -> reload persistence interaction proof ---
+// Composes Step 120 (prefab), Step 113 (spawn/kill), and Step 111 (v2
+// serialization) headlessly: a prefab-spawned live entity and one killed
+// entity are saved; the dead one must be dropped (documented Step 113
+// save semantics), and the live one's config must survive the round-trip.
+static bool checkPrefabScenePersist() {
+    bool ok = true;
+    // 1. Scene + prefab-spawned live entity + one killed entity.
+    pe::Scene src;
+    src.name = "persist_test";
+    pe::Prefab p;
+    if (!pe::loadPrefab("enemy.txt", p)) {
+        std::cerr << "persist test: enemy.txt failed to load\n";
+        return false;
+    }
+    const std::size_t liveIdx =
+        pe::spawnEntity(src, pe::instantiatePrefab(p, pe::Vec3(2.0f, 1.0f, 0.0f)));
+    pe::Entity doomed = pe::instantiatePrefab(p, pe::Vec3(-2.0f, -1.0f, 0.0f));
+    doomed.tag = "doomed";
+    const std::size_t deadIdx = pe::spawnEntity(src, doomed);
+    pe::killEntity(src, deadIdx);  // dead BEFORE save: dropped on save
+    if (!src.entities[liveIdx].alive) { std::cerr << "spawnEntity must leave alive\n"; return false; }
+    if (src.entities[deadIdx].alive) { std::cerr << "killEntity must mark dead\n"; return false; }
+
+    // 2. Save (bare filename probes the 3-candidate dirs; same rmAll
+    // cleanup pattern as the existing serialization tests).
+    const std::string fname = "scene_test_prefab_persist.txt";
+    auto rmAll = [&](const std::string& f) {
+        std::remove(("assets/" + f).c_str());
+        std::remove(("../assets/" + f).c_str());
+        std::remove(("../../assets/" + f).c_str());
+        std::remove(("assets/" + f + ".tmp").c_str());
+        std::remove(("../assets/" + f + ".tmp").c_str());
+    };
+    rmAll(fname);
+    if (!pe::saveSceneToFile(src, fname)) {
+        std::cerr << "persist test: save failed\n";
+        rmAll(fname);
+        return false;
+    }
+
+    // 3. Load into a fresh Scene.
+    pe::Scene loaded;
+    if (!pe::loadSceneFromFile(fname, loaded)) {
+        std::cerr << "persist test: load failed\n";
+        rmAll(fname);
+        return false;
+    }
+
+    // 4. Dead entity dropped: only the live one round-trips.
+    if (loaded.entities.size() != 1) {
+        std::cerr << "Dead entity must not survive the save (got "
+                  << loaded.entities.size() << ")\n";
+        rmAll(fname);
+        return false;
+    }
+    const pe::Entity& e = loaded.entities[0];
+    // Config survived: prefab-carried fields + spawn position.
+    if (e.roleId != 2 || e.tag != "hostile" || e.textureId != 2 ||
+        e.depth != 2 || e.cols != 8 || e.rows != 1) {
+        std::cerr << "Persisted entity lost prefab config\n";
+        rmAll(fname);
+        ok = false;
+    }
+    if (!assertFloatClose(e.health, 100.0f)) {
+        std::cerr << "Persisted entity health wrong\n";
+        rmAll(fname);
+        ok = false;
+    }
+    if (e.currentClipName != "walk_left") {
+        std::cerr << "Persisted entity clip name wrong\n";
+        rmAll(fname);
+        ok = false;
+    }
+    if (!assertFloatClose(e.position.x, 2.0f) ||
+        !assertFloatClose(e.position.y, 1.0f)) {
+        std::cerr << "Persisted entity position wrong\n";
+        rmAll(fname);
+        ok = false;
+    }
+    if (!assertFloatClose(e.halfExtents.x, 0.5f) ||
+        !assertFloatClose(e.halfExtents.y, 0.5f)) {
+        std::cerr << "Persisted entity half-extents wrong\n";
+        rmAll(fname);
+        ok = false;
+    }
+    // Alive: the loaded entity is live (dead ones never exist in saved
+    // state — the documented Step 113 save semantics).
+    if (!e.alive) {
+        std::cerr << "Persisted live entity must be alive\n";
+        rmAll(fname);
+        ok = false;
+    }
+
+    rmAll(fname);
+    std::cout << "checkPrefabScenePersist PASSED\n";
+    return true;
+}
+
 static bool checkSceneSerialization() {
     pe::Scene src;
     src.name = "test_roundtrip";
@@ -3007,6 +3106,7 @@ int main() {
     const bool animClipKeepOk = checkAnimClipKeep();
     const bool scenePtrOk = checkScenePointerStability();
     const bool persistV2Ok = checkScenePersistenceV2();
+    const bool persistComposeOk = checkPrefabScenePersist();
     const bool persistV1Ok = checkScenePersistenceV1Compat();
     const bool persistV99Ok = checkSceneVersionUnknown();
     const bool lifecycleOk = checkEntityLifecycle();
@@ -3027,7 +3127,7 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
