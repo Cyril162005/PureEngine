@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 134 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 135 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1309,6 +1309,19 @@
       ],
       "implementation": "README.md:8-15 step count (115->tracked steps 25-133) + engine capability list refresh; :77-84 Run adds Platformer.exe; :99 console commands (help/entities/reset/volume/mute/pick/blob/spawn_prefab/textures); :146-148 resources.h + blob/pack/cache; :170-175 components.h/prefab.h in layout; :70 make_music.ps1 asset row; :185 test count 48->78; :203-208 Phase 2 (101-115 -> 101-133) with full capability list. AGENTS.md:64-66 components.h/prefab.h added to expected code structure.",
       "verification": "cmake --build build --config Release -> zero errors (sanity); ctest --test-dir build -C Release -> 1/1 Passed 3.54 s (sanity); Select-String confirmed all fixed lines present (25-133, 78 behavior cases, Platformer.exe, Phase 2 (101-133), components.h, prefab.h, music_loop). Docs read consistently."
+    },
+    {
+      "id": 135,
+      "name": "Junk cleanup / .gitignore hygiene",
+      "status": "completed",
+      "definition_of_done": ".gitignore gains one commented block: .vscode/ (was missing - only .vs/ existed), .kilo/ (the existing .kiro/ rule did not match the actual folder - letter mismatch), audio_*.log, *_diag.log, *_diag.txt, Blueprint/SESSION_HANDOFF.md (point-in-time scratch snapshot, ignored NOT deleted). git status clean of the junk class. No source/assets/trackers touched.",
+      "notes": "SESSION_HANDOFF.md is an evidence-based handoff snapshot written 2026-09-08 (HEAD 09e57a0, ~35 steps stale) - a point-in-time scratch doc, not a living tracker; ignored with a one-line note, file stays on disk. No mass deletion. Nothing legitimate ignored.",
+      "commit": "0f6902e",
+      "depends_on": [
+        134
+      ],
+      "implementation": ".gitignore appended after the .qoder/.trae/.kiro block: comment line + .vscode/ + .kilo/ + audio_*.log + *_diag.log + *_diag.txt + comment + Blueprint/SESSION_HANDOFF.md (9 insertions).",
+      "verification": "git status --short after ignore -> only ' M .gitignore' (all 6 junk items covered: .kilo/, .vscode/, SESSION_HANDOFF.md, audio_diag.log, audio_final_check.log, build_diag.txt); cmake --build build --config Release -> zero errors (sanity); ctest --test-dir build -C Release -> 1/1 Passed 1.99 s (sanity)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
