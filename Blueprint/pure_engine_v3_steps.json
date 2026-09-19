@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 143 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 144 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1429,6 +1429,19 @@
       ],
       "implementation": "scripts/package.ps1:66-78 Step 143 comment block before Compress-Archive: 3-step verify procedure + expected 24-entry listing + drift warning.",
       "verification": "Comment-only step: script still runs (powershell -File scripts\\package.ps1 -> Created package\\PureEngine-0.1.0-win64.zip). No engine code touched."
+    },
+    {
+      "id": 144,
+      "name": "Console help lists all commands (newer commands confirmed + test deepening)",
+      "status": "completed",
+      "definition_of_done": "Inspection: console.h:210-214 help already iterates c.commands and lists EVERY registered command by construction - newer commands (mute/pick/blob/spawn_prefab/textures/health/damage/heal/scene_dump/scene_reload/volume) appear automatically. Test deepened: register \"mute\" in the console test and assert help lists it (tests, registered next to the existing help assert). No console.h fix needed.",
+      "notes": "The arcade registers 14 commands (main.cpp:1001-1256) - all appear in help via the same loop. Post-freeze polish (optional, not v1.1 debt); the deepening is additive and proves the construction.",
+      "commit": "d741a96",
+      "depends_on": [
+        131
+      ],
+      "implementation": "tests/hostile_data_test.cpp:845-858 (after the existing HELP assert): pe::registerCommand(c, \"mute\", ...) + submit \"help\" + assert helpNewer contains \"mute\" and \"entities\". console.h:210-214 unchanged (the loop IS the mechanism).",
+      "verification": "cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed 1.84 s (deepened console test green)."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
