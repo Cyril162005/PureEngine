@@ -80,6 +80,21 @@ For every claim such as "works," "passes," or "fixed," include the actual comman
 
 Focus is on **engine internals**, not gameplay features or content. Gameplay work is only justified when it is explicitly testing whether the engine holds up under real conditions (e.g. stress-testing entity count, verifying a module boundary actually holds under load). Do not propose new game content, difficulty tiers, or gameplay mechanics unless the current session explicitly requests one and cites a concrete engine-validation reason.
 
+## v1.1 freeze guardrails (Step 142 — binding on all future sessions)
+
+PureEngine v1.1 is FROZEN (Step 141 confirmation). The engine owns mechanisms; the game owns the loop. The following are **OUT — do not plan, do not start, do not "accidentally" grow**:
+
+- **No ECS** — no archetype storage, no component scheduler, no query language. Entities stay plain structs (Step 7/103 ruling).
+- **No editor** — no in-game editing tools, no hot-reload framework.
+- **No networking** — no sockets, no multiplayer, no sync layers.
+- **No 3D** — flat 2D only (see PURE_ENGINE_V3.md 2D/3D architecture notes).
+- **No retained-mode UI system** — no widget tree, no layout engine, no focus system. Buttons/HUD stay plain data + pure helpers (Step 21/118 ruling).
+- **No mixer graph** — audio stays pe::Audio's existing paths (Step 20/75/98/124 ruling).
+- **No broadphase replacement** — deferred by measurement (Step 52: fine ≤2000 entities; re-open ONLY on a measured superlinear breach).
+- **No materials system**, no generational handles, no container-ownership transfers.
+
+New capabilities land only as additive, opt-in, engine-pure steps with honest verification — frozen behavior is never changed or unfrozen. The authoritative scope statements live in `Blueprint/PURE_ENGINE_V3.md` (v1.1 toolkit freeze section) and the release gate in `Blueprint/SMOKE_TEST.md`.
+
 ## Guardrails for agents
 
 - Keep the project architecture small and coherent with the existing engine step model.
