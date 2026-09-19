@@ -29,10 +29,11 @@ $runtimeAssets = @(
     "input_bindings.txt"
 )
 # Single source of truth for the shipped arcade zip (F-08 re-fix). CMake POST_BUILD
-# arcade bundle mirrors this list for dev runs (16 files: renderer's fixed
-# 7-texture set requires paddle_* even for arcade; platformer proof ships for
-# verification). Deliberately excluded: tilemap_default.txt (sample), stress
-# fixtures, platformer_level*.txt (Platformer own bundle). This zip ships PureEngine.exe.
+# arcade bundle mirrors this list for dev runs (18 files + prefabs/ + shaders:
+# renderer's fixed 7-texture set requires paddle_* even for arcade; platformer
+# proof ships for verification). Deliberately excluded: tilemap_default.txt
+# (sample), stress fixtures, platformer_level*.txt (Platformer own bundle).
+# This zip ships PureEngine.exe.
 
 if (-not (Test-Path $executablePath -PathType Leaf)) {
     throw "Release executable not found: $executablePath"
@@ -62,6 +63,15 @@ if (-not (Test-Path $shaderSourceDir -PathType Container)) {
     throw "Runtime shader dir not found: $shaderSourceDir"
 }
 Copy-Item $shaderSourceDir (Join-Path $stageAssetsDir "shaders") -Recurse
+
+# Step 120/138: prefab templates — the spawn_prefab console command
+# probes assets/prefabs/; the zip must carry the directory or the
+# packaged game's spawn path fails (same class as the shader find).
+$prefabSourceDir = Join-Path $repoRoot (Join-Path "assets" "prefabs")
+if (-not (Test-Path $prefabSourceDir -PathType Container)) {
+    throw "Runtime prefab dir not found: $prefabSourceDir"
+}
+Copy-Item $prefabSourceDir (Join-Path $stageAssetsDir "prefabs") -Recurse
 
 Compress-Archive -Path $stageDir -DestinationPath $zipPath -CompressionLevel Optimal
 Write-Output "Created $zipPath"
