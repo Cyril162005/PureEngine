@@ -8,7 +8,7 @@
     "OpenGL"
   ],
   "continuation_of": "pure_engine_v2_steps.json (Steps 25-34 \u00e2\u20ac\u201d engine hardening: data-driven config, second scene, frame-time visibility, automated tests)",
-  "status_note": "This continuation tracker covers Steps 35 through 152 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
+  "status_note": "This continuation tracker covers Steps 35 through 153 (Steps 25-34 remain in pure_engine_v2_steps.json). Steps 35 through 50 covered engine hardening continuation, data-driven hostile config, alternate scenes, depth sorting, entity roles, and stress-test validation; v1.0 froze at Step 100 and Steps 101+ are an additive Phase 2 continuation.",
   "steps": [
     {
       "id": 35,
@@ -1548,6 +1548,19 @@
       ],
       "implementation": "README.md:16 step count 25-148 -> 25-151 + polish note; :211-218 Phase 2 prose + \"Steps 134-141 docs/freeze pass (v1.1 frozen at 141); Steps 142-151 OPTIONAL post-freeze polish - not v1.1 debt.\"",
       "verification": "cmake --build build --config Release -> zero errors (sanity); ctest --test-dir build -C Release -> 1/1 Passed 2.46 s (sanity); arcade/platformer/pong alive True (sanity); Select-String confirmed no remaining 25-148 prose."
+    },
+    {
+      "id": 153,
+      "name": "Recommended stop marker (docs-only)",
+      "status": "completed",
+      "definition_of_done": "PURE_ENGINE_V3.md gains the \"Recommended stop (Step 153)\" section: v1.1 toolkit COMPLETE for the stated goal (Steps 141/151 confirmations, all green); further steps ONLY on measured need (no queue, no polish momentum); freeze guardrails + OUT list remain binding (no ECS/editor/networking/3D/hot-reload/retained-UI/mixer/broadphase); explicit re-entry criteria. No feature work.",
+      "notes": "Docs-only post-freeze polish. The note exists so a future session sees an explicit, sanctioned stopping point instead of inferring one. README needed no change (the FROZEN blockquote from Step 149 already marks the status).",
+      "commit": "6485a47",
+      "depends_on": [
+        152
+      ],
+      "implementation": "PURE_ENGINE_V3.md: new \"## Recommended stop (Step 153, docs-only)\" section before Kill criteria: complete-for-goal, measured-need-only clause, binding guardrails, re-entry criteria, future-session note.",
+      "verification": "Docs-only step: python parse confirmed the marker present; no engine code touched. Sanity: cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed 15.88 s; arcade/platformer/pong alive True."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
