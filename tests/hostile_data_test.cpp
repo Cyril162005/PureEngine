@@ -1663,6 +1663,124 @@ static bool checkStaticResolve() {
     return true;
 }
 
+// --- resolveCollision contract: restitution clamps (Step 62/71) ---
+// Locks: negative e clamps to 0 (stick), e>1 clamps to 1 (elastic
+// equal-mass exchange). Closing velocity 1.0, half the split at e=0,
+// full exchange at e=1 — out-of-range e must match its clamp exactly.
+static bool checkResolveRestitutionClamp() {
+    // e = -0.5 must behave as e = 0: closing velocity split in half.
+    pe::Entity a = makeCharacter(0.0f, 0.0f);
+    pe::Entity b = makeCharacter(0.8f, 0.0f);
+    a.velocity = pe::Vec3(1.0f, 0.0f, 0.0f);
+    pe::resolveCollision(a, b, -0.5f);
+    if (!assertFloatClose(a.velocity.x, 0.5f) ||
+        !assertFloatClose(b.velocity.x, 0.5f)) {
+        std::cerr << "Negative restitution must clamp to 0 (stick)\n";
+        return false;
+    }
+    // e = 5 must behave as e = 1: full exchange (a stops, b takes all).
+    pe::Entity c = makeCharacter(0.0f, 0.0f);
+    pe::Entity d = makeCharacter(0.8f, 0.0f);
+    c.velocity = pe::Vec3(1.0f, 0.0f, 0.0f);
+    pe::resolveCollision(c, d, 5.0f);
+    if (!assertFloatClose(c.velocity.x, 0.0f) ||
+        !assertFloatClose(d.velocity.x, 1.0f)) {
+        std::cerr << "Restitution above 1 must clamp to 1 (elastic)\n";
+        return false;
+    }
+    return true;
+}
+
+// --- resolveCollision contract: e=1 bounce vs e=0 stick (one-static) ---
+// Locks the dynamic-onto-static impulse: e=0 leaves the dynamic at rest
+// (vy 0), e=1 reflects the approach speed (bounce up at -vy). Static
+// velocity must never change in either case.
+static bool checkResolveBounceVsStick() {
+    const float floorTop = 1.0f;  // dynamic half 0.5 + static half 0.5
+    // e = 0: stick — dynamic lands at rest height, vy zeroed.
+    pe::Entity floor = makeStaticBox(0.0f, 0.0f, 5.0f, 0.5f);
+    pe::Entity dyn = makeCharacter(0.0f, 0.4f);
+    dyn.velocity = pe::Vec3(0.0f, -10.0f, 0.0f);
+    pe::resolveCollision(floor, dyn, 0.0f);
+    if (!assertFloatClose(dyn.position.y, floorTop) ||
+        !assertFloatClose(dyn.velocity.y, 0.0f) ||
+        !assertFloatClose(floor.velocity.y, 0.0f)) {
+        std::cerr << "e=0 must land the dynamic at rest (stick)\n";
+        return false;
+    }
+    // e = 1: bounce — dynamic reflects up at the approach speed.
+    pe::Entity floor2 = makeStaticBox(0.0f, 0.0f, 5.0f, 0.5f);
+    pe::Entity dyn2 = makeCharacter(0.0f, 0.4f);
+    dyn2.velocity = pe::Vec3(0.0f, -10.0f, 0.0f);
+    pe::resolveCollision(floor2, dyn2, 1.0f);
+    if (!assertFloatClose(dyn2.position.y, floorTop) ||
+        !assertFloatClose(dyn2.velocity.y, 10.0f) ||
+        !assertFloatClose(floor2.velocity.y, 0.0f)) {
+        std::cerr << "e=1 must bounce the dynamic at approach speed\n";
+        return false;
+    }
+    return true;
+}
+
+// --- resolveCollision contract: approaching-guard ---
+// Overlapping but SEPARATING pair: positional fix still applied (equal
+// split), velocities untouched — no impulse against separation.
+static bool checkResolveApproachingGuard() {
+    pe::Entity a = makeCharacter(0.0f, 0.0f);
+    pe::Entity b = makeCharacter(0.8f, 0.0f);
+    a.velocity = pe::Vec3(-1.0f, 0.0f, 0.0f);  // moving away from b
+    pe::resolveCollision(a, b, 1.0f);
+    if (!assertFloatClose(a.position.x, -0.1f) ||
+        !assertFloatClose(b.position.x, 0.9f)) {
+        std::cerr << "Separating pair must keep the positional fix\n";
+        return false;
+    }
+    if (!assertFloatClose(a.velocity.x, -1.0f) ||
+        !assertFloatClose(b.velocity.x, 0.0f)) {
+        std::cerr << "Separating pair must not receive impulse\n";
+        return false;
+    }
+    // One-static variant: separating dynamic keeps fix, no impulse.
+    pe::Entity floor = makeStaticBox(0.0f, 0.0f, 5.0f, 0.5f);
+    pe::Entity rising = makeCharacter(0.0f, 0.4f);
+    rising.velocity = pe::Vec3(0.0f, 3.0f, 0.0f);  // moving up, away
+    pe::resolveCollision(floor, rising, 1.0f);
+    if (!assertFloatClose(rising.position.y, 1.0f) ||
+        !assertFloatClose(rising.velocity.y, 3.0f)) {
+        std::cerr << "One-static separating pair must fix without impulse\n";
+        return false;
+    }
+    return true;
+}
+
+// --- resolveCollision contract: edge-touch policy ---
+// Exactly-touching edges (gap 0) are NOT a collision — strict '<', the
+// same rule aabbOverlap applies. Scaled extents honored: a 0.5-scale
+// entity with 0.5 half-extents occupies a 0.25 box.
+static bool checkResolveEdgeTouch() {
+    pe::Entity a = makeCharacter(0.0f, 0.0f);
+    pe::Entity b = makeCharacter(1.0f, 0.0f);  // edges touch exactly
+    pe::resolveCollision(a, b, 1.0f);
+    if (!assertFloatClose(a.position.x, 0.0f) ||
+        !assertFloatClose(b.position.x, 1.0f) ||
+        !assertFloatClose(a.velocity.x, 0.0f) ||
+        !assertFloatClose(b.velocity.x, 0.0f)) {
+        std::cerr << "Edge-touch must not resolve (strict <)\n";
+        return false;
+    }
+    // Scaled extents: half 0.5 * scale 0.5 = 0.25; b at 0.75 touches.
+    pe::Entity s = makeCharacter(0.0f, 0.0f);
+    s.scale = pe::Vec3(0.5f, 0.5f, 1.0f);
+    pe::Entity t = makeCharacter(0.75f, 0.0f);
+    pe::resolveCollision(s, t, 1.0f);
+    if (!assertFloatClose(s.position.x, 0.0f) ||
+        !assertFloatClose(t.position.x, 0.75f)) {
+        std::cerr << "Scaled edge-touch must not resolve\n";
+        return false;
+    }
+    return true;
+}
+
 // --- Physics primitives: applyForce (massless v += force*dt) ---
 // applyForce was written Step 60 but never headless-verified. Locks the
 // contract: force IS the acceleration, dt=0 is a no-op.
@@ -2428,6 +2546,126 @@ static bool checkMuteToggle() {
     if (!audio.isMuted()) { std::cerr << "toggleMute must mute\n"; return false; }
     audio.toggleMute();
     if (audio.isMuted()) { std::cerr << "toggleMute must unmute\n"; return false; }
+    return true;
+}
+
+// --- A2: per-sound gain composition (headless, no device) ---
+// The master*sfx*perSound contract each loaded sound plays at. Headless
+// observation: getters return the STORED multipliers (the composition
+// itself runs inside applyVolumes() — device-only), and applyVolumes()
+// guards no-op safely pre-init (same pattern as checkVolumeClamp).
+// Locks: per-sound defaults 1.0, each Sound slot independently settable,
+// clamped [0,1], one slot's gain never leaks into another.
+static bool checkPerSoundVolume() {
+    pe::Audio audio;  // never init()ed: guards must no-op safely
+    // Defaults: all three per-sound gains at 1.0.
+    if (!assertFloatClose(audio.getVolume(pe::Sound::Beep), 1.0f) ||
+        !assertFloatClose(audio.getVolume(pe::Sound::GameOver), 1.0f) ||
+        !assertFloatClose(audio.getVolume(pe::Sound::NewHighScore), 1.0f)) {
+        std::cerr << "Per-sound gains must default to 1.0\n";
+        return false;
+    }
+    // Each slot independently settable and clamped.
+    audio.setVolume(pe::Sound::Beep, 0.5f);
+    audio.setVolume(pe::Sound::GameOver, 2.0f);
+    audio.setVolume(pe::Sound::NewHighScore, -1.0f);
+    if (!assertFloatClose(audio.getVolume(pe::Sound::Beep), 0.5f) ||
+        !assertFloatClose(audio.getVolume(pe::Sound::GameOver), 1.0f) ||
+        !assertFloatClose(audio.getVolume(pe::Sound::NewHighScore), 0.0f)) {
+        std::cerr << "Per-sound gain clamp/independence wrong\n";
+        return false;
+    }
+    // Composition contract: applied gain is master*sfx*perSound.
+    audio.setMasterVolume(0.8f);
+    audio.setSfxVolume(0.5f);
+    if (!assertFloatClose(audio.getMasterVolume() * audio.getSfxVolume() *
+                              audio.getVolume(pe::Sound::Beep),
+                          0.8f * 0.5f * 0.5f)) {
+        std::cerr << "master*sfx*perSound composition wrong\n";
+        return false;
+    }
+    return true;
+}
+
+// --- A2: music volume independence (headless, no device) ---
+// The music path multiplies by master*musicVolume ONLY — sfx and
+// per-sound gains must never touch the music multiplier. Headless
+// observation: getMusicVolume() returns the STORED multiplier; the
+// composed music gain follows masterVolume (so mute silences music),
+// asserted here through the documented composition contract.
+static bool checkMusicVolumeIndependence() {
+    pe::Audio audio;  // never init()ed: guards must no-op safely
+    audio.setMusicVolume(0.6f);
+    if (!assertFloatClose(audio.getMusicVolume(), 0.6f)) {
+        std::cerr << "setMusicVolume must store its value\n";
+        return false;
+    }
+    // SFX and per-sound paths must NOT move the music multiplier.
+    audio.setSfxVolume(0.2f);
+    audio.setVolume(pe::Sound::Beep, 0.2f);
+    audio.setVolume(pe::Sound::GameOver, 0.2f);
+    audio.setVolume(pe::Sound::NewHighScore, 0.2f);
+    if (!assertFloatClose(audio.getMusicVolume(), 0.6f)) {
+        std::cerr << "Music volume must be independent of sfx/per-sound gains\n";
+        return false;
+    }
+    // Clamp [0,1] on both endpoints.
+    audio.setMusicVolume(3.0f);
+    if (!assertFloatClose(audio.getMusicVolume(), 1.0f)) {
+        std::cerr << "Music volume must clamp to 1.0\n";
+        return false;
+    }
+    audio.setMusicVolume(-2.0f);
+    if (!assertFloatClose(audio.getMusicVolume(), 0.0f)) {
+        std::cerr << "Music volume must clamp to 0.0\n";
+        return false;
+    }
+    // Mute silences the composed music gain (master*musicVolume) without
+    // losing the stored multiplier; unmute restores master untouched.
+    audio.setMusicVolume(0.6f);
+    audio.setMuted(true);
+    if (!assertFloatClose(audio.getMasterVolume(), 0.0f) ||
+        !assertFloatClose(audio.getMusicVolume(), 0.6f)) {
+        std::cerr << "Mute must zero master while keeping music multiplier\n";
+        return false;
+    }
+    audio.setMuted(false);
+    if (!assertFloatClose(audio.getMasterVolume(), 1.0f) ||
+        !assertFloatClose(audio.getMusicVolume(), 0.6f)) {
+        std::cerr << "Unmute must restore master without touching music multiplier\n";
+        return false;
+    }
+    return true;
+}
+
+// --- A2: pre-init guards (headless, no device, no crash) ---
+// Every playback/stop/teardown path must no-op safely on a never-init()ed
+// Audio: slotsValid==0, loaded flags false, engineIsValid false. Touching
+// miniaudio uninitialized would be undefined behaviour — the run passing
+// at all is the proof. Also locks A1's isLoaded/isMusicLoaded queries.
+static bool checkPreInitGuards() {
+    pe::Audio audio;  // never init()ed
+    audio.playNext();          // must no-op (slotsValid == 0)
+    audio.playGameOver();      // must no-op (flag false)
+    audio.playNewHighScore();  // must no-op (flag false)
+    audio.stopEventSounds();   // must no-op (flags false)
+    audio.stopMusic();         // must no-op (flag false)
+    // Music start on a dead engine must return false gracefully.
+    if (audio.playMusicLoop("music_loop.wav", true)) {
+        std::cerr << "playMusicLoop must fail gracefully pre-init\n";
+        return false;
+    }
+    // State queries coherent: nothing loaded before init().
+    if (audio.isLoaded(pe::Sound::Beep) ||
+        audio.isLoaded(pe::Sound::GameOver) ||
+        audio.isLoaded(pe::Sound::NewHighScore) ||
+        audio.isMusicLoaded()) {
+        std::cerr << "Pre-init load state must be all false\n";
+        return false;
+    }
+    // Shutdown before any init is a safe no-op; the destructor runs it
+    // again as insurance — a crash here would fail the test binary.
+    audio.shutdown();
     return true;
 }
 
@@ -3424,12 +3662,19 @@ int main() {
     const bool applyPhysicsOk = checkApplyPhysicsSemantics();
     const bool applyPhysicsFixedOk = checkApplyPhysicsFixedFreeMovers();
     const bool broadphaseOk = checkBroadphaseGridPairs();
+    const bool restClampOk = checkResolveRestitutionClamp();
+    const bool bounceStickOk = checkResolveBounceVsStick();
+    const bool approachGuardOk = checkResolveApproachingGuard();
+    const bool edgeTouchOk = checkResolveEdgeTouch();
     const bool sceneByNameOk = checkSceneByName();
     const bool platLevelsOk = checkPlatformerLevels();
     const bool platClimbOk = checkPlatformerClimb();
     const bool inputEdgesOk = checkInputEdges();
     const bool volumeClampOk = checkVolumeClamp();
     const bool muteToggleOk = checkMuteToggle();
+    const bool perSoundVolumeOk = checkPerSoundVolume();
+    const bool musicVolumeIndepOk = checkMusicVolumeIndependence();
+    const bool preInitGuardsOk = checkPreInitGuards();
     const bool screenToWorldOk = checkScreenToWorld();
     const bool worldToScreenOk = checkWorldToScreen();
     const bool entityPickOk = checkEntityPick();
@@ -3478,9 +3723,11 @@ int main() {
         !staticFloorOk || !groundedOk || !wallOk || !ceilingOk ||
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !applyForceOk || !applyPhysicsOk || !applyPhysicsFixedOk || !broadphaseOk ||
+        !restClampOk || !bounceStickOk || !approachGuardOk || !edgeTouchOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
-        !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
+        !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
+        !musicVolumeIndepOk || !preInitGuardsOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
