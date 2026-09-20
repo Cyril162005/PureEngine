@@ -13,7 +13,7 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–151, incl. optional post-freeze polish through 151): window/context, rendering pipeline,
+- **Engine** (tracked steps 25–156): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),
   file-based asset loading (stb_image PNG) + binary blob/pack + cache,
@@ -214,7 +214,9 @@ mouse input, UI Button, music loop + asset, prefabs, menu buttons, mute,
 screen/world conversion, point picking, and console proofs (pick/blob/health/
 textures) without changing the frozen v1.0 core. Steps 134–141 were the
 docs/freeze pass (v1.1 toolkit frozen at 141); Steps 142–151 were OPTIONAL
-post-freeze polish (guardrails, tests, hygiene) — not v1.1 debt.
+post-freeze polish (guardrails, tests, hygiene) — not v1.1 debt;
+Steps 152–153 docs; Steps 154–155 input-campaign; Step 156 the
+scene/prefab/persistence test campaign.
 
 ## Performance note
 

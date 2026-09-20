@@ -1589,6 +1589,20 @@
       ],
       "implementation": "src/input.h:131-136 additive widened name block after the Step 105 table. tests/hostile_data_test.cpp: new checkKeyNames() (~3628-3692, ~50 named-key assertions) wired into main() as keyNamesOk; checkInputBindings MoveLeft=A,LEFT,TAB end-to-end widened-name bind proof.",
       "verification": "On committed HEAD (482324e + 60ac7d6): cmake --build build --config Release -> exit 0, zero errors; ctest --test-dir build -C Release -> 1/1 Passed 3.24 s; PureEngine/Platformer/Pong alive True (4 s probes). NOT verified: interactive feel of rebinding to a widened key (no keyboard injection into games), per increment scope."
+    },
+    {
+      "id": 156,
+      "name": "Scene/prefab/persistence test campaign (manager save, spawn-after-kill, multi-spawn persist)",
+      "status": "completed",
+      "definition_of_done": "Three headless tests close the scene/prefab/persistence coverage gaps: checkSceneManagerSave (first-ever coverage of saveSceneManagerToFile: index file + per-scene files + round-trip + empty-name refuse), checkSpawnAfterKill (append semantics, no slot reuse, index stability, safe no-op kills), checkPrefabMultiSpawnPersist (2 live + 1 killed -> save -> load -> count 2, positions in order, configs intact, source unmutated). 84 test-case functions total. No engine code.",
+      "notes": "Sweep-in honesty: checkSceneManagerSave was committed inside physics c1919f6 (shared-tree collision - the physics session commit swept the shared test file while the edits were in the working tree; disclosed when discovered, my own commit found nothing staged). Increments 2/3 committed directly (842214e, 60ac7d6). Two first-run test failures owned and fixed (inverted alive check; spawn-order assumption). Campaign recorded at the next free id 156 after the input session landed its Step 155 record (b5ce83d) - racing 155/156 would have risked a duplicate.",
+      "commit": "60ac7d6",
+      "depends_on": [
+        136,
+        154
+      ],
+      "implementation": "tests/hostile_data_test.cpp:3774 checkSceneManagerSave (2-scene manager alpha/beta, rmArtifacts 3-prefix cleanup, index-file content asserts, per-scene round-trips via loadSceneFromFile, empty-name refuse, assets/ pre-created); :3875 checkSpawnAfterKill (spawn->kill->spawn, append at new index, dead slot stays dead, slot-0 stable, out-of-range/double kill no-ops); :3937 checkPrefabMultiSpawnPersist (2 live prefab entities + killed -> save -> load -> count 2, per-entity positions/configs in order, source unmutated); registered at :4255-4257 + gated.",
+      "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed (1.09 s final run; each increment verified: 2.12 s / 9.82 s post-fix / 2.55 s post-fix); direct binary runs zero failure messages; arcade/platformer/pong alive True after each increment. No engine feature work."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
