@@ -22,11 +22,50 @@
  *   - ma_sound_start hands the sound to the engine's mixing thread
  *     and returns immediately — playback never blocks the frame.
  *
- * What it deliberately is NOT:
- *   - no mixing controls, no streaming, no sound identity/naming system,
- *     no per-event sound types, no per-sound volume (v1.2).
- *     Step 75 adds exactly two gains (master + sfx, below) — everything
- *     else on this list still holds.
+ * What it deliberately is NOT (A5 refresh — matches the verified
+ * reality, not the original Step 20 list):
+ *   - no mixer graph, no streaming, no sound identity/naming system,
+ *     no per-event sound types, no new buses. Steps 75/80/98/124
+ *     since added master+sfx gains, per-sound gain, one music loop
+ *     slot, and a mute toggle — all simple multiplicative gains on
+ *     the same ma_sound paths.
+ *
+ * Verified contract (audio campaign A1-A5; every claim below is proven
+ * by hostile_data_test checks or by direct source — nothing aspirational):
+ *   - Volume composition: SFX play at master * sfx * per-sound gain;
+ *     music plays at master * musicVolume — sfx and per-sound gains
+ *     never touch the music path. Stored multipliers proven headlessly
+ *     by checkVolumeClamp / checkPerSoundVolume /
+ *     checkMusicVolumeIndependence; the composition itself runs in
+ *     applyVolumes() and is only observable with a device present.
+ *   - Mute: setMuted(true) silences everything by forcing masterVolume
+ *     to 0; unmute restores the remembered value; a volume change made
+ *     while muted survives the cycle in savedMasterVolume. Proven by
+ *     checkMuteToggle.
+ *   - Missing files: every asset load probes assets/, ../assets/,
+ *     ../../assets/ relative to the CWD. On failure a unified
+ *     "load failure for <file>: all candidates failed" line goes to
+ *     stderr; init() returns false (the caller owns the fatal-exit
+ *     decision) and playMusicLoop() returns false gracefully. The
+ *     message text is the documented Step 123 proof signal
+ *     (Blueprint/SMOKE_TEST.md): its ABSENCE on startup is the
+ *     automated load-success check.
+ *   - Queryable state (A1): isLoaded(Sound) and isMusicLoaded() report
+ *     real loaded state pre-init, post-init, and post-shutdown — the
+ *     game can show or branch on audio state instead of guessing.
+ *     Proven by checkPreInitGuards and checkAudioDeviceLifecycle.
+ *   - Pool + rotation: POOL_SIZE=4 round-robin slots; every playNext()
+ *     claims the next slot and the cursor wraps after POOL_SIZE calls.
+ *     Proven with a device by checkAudioPoolRotation through the
+ *     read-only getSlotCount()/getNextSlotIndex() introspection (A4).
+ *   - Lifecycle guards: init() cleans up its own partial allocations
+ *     before returning false; triggers, stops, and shutdown() are safe
+ *     no-ops pre-init and post-shutdown; shutdown() is idempotent and
+ *     init() after shutdown() works. Proven by checkPreInitGuards
+ *     (headless) and checkAudioDeviceLifecycle (device-backed; skips
+ *     loudly on a machine with zero playback devices).
+ *   - NOT proven automatically: audible quality — loop seamlessness
+ *     and perceived gain levels remain human-only verification.
  *
  * Ownership rule (renderer.h precedent): the Audio object owns the
  * ma_engine and every pool slot it created. init() returns bool; on
