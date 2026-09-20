@@ -3625,6 +3625,68 @@ static bool checkBinaryBlob() {
     return true;
 }
 
+// Step 155: direct keyNameToGLFW coverage (was transitive-only via
+// loadInputBindings with 4 names). Locks every existing name (Step 105
+// table byte-identical), the Step 155 additive widening (modifiers,
+// whitespace, punctuation, F-keys, aliases), case-insensitivity, and
+// unknown -> -1.
+static bool checkKeyNames() {
+    bool ok = true;
+    auto expect = [&](const char* name, int key) {
+        if (pe::keyNameToGLFW(name) != key) {
+            std::cerr << "keyNameToGLFW(" << name << ") wrong\n";
+            ok = false;
+        }
+    };
+    // Step 105 table (pre-existing names — contract unchanged).
+    expect("A", GLFW_KEY_A); expect("Z", GLFW_KEY_Z);
+    expect("0", GLFW_KEY_0); expect("9", GLFW_KEY_9);
+    expect("LEFT", GLFW_KEY_LEFT); expect("RIGHT", GLFW_KEY_RIGHT);
+    expect("UP", GLFW_KEY_UP); expect("DOWN", GLFW_KEY_DOWN);
+    expect("SPACE", GLFW_KEY_SPACE);
+    expect("ESCAPE", GLFW_KEY_ESCAPE); expect("ESC", GLFW_KEY_ESCAPE);
+    expect("ENTER", GLFW_KEY_ENTER);
+    expect("GRAVE", GLFW_KEY_GRAVE_ACCENT);
+    expect("GRAVE_ACCENT", GLFW_KEY_GRAVE_ACCENT);
+    expect("BACKSPACE", GLFW_KEY_BACKSPACE);
+    expect("PERIOD", GLFW_KEY_PERIOD); expect("MINUS", GLFW_KEY_MINUS);
+    // Case-insensitivity (existing behavior, now locked directly).
+    expect("space", GLFW_KEY_SPACE); expect("Left_Shift", GLFW_KEY_LEFT_SHIFT);
+    // Step 155 widening: modifiers + TAB.
+    expect("TAB", GLFW_KEY_TAB);
+    expect("SHIFT", GLFW_KEY_LEFT_SHIFT);
+    expect("LEFT_SHIFT", GLFW_KEY_LEFT_SHIFT);
+    expect("RIGHT_SHIFT", GLFW_KEY_RIGHT_SHIFT);
+    expect("CTRL", GLFW_KEY_LEFT_CONTROL);
+    expect("CONTROL", GLFW_KEY_LEFT_CONTROL);
+    expect("LEFT_CTRL", GLFW_KEY_LEFT_CONTROL);
+    expect("RIGHT_CTRL", GLFW_KEY_RIGHT_CONTROL);
+    expect("LEFT_CONTROL", GLFW_KEY_LEFT_CONTROL);
+    expect("RIGHT_CONTROL", GLFW_KEY_RIGHT_CONTROL);
+    expect("ALT", GLFW_KEY_LEFT_ALT);
+    expect("LEFT_ALT", GLFW_KEY_LEFT_ALT);
+    expect("RIGHT_ALT", GLFW_KEY_RIGHT_ALT);
+    // Step 155 widening: punctuation.
+    expect("COMMA", GLFW_KEY_COMMA); expect("SLASH", GLFW_KEY_SLASH);
+    expect("BACKSLASH", GLFW_KEY_BACKSLASH);
+    expect("SEMICOLON", GLFW_KEY_SEMICOLON);
+    expect("APOSTROPHE", GLFW_KEY_APOSTROPHE);
+    expect("EQUAL", GLFW_KEY_EQUAL);
+    expect("LEFT_BRACKET", GLFW_KEY_LEFT_BRACKET);
+    expect("RIGHT_BRACKET", GLFW_KEY_RIGHT_BRACKET);
+    expect("CAPS_LOCK", GLFW_KEY_CAPS_LOCK);
+    // Step 155 widening: function keys.
+    expect("F1", GLFW_KEY_F1); expect("F2", GLFW_KEY_F2);
+    expect("F3", GLFW_KEY_F3); expect("F4", GLFW_KEY_F4);
+    expect("F5", GLFW_KEY_F5); expect("F6", GLFW_KEY_F6);
+    expect("F7", GLFW_KEY_F7); expect("F8", GLFW_KEY_F8);
+    expect("F9", GLFW_KEY_F9); expect("F10", GLFW_KEY_F10);
+    expect("F11", GLFW_KEY_F11); expect("F12", GLFW_KEY_F12);
+    // Unknown names still refuse.
+    expect("NO_SUCH_KEY", -1); expect("", -1);
+    return ok;
+}
+
 static bool checkInputBindings() {
     const std::string fname = "input_bindings_test_tmp.txt";
     {
@@ -3801,6 +3863,68 @@ static bool checkSceneManagerSave() {
     }
 
     rmArtifacts();
+    return ok;
+}
+
+// --- Increment 2 (Scene/Prefab/Persistence campaign): spawn-after-kill ---
+// Proves the no-erase contract under spawn-after-kill: the new entity is
+// APPENDED at a NEW index, the dead slot stays dead, every earlier index
+// stays stable, and alive flags are correct throughout (Step 113).
+static bool checkSpawnAfterKill() {
+    bool ok = true;
+    pe::Scene scene;
+    // 1. Spawn one live entity (index 0).
+    pe::Entity first(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                     pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    first.tag = "first";
+    const std::size_t i0 = pe::spawnEntity(scene, first);
+    if (i0 != 0 || scene.entities.size() != 1 || !scene.entities[0].alive) {
+        std::cerr << "First spawn must land at index 0 alive\n";
+        return false;
+    }
+    // 2. Spawn a second, then kill it (slot 1 dead, count still 2).
+    pe::Entity doomed(pe::Vec3(1.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                      pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    doomed.tag = "doomed";
+    const std::size_t i1 = pe::spawnEntity(scene, doomed);
+    pe::killEntity(scene, i1);
+    if (i1 != 1 || scene.entities.size() != 2 ||
+        !scene.entities[0].alive || scene.entities[1].alive) {
+        std::cerr << "Kill must mark the slot dead without erasing\n";
+        return false;
+    }
+    // 3. Spawn AFTER the kill: appends at a NEW index (2) — no slot reuse.
+    pe::Entity third(pe::Vec3(-1.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                     pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    third.tag = "third";
+    const std::size_t i2 = pe::spawnEntity(scene, third);
+    if (i2 != 2 || scene.entities.size() != 3) {
+        std::cerr << "Spawn after kill must append a new index\n";
+        ok = false;
+    }
+    // 4. Index stability: earlier slots unchanged, dead slot still dead.
+    if (!scene.entities[0].alive || scene.entities[0].tag != "first" ||
+        !assertFloatClose(scene.entities[0].position.x, 0.0f)) {
+        std::cerr << "Slot 0 must stay stable after the later spawn\n";
+        ok = false;
+    }
+    if (scene.entities[1].alive || scene.entities[1].tag != "doomed") {
+        std::cerr << "Dead slot must stay dead (no erase, no reuse)\n";
+        ok = false;
+    }
+    if (!scene.entities[2].alive || scene.entities[2].tag != "third" ||
+        !assertFloatClose(scene.entities[2].position.x, -1.0f)) {
+        std::cerr << "New slot must be live with its config\n";
+        ok = false;
+    }
+    // 5. Out-of-range kill is a safe no-op; kill-then-kill idempotent.
+    pe::killEntity(scene, 99);
+    pe::killEntity(scene, i2);
+    pe::killEntity(scene, i2);
+    if (scene.entities.size() != 3 || scene.entities[2].alive) {
+        std::cerr << "Out-of-range/double kill must be safe no-ops\n";
+        ok = false;
+    }
     return ok;
 }
 
@@ -4041,6 +4165,7 @@ int main() {
     const bool componentOk = checkComponentHelpers();
     const bool sceneDumpOk = checkSceneDumpReload();
     const bool managerSaveOk = checkSceneManagerSave();
+    const bool spawnAfterKillOk = checkSpawnAfterKill();
     const bool animClipKeepOk = checkAnimClipKeep();
     const bool scenePtrOk = checkScenePointerStability();
     const bool persistV2Ok = checkScenePersistenceV2();
@@ -4070,7 +4195,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !spawnAfterKillOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
