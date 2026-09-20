@@ -1663,6 +1663,172 @@ static bool checkStaticResolve() {
     return true;
 }
 
+// --- Physics primitives: applyForce (massless v += force*dt) ---
+// applyForce was written Step 60 but never headless-verified. Locks the
+// contract: force IS the acceleration, dt=0 is a no-op.
+static bool checkApplyForceMath() {
+    pe::Entity e;
+    e.velocity = pe::Vec3(1.0f, 2.0f, 0.0f);
+    pe::applyForce(e.velocity, pe::Vec3(10.0f, 0.0f, 0.0f), 0.2f);
+    if (!assertFloatClose(e.velocity.x, 3.0f) ||
+        !assertFloatClose(e.velocity.y, 2.0f) ||
+        !assertFloatClose(e.velocity.z, 0.0f)) {
+        std::cerr << "applyForce math wrong\n";
+        return false;
+    }
+    pe::applyForce(e.velocity, pe::Vec3(5.0f, 5.0f, 5.0f), 0.0f);
+    if (!assertFloatClose(e.velocity.x, 3.0f) ||
+        !assertFloatClose(e.velocity.y, 2.0f)) {
+        std::cerr << "applyForce must be a no-op at dt=0\n";
+        return false;
+    }
+    return true;
+}
+
+// --- simulation.h applyPhysics (dead-skip, conditional gravity) ---
+// Wired in main.cpp Step 108 but never headless-verified. Locks: dead
+// bodies don't move; inert (gravityScale 0) bodies coast with gravity
+// untouched; gravity bodies gain GRAVITY*dt; a static body under its
+// default configuration (gravityScale 0, zero velocity) is never written.
+static bool checkApplyPhysicsSemantics() {
+    // Dead: no gravity, no integration, nothing changes.
+    pe::Entity dead;
+    dead.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+    dead.alive = false;
+    dead.gravityScale = 1.0f;
+    dead.velocity = pe::Vec3(1.0f, 1.0f, 0.0f);
+    std::vector<pe::Entity> batch = {dead};
+    pe::applyPhysics(batch, 0.1f);
+    if (!assertFloatClose(batch[0].position.x, 0.0f) ||
+        !assertFloatClose(batch[0].position.y, 0.0f) ||
+        !assertFloatClose(batch[0].velocity.x, 1.0f) ||
+        !assertFloatClose(batch[0].velocity.y, 1.0f)) {
+        std::cerr << "applyPhysics moved a dead body\n";
+        return false;
+    }
+    // Inert + nonzero velocity: coasts, gravity not applied.
+    pe::Entity coast;
+    coast.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+    coast.velocity = pe::Vec3(0.0f, 5.0f, 0.0f);
+    batch = {coast};
+    pe::applyPhysics(batch, 0.1f);
+    if (!assertFloatClose(batch[0].position.y, 0.5f) ||
+        !assertFloatClose(batch[0].velocity.y, 5.0f)) {
+        std::cerr << "Inert body must coast without gravity\n";
+        return false;
+    }
+    // gravityScale 1: gains GRAVITY*dt, integrates with it.
+    pe::Entity falling;
+    falling.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+    falling.gravityScale = 1.0f;
+    batch = {falling};
+    pe::applyPhysics(batch, 0.1f);
+    if (!assertFloatClose(batch[0].velocity.y, pe::GRAVITY.y * 0.1f) ||
+        !assertFloatClose(batch[0].position.y, pe::GRAVITY.y * 0.1f * 0.1f)) {
+        std::cerr << "Gravity body integration wrong\n";
+        return false;
+    }
+    // Static under default config: position untouched.
+    pe::Entity stat;
+    stat.position = pe::Vec3(3.0f, -1.0f, 0.0f);
+    stat.isStatic = true;
+    batch = {stat};
+    pe::applyPhysics(batch, 0.1f);
+    if (!assertFloatClose(batch[0].position.x, 3.0f) ||
+        !assertFloatClose(batch[0].position.y, -1.0f)) {
+        std::cerr << "applyPhysics moved a static body\n";
+        return false;
+    }
+    return true;
+}
+
+// --- physics.h applyPhysicsFixed (free-mover substeps, Step 87) ---
+// Never headless-verified. Locks: gravity velocity accumulates the full
+// GRAVITY*dt across substeps; linear coasting is substep-exact; substep
+// position drift stays inside the single-step bound; dt<=0 is a no-op.
+static bool checkApplyPhysicsFixedFreeMovers() {
+    const float dt = 0.1f;
+    // Falling: velocity gain is split-invariant (sums to GRAVITY*dt).
+    pe::Entity fall;
+    fall.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+    fall.gravityScale = 1.0f;
+    std::vector<pe::Entity> fallBatch = {fall};
+    pe::applyPhysicsFixed(fallBatch, dt, 1.0f / 60.0f);
+    if (!assertFloatClose(fallBatch[0].velocity.y, pe::GRAVITY.y * dt)) {
+        std::cerr << "Fixed substeps must accumulate full GRAVITY*dt\n";
+        return false;
+    }
+    // Position: semi-implicit per substep lands between the single-step
+    // drift (-0.0098) and zero.
+    if (!(fallBatch[0].position.y < 0.0f) ||
+        !(fallBatch[0].position.y > pe::GRAVITY.y * dt * dt)) {
+        std::cerr << "Fixed substep position drift out of bounds\n";
+        return false;
+    }
+    // Linear coasting (inert): substep-exact regardless of split.
+    pe::Entity coast;
+    coast.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+    coast.velocity = pe::Vec3(2.0f, 0.0f, 0.0f);
+    std::vector<pe::Entity> coastBatch = {coast};
+    pe::applyPhysicsFixed(coastBatch, dt, 1.0f / 60.0f);
+    if (!assertFloatClose(coastBatch[0].position.x, 0.2f) ||
+        !assertFloatClose(coastBatch[0].velocity.x, 2.0f)) {
+        std::cerr << "Fixed substeps must be exact for linear motion\n";
+        return false;
+    }
+    // dt<=0: no-op.
+    pe::Entity still;
+    still.position = pe::Vec3(1.0f, 2.0f, 0.0f);
+    still.gravityScale = 1.0f;
+    std::vector<pe::Entity> stillBatch = {still};
+    pe::applyPhysicsFixed(stillBatch, 0.0f, 1.0f / 60.0f);
+    if (!assertFloatClose(stillBatch[0].position.x, 1.0f) ||
+        !assertFloatClose(stillBatch[0].position.y, 2.0f) ||
+        !assertFloatClose(stillBatch[0].velocity.y, 0.0f)) {
+        std::cerr << "applyPhysicsFixed must be a no-op at dt<=0\n";
+        return false;
+    }
+    return true;
+}
+
+// --- collision.h broadphaseGrid (Step 97, future-only) ---
+// Never headless-verified. Locks: entities sharing a cell pair once,
+// separated entities pair zero, N in one cell gives N*(N-1)/2 pairs,
+// and cellSize<=0 falls back to the 2.0 default.
+static bool checkBroadphaseGridPairs() {
+    pe::Entity a;
+    a.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+    pe::Entity b;
+    b.position = pe::Vec3(100.0f, 100.0f, 0.0f);
+    std::vector<pe::Entity> two = {a, b};
+    if (pe::broadphaseGrid(two).size() != 0) {
+        std::cerr << "Far-apart entities must not pair\n";
+        return false;
+    }
+    pe::Entity c;
+    c.position = pe::Vec3(0.5f, 0.0f, 0.0f);
+    std::vector<pe::Entity> sameCell = {a, c};
+    if (pe::broadphaseGrid(sameCell).size() != 1) {
+        std::cerr << "Same-cell entities must pair exactly once\n";
+        return false;
+    }
+    // All three in one cell: N*(N-1)/2 = 3 unique pairs.
+    pe::Entity d;
+    d.position = pe::Vec3(1.0f, 0.0f, 0.0f);
+    std::vector<pe::Entity> three = {a, c, d};
+    if (pe::broadphaseGrid(three).size() != 3) {
+        std::cerr << "Three same-cell entities must give 3 pairs\n";
+        return false;
+    }
+    // cellSize 0 -> fallback to 2.0: (0,0) and (1,0) share a cell.
+    std::vector<pe::Entity> edge = {a, d};
+    if (pe::broadphaseGrid(edge, 0.0f).size() != 1) {
+        std::cerr << "cellSize<=0 must fall back to 2.0\n";
+        return false;
+    }
+    return true;
+}
+
 // --- Step 127: point pick against entity AABBs (headless) ---
 // Locks the documented pick contract: strict '<' containment on the
 // scaled bounds (edge-touching is not a hit), highest depth wins the
@@ -3021,6 +3187,22 @@ static bool checkInputBindings() {
         std::cerr << "Failed load must keep the remapped overrides\n";
         return false;
     }
+    // Step 154: reset restores the Step 88 defaults after a remap
+    // (load -> remap -> reset round-trip).
+    pe::resetActionOverrides();
+    auto leftAfterReset = pe::keysForAction(pe::Action::MoveLeft);
+    if (leftAfterReset.size() != 2 ||
+        leftAfterReset[0] != GLFW_KEY_A || leftAfterReset[1] != GLFW_KEY_LEFT) {
+        std::cerr << "Reset must restore MoveLeft defaults\n";
+        return false;
+    }
+    auto jumpAfterReset = pe::keysForAction(pe::Action::Jump);
+    if (jumpAfterReset.size() != 3 ||
+        jumpAfterReset[0] != GLFW_KEY_SPACE || jumpAfterReset[1] != GLFW_KEY_W ||
+        jumpAfterReset[2] != GLFW_KEY_UP) {
+        std::cerr << "Reset must restore Jump defaults\n";
+        return false;
+    }
     pe::loadInputBindings("input_bindings.txt");
     return true;
 }
@@ -3238,6 +3420,10 @@ int main() {
     const bool coyoteOk = checkCoyoteTime();
     const bool charDtOk = checkCharacterDtGuards();
     const bool staticResolveOk = checkStaticResolve();
+    const bool applyForceOk = checkApplyForceMath();
+    const bool applyPhysicsOk = checkApplyPhysicsSemantics();
+    const bool applyPhysicsFixedOk = checkApplyPhysicsFixedFreeMovers();
+    const bool broadphaseOk = checkBroadphaseGridPairs();
     const bool sceneByNameOk = checkSceneByName();
     const bool platLevelsOk = checkPlatformerLevels();
     const bool platClimbOk = checkPlatformerClimb();
@@ -3291,6 +3477,7 @@ int main() {
         !particleDeathOk || !particleConvertOk ||
         !staticFloorOk || !groundedOk || !wallOk || !ceilingOk ||
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
+        !applyForceOk || !applyPhysicsOk || !applyPhysicsFixedOk || !broadphaseOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk || !volumeClampOk || !muteToggleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
