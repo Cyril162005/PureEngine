@@ -238,5 +238,33 @@ recommended stop under the freeze:
 This note exists so a future session reading the tracker sees an
 explicit, sanctioned stopping point instead of inferring one.
 
+## Integration backlog — system sessions in flight (main coordination note)
+
+Observed working-tree state at the recommended stop (HEAD 16e926f, not
+committed by main — these are the system sessions' in-flight files):
+
+- **PureEngine_audio** (owns audio.h + its wiring): in-flight =
+  queryable load state (isLoaded(Sound)/isMusicLoaded) + load-failure
+  log normalized to stderr + main.cpp isMusicLoaded read.
+  **Expected DoD:** build clean, CTest green with its in-flight tests,
+  games alive, honest audible-not-CI note, code commit + step record at
+  its own step number.
+- **PureEngine_input** (owns input.h + its tests): in-flight =
+  resetActionOverrides() labeled Step 154 (reset half of the rebind
+  lifecycle: load -> remap -> reset -> defaults).
+  **Expected DoD:** same verification bar + a lifecycle round-trip
+  proof (remap survives failed loads, reset restores Step 88 defaults).
+- **PureEngine_physics** (owns physics.h): no in-flight changes visible
+  in the working tree.
+
+**What MAIN does when a system session finishes and merges:** record the
+real hashes + step counts in pure_engine_v3_steps.json and this file
+(status_note/context/rule-tail/list), refresh the README step count,
+update Blueprint/SMOKE_TEST.md if new console commands or keys appear,
+run full verification (build/CTest/alive), and re-check the
+recommended-stop marker against the re-entry criteria. **MAIN does not:**
+implement audio/input/physics, commit another session's in-flight files,
+or force a conflict.
+
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.
