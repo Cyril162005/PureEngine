@@ -1561,6 +1561,20 @@
       ],
       "implementation": "PURE_ENGINE_V3.md: new \"## Recommended stop (Step 153, docs-only)\" section before Kill criteria: complete-for-goal, measured-need-only clause, binding guardrails, re-entry criteria, future-session note.",
       "verification": "Docs-only step: python parse confirmed the marker present; no engine code touched. Sanity: cmake --build build --config Release -> zero errors; ctest --test-dir build -C Release -> 1/1 Passed 15.88 s; arcade/platformer/pong alive True."
+    },
+    {
+      "id": 154,
+      "name": "Input: resetActionOverrides (rebind lifecycle reset)",
+      "status": "completed",
+      "definition_of_done": "resetActionOverrides() free helper in input.h clears the actionOverrides table so keysForAction returns Step 88 defaults again (load -> remap -> reset round-trip). checkInputBindings extended: remap override asserted, reset, defaults re-asserted. No games call it; no behavior change to shipped bindings.",
+      "notes": "Input-campaign increment 1 (session PureEngine_input). API committed early (32125e9) while physics/audio sessions were in flight; full verification deferred until their commits landed (f41c365, 20d8f05, df4ca52) and the shared test file compiled cleanly again. The input test additions were committed inside f41c365 (physics session staged the whole shared hostile_data_test.cpp; lines verified present, not rewritten).",
+      "commit": "32125e9",
+      "depends_on": [
+        105,
+        148
+      ],
+      "implementation": "src/input.h:188-196 resetActionOverrides() free helper (pure table clear, no GLFW/File I/O). tests/hostile_data_test.cpp checkInputBindings Step 154 block (~3589-3601): after remap+failed-load asserts, resetActionOverrides() then MoveLeft == {A, LEFT} and Jump == {SPACE, W, UP} re-asserted; final shipped-file restore unchanged.",
+      "verification": "cmake --build build --config Release -> exit 0, zero errors (inc1_build3.log, Select-String 'error' -> no matches); ctest --test-dir build -C Release -> 1/1 Passed 6.33 s (includes the Step 154 reset assertions via checkInputBindings); arcade/platformer/pong alive True (4 s probes from D:\\PureEngine). Interactive rebind feel: not verified, not claimed."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
