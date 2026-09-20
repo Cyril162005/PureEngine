@@ -412,7 +412,13 @@ int main() {
                 for (auto& t : tileStatics) {
                     t.isStatic = true;
                 }
-                const bool grounded = pe::updateCharacterController(
+                // Physics P5: opt into the fixed-substep controller (Step
+                // 87) — a fast fall cannot tunnel a 1-unit tile in one
+                // variable step. dt is split into 1/60 substeps (clamped
+                // to 8); jump is consumed on the first substep. The
+                // variable-dt path (updateCharacterController) remains
+                // available for other callers.
+                const bool grounded = pe::updateCharacterControllerFixed(
                     *player, tileStatics, dt, jumpEdge);
                 if (grounded && !wasGrounded) {
                     eventBus.emit(pe::GameEvent{pe::EventType::Collision, 0, -1});
