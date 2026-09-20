@@ -607,10 +607,11 @@ int main() {
         glfwTerminate();
         return -1;
     }
-    // Step 119: music loop — attempt to start on MENU entry.
-    // No dedicated music asset exists yet; call returns false gracefully if
-    // file not found. Wiring proves the start/stop path end-to-end.
-    audio.playMusicLoop("music_loop.wav", true);
+    // Step 119: music loop — attempt to start on MENU entry. Graceful
+    // path: a missing file or dead engine returns false and the game
+    // continues silently; the state is queryable via audio.isMusicLoaded().
+    const bool musicStarted = audio.playMusicLoop("music_loop.wav", true);
+    (void)musicStarted;
     // Step 80 proof: beep quieter (0.5), events remain full — master*sfx*perSound
     audio.setVolume(pe::Sound::Beep, 0.5f);
 

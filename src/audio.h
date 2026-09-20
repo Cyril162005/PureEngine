@@ -114,7 +114,7 @@ public:
             }
         }
         if (loadedPath == NULL) {
-            std::cerr << "audio init: all beep candidates failed" << std::endl;
+            std::cerr << "load failure for beep.wav: all candidates failed" << std::endl;
             shutdown();
             return false;
         }
@@ -278,6 +278,18 @@ public:
         applyVolumes();
     }
 
+    // --- Queryable load state (A1) ---
+    // Reports whether a sound's asset is actually loaded: true only when
+    // init() succeeded for that sound (pool slots count as Beep). Safe
+    // pre-init and post-shutdown — pure flag reads, no miniaudio calls.
+    // The game can use these to show real audio state instead of guessing.
+    bool isLoaded(Sound s) const {
+        if (s == Sound::Beep) return slotsValid > 0;
+        if (s == Sound::GameOver) return gameOverSoundLoaded;
+        return newHighScoreSoundLoaded;
+    }
+    bool isMusicLoaded() const { return musicLoaded; }
+
     // Step 98: music loop slot — distinct from one-shot SFX, master*musicVol
     float getMusicVolume() const { return musicVolume; }
     void setMusicVolume(float v) { musicVolume = clampVolume01(v); applyVolumes(); }
@@ -362,7 +374,7 @@ private:
                 return true;
             }
         }
-        std::cout << "load failure for " << fileName << ": all candidates failed" << std::endl;
+        std::cerr << "load failure for " << fileName << ": all candidates failed" << std::endl;
         return false;
     }
 
