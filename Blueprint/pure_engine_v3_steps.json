@@ -1555,7 +1555,7 @@
       "status": "completed",
       "definition_of_done": "PURE_ENGINE_V3.md gains the \"Recommended stop (Step 153)\" section: v1.1 toolkit COMPLETE for the stated goal (Steps 141/151 confirmations, all green); further steps ONLY on measured need (no queue, no polish momentum); freeze guardrails + OUT list remain binding (no ECS/editor/networking/3D/hot-reload/retained-UI/mixer/broadphase); explicit re-entry criteria. No feature work.",
       "notes": "Docs-only post-freeze polish. The note exists so a future session sees an explicit, sanctioned stopping point instead of inferring one. README needed no change (the FROZEN blockquote from Step 149 already marks the status).",
-      "commit": "6485a47",
+      "commit": "bc052e1",
       "depends_on": [
         152
       ],
