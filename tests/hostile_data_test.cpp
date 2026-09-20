@@ -3697,7 +3697,7 @@ static bool checkInputBindings() {
             out.open("../assets/" + fname);
         }
         if (!out) { std::cerr << "Failed to write bindings test file\n"; return false; }
-        out << "MoveLeft=A,LEFT\nJump=SPACE\nUnknownAction=SPACE\nBadLineNoEquals\nMoveRight=UNKNOWNKEY\n";
+        out << "MoveLeft=A,LEFT,TAB\nJump=SPACE\nUnknownAction=SPACE\nBadLineNoEquals\nMoveRight=UNKNOWNKEY\n";
     }
     bool ok = pe::loadInputBindings(fname);
     std::remove(("assets/" + fname).c_str());
@@ -3705,9 +3705,11 @@ static bool checkInputBindings() {
     std::remove(("../../assets/" + fname).c_str());
     if (!ok) { std::cerr << "Bindings load should succeed with some valid lines\n"; return false; }
     auto leftKeys = pe::keysForAction(pe::Action::MoveLeft);
-    bool hasA = false;
-    for (int k : leftKeys) if (k == GLFW_KEY_A) hasA = true;
+    bool hasA = false, hasTab = false;
+    for (int k : leftKeys) { if (k == GLFW_KEY_A) hasA = true; if (k == GLFW_KEY_TAB) hasTab = true; }
     if (!hasA) { std::cerr << "MoveLeft remap failed\n"; return false; }
+    // Step 155: a widened name (TAB) must flow end-to-end through the file parser.
+    if (!hasTab) { std::cerr << "Widened key name TAB must bind from file\n"; return false; }
     auto jumpKeys = pe::keysForAction(pe::Action::Jump);
     if (jumpKeys.size() != 1 || jumpKeys[0] != GLFW_KEY_SPACE) { std::cerr << "Jump remap failed\n"; return false; }
     bool missing = pe::loadInputBindings("no_such_bindings_xyz.txt");
@@ -3925,6 +3927,91 @@ static bool checkSpawnAfterKill() {
         std::cerr << "Out-of-range/double kill must be safe no-ops\n";
         ok = false;
     }
+    return ok;
+}
+
+// --- Increment 3 (Scene/Prefab/Persistence campaign): multi-spawn persist ---
+// Deepens the Step 136 composition: TWO live prefab entities at distinct
+// positions + one killed entity -> save -> load -> count 2 (dead dropped)
+// and BOTH live configs/positions survive the round-trip in order.
+static bool checkPrefabMultiSpawnPersist() {
+    bool ok = true;
+    // 1. Scene + two prefab-spawned live entities + one killed.
+    pe::Scene src;
+    src.name = "multi_persist_test";
+    pe::Prefab p;
+    if (!pe::loadPrefab("enemy.txt", p)) {
+        std::cerr << "multi-persist test: enemy.txt failed to load\n";
+        return false;
+    }
+    pe::spawnEntity(src, pe::instantiatePrefab(p, pe::Vec3(2.0f, 1.0f, 0.0f)));
+    pe::spawnEntity(src, pe::instantiatePrefab(p, pe::Vec3(-3.0f, -2.0f, 0.0f)));
+    pe::Entity doomed = pe::instantiatePrefab(p, pe::Vec3(0.0f, 0.0f, 0.0f));
+    doomed.tag = "doomed";
+    const std::size_t deadIdx = pe::spawnEntity(src, doomed);
+    pe::killEntity(src, deadIdx);
+    if (src.entities.size() != 3 || !src.entities[0].alive ||
+        !src.entities[1].alive || src.entities[2].alive) {
+        std::cerr << "multi-persist setup wrong (0..1 live, 2=doomed dead)\n";
+        return false;
+    }
+
+    // 2. Save + load into a fresh Scene (same rmAll pattern).
+    const std::string fname = "scene_test_multi_persist.txt";
+    auto rmAll = [&]() {
+        std::remove(("assets/" + fname).c_str());
+        std::remove(("../assets/" + fname).c_str());
+        std::remove(("../../assets/" + fname).c_str());
+        std::remove(("assets/" + fname + ".tmp").c_str());
+        std::remove(("../assets/" + fname + ".tmp").c_str());
+    };
+    rmAll();
+    if (!pe::saveSceneToFile(src, fname)) {
+        std::cerr << "multi-persist save failed\n";
+        rmAll();
+        return false;
+    }
+    pe::Scene loaded;
+    if (!pe::loadSceneFromFile(fname, loaded)) {
+        std::cerr << "multi-persist load failed\n";
+        rmAll();
+        return false;
+    }
+
+    // 3. Dead dropped: exactly 2 live entities, in spawn order.
+    if (loaded.entities.size() != 2) {
+        std::cerr << "Dead entity must be dropped (got "
+                  << loaded.entities.size() << ", want 2)\n";
+        rmAll();
+        return false;
+    }
+    // 4. Both live configs survive: per-entity positions + prefab fields.
+    if (!assertFloatClose(loaded.entities[0].position.x, 2.0f) ||
+        !assertFloatClose(loaded.entities[0].position.y, 1.0f) ||
+        !assertFloatClose(loaded.entities[1].position.x, -3.0f) ||
+        !assertFloatClose(loaded.entities[1].position.y, -2.0f)) {
+        std::cerr << "Per-entity positions must survive in order\n";
+        rmAll();
+        ok = false;
+    }
+    for (int i = 0; i < 2; ++i) {
+        const pe::Entity& e = loaded.entities[i];
+        if (!e.alive || e.roleId != 2 || e.tag != "hostile" ||
+            e.textureId != 2 || e.currentClipName != "walk_left") {
+            std::cerr << "Entity " << i << " lost prefab config in round-trip\n";
+            rmAll();
+            ok = false;
+        }
+    }
+    // 5. Source scene unchanged: 3 slots, doomed (index 2) still dead.
+    if (src.entities.size() != 3 || src.entities[2].alive ||
+        src.entities[2].tag != "doomed") {
+        std::cerr << "Save must not mutate the source scene\n";
+        rmAll();
+        ok = false;
+    }
+
+    rmAll();
     return ok;
 }
 
@@ -4161,11 +4248,13 @@ int main() {
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
+    const bool keyNamesOk = checkKeyNames();
     const bool inputBindingsOk = checkInputBindings();
     const bool componentOk = checkComponentHelpers();
     const bool sceneDumpOk = checkSceneDumpReload();
     const bool managerSaveOk = checkSceneManagerSave();
     const bool spawnAfterKillOk = checkSpawnAfterKill();
+    const bool multiPersistOk = checkPrefabMultiSpawnPersist();
     const bool animClipKeepOk = checkAnimClipKeep();
     const bool scenePtrOk = checkScenePointerStability();
     const bool persistV2Ok = checkScenePersistenceV2();
@@ -4195,7 +4284,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !spawnAfterKillOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !keyNamesOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
