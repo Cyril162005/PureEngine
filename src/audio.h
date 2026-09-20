@@ -290,6 +290,15 @@ public:
     }
     bool isMusicLoaded() const { return musicLoaded; }
 
+    // --- Read-only pool introspection (A4) ---
+    // Report the one-shot pool's live slot count and the round-robin
+    // cursor's next index, so a device-backed test can PROVE slot
+    // rotation/wrap instead of trusting the mechanism. Pure field
+    // reads, no side effects, safe pre-init (count 0) and
+    // post-shutdown (count reset to 0, cursor 0).
+    std::size_t getSlotCount() const { return slotsValid; }
+    std::size_t getNextSlotIndex() const { return nextSlot; }
+
     // Step 98: music loop slot — distinct from one-shot SFX, master*musicVol
     float getMusicVolume() const { return musicVolume; }
     void setMusicVolume(float v) { musicVolume = clampVolume01(v); applyVolumes(); }
