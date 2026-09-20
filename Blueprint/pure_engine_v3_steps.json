@@ -1603,6 +1603,21 @@
       ],
       "implementation": "tests/hostile_data_test.cpp:3774 checkSceneManagerSave (2-scene manager alpha/beta, rmArtifacts 3-prefix cleanup, index-file content asserts, per-scene round-trips via loadSceneFromFile, empty-name refuse, assets/ pre-created); :3875 checkSpawnAfterKill (spawn->kill->spawn, append at new index, dead slot stays dead, slot-0 stable, out-of-range/double kill no-ops); :3937 checkPrefabMultiSpawnPersist (2 live prefab entities + killed -> save -> load -> count 2, per-entity positions/configs in order, source unmutated); registered at :4255-4257 + gated.",
       "verification": "cmake --build build --config Release -> zero errors (all 7 targets); ctest --test-dir build -C Release -> 1/1 Passed (1.09 s final run; each increment verified: 2.12 s / 9.82 s post-fix / 2.55 s post-fix); direct binary runs zero failure messages; arcade/platformer/pong alive True after each increment. No engine feature work."
+    },
+    {
+      "id": 157,
+      "name": "Input: keysForAllActions() union helper (rebind-safe edge tracking)",
+      "status": "completed",
+      "definition_of_done": "keysForAllActions() pure helper: deduped union (first-seen order) of every key across all 8 Actions, defaults + overrides, no GLFW/file I/O. checkKeysForAllActions test: default union is 12 unique keys (shared W/UP, SPACE, ESCAPE deduped); after a file remap to a widened key (Jump=F1) the union gains F1 while shared SPACE stays and dedup holds; resetActionOverrides round-trips to the defaults; shipped-file state restored at test end. Games unchanged — adoption documented later.",
+      "notes": "Input-campaign increment 3 (session PureEngine_input). Purpose: close the silent untracked-key gap — isActionEdge only fires for keys registered at Input construction, so a game constructing Input with keysForAllActions() keeps firing after any loadInputBindings remap. Step-id note: code comments say Step 157 because the scene/prefab campaign claimed 156 while this increment was in flight. Committed directly this time (2d7be33) — the tree was clean and the shared test file contained only input hunks.",
+      "commit": "2d7be33",
+      "depends_on": [
+        105,
+        154,
+        155
+      ],
+      "implementation": "src/input.h:99-121 keysForAllActions() (static Action list, nested loops, dedup via membership scan — no <algorithm>, matching file style). tests/hostile_data_test.cpp:3695 checkKeysForAllActions() (defaults = 12 unique; tmp file Jump=F1 -> union 13, F1 present, shared SPACE kept; dup scan in all states; reset round-trip; trailing loadInputBindings(input_bindings.txt) restore), wired as keysAllOk at :4319. No game call-site changes — arcade/platformer could construct Input with keysForAllActions() to be rebind-proof; left as documented adoption.",
+      "verification": "cmake --build build --config Release -> exit 0, Select-String 'error' no matches; ctest --test-dir build -C Release -> 1/1 Passed 5.00 s (fresh binary, includes checkKeysForAllActions); PureEngine/Platformer/Pong alive True (4 s probes from D:\\PureEngine). NOT verified: interactive rebind-to-previously-untracked-key feel in a live game (helper is game-adopted nowhere yet), per increment scope."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
