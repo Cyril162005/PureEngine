@@ -119,6 +119,23 @@ inline int keyNameToGLFW(const std::string& name) {
     if (n == "SPACE") return GLFW_KEY_SPACE; if (n == "ESCAPE") return GLFW_KEY_ESCAPE; if (n == "ESC") return GLFW_KEY_ESCAPE;
     if (n == "ENTER") return GLFW_KEY_ENTER; if (n == "GRAVE") return GLFW_KEY_GRAVE_ACCENT; if (n == "GRAVE_ACCENT") return GLFW_KEY_GRAVE_ACCENT;
     if (n == "BACKSPACE") return GLFW_KEY_BACKSPACE; if (n == "PERIOD") return GLFW_KEY_PERIOD; if (n == "MINUS") return GLFW_KEY_MINUS;
+    // Step 155: additive widening — modifiers, whitespace, punctuation,
+    // function keys. Every name above is unchanged byte-for-byte; only a
+    // name that previously returned -1 can now map to a real key.
+    if (n == "TAB") return GLFW_KEY_TAB;
+    if (n == "SHIFT") return GLFW_KEY_LEFT_SHIFT; if (n == "LEFT_SHIFT") return GLFW_KEY_LEFT_SHIFT; if (n == "RIGHT_SHIFT") return GLFW_KEY_RIGHT_SHIFT;
+    if (n == "CTRL") return GLFW_KEY_LEFT_CONTROL; if (n == "CONTROL") return GLFW_KEY_LEFT_CONTROL;
+    if (n == "LEFT_CTRL") return GLFW_KEY_LEFT_CONTROL; if (n == "RIGHT_CTRL") return GLFW_KEY_RIGHT_CONTROL;
+    if (n == "LEFT_CONTROL") return GLFW_KEY_LEFT_CONTROL; if (n == "RIGHT_CONTROL") return GLFW_KEY_RIGHT_CONTROL;
+    if (n == "ALT") return GLFW_KEY_LEFT_ALT; if (n == "LEFT_ALT") return GLFW_KEY_LEFT_ALT; if (n == "RIGHT_ALT") return GLFW_KEY_RIGHT_ALT;
+    if (n == "COMMA") return GLFW_KEY_COMMA; if (n == "SLASH") return GLFW_KEY_SLASH; if (n == "BACKSLASH") return GLFW_KEY_BACKSLASH;
+    if (n == "SEMICOLON") return GLFW_KEY_SEMICOLON; if (n == "APOSTROPHE") return GLFW_KEY_APOSTROPHE;
+    if (n == "EQUAL") return GLFW_KEY_EQUAL; if (n == "LEFT_BRACKET") return GLFW_KEY_LEFT_BRACKET; if (n == "RIGHT_BRACKET") return GLFW_KEY_RIGHT_BRACKET;
+    if (n == "CAPS_LOCK") return GLFW_KEY_CAPS_LOCK;
+    if (n == "F1") return GLFW_KEY_F1; if (n == "F2") return GLFW_KEY_F2; if (n == "F3") return GLFW_KEY_F3;
+    if (n == "F4") return GLFW_KEY_F4; if (n == "F5") return GLFW_KEY_F5; if (n == "F6") return GLFW_KEY_F6;
+    if (n == "F7") return GLFW_KEY_F7; if (n == "F8") return GLFW_KEY_F8; if (n == "F9") return GLFW_KEY_F9;
+    if (n == "F10") return GLFW_KEY_F10; if (n == "F11") return GLFW_KEY_F11; if (n == "F12") return GLFW_KEY_F12;
     return -1;
 }
 
