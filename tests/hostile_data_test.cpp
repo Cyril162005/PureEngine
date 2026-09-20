@@ -3687,6 +3687,73 @@ static bool checkKeyNames() {
     return ok;
 }
 
+// Step 157: keysForAllActions union contract. Defaults: 12 unique keys
+// (A LEFT D RIGHT W UP S DOWN SPACE ENTER ESCAPE BACKSPACE — W/UP,
+// SPACE, ESCAPE are shared across actions and deduped). After a file
+// remap to a widened key (F1) the union gains it while shared keys stay;
+// reset restores the 12. No duplicates allowed in any state.
+static bool checkKeysForAllActions() {
+    bool ok = true;
+    auto contains = [](const std::vector<int>& v, int key) {
+        for (int k : v) if (k == key) return true;
+        return false;
+    };
+    auto noDups = [](const std::vector<int>& v) {
+        for (std::size_t i = 0; i < v.size(); ++i) {
+            for (std::size_t j = i + 1; j < v.size(); ++j) {
+                if (v[i] == v[j]) return false;
+            }
+        }
+        return true;
+    };
+    pe::resetActionOverrides();  // known state: Step 88 defaults
+    const std::vector<int> def = pe::keysForAllActions();
+    if (def.size() != 12 || !noDups(def)) {
+        std::cerr << "Default union must be 12 unique keys\n";
+        ok = false;
+    }
+    const int defaults[] = {GLFW_KEY_A, GLFW_KEY_LEFT, GLFW_KEY_D, GLFW_KEY_RIGHT,
+                            GLFW_KEY_W, GLFW_KEY_UP, GLFW_KEY_S, GLFW_KEY_DOWN,
+                            GLFW_KEY_SPACE, GLFW_KEY_ENTER, GLFW_KEY_ESCAPE,
+                            GLFW_KEY_BACKSPACE};
+    for (int k : defaults) {
+        if (!contains(def, k)) { std::cerr << "Default union missing a key\n"; ok = false; }
+    }
+    // Remap Jump to F1 (a key no default holds): union must gain it.
+    const std::string fname = "keys_all_test_tmp.txt";
+    {
+        std::filesystem::create_directories("assets");
+        std::ofstream out("assets/" + fname);
+        if (!out) {
+            std::filesystem::create_directories("../assets");
+            out.open("../assets/" + fname);
+        }
+        if (!out) { std::cerr << "Failed to write union test file\n"; return false; }
+        out << "Jump=F1\n";
+    }
+    const bool loaded = pe::loadInputBindings(fname);
+    std::remove(("assets/" + fname).c_str());
+    std::remove(("../assets/" + fname).c_str());
+    std::remove(("../../assets/" + fname).c_str());
+    if (!loaded) { std::cerr << "Union test bindings load failed\n"; return false; }
+    const std::vector<int> remapped = pe::keysForAllActions();
+    // SPACE stays (Confirm keeps it): the union grows by exactly F1.
+    if (remapped.size() != 13 || !contains(remapped, GLFW_KEY_F1) ||
+        !contains(remapped, GLFW_KEY_SPACE) || !noDups(remapped)) {
+        std::cerr << "Union must gain remapped key, keep shared keys, stay deduped\n";
+        ok = false;
+    }
+    // Reset round-trips to the defaults.
+    pe::resetActionOverrides();
+    if (pe::keysForAllActions() != def) {
+        std::cerr << "Union must restore the defaults after reset\n";
+        ok = false;
+    }
+    // Leave the table in the shipped-file state for later checks.
+    pe::loadInputBindings("input_bindings.txt");
+    return ok;
+}
+
 static bool checkInputBindings() {
     const std::string fname = "input_bindings_test_tmp.txt";
     {
@@ -4249,6 +4316,7 @@ int main() {
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
     const bool keyNamesOk = checkKeyNames();
+    const bool keysAllOk = checkKeysForAllActions();
     const bool inputBindingsOk = checkInputBindings();
     const bool componentOk = checkComponentHelpers();
     const bool sceneDumpOk = checkSceneDumpReload();
@@ -4284,7 +4352,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !keyNamesOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

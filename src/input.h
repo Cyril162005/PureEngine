@@ -97,6 +97,28 @@ inline std::vector<int> keysForAction(Action a) {
     }
 }
 
+// Step 157: every key any action can hold (defaults + overrides),
+// deduplicated, first-seen order. Rebind-safety for edge tracking:
+// isActionEdge only fires for keys registered at Input construction,
+// so a game that edge-tracks keysForAllActions() keeps firing after
+// any loadInputBindings remap — the silent untracked-key gap closes.
+// Pure table read: no GLFW, no file I/O, no mutation.
+inline std::vector<int> keysForAllActions() {
+    static const Action all[] = {
+        Action::MoveLeft, Action::MoveRight, Action::MoveUp, Action::MoveDown,
+        Action::Jump, Action::Pause, Action::Confirm, Action::Back
+    };
+    std::vector<int> out;
+    for (Action a : all) {
+        for (int k : keysForAction(a)) {
+            bool seen = false;
+            for (int e : out) { if (e == k) { seen = true; break; } }
+            if (!seen) out.push_back(k);
+        }
+    }
+    return out;
+}
+
 inline int keyNameToGLFW(const std::string& name) {
     std::string n;
     n.reserve(name.size());
