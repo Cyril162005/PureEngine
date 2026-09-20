@@ -107,15 +107,17 @@ inline void chasePlayer(std::vector<Entity>& entities,
     }
 }
 
-// --- Physics integration (Step 61; wired in Step 108) ---
+// --- Physics integration (Step 61; wired in Step 108; Step P4 guard) ---
 // Called in main.cpp PLAYING loop (Step 108): pe::applyPhysics(activeScene->entities, dt).
 // Gravity is conditional (inert entities skip it); integration runs for any
 // entity with nonzero velocity, so a hurled object coasts even with
-// gravityScale 0. Static entities are never written (no FP churn, no
-// observable change while nothing opts in).
+// gravityScale 0. Static entities are never written — enforced here by
+// the isStatic guard (the same never-moves rule resolveCollision and the
+// character controller apply), not left to the gravityScale-0 default.
 inline void applyPhysics(std::vector<Entity>& entities, float dt) {
     for (Entity& entity : entities) {
         if (!entity.alive) continue;  // Step 113: dead bodies don't integrate
+        if (entity.isStatic) continue;  // Step P4: static bodies never move
         if (entity.gravityScale > 0.0f) {
             applyGravity(entity.velocity, entity.gravityScale, dt);
         }

@@ -1939,6 +1939,22 @@ static bool checkApplyPhysicsSemantics() {
         std::cerr << "applyPhysics moved a static body\n";
         return false;
     }
+    // Static with gravity AND velocity: the isStatic guard (Step P4)
+    // must keep it fully untouched — statics never move, by construction.
+    pe::Entity movingStat;
+    movingStat.position = pe::Vec3(3.0f, -1.0f, 0.0f);
+    movingStat.isStatic = true;
+    movingStat.gravityScale = 1.0f;
+    movingStat.velocity = pe::Vec3(2.0f, 2.0f, 0.0f);
+    batch = {movingStat};
+    pe::applyPhysics(batch, 0.1f);
+    if (!assertFloatClose(batch[0].position.x, 3.0f) ||
+        !assertFloatClose(batch[0].position.y, -1.0f) ||
+        !assertFloatClose(batch[0].velocity.x, 2.0f) ||
+        !assertFloatClose(batch[0].velocity.y, 2.0f)) {
+        std::cerr << "applyPhysics isStatic guard failed\n";
+        return false;
+    }
     return true;
 }
 
@@ -2828,6 +2844,63 @@ static bool checkAudioDeviceLifecycle() {
     return true;
 }
 
+// --- A4: one-shot pool rotation proof (device backed) ---
+// Same skip policy as checkAudioDeviceLifecycle: zero playback devices
+// -> SKIP (print line, pass); devices present and init() fails -> real
+// failure. Proves the mechanism the whole Step 9/20 trigger contract
+// rests on: playNext() claims the NEXT pool slot and the cursor wraps
+// after POOL_SIZE claims — observed through the read-only
+// getSlotCount()/getNextSlotIndex() accessors, not trusted.
+static bool checkAudioPoolRotation() {
+    // Device probe, identical policy to checkAudioDeviceLifecycle.
+    ma_context context;
+    bool hasDevice = false;
+    if (ma_context_init(NULL, 0, NULL, &context) == MA_SUCCESS) {
+        ma_device_info* info = NULL;
+        ma_uint32 count = 0;
+        if (ma_context_get_devices(&context, &info, &count, NULL, NULL) == MA_SUCCESS) {
+            hasDevice = (count > 0);
+        }
+        ma_context_uninit(&context);
+    }
+    if (!hasDevice) {
+        std::cout << "SKIP checkAudioPoolRotation: no playback device (headless environment)\n";
+        return true;
+    }
+    pe::Audio audio;
+    if (!audio.init()) {
+        std::cerr << "init() must succeed with a playback device present\n";
+        return false;
+    }
+    // Full pool after init; cursor at slot 0 before the first trigger.
+    if (audio.getSlotCount() != pe::Audio::POOL_SIZE) {
+        std::cerr << "init() must leave all POOL_SIZE slots live\n";
+        return false;
+    }
+    if (audio.getNextSlotIndex() != 0) {
+        std::cerr << "Cursor must start at slot 0 after init()\n";
+        return false;
+    }
+    // Drive playNext() POOL_SIZE+1 times: cursor must visit 1,2,3, then
+    // wrap back to 0 (all four slots engaged), then advance to 1 again.
+    const std::size_t expected[] = {1, 2, 3, 0, 1};
+    for (std::size_t i = 0; i < 5; ++i) {
+        audio.playNext();
+        if (audio.getNextSlotIndex() != expected[i]) {
+            std::cerr << "Cursor must rotate through the pool and wrap"
+                         " (step " << i << " expected " << expected[i] << ")\n";
+            return false;
+        }
+    }
+    // shutdown() resets the pool: no slots live, cursor back to 0.
+    audio.shutdown();
+    if (audio.getSlotCount() != 0 || audio.getNextSlotIndex() != 0) {
+        std::cerr << "shutdown() must clear slot count and cursor\n";
+        return false;
+    }
+    return true;
+}
+
 // --- Step 125: screen-to-world conversion (headless, known numbers) ---
 // Pure math against the default 12x9 ortho box (halfW=6, halfH=4.5) and
 // a resized 32:12 box â€” no GLFW, no device. Locks the coordinate
@@ -3627,6 +3700,110 @@ static bool checkSceneDumpReload() {
     return true;
 }
 
+// --- Increment 1 (Scene/Prefab/Persistence campaign): manager save test ---
+// First test for the ZERO-coverage saveSceneManagerToFile write path
+// (scene.h:587-612): index file (# scene manager v1, scenes=, current=,
+// scene_file= lines) + per-scene scene_<name>.txt files. The writer
+// hardcodes "assets/" with no probe, so the test pre-creates assets/ in
+// its CWD (the checkInputBindings pattern). Round-trips the real files
+// through loadSceneFromFile as a bonus proof.
+static bool checkSceneManagerSave() {
+    // 1. Build a 2-scene manager with distinct entities; switch to the
+    // second so current= is non-zero (the interesting index case).
+    pe::SceneManager manager;
+    pe::Scene& alpha = pe::loadScene(manager, "alpha");
+    pe::Entity ea(pe::Vec3(1.0f, 2.0f, 0.0f), 0.5f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                  pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    ea.roleId = 1;
+    alpha.entities = {ea};
+    pe::Scene& beta = pe::loadScene(manager, "beta");
+    pe::Entity eb(pe::Vec3(-1.0f, 0.5f, 0.0f), -1.2f, pe::Vec3(0.8f, 0.8f, 1.0f),
+                  pe::Vec3(0.4f, 0.4f, 0.0f), 2);
+    eb.roleId = 2;
+    beta.entities = {eb};
+    if (!pe::switchTo(manager, "beta") || manager.current != 1) {
+        std::cerr << "manager save test: switchTo beta failed\n";
+        return false;
+    }
+
+    // 2. Cleanup prior artifacts (index + per-scene + .tmp files in both
+    // candidate spellings), then pre-create assets/ in the CWD.
+    auto rmArtifacts = [&]() {
+        const char* prefixes[3] = {"assets/", "../assets/", "../../assets/"};
+        const char* names[3] = {"scene_manager_test.txt", "scene_alpha.txt", "scene_beta.txt"};
+        for (const char* p : prefixes) {
+            for (const char* n : names) {
+                std::remove((std::string(p) + n).c_str());
+                std::remove((std::string(p) + n + ".tmp").c_str());
+            }
+        }
+    };
+    rmArtifacts();
+    std::filesystem::create_directories("assets");
+
+    // 3. Save the manager.
+    if (!pe::saveSceneManagerToFile(manager, "scene_manager_test.txt")) {
+        std::cerr << "saveSceneManagerToFile failed\n";
+        rmArtifacts();
+        return false;
+    }
+
+    // 4. Assert the index file content: header, scene count, current
+    // index, one scene_file line per scene.
+    bool ok = true;
+    {
+        std::ifstream in("assets/scene_manager_test.txt");
+        if (!in) { std::cerr << "index file not written\n"; rmArtifacts(); return false; }
+        std::string line;
+        bool header = false, scenes = false, current = false;
+        int fileLines = 0;
+        while (std::getline(in, line)) {
+            if (line == "# scene manager v1") header = true;
+            if (line == "scenes=2") scenes = true;
+            if (line == "current=1") current = true;
+            if (line == "scene_file=scene_alpha.txt" ||
+                line == "scene_file=scene_beta.txt") {
+                ++fileLines;
+            }
+        }
+        if (!header || !scenes || !current || fileLines != 2) {
+            std::cerr << "index file content wrong (header=" << header
+                      << " scenes=" << scenes << " current=" << current
+                      << " fileLines=" << fileLines << ")\n";
+            ok = false;
+        }
+    }
+    // 5. Assert both per-scene files round-trip through the real loader.
+    {
+        pe::Scene loaded;
+        if (!pe::loadSceneFromFile("assets/scene_alpha.txt", loaded) ||
+            loaded.name != "alpha" || loaded.entities.size() != 1 ||
+            loaded.entities[0].roleId != 1) {
+            std::cerr << "scene_alpha.txt round-trip wrong\n";
+            ok = false;
+        }
+    }
+    {
+        pe::Scene loaded;
+        if (!pe::loadSceneFromFile("assets/scene_beta.txt", loaded) ||
+            loaded.name != "beta" || loaded.entities.size() != 1 ||
+            loaded.entities[0].roleId != 2 ||
+            !assertFloatClose(loaded.entities[0].position.x, -1.0f)) {
+            std::cerr << "scene_beta.txt round-trip wrong\n";
+            ok = false;
+        }
+    }
+
+    // 6. Empty file name refuses.
+    if (pe::saveSceneManagerToFile(manager, "")) {
+        std::cerr << "Empty file name must refuse\n";
+        ok = false;
+    }
+
+    rmArtifacts();
+    return ok;
+}
+
 static bool checkTimeScale() {
     pe::FrameTime ft;
     if (!assertFloatClose(ft.getTimeScale(), 1.0f) || ft.isPaused()) { std::cerr << "Time default failed\n"; return false; }
@@ -3837,6 +4014,7 @@ int main() {
     const bool musicVolumeIndepOk = checkMusicVolumeIndependence();
     const bool preInitGuardsOk = checkPreInitGuards();
     const bool audioDeviceLifecycleOk = checkAudioDeviceLifecycle();
+    const bool audioPoolRotationOk = checkAudioPoolRotation();
     const bool screenToWorldOk = checkScreenToWorld();
     const bool worldToScreenOk = checkWorldToScreen();
     const bool entityPickOk = checkEntityPick();
@@ -3862,6 +4040,7 @@ int main() {
     const bool inputBindingsOk = checkInputBindings();
     const bool componentOk = checkComponentHelpers();
     const bool sceneDumpOk = checkSceneDumpReload();
+    const bool managerSaveOk = checkSceneManagerSave();
     const bool animClipKeepOk = checkAnimClipKeep();
     const bool scenePtrOk = checkScenePointerStability();
     const bool persistV2Ok = checkScenePersistenceV2();
@@ -3890,7 +4069,8 @@ int main() {
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
-        !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
+        !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

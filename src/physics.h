@@ -185,7 +185,6 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
 inline bool checkGrounded(const Entity& character,
                           const std::vector<Entity>& entities) {
     const float tolerance = 0.05f;
-    const float chx = character.halfExtents.x * character.scale.x;
     for (const Entity& e : entities) {
         if (!e.isStatic) continue;
         // Quick AABB check: character's bottom edge near entity's top
