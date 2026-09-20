@@ -1781,6 +1781,88 @@ static bool checkResolveEdgeTouch() {
     return true;
 }
 
+// --- fixed-substep contract: jump consumed once (Step 87) ---
+// One updateCharacterControllerFixed call with dt=0.05 (3 substeps at
+// 1/60) and jumpPressed=true must fire the jump in substep 1 ONLY.
+// Consume-once: velocity.y decays by gravity for the two remaining
+// substeps (jumpImpulse - 2*g*sub). The per-substep bug (re-fire) would
+// re-arm coyote and re-set velocity.y to jumpImpulse exactly.
+static bool checkFixedJumpConsumedOnce() {
+    const float sub = 1.0f / 60.0f;
+    const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+    pe::Entity c = makeCharacter(0.0f, 0.5f);
+    pe::updateCharacterController(c, statics, sub, false);  // settle grounded
+    const float restY = c.position.y;
+    pe::updateCharacterControllerFixed(c, statics, 0.05f, true, sub);
+    if (!assertFloatClose(c.velocity.y,
+                          c.jumpImpulse - 2.0f * (-pe::GRAVITY.y) * sub)) {
+        std::cerr << "Jump must be consumed once across substeps\n";
+        return false;
+    }
+    if (!(c.position.y > restY)) {
+        std::cerr << "Fixed-substep jump did not rise\n";
+        return false;
+    }
+    return true;
+}
+
+// --- fixed-substep contract: clamp, fallback, non-positive dt ---
+// Locks: steps>8 capped (dt=1.0 at 1/60 runs 8 substeps of 0.125 —
+// uncapped 60 substeps would drift ~10x further); fixedDt<=0 falls back
+// to 1/60 (identical outcome to an explicit 1/60); dt<=0 is a read-only
+// no-op reporting checkGrounded for both wrappers.
+static bool checkFixedSubstepClampAndFallback() {
+    const std::vector<pe::Entity> farFloor = {makeStaticBox(0.0f, -100.0f, 5.0f, 1.0f)};
+    // Substep clamp via updateCharacterControllerFixed: fall 1.0s from
+    // rest, no contact within reach. 8 substeps of 0.125 -> drift
+    // -g*0.125*(1+2+...+8) = -5.5125 (uncapped: -4.9817).
+    pe::Entity c = makeCharacter(0.0f, 0.0f);
+    pe::updateCharacterControllerFixed(c, farFloor, 1.0f, false, 1.0f / 60.0f);
+    if (!assertFloatClose(c.position.y, -5.5125f)) {
+        std::cerr << "Substep count must clamp to 8\n";
+        return false;
+    }
+    // Same clamp via applyPhysicsFixed (free mover).
+    pe::Entity m = makeCharacter(0.0f, 0.0f);
+    std::vector<pe::Entity> mBatch = {m};
+    pe::applyPhysicsFixed(mBatch, 1.0f, 1.0f / 60.0f);
+    if (!assertFloatClose(mBatch[0].position.y, -5.5125f)) {
+        std::cerr << "applyPhysicsFixed substep count must clamp to 8\n";
+        return false;
+    }
+    // fixedDt<=0 fallback: outcome identical to an explicit 1/60.
+    pe::Entity f0 = makeCharacter(0.0f, 5.0f);
+    pe::Entity fExplicit = makeCharacter(0.0f, 5.0f);
+    pe::updateCharacterControllerFixed(f0, farFloor, 0.05f, false, 0.0f);
+    pe::updateCharacterControllerFixed(fExplicit, farFloor, 0.05f, false, 1.0f / 60.0f);
+    if (!assertFloatClose(f0.position.y, fExplicit.position.y) ||
+        !assertFloatClose(f0.velocity.y, fExplicit.velocity.y)) {
+        std::cerr << "fixedDt<=0 must fall back to 1/60\n";
+        return false;
+    }
+    // dt<=0: read-only no-op reporting checkGrounded (airborne false).
+    pe::Entity air = makeCharacter(0.0f, 5.0f);
+    if (pe::updateCharacterControllerFixed(air, farFloor, 0.0f, true, 1.0f / 60.0f) ||
+        pe::updateCharacterControllerFixed(air, farFloor, -1.0f, true, 1.0f / 60.0f)) {
+        std::cerr << "Non-positive dt must report not-grounded\n";
+        return false;
+    }
+    if (!assertFloatClose(air.position.x, 0.0f) ||
+        !assertFloatClose(air.position.y, 5.0f) ||
+        !assertFloatClose(air.velocity.y, 0.0f)) {
+        std::cerr << "Non-positive dt must not move the character\n";
+        return false;
+    }
+    // Grounded character at dt<=0 reports grounded (checkGrounded path).
+    pe::Entity rest = makeCharacter(0.0f, 0.5f);
+    const std::vector<pe::Entity> floor = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+    if (!pe::updateCharacterControllerFixed(rest, floor, 0.0f, false, 1.0f / 60.0f)) {
+        std::cerr << "Grounded dt=0 must report grounded via checkGrounded\n";
+        return false;
+    }
+    return true;
+}
+
 // --- Physics primitives: applyForce (massless v += force*dt) ---
 // applyForce was written Step 60 but never headless-verified. Locks the
 // contract: force IS the acceleration, dt=0 is a no-op.
@@ -2666,6 +2748,83 @@ static bool checkPreInitGuards() {
     // Shutdown before any init is a safe no-op; the destructor runs it
     // again as insurance — a crash here would fail the test binary.
     audio.shutdown();
+    return true;
+}
+
+// --- A3: device-backed init/reuse lifecycle (device required) ---
+// Skip policy: miniaudio is asked directly whether any playback device
+// exists (ma_context_get_devices on a throwaway context). Zero devices
+// means a genuinely headless machine (CI/VM without audio): the check
+// prints SKIP and passes, because nothing can be verified. One or more
+// devices means a failed init is a REAL failure (code or missing
+// assets), not environment noise. Assets need no test-local copy: CTest
+// runs from build/, where the 3-candidate probe's ../assets/ resolves
+// to repo-root assets/. Audible playback stays human-only.
+static bool checkAudioDeviceLifecycle() {
+    // Device probe: throwaway context init + playback enumeration.
+    ma_context context;
+    bool hasDevice = false;
+    if (ma_context_init(NULL, 0, NULL, &context) == MA_SUCCESS) {
+        ma_device_info* info = NULL;
+        ma_uint32 count = 0;
+        if (ma_context_get_devices(&context, &info, &count, NULL, NULL) == MA_SUCCESS) {
+            hasDevice = (count > 0);
+        }
+        ma_context_uninit(&context);
+    }
+    if (!hasDevice) {
+        std::cout << "SKIP checkAudioDeviceLifecycle: no playback device (headless environment)\n";
+        return true;
+    }
+    // Device present: init() must succeed — a false here is a real bug,
+    // not environment noise.
+    pe::Audio audio;
+    if (!audio.init()) {
+        std::cerr << "init() must succeed with a playback device present\n";
+        return false;
+    }
+    // All SFX assets loaded (4-slot beep pool + 2 named events).
+    if (!audio.isLoaded(pe::Sound::Beep) ||
+        !audio.isLoaded(pe::Sound::GameOver) ||
+        !audio.isLoaded(pe::Sound::NewHighScore)) {
+        std::cerr << "init() must load all SFX assets\n";
+        return false;
+    }
+    // Music: play -> stop -> play the SAME file (the Step 119 repeat path).
+    if (!audio.playMusicLoop("music_loop.wav", true)) {
+        std::cerr << "playMusicLoop must succeed with music_loop.wav present\n";
+        return false;
+    }
+    if (!audio.isMusicLoaded()) {
+        std::cerr << "Music must report loaded after successful playMusicLoop\n";
+        return false;
+    }
+    audio.stopMusic();
+    if (!audio.isMusicLoaded()) {
+        std::cerr << "stopMusic must not unload the music sound\n";
+        return false;
+    }
+    if (!audio.playMusicLoop("music_loop.wav", true)) {
+        std::cerr << "playMusicLoop repeat on the same file must succeed\n";
+        return false;
+    }
+    // Triggers and stops must not crash on a live engine.
+    audio.playNext();
+    audio.playGameOver();
+    audio.playNewHighScore();
+    audio.stopEventSounds();
+    // Full lifecycle: shutdown -> init again -> shutdown idempotent.
+    audio.shutdown();
+    if (audio.isLoaded(pe::Sound::Beep) || audio.isMusicLoaded()) {
+        std::cerr << "shutdown() must clear loaded state\n";
+        return false;
+    }
+    if (!audio.init()) {
+        std::cerr << "second init() must succeed after shutdown()\n";
+        return false;
+    }
+    audio.shutdown();
+    audio.shutdown();  // idempotent: safe no-op
     return true;
 }
 
@@ -3666,6 +3825,8 @@ int main() {
     const bool bounceStickOk = checkResolveBounceVsStick();
     const bool approachGuardOk = checkResolveApproachingGuard();
     const bool edgeTouchOk = checkResolveEdgeTouch();
+    const bool fixedJumpOnceOk = checkFixedJumpConsumedOnce();
+    const bool fixedClampFallbackOk = checkFixedSubstepClampAndFallback();
     const bool sceneByNameOk = checkSceneByName();
     const bool platLevelsOk = checkPlatformerLevels();
     const bool platClimbOk = checkPlatformerClimb();
@@ -3675,6 +3836,7 @@ int main() {
     const bool perSoundVolumeOk = checkPerSoundVolume();
     const bool musicVolumeIndepOk = checkMusicVolumeIndependence();
     const bool preInitGuardsOk = checkPreInitGuards();
+    const bool audioDeviceLifecycleOk = checkAudioDeviceLifecycle();
     const bool screenToWorldOk = checkScreenToWorld();
     const bool worldToScreenOk = checkWorldToScreen();
     const bool entityPickOk = checkEntityPick();
@@ -3724,10 +3886,11 @@ int main() {
         !jumpOk || !coyoteOk || !charDtOk || !staticResolveOk ||
         !applyForceOk || !applyPhysicsOk || !applyPhysicsFixedOk || !broadphaseOk ||
         !restClampOk || !bounceStickOk || !approachGuardOk || !edgeTouchOk ||
+        !fixedJumpOnceOk || !fixedClampFallbackOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
-        !musicVolumeIndepOk || !preInitGuardsOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
+        !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
