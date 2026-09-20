@@ -184,6 +184,15 @@ inline bool loadInputBindings(const std::string& filename) {
     return true;
 }
 
+// Step 154: reset half of the rebind lifecycle (load -> remap -> reset).
+// Clears the override table so keysForAction hands back the Step 88
+// defaults again. Pure table clear: no GLFW calls, no file I/O. Games
+// that never rebind never need this; tests use it to prove the
+// lifecycle round-trips.
+inline void resetActionOverrides() {
+    actionOverrides().clear();
+}
+
 // --- Step 117: mouse snapshot (gamepad.h pattern) ---
 // Plain snapshot struct: window-coordinate position plus left/right
 // button levels. Left + right only — no middle/other buttons, no
