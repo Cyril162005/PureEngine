@@ -1575,6 +1575,20 @@
       ],
       "implementation": "src/input.h:188-196 resetActionOverrides() free helper (pure table clear, no GLFW/File I/O). tests/hostile_data_test.cpp checkInputBindings Step 154 block (~3589-3601): after remap+failed-load asserts, resetActionOverrides() then MoveLeft == {A, LEFT} and Jump == {SPACE, W, UP} re-asserted; final shipped-file restore unchanged.",
       "verification": "cmake --build build --config Release -> exit 0, zero errors (inc1_build3.log, Select-String 'error' -> no matches); ctest --test-dir build -C Release -> 1/1 Passed 6.33 s (includes the Step 154 reset assertions via checkInputBindings); arcade/platformer/pong alive True (4 s probes from D:\\PureEngine). Interactive rebind feel: not verified, not claimed."
+    },
+    {
+      "id": 155,
+      "name": "Input: keyNameToGLFW widening + direct checkKeyNames test",
+      "status": "completed",
+      "definition_of_done": "keyNameToGLFW additive widening (TAB, SHIFT/CTRL/ALT with aliases, COMMA/SLASH/BACKSLASH/SEMICOLON/APOSTROPHE/EQUAL/brackets, CAPS_LOCK, F1-F12); every Step 105 name byte-identical. Direct checkKeyNames test locks every pre-existing name, all new mappings, case-insensitivity, unknown -> -1. checkInputBindings proves a widened name (TAB) binds end-to-end from file. No game call-site changes.",
+      "notes": "Input-campaign increment 2 (session PureEngine_input). Shared test file: input test additions landed inside physics commit 60ac7d6 (shared-file staging pattern, same as 154). The one mid-session CTest failure was a pre-existing foreign test bug (checkSpawnAfterKill inverted alive check) fixed by physics in 842214e BEFORE the recorded green run; no input involvement. Code commit 482324e = input.h only.",
+      "commit": "482324e",
+      "depends_on": [
+        105,
+        154
+      ],
+      "implementation": "src/input.h:131-136 additive widened name block after the Step 105 table. tests/hostile_data_test.cpp: new checkKeyNames() (~3628-3692, ~50 named-key assertions) wired into main() as keyNamesOk; checkInputBindings MoveLeft=A,LEFT,TAB end-to-end widened-name bind proof.",
+      "verification": "On committed HEAD (482324e + 60ac7d6): cmake --build build --config Release -> exit 0, zero errors; ctest --test-dir build -C Release -> 1/1 Passed 3.24 s; PureEngine/Platformer/Pong alive True (4 s probes). NOT verified: interactive feel of rebinding to a widened key (no keyboard injection into games), per increment scope."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
