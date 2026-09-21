@@ -1,7 +1,7 @@
 # PureEngine — Manual Smoke-Test Checklist
 
 **Human verification only — NOT CI.** The automated suite (`ctest`,
-1 test binary, 78 behavior cases) proves engine logic headlessly; this
+1 test binary, 103 behavior cases) proves engine logic headlessly; this
 checklist covers everything that needs eyes, ears, and hands on a real
 machine. Every item lists the exact command/key and the expected
 observation. Checks that cannot be automated (audible audio, mouse
