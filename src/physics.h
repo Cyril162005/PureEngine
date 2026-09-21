@@ -327,12 +327,15 @@ inline void applyPhysicsFixed(std::vector<Entity>& entities, float dt,
     float sub = dt / static_cast<float>(steps);
     for (int i = 0; i < steps; ++i) {
         for (Entity& e : entities) {
+            if (e.isStatic) continue;  // Step P4a: static bodies never move (matches applyPhysics)
             if (e.gravityScale > 0.0f) applyGravity(e.velocity, e.gravityScale, sub);
             if (e.velocity.x != 0.0f || e.velocity.y != 0.0f || e.velocity.z != 0.0f) integrate(e.position, e.velocity, sub);
         }
         // Static resolve per substep would need statics list; caller can
         // loop updateCharacterControllerFixed for character cases. This
-        // helper covers free-physics movers (no statics).
+        // helper covers free-physics movers (no statics); the isStatic
+        // guard makes the never-moves rule hold by construction, not
+        // caller convention.
     }
 }
 

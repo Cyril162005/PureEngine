@@ -2004,6 +2004,23 @@ static bool checkApplyPhysicsFixedFreeMovers() {
         std::cerr << "applyPhysicsFixed must be a no-op at dt<=0\n";
         return false;
     }
+    // Static with gravity AND velocity: the isStatic guard (Step P4a)
+    // must keep it fully untouched across substeps — statics never
+    // move, matching applyPhysics.
+    pe::Entity movingStat;
+    movingStat.position = pe::Vec3(3.0f, -1.0f, 0.0f);
+    movingStat.isStatic = true;
+    movingStat.gravityScale = 1.0f;
+    movingStat.velocity = pe::Vec3(2.0f, 2.0f, 0.0f);
+    std::vector<pe::Entity> statBatch = {movingStat};
+    pe::applyPhysicsFixed(statBatch, 0.1f, 1.0f / 60.0f);
+    if (!assertFloatClose(statBatch[0].position.x, 3.0f) ||
+        !assertFloatClose(statBatch[0].position.y, -1.0f) ||
+        !assertFloatClose(statBatch[0].velocity.x, 2.0f) ||
+        !assertFloatClose(statBatch[0].velocity.y, 2.0f)) {
+        std::cerr << "applyPhysicsFixed isStatic guard failed\n";
+        return false;
+    }
     return true;
 }
 
