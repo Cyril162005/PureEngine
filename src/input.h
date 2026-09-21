@@ -73,7 +73,8 @@ enum class Action {
     Jump,
     Pause,
     Confirm,
-    Back
+    Back,
+    Console
 };
 
 inline std::map<Action, std::vector<int>>& actionOverrides() {
@@ -94,6 +95,7 @@ inline std::vector<int> keysForAction(Action a) {
         case Action::Pause:     return {GLFW_KEY_ESCAPE};
         case Action::Confirm:   return {GLFW_KEY_SPACE, GLFW_KEY_ENTER};
         case Action::Back:      return {GLFW_KEY_ESCAPE, GLFW_KEY_BACKSPACE};
+        case Action::Console:   return {GLFW_KEY_GRAVE_ACCENT};
         default: return {};
     }
 }
@@ -104,6 +106,10 @@ inline std::vector<int> keysForAction(Action a) {
 // so a game that edge-tracks keysForAllActions() keeps firing after
 // any loadInputBindings remap — the silent untracked-key gap closes.
 // Pure table read: no GLFW, no file I/O, no mutation.
+// Step 159 note: Action::Console is deliberately NOT in the list yet —
+// its union test lives in the shared test file (frozen to another
+// session); adding it now would change the default union size the test
+// asserts. A Console rebind still works via isActionEdge(Console).
 inline std::vector<int> keysForAllActions() {
     static const Action all[] = {
         Action::MoveLeft, Action::MoveRight, Action::MoveUp, Action::MoveDown,
@@ -223,7 +229,7 @@ inline bool loadInputBindings(const std::string& filename) {
         else if (lowerAct == "pause") act = Action::Pause;
         else if (lowerAct == "confirm") act = Action::Confirm;
         else if (lowerAct == "back") act = Action::Back;
-        else if (lowerAct == "console") act = Action::Back; // alias
+        else if (lowerAct == "console") act = Action::Console; // Step 159: proper action (was an odd Back alias)
         else { std::cerr << "input_bindings: unknown action '" << actName << "'\n"; continue; }
         std::vector<int> keys;
         std::stringstream ss(keysStr);

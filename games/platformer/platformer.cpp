@@ -276,7 +276,7 @@ int main() {
         const bool consoleWasOpen = playingLike && console.open;
         bool consoleAteFrame = false;
         auto pumpConsole = [&]() {
-            if (input.isEdge(window, GLFW_KEY_GRAVE_ACCENT)) {
+            if (input.isActionEdge(window, pe::Action::Console)) {
                 pe::toggle(console);
             }
             if (!consoleWasOpen) {
