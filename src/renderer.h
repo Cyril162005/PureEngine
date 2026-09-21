@@ -383,7 +383,7 @@ private:
                     lights.ambient.intensity);
         glUniform1i(glGetUniformLocation(litProgram, "u_lightCount"),
                     lights.lightCount());
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < LightingState::MAX_LIGHTS; ++i) {
             char name[32];
             Vec3 pos = (i < lights.lightCount()) ? lights.lights[i].position : Vec3(0,0,0);
             snprintf(name, sizeof(name), "u_lightPos[%d]", i);
