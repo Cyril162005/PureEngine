@@ -51,6 +51,7 @@
 #define PUREENGINE_INPUT_H
 
 #include <GLFW/glfw3.h>   // glfwGetKey, GLFW_PRESS, raw GLFW key codes
+#include "gamepad.h"      // Step 158: GamepadState + pure button/edge reads
 #include <vector>         // the tracked-key list and previous-frame state
 #include <string>         // Step 105: action/key names
 #include <map>            // Step 105: override table (ordered, no hash needed)
@@ -117,6 +118,28 @@ inline std::vector<int> keysForAllActions() {
         }
     }
     return out;
+}
+
+// Step 158: fixed gamepad mapping for each action. Deliberately NOT
+// actionOverrides(): GLFW key codes and GLFW_GAMEPAD_BUTTON_* ids share
+// numeric ranges (GLFW_KEY_SPACE == 32 vs BUTTON_A == 0), so reusing
+// the keyboard override table would conflate the two namespaces. The
+// mapping is fixed and mirrors the shipped actions: d-pad moves, A
+// jumps/confirms, START pauses, B backs. Stick axes remain the game's
+// job (Step 69 ruling). No gamepad rebind file — games opt in by
+// passing a GamepadState to the isAction* overloads below.
+inline std::vector<int> gamepadButtonsForAction(Action a) {
+    switch (a) {
+        case Action::MoveLeft:  return {GLFW_GAMEPAD_BUTTON_DPAD_LEFT};
+        case Action::MoveRight: return {GLFW_GAMEPAD_BUTTON_DPAD_RIGHT};
+        case Action::MoveUp:    return {GLFW_GAMEPAD_BUTTON_DPAD_UP};
+        case Action::MoveDown:  return {GLFW_GAMEPAD_BUTTON_DPAD_DOWN};
+        case Action::Jump:      return {GLFW_GAMEPAD_BUTTON_A};
+        case Action::Pause:     return {GLFW_GAMEPAD_BUTTON_START};
+        case Action::Confirm:   return {GLFW_GAMEPAD_BUTTON_A};
+        case Action::Back:      return {GLFW_GAMEPAD_BUTTON_B};
+        default: return {};
+    }
 }
 
 inline int keyNameToGLFW(const std::string& name) {
@@ -296,12 +319,32 @@ public:
     // --- Step 88: action reads (thin mapping over raw keys) ---
     // isActionDown: any mapped key down now. isActionEdge: any mapped
     // key edge this frame. Raw isDown/isEdge remain unchanged.
-    bool isActionDown(GLFWwindow* window, Action a) const {
+    // Step 158: optional GamepadState tail (default null = keyboard
+    // only, byte-identical to every existing call site). With pads
+    // passed, the same action fires from EITHER device — the OR-ing
+    // games previously hand-rolled per call site (padStartEdge,
+    // padJump). No connected gate on the pad tail, matching
+    // gamepadButton's no-gate precedent: pollGamepad already zeroes
+    // absent pads, and hand-built/test states stay usable.
+    bool isActionDown(GLFWwindow* window, Action a,
+                      const GamepadState* pad = nullptr) const {
         for (int k : keysForAction(a)) if (isDown(window, k)) return true;
+        if (pad) {
+            for (int b : gamepadButtonsForAction(a)) {
+                if (gamepadButton(*pad, b)) return true;
+            }
+        }
         return false;
     }
-    bool isActionEdge(GLFWwindow* window, Action a) const {
+    bool isActionEdge(GLFWwindow* window, Action a,
+                      const GamepadState* prevPad = nullptr,
+                      const GamepadState* curPad = nullptr) const {
         for (int k : keysForAction(a)) if (isEdge(window, k)) return true;
+        if (prevPad && curPad) {
+            for (int b : gamepadButtonsForAction(a)) {
+                if (gamepadButtonEdge(*prevPad, *curPad, b)) return true;
+            }
+        }
         return false;
     }
 
