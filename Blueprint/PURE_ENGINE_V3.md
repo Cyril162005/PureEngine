@@ -127,6 +127,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - ✓ Step 156: Scene/prefab/persistence test campaign (manager save, spawn-after-kill, multi-spawn persist) — completed
 - ✓ Step 157: Input keysForAllActions() union helper + test — completed
 - ✓ Step 158: Input gamepad-action bridge (fixed gamepadButtonsForAction mapping + optional GamepadState tails on isActionDown/Edge) — completed
+- ✓ Step 159: Input Action::Console (rebindable console toggle; loader maps console properly, pumps use isActionEdge(Console)) — completed
 
 This list is intentionally not the step queue. Steps still get pulled one at a time from real code inspection, and `kill_criteria` still applies to any future work.
 

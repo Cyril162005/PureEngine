@@ -1633,6 +1633,21 @@
       ],
       "implementation": "src/input.h:54 #include \"gamepad.h\" (after the glfw3.h include — GLFW_INCLUDE_NONE behavior unchanged in every TU). :123-141 gamepadButtonsForAction(Action) fixed switch table. :319-351 isActionDown/isActionEdge optional GamepadState tails (const pointers, default nullptr; pad tail loops gamepadButtonsForAction with gamepadButton/gamepadButtonEdge — the existing pure gamepad reads, no new edge logic).",
       "verification": "cmake --build build --config Release -> exit 0, Select-String 'error' no matches in inc4_build.log; ctest --test-dir build -C Release -> 1/1 Passed 7.52 s (hostile_data_test untouched — regression proof); PureEngine/Platformer/Pong alive True (4 s probes from D:\\PureEngine). NOT verified: headless pad-state tests for the bridge (test file frozen to physics this step); hardware gamepad feel (no pad attached) — explicitly not claimed."
+    },
+    {
+      "id": 159,
+      "name": "Input: Action::Console (rebindable console toggle)",
+      "status": "completed",
+      "definition_of_done": "Action::Console added (enum value after Back, default mapping {GRAVE_ACCENT}); loadInputBindings maps the console action name to it (was an odd Back alias that let the shipped Console=GRAVE line clobber Back keys — latent bug fixed; Back action unused in games, no gameplay impact). Thin call sites: arcade pumpConsole (main.cpp) and platformer pumpConsole toggle via isActionEdge(Action::Console) — identical behavior with shipped bindings, rebindable via file. keysForAllActions unchanged at 8 actions (Console excluded until the shared-file union test can assert the new default; documented in code).",
+      "notes": "Input-campaign increment 5 (session PureEngine_input) — final increment; campaign complete (Steps 154-159). Test-file rule: tests/hostile_data_test.cpp NOT modified (frozen); regression-verified only. GRAVE was already edge-tracked in both games (main.cpp:831, platformer.cpp:224), so the isActionEdge swap is semantics-identical. First commit attempt failed (escaped quotes mangled by the shell split the message into pathspecs; nothing committed); retried with a quote-free message successfully.",
+      "commit": "7428d77",
+      "depends_on": [
+        105,
+        154,
+        158
+      ],
+      "implementation": "src/input.h:78-87 Action enum + Console; :98 case Action::Console default {GRAVE_ACCENT}; :211 loader console -> Action::Console; :107-117 keysForAllActions Step 159 exclusion note. main.cpp:1351 and games/platformer/platformer.cpp:279 pumpConsole toggles via isActionEdge(Action::Console).",
+      "verification": "cmake --build build --config Release -> exit 0, Select-String 'error' no matches in inc5_build.log; ctest --test-dir build -C Release -> 1/1 Passed 18.06 s (includes the frozen union test asserting defaults == 12 — confirms Console correctly excluded from keysForAllActions, and the shipped-file restore path mapping Console=GRAVE properly); PureEngine/Platformer/Pong alive True (4 s probes from D:\\PureEngine). NOT verified: interactive console-toggle rebind (remap Console=SPACE in a file and play) — deferred with the rest of the campaign's interactive-feel items."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
