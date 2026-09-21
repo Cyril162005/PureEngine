@@ -1618,6 +1618,21 @@
       ],
       "implementation": "src/input.h:99-121 keysForAllActions() (static Action list, nested loops, dedup via membership scan — no <algorithm>, matching file style). tests/hostile_data_test.cpp:3695 checkKeysForAllActions() (defaults = 12 unique; tmp file Jump=F1 -> union 13, F1 present, shared SPACE kept; dup scan in all states; reset round-trip; trailing loadInputBindings(input_bindings.txt) restore), wired as keysAllOk at :4319. No game call-site changes — arcade/platformer could construct Input with keysForAllActions() to be rebind-proof; left as documented adoption.",
       "verification": "cmake --build build --config Release -> exit 0, Select-String 'error' no matches; ctest --test-dir build -C Release -> 1/1 Passed 5.00 s (fresh binary, includes checkKeysForAllActions); PureEngine/Platformer/Pong alive True (4 s probes from D:\\PureEngine). NOT verified: interactive rebind-to-previously-untracked-key feel in a live game (helper is game-adopted nowhere yet), per increment scope."
+    },
+    {
+      "id": 158,
+      "name": "Input: gamepad-action bridge (fixed mapping + optional pad tails)",
+      "status": "completed",
+      "definition_of_done": "gamepadButtonsForAction(Action) fixed mapping (MoveLeft/Right/Up/Down -> d-pad, Jump/Confirm -> A, Pause -> START, Back -> B), deliberately NOT actionOverrides (key codes and button ids share numeric ranges — reusing the table would conflate namespaces). Input::isActionDown/Edge gain optional GamepadState tails (default null = keyboard-only, byte-identical call sites); with pads passed an action fires from either device. gamepad.h untouched; no game call-site changes.",
+      "notes": "Input-campaign increment 4 (session PureEngine_input). Test-file rule: tests/hostile_data_test.cpp NOT modified this step (physics session owned it; P6 landed 73883ef during this increment). Bridge helpers are regression-verified only (CTest green on untouched tests) — no headless pad-state tests this commit, deferred to a later step when the shared test file frees up. Games may keep hand-OR patterns (unchanged); optional one-line adoption left for later. Design note: no connected gate on the pad tail, matching gamepadButton's no-gate precedent.",
+      "commit": "d5c40cc",
+      "depends_on": [
+        69,
+        88,
+        157
+      ],
+      "implementation": "src/input.h:54 #include \"gamepad.h\" (after the glfw3.h include — GLFW_INCLUDE_NONE behavior unchanged in every TU). :123-141 gamepadButtonsForAction(Action) fixed switch table. :319-351 isActionDown/isActionEdge optional GamepadState tails (const pointers, default nullptr; pad tail loops gamepadButtonsForAction with gamepadButton/gamepadButtonEdge — the existing pure gamepad reads, no new edge logic).",
+      "verification": "cmake --build build --config Release -> exit 0, Select-String 'error' no matches in inc4_build.log; ctest --test-dir build -C Release -> 1/1 Passed 7.52 s (hostile_data_test untouched — regression proof); PureEngine/Platformer/Pong alive True (4 s probes from D:\\PureEngine). NOT verified: headless pad-state tests for the bridge (test file frozen to physics this step); hardware gamepad feel (no pad attached) — explicitly not claimed."
     }
   ],
   "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
