@@ -243,6 +243,10 @@ recommended stop under the freeze:
 This note exists so a future session reading the tracker sees an
 explicit, sanctioned stopping point instead of inferring one.
 
+## Multi-session coordination
+
+Live board: Blueprint/SESSION_BOARD.md — does not replace step history.
+
 ## Integration backlog — system sessions in flight (main coordination note)
 
 Observed working-tree state at the recommended stop (HEAD 16e926f, not
