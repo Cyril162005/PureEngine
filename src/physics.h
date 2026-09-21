@@ -103,9 +103,12 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
         pen = overlapY;
     }
 
-    // Static body handling: static bodies don't move from collisions
-    const bool aStatic = a.isStatic;
-    const bool bStatic = b.isStatic;
+    // Static/kinematic body handling: neither ever moves from collisions
+    // (Step P6: isKinematic responds like isStatic — infinite mass, the
+    // body never gets pushed and never receives impulse; its own motion
+    // comes from the integration paths, not collision response).
+    const bool aStatic = a.isStatic || a.isKinematic;
+    const bool bStatic = b.isStatic || b.isKinematic;
 
     if (aStatic && bStatic) {
         return;  // both static: no movement possible
@@ -186,7 +189,7 @@ inline bool checkGrounded(const Entity& character,
                           const std::vector<Entity>& entities) {
     const float tolerance = 0.05f;
     for (const Entity& e : entities) {
-        if (!e.isStatic) continue;
+        if (!e.isStatic && !e.isKinematic) continue;
         // Quick AABB check: character's bottom edge near entity's top
         const float charBottom = character.position.y -
             (character.halfExtents.y * character.scale.y);
@@ -251,7 +254,7 @@ inline bool updateCharacterController(Entity& character,
     // zeroes, so walls stop slides and floors/ceilings stop falls/rises.)
     bool hitCeiling = false;
     for (const Entity& wall : staticEntities) {
-        if (!wall.isStatic) continue;
+        if (!wall.isStatic && !wall.isKinematic) continue;
         const float chx = character.halfExtents.x * character.scale.x;
         const float chy = character.halfExtents.y * character.scale.y;
         const float whx = wall.halfExtents.x * wall.scale.x;

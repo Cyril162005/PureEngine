@@ -1863,6 +1863,81 @@ static bool checkFixedSubstepClampAndFallback() {
     return true;
 }
 
+// --- Step P6: kinematic bodies — moving platform carry ---
+// A kinematic platform (isStatic=false, isKinematic=true, gravityScale
+// 0) coasts upward via applyPhysics; the character resting on it is
+// CARRIED: each frame the controller's resolve pushes the character up
+// to exact contact, so it tracks the platform rise, stays grounded,
+// and its velocity ends at zero (carried by position, not impulse).
+static bool checkKinematicCarry() {
+    // Platform half (2.5, 0.5) at origin -> top 0.5; char half 0.5 ->
+    // rest y 1.0. Platform rises 2/s for 0.5s -> +1.0; char tracks to 2.0.
+    pe::Entity platform;
+    platform.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+    platform.halfExtents = pe::Vec3(2.5f, 0.5f, 0.0f);
+    platform.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+    platform.isKinematic = true;
+    platform.gravityScale = 0.0f;
+    platform.velocity = pe::Vec3(0.0f, 2.0f, 0.0f);
+    std::vector<pe::Entity> platformBatch = {platform};
+    pe::Entity c = makeCharacter(0.0f, 1.0f);
+    bool grounded = false;
+    for (int i = 0; i < 30; ++i) {
+        pe::applyPhysics(platformBatch, 1.0f / 60.0f);  // platform coasts up
+        std::vector<pe::Entity> world = {platformBatch[0]};
+        grounded = pe::updateCharacterController(c, world, 1.0f / 60.0f, false);
+    }
+    if (!assertFloatClose(platformBatch[0].position.y, 1.0f)) {
+        std::cerr << "applyPhysics must coast a kinematic body\n";
+        return false;
+    }
+    if (!assertFloatClose(c.position.y, 2.0f)) {
+        std::cerr << "Character must be carried by the rising platform\n";
+        return false;
+    }
+    if (!grounded) {
+        std::cerr << "Character must stay grounded on the moving platform\n";
+        return false;
+    }
+    if (!assertFloatClose(c.velocity.y, 0.0f)) {
+        std::cerr << "Carry must be positional, not a velocity transfer\n";
+        return false;
+    }
+    return true;
+}
+
+// --- Step P6: kinematic bodies — response rules ---
+// Kinematic-vs-dynamic: the dynamic body takes the full correction, the
+// kinematic body never moves. Kinematic-vs-kinematic: nothing moves.
+static bool checkKinematicResolve() {
+    pe::Entity k;
+    k.position = pe::Vec3(0.8f, 0.0f, 0.0f);
+    k.halfExtents = pe::Vec3(0.5f, 0.5f, 0.0f);
+    k.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+    k.isKinematic = true;
+    pe::Entity d = makeCharacter(0.0f, 0.0f);
+    pe::resolveCollision(d, k);
+    if (!assertFloatClose(d.position.x, -0.2f) ||
+        !assertFloatClose(k.position.x, 0.8f) ||
+        !assertFloatClose(k.position.y, 0.0f)) {
+        std::cerr << "Kinematic body moved or dynamic under-corrected\n";
+        return false;
+    }
+    // Kinematic-kinematic overlap: both treated as infinite mass.
+    pe::Entity k2;
+    k2.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+    k2.halfExtents = pe::Vec3(0.5f, 0.5f, 0.0f);
+    k2.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+    k2.isKinematic = true;
+    pe::resolveCollision(k2, k);
+    if (!assertFloatClose(k2.position.x, 0.0f) ||
+        !assertFloatClose(k.position.x, 0.8f)) {
+        std::cerr << "Kinematic-kinematic pair must not move\n";
+        return false;
+    }
+    return true;
+}
+
 // --- Physics primitives: applyForce (massless v += force*dt) ---
 // applyForce was written Step 60 but never headless-verified. Locks the
 // contract: force IS the acceleration, dt=0 is a no-op.
@@ -4299,6 +4374,8 @@ int main() {
     const bool edgeTouchOk = checkResolveEdgeTouch();
     const bool fixedJumpOnceOk = checkFixedJumpConsumedOnce();
     const bool fixedClampFallbackOk = checkFixedSubstepClampAndFallback();
+    const bool kinematicCarryOk = checkKinematicCarry();
+    const bool kinematicResolveOk = checkKinematicResolve();
     const bool sceneByNameOk = checkSceneByName();
     const bool platLevelsOk = checkPlatformerLevels();
     const bool platClimbOk = checkPlatformerClimb();
@@ -4365,6 +4442,7 @@ int main() {
         !applyForceOk || !applyPhysicsOk || !applyPhysicsFixedOk || !broadphaseOk ||
         !restClampOk || !bounceStickOk || !approachGuardOk || !edgeTouchOk ||
         !fixedJumpOnceOk || !fixedClampFallbackOk ||
+        !kinematicCarryOk || !kinematicResolveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||

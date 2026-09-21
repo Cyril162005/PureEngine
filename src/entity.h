@@ -110,6 +110,21 @@ struct Entity {
     // velocity as before; only resolveCollision treats the flag.
     bool isStatic = false;
 
+    // --- Step P6: kinematic body type (moving platforms) ---
+    // isKinematic = true marks a body that MOVES BY ITS OWN VELOCITY but
+    // never responds to forces or impulses: resolveCollision, the
+    // character controller, and checkGrounded treat it exactly like a
+    // static body (infinite mass for response — it never gets pushed
+    // and never receives impulse), while the normal integration paths
+    // (applyPhysics) still advance it. The canonical kinematic body is
+    // isStatic=false + isKinematic=true + gravityScale=0: the game sets
+    // velocity, applyPhysics coasts it, collisions carry other bodies.
+    // Intended for moving platforms: a platform rising under a standing
+    // character carries it (the controller's resolve pushes the
+    // character up to contact). Default false preserves all existing
+    // behavior.
+    bool isKinematic = false;
+
     // --- Step 71: character controller fields (platformer hardening) ---
     // Coyote timer: remaining time in the coyote window (seconds)
     float coyoteTimer = 0.0f;
@@ -169,6 +184,7 @@ struct Entity {
 gravityScale(0.0f),
             parentIndex(-1),
             isStatic(false),
+            isKinematic(false),
             tint(1.0f, 1.0f, 1.0f),
            health(100.0f),
            timer(0.0f),
@@ -200,10 +216,11 @@ gravityScale(0.0f),
           animationSpeed(1.0f),
            cols(1),
            rows(1),
-           velocity(0.0f, 0.0f, 0.0f),
- gravityScale(0.0f),
+          velocity(0.0f, 0.0f, 0.0f),
+  gravityScale(0.0f),
             parentIndex(-1),
             isStatic(false),
+            isKinematic(false),
             tint(1.0f, 1.0f, 1.0f),
             health(100.0f),
             timer(0.0f),
