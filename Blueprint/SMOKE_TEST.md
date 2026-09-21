@@ -42,6 +42,7 @@ errors, CTest 1/1 Passed, arcade/platformer/pong alive probes True.
 | 3.4 | Get caught by a hostile | Collision beep + game-over cue; music stops on returning to MENU (Step 119 stop path) — HUMAN |
 | 3.5 | Beat the high score | NEW HIGH SCORE cue + saved message — HUMAN |
 | 3.6 | `volume 0.5` in console | Master gain drops (SFX quieter) — HUMAN |
+| 3.7 | Non-interactive (no launch) | `ctest` covers the audio mechanics headlessly: volume clamp/composition, mute, pre-init guards, and — when a playback device exists — init/music/lifecycle and the 4-slot rotation. Games may also query `audio.isLoaded(Sound)`/`audio.isMusicLoaded()` instead of trusting startup |
 
 ## 4. Debug console (backtick opens; ENTER submits)
 
