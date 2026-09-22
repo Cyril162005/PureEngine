@@ -23,6 +23,8 @@
 #include "../src/tilemap.h"
 #include "../src/time.h"
 #include "../src/animation_data.h"
+#include "../src/lighting.h"
+#include "../src/renderer.h"
 
 namespace fs = std::filesystem;
 
@@ -4320,6 +4322,135 @@ static bool checkScenePointerStability() {
     return true;
 }
 
+// --- Step 57: spritesheet frame UVs (headless, pure math, no GL calls) ---
+// Degenerate inputs resolve to the full texture, indices clamp, and the
+// row/col mapping follows the "row 0 is the image TOP" V convention.
+static bool checkFrameUV() {
+    bool ok = true;
+    // Degenerate inputs: non-positive row count and 0/1 total frames all
+    // resolve to the full texture — never an error, never empty.
+    const pe::UVRect full = {0.0f, 0.0f, 1.0f, 1.0f};
+    const pe::UVRect zeroRows = pe::calculateFrameUV(3, 0, 8);
+    if (zeroRows.minU != full.minU || zeroRows.minV != full.minV ||
+        zeroRows.maxU != full.maxU || zeroRows.maxV != full.maxV) {
+        std::cerr << "calculateFrameUV framesPerRow=0 must be full texture\n";
+        ok = false;
+    }
+    const pe::UVRect negRows = pe::calculateFrameUV(3, -3, 8);
+    if (negRows.minU != full.minU || negRows.minV != full.minV ||
+        negRows.maxU != full.maxU || negRows.maxV != full.maxV) {
+        std::cerr << "calculateFrameUV framesPerRow<0 must be full texture\n";
+        ok = false;
+    }
+    const pe::UVRect noAnim = pe::calculateFrameUV(0, 8, 1);
+    if (noAnim.minU != full.minU || noAnim.minV != full.minV ||
+        noAnim.maxU != full.maxU || noAnim.maxV != full.maxV) {
+        std::cerr << "calculateFrameUV totalFrames=1 must be full texture\n";
+        ok = false;
+    }
+    const pe::UVRect noFrames = pe::calculateFrameUV(2, 8, 0);
+    if (noFrames.minU != full.minU || noFrames.minV != full.minV ||
+        noFrames.maxU != full.maxU || noFrames.maxV != full.maxV) {
+        std::cerr << "calculateFrameUV totalFrames=0 must be full texture\n";
+        ok = false;
+    }
+    // Single row (8 frames, 8 per row): frame 3 = col 3, row 0. V spans
+    // the full texture height (one row), U spans one eighth-slice.
+    const pe::UVRect f3 = pe::calculateFrameUV(3, 8, 8);
+    if (!assertFloatClose(f3.minU, 0.375f) || !assertFloatClose(f3.maxU, 0.5f) ||
+        !assertFloatClose(f3.minV, 0.0f) || !assertFloatClose(f3.maxV, 1.0f)) {
+        std::cerr << "calculateFrameUV single-row col mapping wrong\n";
+        ok = false;
+    }
+    // Negative frameIndex clamps to 0 (never underflows the row math).
+    const pe::UVRect fNeg = pe::calculateFrameUV(-1, 8, 8);
+    if (!assertFloatClose(fNeg.minU, 0.0f) || !assertFloatClose(fNeg.maxU, 0.125f)) {
+        std::cerr << "calculateFrameUV negative index must clamp to 0\n";
+        ok = false;
+    }
+    // Two rows (8 frames, 4 per row): row 0 is the image TOP (higher V),
+    // row 1 sits below it — the V-flip convention the digit path shares.
+    const pe::UVRect f0 = pe::calculateFrameUV(0, 4, 8);
+    if (!assertFloatClose(f0.minU, 0.0f) || !assertFloatClose(f0.maxU, 0.25f) ||
+        !assertFloatClose(f0.minV, 0.5f) || !assertFloatClose(f0.maxV, 1.0f)) {
+        std::cerr << "calculateFrameUV two-row top frame wrong\n";
+        ok = false;
+    }
+    const pe::UVRect f4 = pe::calculateFrameUV(4, 4, 8);
+    if (!assertFloatClose(f4.minU, 0.0f) || !assertFloatClose(f4.maxU, 0.25f) ||
+        !assertFloatClose(f4.minV, 0.0f) || !assertFloatClose(f4.maxV, 0.5f)) {
+        std::cerr << "calculateFrameUV two-row bottom frame wrong\n";
+        ok = false;
+    }
+    // Last frame (7) = col 3, row 1: rightmost slice of the bottom row.
+    const pe::UVRect f7 = pe::calculateFrameUV(7, 4, 8);
+    if (!assertFloatClose(f7.minU, 0.75f) || !assertFloatClose(f7.maxU, 1.0f) ||
+        !assertFloatClose(f7.minV, 0.0f) || !assertFloatClose(f7.maxV, 0.5f)) {
+        std::cerr << "calculateFrameUV last frame wrong\n";
+        ok = false;
+    }
+    // Index beyond the last clamps to totalFrames-1 (same rect as f7).
+    const pe::UVRect fOOB = pe::calculateFrameUV(99, 4, 8);
+    if (fOOB.minU != f7.minU || fOOB.minV != f7.minV ||
+        fOOB.maxU != f7.maxU || fOOB.maxV != f7.maxV) {
+        std::cerr << "calculateFrameUV OOB index must clamp to last\n";
+        ok = false;
+    }
+    return ok;
+}
+
+// --- Step 79 / MAX_LIGHTS: addLight capacity contract (headless, pure) ---
+// Four lights fit; the fifth is silently ignored; lightCount() and the
+// stored lights reflect exactly what was accepted.
+static bool checkLightingCap() {
+    bool ok = true;
+    if (pe::LightingState::MAX_LIGHTS != 4) {
+        std::cerr << "MAX_LIGHTS must stay 4 (uniform array + upload loop bound)\n";
+        ok = false;
+    }
+    pe::LightingState s = pe::LightingState::makeDefault();
+    if (s.lightCount() != 0) {
+        std::cerr << "makeDefault must start with zero lights\n";
+        ok = false;
+    }
+    if (!assertFloatClose(s.ambient.intensity, 1.0f) ||
+        !assertFloatClose(s.ambient.color.x, 1.0f) ||
+        !assertFloatClose(s.ambient.color.y, 1.0f) ||
+        !assertFloatClose(s.ambient.color.z, 1.0f)) {
+        std::cerr << "makeDefault ambient must be white intensity 1\n";
+        ok = false;
+    }
+    for (int i = 0; i < pe::LightingState::MAX_LIGHTS; ++i) {
+        pe::PointLight l;
+        l.position = pe::Vec3(float(i), 0.0f, 0.0f);
+        s.addLight(l);
+    }
+    if (s.lightCount() != pe::LightingState::MAX_LIGHTS) {
+        std::cerr << "addLight must accept exactly MAX_LIGHTS lights\n";
+        ok = false;
+    }
+    // Stored lights keep their order and data.
+    for (int i = 0; i < pe::LightingState::MAX_LIGHTS; ++i) {
+        if (!assertFloatClose(s.lights[i].position.x, float(i))) {
+            std::cerr << "addLight must preserve light order/data at " << i << "\n";
+            ok = false;
+        }
+    }
+    // The fifth push is silently ignored — the cap never throws, never grows.
+    pe::PointLight fifth;
+    fifth.position = pe::Vec3(99.0f, 0.0f, 0.0f);
+    s.addLight(fifth);
+    if (s.lightCount() != pe::LightingState::MAX_LIGHTS) {
+        std::cerr << "addLight beyond MAX_LIGHTS must be ignored\n";
+        ok = false;
+    }
+    if (assertFloatClose(s.lights[pe::LightingState::MAX_LIGHTS - 1].position.x, 99.0f)) {
+        std::cerr << "fifth light must not overwrite the last accepted light\n";
+        ok = false;
+    }
+    return ok;
+}
+
 int main() {
     const bool validOk = checkCaseValidData();
     const bool missingKeyOk = checkCaseMissingKey();
@@ -4424,6 +4555,8 @@ int main() {
     const bool persistV1Ok = checkScenePersistenceV1Compat();
     const bool persistV99Ok = checkSceneVersionUnknown();
     const bool lifecycleOk = checkEntityLifecycle();
+    const bool frameUvOk = checkFrameUV();
+    const bool lightingCapOk = checkLightingCap();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -4447,7 +4580,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
