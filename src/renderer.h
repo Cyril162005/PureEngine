@@ -39,13 +39,16 @@
  * every method is defined here, no renderer.cpp exists, and
  * CMakeLists.txt needs no change.
  *
- * Behavior preservation checklist (the step's contract):
+ * Behavior preservation checklist (the step's contract; the two bullets
+ * later superseded by follow-up steps are updated to match the code as
+ * it now stands — the rest are unchanged since Step 13):
  *   - shader sources, uniform names, and locations: unchanged
  *   - vertex layout (position xyz + UV st, stride 5 floats): unchanged
  *   - texture sampling parameters (CLAMP_TO_EDGE + LINEAR): unchanged
- *   - per-entity texture selection by index convention
- *     (0 = player, 1..2 = scenery, 3+ = hostiles): unchanged
- *   - collision tint (white normally, red (1,0,0) when colliding): unchanged
+ *   - per-entity texture selection: entity.textureId addresses the slot
+ *     array directly (Step 50/89 — the raw index convention is gone)
+ *   - collision tint: Entity.tint (white by default) with the colliding
+ *     flag overriding to red (1,0,0) (Step 86 — plain-white-only is gone)
  *   - screen-space digits (projection * model, NO view; blending ON
  *     for text only): unchanged
  */
