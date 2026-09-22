@@ -282,6 +282,7 @@ inline std::vector<Entity> tilemapToEntities(const Tilemap& map, float depth, in
                               << "], using checker fallback\n";
                     warned.insert(entity.textureId);
                 }
+            }
 #endif
             out.push_back(entity);
         }
