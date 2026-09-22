@@ -3781,11 +3781,12 @@ static bool checkKeyNames() {
     return ok;
 }
 
-// Step 157: keysForAllActions union contract. Defaults: 12 unique keys
-// (A LEFT D RIGHT W UP S DOWN SPACE ENTER ESCAPE BACKSPACE — W/UP,
-// SPACE, ESCAPE are shared across actions and deduped). After a file
-// remap to a widened key (F1) the union gains it while shared keys stay;
-// reset restores the 12. No duplicates allowed in any state.
+// Step 157: keysForAllActions union contract. Defaults: 13 unique keys
+// (A LEFT D RIGHT W UP S DOWN SPACE ENTER ESCAPE BACKSPACE GRAVE —
+// W/UP, SPACE, ESCAPE are shared across actions and deduped; GRAVE is
+// Console's alone). After a file remap to a widened key (F1) the union
+// gains it while shared keys stay; reset restores the 13. No
+// duplicates allowed in any state.
 static bool checkKeysForAllActions() {
     bool ok = true;
     auto contains = [](const std::vector<int>& v, int key) {
@@ -3800,16 +3801,16 @@ static bool checkKeysForAllActions() {
         }
         return true;
     };
-    pe::resetActionOverrides();  // known state: Step 88 defaults
+    pe::resetActionOverrides();  // known state: Step 88 defaults + Console
     const std::vector<int> def = pe::keysForAllActions();
-    if (def.size() != 12 || !noDups(def)) {
-        std::cerr << "Default union must be 12 unique keys\n";
+    if (def.size() != 13 || !noDups(def)) {
+        std::cerr << "Default union must be 13 unique keys\n";
         ok = false;
     }
     const int defaults[] = {GLFW_KEY_A, GLFW_KEY_LEFT, GLFW_KEY_D, GLFW_KEY_RIGHT,
                             GLFW_KEY_W, GLFW_KEY_UP, GLFW_KEY_S, GLFW_KEY_DOWN,
                             GLFW_KEY_SPACE, GLFW_KEY_ENTER, GLFW_KEY_ESCAPE,
-                            GLFW_KEY_BACKSPACE};
+                            GLFW_KEY_BACKSPACE, GLFW_KEY_GRAVE_ACCENT};
     for (int k : defaults) {
         if (!contains(def, k)) { std::cerr << "Default union missing a key\n"; ok = false; }
     }
@@ -3832,7 +3833,7 @@ static bool checkKeysForAllActions() {
     if (!loaded) { std::cerr << "Union test bindings load failed\n"; return false; }
     const std::vector<int> remapped = pe::keysForAllActions();
     // SPACE stays (Confirm keeps it): the union grows by exactly F1.
-    if (remapped.size() != 13 || !contains(remapped, GLFW_KEY_F1) ||
+    if (remapped.size() != 14 || !contains(remapped, GLFW_KEY_F1) ||
         !contains(remapped, GLFW_KEY_SPACE) || !noDups(remapped)) {
         std::cerr << "Union must gain remapped key, keep shared keys, stay deduped\n";
         ok = false;

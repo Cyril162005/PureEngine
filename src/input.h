@@ -106,14 +106,14 @@ inline std::vector<int> keysForAction(Action a) {
 // so a game that edge-tracks keysForAllActions() keeps firing after
 // any loadInputBindings remap — the silent untracked-key gap closes.
 // Pure table read: no GLFW, no file I/O, no mutation.
-// Step 159 note: Action::Console is deliberately NOT in the list yet —
-// its union test lives in the shared test file (frozen to another
-// session); adding it now would change the default union size the test
-// asserts. A Console rebind still works via isActionEdge(Console).
+// Step 159 follow-up: Action::Console is included (its default GRAVE
+// was the only key missing from the union); the union test asserts the
+// 13-key default.
 inline std::vector<int> keysForAllActions() {
     static const Action all[] = {
         Action::MoveLeft, Action::MoveRight, Action::MoveUp, Action::MoveDown,
-        Action::Jump, Action::Pause, Action::Confirm, Action::Back
+        Action::Jump, Action::Pause, Action::Confirm, Action::Back,
+        Action::Console
     };
     std::vector<int> out;
     for (Action a : all) {
