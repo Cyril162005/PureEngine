@@ -1322,14 +1322,16 @@ if (clip != animations.end()) {
         // is nothing more dramatic than storing a new one.
         bool escIsPressedNow = pe::Input::isDown(window, GLFW_KEY_ESCAPE);
         // Integration sprint: gamepad snapshot (Step 69). prevPad rotates at
-        // frame end beside input.update(). Keyboard is preserved by OR-ing:
-        // either device drives. Stick axes arrive deadzoned from pollGamepad.
+        // frame end beside input.update(). Stick axes arrive deadzoned from
+        // pollGamepad.
         const pe::GamepadState curPad = pe::pollGamepad();
-        const bool padStartEdge =
-            pe::gamepadButtonEdge(prevPad, curPad, GLFW_GAMEPAD_BUTTON_START);
+        // Step 160: Pause rides the Step 158 gamepad-action bridge — ESC
+        // edge + START pad edge, identical to the hand OR-ing it replaces.
+        // spaceEdge stays raw (SPACE + pad A): the Jump action mapping
+        // would widen it to W/UP edges, a feel change the game owns.
         const bool padActionEdge =
             pe::gamepadButtonEdge(prevPad, curPad, GLFW_GAMEPAD_BUTTON_A);
-        bool escEdge = input.isEdge(window, GLFW_KEY_ESCAPE) || padStartEdge;
+        bool escEdge = input.isActionEdge(window, pe::Action::Pause, &prevPad, &curPad);
         bool spaceEdge = input.isEdge(window, GLFW_KEY_SPACE) || padActionEdge;
         // Integration sprint: console frame gate, computed BEFORE the switch.
         // A case-level declaration would trip C2360 (later case labels jump

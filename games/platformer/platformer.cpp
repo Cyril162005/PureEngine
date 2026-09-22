@@ -75,6 +75,23 @@ static pe::Entity makeCompanion() {
     return c;
 }
 
+static pe::Entity makeKinematicPlatform() {
+    // Physics P6 integration: one kinematic moving platform in level2.
+    // Moves by its own velocity (the game integrates it per frame below),
+    // never responds to forces; the controller carries riders by position
+    // correction. Renders like tiles (default texture). Patrol bounds:
+    // center y in [-2.5, -1.0] — even at its lowest top (-2.25) it clears
+    // the player's head (-2.36) while they run under it on the floor.
+    pe::Entity p(pe::Vec3(-1.25f, -1.5f, 0.0f), 0.0f,
+                 pe::Vec3(1.0f, 1.0f, 1.0f),
+                 pe::Vec3(1.0f, 0.25f, 0.0f), 0);
+    p.roleId = 98;  // opaque to the player scan (companion uses 99)
+    p.gravityScale = 0.0f;
+    p.isKinematic = true;
+    p.velocity = pe::Vec3(0.0f, 1.0f, 0.0f);  // starts rising
+    return p;
+}
+
 static bool overlapsGoal(const pe::Entity& p, const float g[4]) {
     const float dx = p.position.x - g[0];
     const float dy = p.position.y - g[1];
@@ -158,7 +175,8 @@ int main() {
     }
     level1->entities = {makePlayer(kSpawn1), makeCompanion()};
     pe::loadTilemapIntoScene(*level1, "platformer_level1.txt");
-    level2->entities = {makePlayer(kSpawn2), makeCompanion()};
+    level2->entities = {makePlayer(kSpawn2), makeCompanion(),
+                        makeKinematicPlatform()};
     pe::loadTilemapIntoScene(*level2, "platformer_level2.txt");
     std::cout << "platformer: level1 ("
               << level1->tilemap.tiles.size() << " cells), level2 ("
@@ -263,11 +281,11 @@ int main() {
 
         const bool escDown = pe::Input::isDown(window, GLFW_KEY_ESCAPE);
         const pe::GamepadState curPad = pe::pollGamepad();
-        const bool padStart =
-            pe::gamepadButtonEdge(prevPad, curPad, GLFW_GAMEPAD_BUTTON_START);
-        const bool padJump =
-            pe::gamepadButtonEdge(prevPad, curPad, GLFW_GAMEPAD_BUTTON_A);
-        bool escEdge = input.isEdge(window, GLFW_KEY_ESCAPE) || padStart;
+        // Step 160: Jump + Pause ride the Step 158 gamepad-action bridge —
+        // identical semantics to the hand OR-ing they replace (the A pad
+        // edge joins the Jump keys; START joins ESC for Pause). No
+        // per-site pad edges left to rotate by hand.
+        bool escEdge = input.isActionEdge(window, pe::Action::Pause, &prevPad, &curPad);
         bool spaceEdge = input.isEdge(window, GLFW_KEY_SPACE);
         const bool playingLike =
             currentState == pe::GameState::PLAYING ||
@@ -376,6 +394,25 @@ int main() {
                     break;
                 }
             }
+            // Physics P6 integration: the kinematic platform moves by its
+            // own velocity (ping-pong flip at the patrol bounds), then
+            // joins the controller's static list below. Freezes with the
+            // rest of the simulation (simulates gate).
+            pe::Entity* platform = nullptr;
+            for (auto& e : activeScene->entities) {
+                if (!e.alive) continue;
+                if (e.roleId == 98) {
+                    platform = &e;
+                    break;
+                }
+            }
+            if (platform) {
+                pe::integrate(platform->position, platform->velocity, dt);
+                if (platform->position.y > -1.0f ||
+                    platform->position.y < -2.5f) {
+                    platform->velocity.y = -platform->velocity.y;
+                }
+            }
             if (player) {
                 // Horizontal intent: arrows, then stick adds (clamped).
                 // Arrows + WASD drive the same axis (A/Left, D/Right);
@@ -400,7 +437,7 @@ int main() {
                 }
                 player->velocity.x = move * kMoveSpeed;
                 const bool jumpEdge =
-                    input.isActionEdge(window, pe::Action::Jump) || padJump;
+                    input.isActionEdge(window, pe::Action::Jump, &prevPad, &curPad);
                 if (jumpEdge && player->wasGrounded) {
                     audio.playNext();
                     std::cout << "platformer: jump" << std::endl;
