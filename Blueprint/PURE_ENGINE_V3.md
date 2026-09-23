@@ -134,6 +134,8 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 163: Resources load system contract test (failure-not-cached, copy independence, pack hit/fallback semantics) — recorded (129 entries); boundary already held, gaps were test gaps only
 - . Step 164: Animation system contract (load/bind/update/switch/loop/end) — recorded (130 entries); no engine source changes
 - . Step 165: Camera followLerp headless contract (blend/convergence/overshoot/clamp) — recorded (131 entries); split-staged around events in-flight hunks; chain-gating pending events commit
+- . Step 166: Resources system CONTRACT block (probe/failure/cache/ownership) + dedicated headless resources_test CTest target — recorded (132 entries)
+- . Step 167: Events contract gaps (reentrant/once/throw/mid-dispatch) + followLerpOk chain gate fixed — recorded (133 entries)
 - ✓ Step 158: Input gamepad-action bridge (fixed gamepadButtonsForAction mapping + optional GamepadState tails on isActionDown/Edge) — completed
 - ✓ Step 159: Input Action::Console (rebindable console toggle; loader maps console properly, pumps use isActionEdge(Console)) — completed
 

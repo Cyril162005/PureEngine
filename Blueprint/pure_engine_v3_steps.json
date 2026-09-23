@@ -1727,6 +1727,30 @@
     73
    ],
    "notes": "Split-stage: events session in-flight checkEventReentrantOnceGaps hunks (+105) + eventGapOk registration/chain left unstaged (staging the chain would reference their undefined test; rewriting their chain line would drop my token on their commit). followLerpOk registered but NOT yet in the failure chain — chain-gating lands with the events commit or a later pass (chain line owned by events in-flight edit)."
+  },
+  {
+   "id": 166,
+   "name": "Resources system contract (probe/failure/cache/ownership + resources_test)",
+   "status": "completed",
+   "definition_of_done": "CONTRACT block in resources.h. resources_test covers: blob failure/miss/dir, probe priority, texture all-miss (no GL), cache semantics, pack hit/fallback. 2/2 CTest passed.",
+   "implementation": "src/resources.h:41 CONTRACT block. tests/resources_test.cpp new. CMakeLists.txt resources_test target.",
+   "verification": "cmake->EXIT=0; ctest 2/2 Passed; PureEngine alive",
+   "commit": "4df2842",
+   "depends_on": [
+    14
+   ]
+  },
+  {
+   "id": 167,
+   "name": "Events contract gaps (reentrant emit, once auto-removal, throw isolation)",
+   "status": "completed",
+   "definition_of_done": "checkEventReentrantOnceGaps: reentrant depth-3 snapshot, mid-dispatch removal, once refusals, once auto-removal, once+throw. followLerpOk chain gate fixed. 2/2 CTest.",
+   "implementation": "tests/hostile_data_test.cpp: checkEventReentrantOnceGaps +~110 lines",
+   "verification": "cmake->EXIT=0; ctest 2/2 Passed 6.74s; all games alive — alive at final verify",
+   "commit": "e4b9bbf",
+   "depends_on": [
+    91
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
