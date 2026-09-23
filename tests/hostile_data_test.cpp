@@ -25,6 +25,7 @@
 #include "../src/animation_data.h"
 #include "../src/lighting.h"
 #include "../src/renderer.h"
+#include "../src/resources.h"
 
 namespace fs = std::filesystem;
 
@@ -3719,6 +3720,70 @@ static bool checkBinaryBlob() {
     return true;
 }
 
+// Step 163: resource load system contract (headless). Locks the
+// observable half of the boundary contract that checkBinaryBlob
+// (Step 101) left open: failed blob loads leave `out` empty, full
+// file reads match a known committed prefix, the cache holds exactly
+// the loaded entries (failure is never cached — retry stays
+// possible), a returned copy is independent of the cache, pack v1
+// hit = the pack file's own bytes, pack fallback = entryName direct
+// file, both-missing = false. Texture load paths need a GL context
+// and stay covered by the renderer registration test (Step 133) plus
+// the in-game loads (Step 10 checker, Phase 3 atlas, Step 123 music
+// success path). The 3-candidate CWD probe order is guaranteed by
+// construction (every loader shares the same literal candidate list).
+static bool checkResourceSystem() {
+    bool ok = true;
+    // Failure: blob loader returns false and leaves out empty.
+    std::vector<uint8_t> out;
+    if (pe::loadBinaryBlob("no_such_resource.bin", out)) { std::cerr << "Missing blob must fail\n"; ok = false; }
+    if (!out.empty()) { std::cerr << "Failed blob load must leave out empty\n"; ok = false; }
+    // Full read: known committed asset — byte count + content prefix.
+    std::vector<uint8_t> txt;
+    if (!pe::loadBinaryBlob("prefabs/enemy.txt", txt) || txt.size() < 16) { std::cerr << "Blob enemy.txt failed\n"; return false; }
+    if (std::string(reinterpret_cast<const char*>(txt.data()), 16) != "# PureEngine pre") {
+        std::cerr << "Blob full-read prefix mismatch\n"; ok = false;
+    }
+    std::vector<uint8_t> wav;
+    if (!pe::loadBinaryBlob("beep.wav", wav) || wav.empty()) { std::cerr << "Blob beep.wav failed\n"; ok = false; }
+    // Cache: starts empty after clear, holds exactly the loaded entry.
+    pe::clearBinaryCache();
+    if (pe::binaryCache().size() != 0) { std::cerr << "Cache must start empty\n"; ok = false; }
+    std::vector<uint8_t> c1;
+    if (!pe::loadBinaryBlobCached("prefabs/enemy.txt", c1) || c1 != txt) { std::cerr << "Cached enemy.txt failed\n"; ok = false; }
+    if (pe::binaryCache().size() != 1) { std::cerr << "Cache must hold exactly 1 entry\n"; ok = false; }
+    // Failure is never cached: the map stays at 1, retry stays possible.
+    std::vector<uint8_t> miss;
+    if (pe::loadBinaryBlobCached("no_such_resource.bin", miss)) { std::cerr << "Cached missing blob must fail\n"; ok = false; }
+    if (pe::binaryCache().size() != 1) { std::cerr << "Failed load must not enter the cache\n"; ok = false; }
+    // Copy independence: mutating the returned copy must not corrupt
+    // the cache — the next cached load still returns original bytes.
+    if (!c1.empty()) c1[0] = 'X';
+    std::vector<uint8_t> c2;
+    if (!pe::loadBinaryBlobCached("prefabs/enemy.txt", c2) || c2.empty() || c2[0] != '#') {
+        std::cerr << "Cache copy must be independent of caller mutation\n"; ok = false;
+    }
+    // Pack v1 hit: packFile exists -> its OWN bytes come back
+    // (entryName ignored — v1 pack = the pack file itself).
+    std::vector<uint8_t> packHit;
+    if (!pe::loadPackEntry("beep.wav", "prefabs/enemy.txt", packHit) || packHit != wav) {
+        std::cerr << "Pack hit must return the pack file's bytes\n"; ok = false;
+    }
+    // Pack fallback: packFile missing -> entryName as direct file.
+    std::vector<uint8_t> packFall;
+    if (!pe::loadPackEntry("no_such_pack.bin", "prefabs/enemy.txt", packFall) || packFall != txt) {
+        std::cerr << "Pack fallback must return the entry's bytes\n"; ok = false;
+    }
+    // Both missing: false, out stays empty.
+    std::vector<uint8_t> none;
+    if (pe::loadPackEntry("no_such_pack.bin", "no_such_entry.bin", none) || !none.empty()) {
+        std::cerr << "Pack both-missing must fail with empty out\n"; ok = false;
+    }
+    pe::clearBinaryCache();
+    if (pe::binaryCache().size() != 0) { std::cerr << "clearBinaryCache must empty the cache\n"; ok = false; }
+    return ok;
+}
+
 // Step 155: direct keyNameToGLFW coverage (was transitive-only via
 // loadInputBindings with 4 names). Locks every existing name (Step 105
 // table byte-identical), the Step 155 additive widening (modifiers,
@@ -4767,6 +4832,7 @@ int main() {
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
+    const bool resourceSystemOk = checkResourceSystem();
     const bool keyNamesOk = checkKeyNames();
     const bool keysAllOk = checkKeysForAllActions();
     const bool inputBindingsOk = checkInputBindings();
@@ -4808,7 +4874,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
