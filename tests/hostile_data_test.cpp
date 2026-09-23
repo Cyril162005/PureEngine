@@ -3775,6 +3775,105 @@ static bool checkEventThrowAndOnce() {
     return true;
 }
 
+// --- Events contract gaps (Step 166 candidate): same-bus reentrant emit,
+// mid-dispatch removal of a later handler, once() refusals/auto-removal.
+static bool checkEventReentrantOnceGaps() {
+    bool ok = true;
+
+    // 1) Same-type reentrant emit on the SAME bus, bounded: each nesting
+    // level snapshots independently, so a depth-limited chain terminates.
+    pe::EventBus bus;
+    int depth = 0;
+    int maxDepth = 0;
+    int calls = 0;
+    bus.subscribe(pe::EventType::Collision, [&](const pe::GameEvent& e) {
+        ++calls;
+        if (e.a >= 3) return;
+        if (depth + 1 > maxDepth) maxDepth = depth + 1;
+        ++depth;
+        bus.emit(pe::GameEvent{pe::EventType::Collision, e.a + 1, 0});
+        --depth;
+    });
+    bus.emit(pe::GameEvent{pe::EventType::Collision, 0, 0});
+    if (maxDepth != 3 || calls != 4 || depth != 0) {
+        std::cerr << "Same-bus reentrant emit misbehaved (maxDepth " << maxDepth
+                  << ", calls " << calls << ")\n";
+        return false;
+    }
+
+    // 2) Mid-dispatch removal of a LATER handler: the in-flight snapshot
+    // still delivers to it; removal takes effect on the NEXT emit.
+    pe::EventBus bus2;
+    std::vector<int> seq;
+    const int victimToken = bus2.subscribe(pe::EventType::SceneChanged,
+        [&](const pe::GameEvent&) { seq.push_back(1); });
+    bus2.subscribe(pe::EventType::SceneChanged,
+        [&](const pe::GameEvent&) {
+            seq.push_back(0);
+            bus2.unsubscribe(pe::EventType::SceneChanged, victimToken);
+        });
+    bus2.emit(pe::GameEvent{pe::EventType::SceneChanged, 0, 1});
+    if (seq.size() != 2 || seq[0] != 1 || seq[1] != 0) {
+        std::cerr << "Removed-mid-dispatch handler must still fire from snapshot\n";
+        return false;
+    }
+    bus2.emit(pe::GameEvent{pe::EventType::SceneChanged, 0, 1});
+    if (seq.size() != 3 || seq[2] != 0) {
+        std::cerr << "Mid-dispatch removal must take effect on the next emit\n";
+        return false;
+    }
+    if (bus2.handlerCount(pe::EventType::SceneChanged) != 1) {
+        std::cerr << "handlerCount wrong after mid-dispatch removal\n";
+        return false;
+    }
+
+    // 3) once() refusals mirror subscribe: sentinel type, null, empty.
+    pe::EventBus bus3;
+    if (bus3.once(pe::EventType::Count, [](const pe::GameEvent&) {}) != -1 ||
+        bus3.once(pe::EventType::Collision, nullptr) != -1 ||
+        bus3.once(pe::EventType::Collision, pe::EventHandler()) != -1) {
+        std::cerr << "Illegal once() accepted\n";
+        return false;
+    }
+    if (bus3.handlerCount(pe::EventType::Collision) != 0) {
+        std::cerr << "Refused once() must not register\n";
+        return false;
+    }
+
+    // 4) once() auto-removal: registered once, fires exactly once across
+    // repeated emits, then the slot is gone and the token is retired.
+    int hits = 0;
+    const int token = bus3.once(pe::EventType::Collision,
+        [&](const pe::GameEvent&) { ++hits; });
+    if (token < 0 || bus3.handlerCount(pe::EventType::Collision) != 1) {
+        std::cerr << "once() registration wrong\n";
+        return false;
+    }
+    bus3.emit(pe::GameEvent{pe::EventType::Collision, 0, 0});
+    bus3.emit(pe::GameEvent{pe::EventType::Collision, 0, 0});
+    if (hits != 1 || bus3.handlerCount(pe::EventType::Collision) != 0) {
+        std::cerr << "once() auto-removal failed\n";
+        return false;
+    }
+    if (bus3.unsubscribe(pe::EventType::Collision, token)) {
+        std::cerr << "Auto-removed once() token must be gone\n";
+        return false;
+    }
+
+    // 5) once() with a throwing handler: exception caught, slot still
+    // removed (never sticks around half-dead).
+    int thrown = 0;
+    bus3.once(pe::EventType::Collision,
+        [&](const pe::GameEvent&) { ++thrown; throw std::runtime_error("boom"); });
+    bus3.emit(pe::GameEvent{pe::EventType::Collision, 0, 0});  // must not crash
+    bus3.emit(pe::GameEvent{pe::EventType::Collision, 0, 0});
+    if (thrown != 1 || bus3.handlerCount(pe::EventType::Collision) != 0) {
+        std::cerr << "Throwing once() must fire once and remove itself\n";
+        return false;
+    }
+    return ok;
+}
+
 static bool checkBinaryBlob() {
     std::vector<uint8_t> out;
     if (!pe::loadBinaryBlob("beep.wav", out) || out.empty()) { std::cerr << "Binary blob beep.wav failed\n"; return false; }
@@ -5137,6 +5236,7 @@ int main() {
     const bool textureRegOk = checkTextureRegistry();
     const bool consoleHistRecallOk = checkConsoleHistoryRecall();
     const bool eventThrowOnceOk = checkEventThrowAndOnce();
+    const bool eventGapOk = checkEventReentrantOnceGaps();
     const bool timeScaleOk = checkTimeScale();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
@@ -5168,7 +5268,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
