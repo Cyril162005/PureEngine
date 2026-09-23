@@ -449,6 +449,12 @@ int main() {
                 for (auto& t : tileStatics) {
                     t.isStatic = true;
                 }
+                // The kinematic platform joins the statics: the controller
+                // treats it as infinite mass (never pushed, no impulse)
+                // and its grounding scan sees it — the carry is positional.
+                if (platform) {
+                    tileStatics.push_back(*platform);
+                }
                 // Physics P5: opt into the fixed-substep controller (Step
                 // 87) — a fast fall cannot tunnel a 1-unit tile in one
                 // variable step. dt is split into 1/60 substeps (clamped
