@@ -4736,6 +4736,77 @@ static bool checkConsoleHistoryRecall() {
     return true;
 }
 
+// Step 168: console contract gaps (headless). Closes the halves the
+// five existing checkConsole* tests left open: the Step 95 wrap
+// splits long lines to 38-col pieces with the 64-line cap still
+// enforced, Up/Down recall is a no-op on an empty submitHistory,
+// submitHistory SURVIVES a clear (clear wipes c.lines only — "look
+// away, not hang up" applies to recall too), a new submit resets
+// historyPos to the end (Up recalls the newest), and drawConsole on
+// a CLOSED console with empty lines is a no-op that makes zero
+// renderer calls (headless-safe; open+draw needs a GL context and
+// stays a game-loop concern — no draw verification here).
+static bool checkConsoleContract() {
+    bool ok = true;
+    // Step 95 wrap: a 100-char line splits 38/38/24.
+    pe::Console c;
+    std::string longLine(100, 'x');
+    pe::print(c, longLine);
+    if (c.lines.size() != 3 || c.lines[0].size() != 38 ||
+        c.lines[1].size() != 38 || c.lines[2].size() != 24) {
+        std::cerr << "Wrap must split a long line to 38-col pieces\n";
+        ok = false;
+    }
+    // Cap under wrapped submits: wrapped echoes still evict the oldest.
+    for (int i = 0; i < 40; ++i) {
+        c.input = longLine;
+        pe::submit(c);
+    }
+    if (c.lines.size() != 64) { std::cerr << "Cap must hold under wrapped submits\n"; ok = false; }
+    // Recall is a no-op on an empty submitHistory (no crash, no state).
+    pe::Console fresh;
+    pe::feedKey(fresh, GLFW_KEY_UP, false);
+    pe::feedKey(fresh, GLFW_KEY_DOWN, false);
+    if (!fresh.input.empty() || !fresh.submitHistory.empty()) {
+        std::cerr << "Recall on empty submitHistory must be a no-op\n";
+        ok = false;
+    }
+    // submitHistory SURVIVES clear (clear wipes c.lines only).
+    pe::Console k;
+    k.input = "echo keep";
+    pe::submit(k);
+    k.input = "clear";
+    pe::submit(k);
+    if (!k.lines.empty() || k.submitHistory.size() != 2) {
+        std::cerr << "clear must wipe lines but keep submitHistory\n";
+        ok = false;
+    }
+    pe::feedKey(k, GLFW_KEY_UP, false);
+    if (k.input != "clear") {
+        std::cerr << "Recall must work after clear\n";
+        ok = false;
+    }
+    // A new submit resets historyPos to the end: Up recalls the newest.
+    k.input = "echo after";
+    pe::submit(k);
+    pe::feedKey(k, GLFW_KEY_UP, false);
+    if (k.input != "echo after") {
+        std::cerr << "Submit must reset historyPos to the end\n";
+        ok = false;
+    }
+    // drawConsole on a CLOSED console with empty lines: no-op, zero
+    // renderer calls (headless-safe — GL draw paths need a context).
+    pe::Console closed;
+    pe::Renderer r;
+    pe::Mat4 proj;
+    pe::drawConsole(r, proj, closed);
+    if (closed.open || !closed.lines.empty()) {
+        std::cerr << "Closed console must stay closed and empty\n";
+        ok = false;
+    }
+    return ok;
+}
+
 static bool checkAnimClipKeep() {
     std::map<std::string, pe::Animation> clips;
     pe::Animation a; a.name = "walk_left"; a.frames = {{0, 0.1f}};
@@ -5235,6 +5306,7 @@ int main() {
     const bool actionMapOk = checkActionMap();
     const bool textureRegOk = checkTextureRegistry();
     const bool consoleHistRecallOk = checkConsoleHistoryRecall();
+    const bool consoleContractOk = checkConsoleContract();
     const bool eventThrowOnceOk = checkEventThrowAndOnce();
     const bool eventGapOk = checkEventReentrantOnceGaps();
     const bool timeScaleOk = checkTimeScale();
@@ -5268,7 +5340,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

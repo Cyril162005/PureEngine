@@ -175,6 +175,12 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 # logic without changing PureEngine.exe's source, flags, or dependency set.
 add_executable(hostile_data_test
     tests/hostile_data_test.cpp
+    # Step 168: the console contract test references drawConsole ->
+    # drawTextString -> glad_gl* symbols; compile the already-fetched
+    # glad implementation unit (same pattern as resources_test). The
+    # closed-console draw path never CALLS the GL pointers, so the
+    # test stays headless-safe.
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
 add_test(NAME hostile_data_test COMMAND hostile_data_test)
 
