@@ -1687,6 +1687,20 @@
    ],
    "implementation": "src/scene.h saveSceneToFile/saveSceneManagerToFile explicit-path + rename-overwrite handling (+47); tests case 5e explicit-path save (+34).",
    "verification": "Build zero errors; ctest 1/1 Passed 1.46s before commit; post-commit sanity + alive pending push."
+  },
+  {
+   "id": 163,
+   "name": "Resources: load system contract test (failure-not-cached, copy independence, pack semantics)",
+   "status": "completed",
+   "definition_of_done": "checkResourceSystem headless contract test closes the gaps checkBinaryBlob (Step 101) left open: failed blob loads leave out empty + full-read prefix match on a committed asset, cache holds exactly the loaded entries (failure never cached, retry possible), returned copies are independent of the cache, pack v1 hit = pack file bytes, pack fallback = entryName direct file, both-missing = false, clearBinaryCache empties the map.",
+   "notes": "Contract defined and verified — engine code unchanged (the boundary already holds; gaps were test gaps only). Texture load paths need GL and stay covered by the Step 133 renderer test + in-game loads; 3-candidate CWD probe order guaranteed by construction (shared literal candidate list).",
+   "commit": "bf45f1b",
+   "depends_on": [
+    101,
+    133
+   ],
+   "implementation": "tests/hostile_data_test.cpp checkResourceSystem (+67) + explicit resources.h include; registered in main() + failure chain.",
+   "verification": "Build zero errors; ctest 1/1 Passed 9.06s (107 test-case functions); arcade/platformer/pong alive True."
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
