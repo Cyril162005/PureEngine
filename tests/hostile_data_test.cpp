@@ -4030,6 +4030,198 @@ static bool checkSceneManagerSave() {
     return ok;
 }
 
+// --- Increment (Scene/Persistence campaign): manager round-trip ---
+// First test for loadSceneManagerFromFile (the READ side of the "# scene
+// manager v1" index file). checkSceneManagerSave proved the WRITE path,
+// the index content, and per-scene round-trips; this proves the full
+// manager-level round-trip: save -> loadSceneManagerFromFile -> same
+// scene count/order, same current index, same entities, tilemap payload
+// restored. Adds refusal cases the writer test cannot cover: missing
+// index file, unknown index version, scenes-count mismatch.
+static bool checkSceneManagerRoundTrip() {
+    // 1. Cleanup prior artifacts FIRST (index + per-scene + tilemap +
+    //    .tmp in all three candidate spellings). The tilemap file is
+    //    re-created in step 2: rmArtifacts must run BEFORE the save/load
+    //    round-trip needs it, not between fixture creation and save (the
+    //    load-side loadTilemap probe reads it back off disk).
+    auto rmArtifacts = [&]() {
+        const char* prefixes[3] = {"assets/", "../assets/", "../../assets/"};
+        const char* names[4] = {"scene_manager_rt_test.txt", "scene_alpha.txt",
+                                "scene_beta.txt", "scene_gamma.txt"};
+        for (const char* p : prefixes) {
+            for (const char* n : names) {
+                std::remove((std::string(p) + n).c_str());
+                std::remove((std::string(p) + n + ".tmp").c_str());
+            }
+            std::remove((std::string(p) + "tilemap_rt_test.txt").c_str());
+        }
+    };
+    rmArtifacts();
+
+    // 2. Build a 3-scene manager; the middle scene carries a tilemap
+    //    payload; switch to the middle so current=1 (non-zero, non-last).
+    pe::SceneManager manager;
+    pe::Scene& alpha = pe::loadScene(manager, "alpha");
+    pe::Entity ea(pe::Vec3(1.0f, 2.0f, 0.0f), 0.5f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                  pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+    ea.roleId = 1;
+    ea.tag = "checkpoint";
+    alpha.entities = {ea};
+    pe::Scene& beta = pe::loadScene(manager, "beta");
+    pe::Entity eb(pe::Vec3(-1.0f, 0.5f, 0.0f), -1.2f, pe::Vec3(0.8f, 0.8f, 1.0f),
+                  pe::Vec3(0.4f, 0.4f, 0.0f), 2);
+    eb.roleId = 2;
+    pe::Entity ec(pe::Vec3(0.0f, -1.5f, 0.0f), 0.0f, pe::Vec3(0.5f, 0.5f, 1.0f),
+                  pe::Vec3(0.25f, 0.25f, 0.0f), 3);
+    ec.roleId = 2;
+    beta.entities = {eb, ec};
+    pe::Scene& gamma = pe::loadScene(manager, "gamma");
+    pe::Entity eg(pe::Vec3(3.0f, 3.0f, 0.0f), 2.0f, pe::Vec3(1.0f, 1.0f, 1.0f),
+                  pe::Vec3(0.5f, 0.5f, 0.0f), 1);
+    eg.roleId = 1;
+    gamma.entities = {eg};
+
+    // Tilemap payload for beta: a tiny 2x2 map written into the CWD's
+    // assets/ (loadTilemap's first probe candidate, same pattern the
+    // manager-save test uses). beta is RE-FIND via sceneByName because
+    // gamma's loadScene push_back above may reallocate manager.scenes and
+    // dangle the earlier beta reference (scene.h's POINTER INVALIDATION
+    // note — observed live: a stale alias wrote a moved-from empty map).
+    std::filesystem::create_directories("assets");
+    {
+        std::ofstream tm("assets/tilemap_rt_test.txt", std::ios::trunc);
+        if (!tm) { std::cerr << "manager round-trip test: tilemap write failed\n"; return false; }
+        tm << "width=2\nheight=2\ntileSize=1.0\nrow=1,0\nrow=0,1\n";
+    }
+    pe::Scene* betaSlot = pe::sceneByName(manager, "beta");
+    if (!betaSlot || !pe::loadTilemapIntoScene(*betaSlot, "tilemap_rt_test.txt")) {
+        std::cerr << "manager round-trip test: loadTilemapIntoScene failed\n";
+        std::remove("assets/tilemap_rt_test.txt");
+        return false;
+    }
+    if (!pe::switchTo(manager, "beta") || manager.current != 1) {
+        std::cerr << "manager round-trip test: switchTo beta failed\n";
+        std::remove("assets/tilemap_rt_test.txt");
+        return false;
+    }
+
+    // 3. Save the manager, then load it back through the real reader.
+    if (!pe::saveSceneManagerToFile(manager, "scene_manager_rt_test.txt")) {
+        std::cerr << "manager round-trip test: save failed\n";
+        rmArtifacts();
+        return false;
+    }
+    pe::SceneManager loaded;
+    if (!pe::loadSceneManagerFromFile("scene_manager_rt_test.txt", loaded)) {
+        std::cerr << "manager round-trip test: loadSceneManagerFromFile failed\n";
+        rmArtifacts();
+        return false;
+    }
+
+    // 4. Assert the manager-level round-trip: count, order, current,
+    //    entities, tilemap payload.
+    bool ok = true;
+    if (loaded.scenes.size() != 3) { std::cerr << "round-trip scene count\n"; ok = false; }
+    if (loaded.current != 1) { std::cerr << "round-trip current index\n"; ok = false; }
+    if (loaded.scenes.size() == 3) {
+        if (loaded.scenes[0].name != "alpha" || loaded.scenes[1].name != "beta" ||
+            loaded.scenes[2].name != "gamma") {
+            std::cerr << "round-trip scene order/names\n";
+            ok = false;
+        }
+        if (loaded.scenes[0].entities.size() != 1 ||
+            loaded.scenes[0].entities[0].roleId != 1 ||
+            loaded.scenes[0].entities[0].tag != "checkpoint" ||
+            !assertFloatClose(loaded.scenes[0].entities[0].position.x, 1.0f)) {
+            std::cerr << "round-trip alpha entity mismatch\n";
+            ok = false;
+        }
+        if (loaded.scenes[1].entities.size() != 2 ||
+            loaded.scenes[1].entities[0].roleId != 2 ||
+            loaded.scenes[1].entities[1].roleId != 2 ||
+            !assertFloatClose(loaded.scenes[1].entities[0].position.x, -1.0f)) {
+            std::cerr << "round-trip beta entity mismatch\n";
+            ok = false;
+        }
+        if (loaded.scenes[1].tilemap.width != 2 || loaded.scenes[1].tilemap.height != 2 ||
+            loaded.scenes[1].tilemap.tileSize != 1.0f ||
+            loaded.scenes[1].tilemap.tiles.size() != 4) {
+            std::cerr << "round-trip beta tilemap mismatch\n";
+            ok = false;
+        } else {
+            // Row-major, row 0 = TOP: tile (0,0) id 1 solid, (1,0) id 0
+            // empty, (0,1) id 0 empty, (1,1) id 1 solid.
+            const pe::Tile* t00 = pe::tileAt(loaded.scenes[1].tilemap, 0, 0);
+            const pe::Tile* t10 = pe::tileAt(loaded.scenes[1].tilemap, 1, 0);
+            const pe::Tile* t11 = pe::tileAt(loaded.scenes[1].tilemap, 1, 1);
+            if (!t00 || !t11 || !t10 ||
+                t00->tileId != 1 || !t00->solid ||
+                t10->tileId != 0 || t10->solid ||
+                t11->tileId != 1 || !t11->solid) {
+                std::cerr << "round-trip beta tilemap cells mismatch\n";
+                ok = false;
+            }
+        }
+        if (loaded.scenes[2].entities.size() != 1 ||
+            loaded.scenes[2].entities[0].roleId != 1 ||
+            !assertFloatClose(loaded.scenes[2].entities[0].position.x, 3.0f)) {
+            std::cerr << "round-trip gamma entity mismatch\n";
+            ok = false;
+        }
+    }
+
+    // 5. Refusal cases the writer test cannot cover.
+    // 5a. Empty index file name refuses.
+    if (pe::loadSceneManagerFromFile("", loaded)) {
+        std::cerr << "round-trip: empty file name must refuse\n";
+        ok = false;
+    }
+    // 5b. Missing index file refuses, loaded manager untouched.
+    {
+        pe::SceneManager untouched;
+        loaded.current = -2;  // sentinel the refusal must preserve
+        if (pe::loadSceneManagerFromFile("scene_manager_missing_test.txt", loaded) ||
+            loaded.current != -2) {
+            std::cerr << "round-trip: missing index file must refuse untouched\n";
+            ok = false;
+        }
+        untouched.current = -1; (void)untouched;  // keep -Wunused quiet on untouched
+    }
+    // 5c. Unknown index version ("# scene manager v99") refuses. References
+    //     a real per-scene file (written in step 3) so ONLY the version is
+    //     wrong.
+    {
+        const std::string bad = "assets/scene_manager_rt_badver.txt";
+        {
+            std::ofstream out(bad, std::ios::trunc);
+            out << "# scene manager v99\nscenes=1\ncurrent=0\nscene_file=scene_alpha.txt\n";
+        }
+        if (pe::loadSceneManagerFromFile("scene_manager_rt_badver.txt", loaded)) {
+            std::cerr << "round-trip: unknown index version must refuse\n";
+            ok = false;
+        }
+        std::remove(bad.c_str());
+        std::remove((bad + ".tmp").c_str());
+    }
+    // 5d. scenes-count mismatch (scenes=2 but 1 scene_file line) refuses.
+    {
+        const std::string bad = "assets/scene_manager_rt_badcount.txt";
+        {
+            std::ofstream out(bad, std::ios::trunc);
+            out << "# scene manager v1\nscenes=2\ncurrent=0\nscene_file=scene_alpha.txt\n";
+        }
+        if (pe::loadSceneManagerFromFile("scene_manager_rt_badcount.txt", loaded)) {
+            std::cerr << "round-trip: scenes-count mismatch must refuse\n";
+            ok = false;
+        }
+        std::remove(bad.c_str());
+        std::remove((bad + ".tmp").c_str());
+    }
+
+    rmArtifacts();
+    return ok;
+}
+
 // --- Increment 2 (Scene/Prefab/Persistence campaign): spawn-after-kill ---
 // Proves the no-erase contract under spawn-after-kill: the new entity is
 // APPENDED at a NEW index, the dead slot stays dead, every earlier index
@@ -4547,6 +4739,7 @@ int main() {
     const bool componentOk = checkComponentHelpers();
     const bool sceneDumpOk = checkSceneDumpReload();
     const bool managerSaveOk = checkSceneManagerSave();
+    const bool managerRoundTripOk = checkSceneManagerRoundTrip();
     const bool spawnAfterKillOk = checkSpawnAfterKill();
     const bool multiPersistOk = checkPrefabMultiSpawnPersist();
     const bool animClipKeepOk = checkAnimClipKeep();
@@ -4581,7 +4774,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }

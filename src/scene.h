@@ -611,6 +611,89 @@ inline bool saveSceneManagerToFile(const SceneManager& m, const std::string& fil
     return true;
 }
 
+// --- Increment (Scene/Persistence campaign): manager index loader ---
+// Read side of saveSceneManagerToFile's "# scene manager v1" index file:
+// scenes=<count>, current=<index>, one scene_file=<basename> line per
+// scene. Each scene_file is loaded through the real loadSceneFromFile
+// (its 3-candidate probe, so the manager round-trip works from any CWD
+// the per-scene files reach). Strict whole-file: duplicate scenes=/
+// current=, scenes-count mismatch, bad current index, any failed scene
+// load, or an unknown prefix -> false, out untouched. Missing header
+// defaults to v1; a seen-but-unknown version warns and fails (same
+// convention as loadSceneFromFile). No current scene is current=-1,
+// reusing the SceneManager field's own convention.
+inline bool loadSceneManagerFromFile(const std::string& fileName, SceneManager& out) {
+    if (fileName.empty()) return false;
+    const std::string candidates[3] = {"assets/" + fileName,
+                                       "../assets/" + fileName,
+                                       "../../assets/" + fileName};
+    std::ifstream in;
+    for (int i = 0; i < 3; ++i) {
+        in.open(candidates[i]);
+        if (in) break;
+        in.clear();
+    }
+    if (!in) return false;
+    SceneManager tmp;
+    int sceneCount = -1;  // -1 = scenes= not seen yet
+    int current = -2;     // -2 = current= not seen yet (current=-1 is valid data)
+    std::vector<std::string> sceneFiles;
+    int fileVersion = 1;
+    bool versionSeen = false;
+    std::string line;
+    while (std::getline(in, line)) {
+        const std::string t = sceneTrim(line);
+        if (t.empty()) continue;
+        if (t.rfind("#", 0) == 0) {
+            if (t.rfind("# scene manager v", 0) == 0) {
+                int v = 0;
+                if (sceneParseInt(sceneTrim(t.substr(17)), v)) {
+                    fileVersion = v;
+                    versionSeen = true;
+                }
+            }
+            continue;  // anything else starting with '#' stays a plain comment
+        }
+        if (t.rfind("scenes=", 0) == 0) {
+            if (sceneCount != -1) return false;  // duplicate
+            int v = 0;
+            if (!sceneParseInt(sceneTrim(t.substr(7)), v) || v <= 0) return false;
+            sceneCount = v;
+        } else if (t.rfind("current=", 0) == 0) {
+            if (current != -2) return false;  // duplicate
+            int v = 0;
+            if (!sceneParseInt(sceneTrim(t.substr(8)), v)) return false;
+            current = v;
+        } else if (t.rfind("scene_file=", 0) == 0) {
+            const std::string v = sceneTrim(t.substr(11));
+            if (v.empty()) return false;
+            sceneFiles.push_back(v);
+        } else {
+            return false;  // unknown prefix -> strict fail
+        }
+    }
+    if (versionSeen && fileVersion != 1) {
+        std::cerr << "loadSceneManagerFromFile: unknown scene manager version v"
+                  << fileVersion << " in " << fileName << " (expected v1)\n";
+        return false;
+    }
+    if (sceneCount == -1) return false;   // missing scenes=
+    if (current == -2) return false;      // missing current=
+    if (static_cast<int>(sceneFiles.size()) != sceneCount) return false;
+    if (current != -1 && (current < 0 || current >= sceneCount)) return false;
+    tmp.scenes.reserve(static_cast<std::size_t>(sceneCount));
+    for (const std::string& sceneFileName : sceneFiles) {
+        Scene loaded;
+        if (!loadSceneFromFile(sceneFileName, loaded)) {
+            return false;  // strict: any failed scene load rejects the manager
+        }
+        tmp.scenes.push_back(loaded);
+    }
+    tmp.current = current;
+    out = tmp;
+    return true;
+}
+
 }  // namespace pe
 
 #endif  // PUREENGINE_SCENE_H
