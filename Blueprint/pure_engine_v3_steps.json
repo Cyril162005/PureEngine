@@ -1714,6 +1714,19 @@
     56,
     58
    ]
+  },
+  {
+   "id": 165,
+   "name": "Camera followLerp contract (blend/convergence/overshoot/clamp)",
+   "status": "completed",
+   "definition_of_done": "checkFollowLerp: partial approach, convergence, upper clamp (huge dt), lower clamp (neg dt), z unchanged, additive with follow(). No src changes.",
+   "implementation": "tests/hostile_data_test.cpp: checkFollowLerp +70",
+   "verification": "cmake->EXIT=0; ctest 2/2 Passed (report 1/1 2.72s; new resources_test target landed from concurrent session); all games alive — alive re-check at final verify",
+   "commit": "feb7db3",
+   "depends_on": [
+    73
+   ],
+   "notes": "Split-stage: events session in-flight checkEventReentrantOnceGaps hunks (+105) + eventGapOk registration/chain left unstaged (staging the chain would reference their undefined test; rewriting their chain line would drop my token on their commit). followLerpOk registered but NOT yet in the failure chain — chain-gating lands with the events commit or a later pass (chain line owned by events in-flight edit)."
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
