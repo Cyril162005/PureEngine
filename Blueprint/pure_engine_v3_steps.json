@@ -1661,6 +1661,19 @@
    ],
    "implementation": "src/input.h keysForAllActions all[] += Action::Console; tests checkKeysForAllActions asserts 13-key default + GRAVE_ACCENT, remap assert 13->14.",
    "verification": "Build zero errors; checkKeysForAllActions PASSED (union 13, no dups; remap gains F1, SPACE stays); arcade/platformer/pong alive True. Working-tree CTest fails ONLY in scene session in-flight checkSceneManagerRoundTrip (round-trip beta tilemap mismatch) — test does not exist in committed state, unrelated to this step."
+  },
+  {
+   "id": 161,
+   "name": "Scene: loadSceneManagerToFile + manager round-trip",
+   "status": "completed",
+   "definition_of_done": "loadSceneManagerFromFile (v1/v2 manager parse, unknown-version guard) + checkSceneManagerRoundTrip test: save -> load -> identical state. Manager-save path symmetry now tested end to end.",
+   "notes": "Split-stage not needed: test file held scene-only hunks (3 hunks: new test + registration + assertion chain). Owner-staged platformer.cpp temporarily unstaged and restored after commit.",
+   "commit": "c8e40fc",
+   "depends_on": [
+    156
+   ],
+   "implementation": "src/scene.h loadSceneManagerFromFile +83; tests checkSceneManagerRoundTrip (round-trip beta tilemap/cells mismatch guards fixed by scene session, verified green before commit).",
+   "verification": "Fresh sanity BEFORE commit: build zero errors, ctest 1/1 Passed 2.28s (previous failure round-trip beta tilemap mismatch fixed by scene session). Arcade/platformer/pong alive re-check pending push; committed-tree green by build+ctest on identical worktree."
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -129,6 +129,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - ✓ Step 158: Input gamepad-action bridge — completed
 - ✓ Step 159: Input Action::Console (rebindable toggle, campaign complete) — completed
 - . Step 160: gamepad-action bridge adopted in games (Jump+Pause) + keysForAllActions union includes Action::Console (default 12->13, remap 13->14) — recorded (126 entries); adoption commits 3e51b8f/8bfd7e8 carry duplicate messages (tangle, left as-is); union follow-up 2cacf5f split-staged (scene in-flight test hunks left unstaged)
+- . Step 161: Scene loadSceneManagerFromFile + manager round-trip test — recorded (127 entries); fresh sanity green before commit (ctest 1/1 Passed 2.28s)
 - ✓ Step 158: Input gamepad-action bridge (fixed gamepadButtonsForAction mapping + optional GamepadState tails on isActionDown/Edge) — completed
 - ✓ Step 159: Input Action::Console (rebindable console toggle; loader maps console properly, pumps use isActionEdge(Console)) — completed
 
