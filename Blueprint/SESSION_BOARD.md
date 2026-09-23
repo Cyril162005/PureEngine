@@ -3,12 +3,21 @@
 Per-session rows; update your row when you start/stop. Claims need real
 command output behind them (see AGENTS.md reporting expectations).
 Feature history stays in pure_engine_v3_steps.json + PURE_ENGINE_V3.md —
-this board never replaces it. Highest step id: 159 (125 entries, 35–159,
+this board never replaces it. Highest step id: 163 (129 entries, 35–163,
 no dups).
+
+## Focus (binding for all sessions)
+- **ENGINE-FIRST**: work lands in `src/` + `tests/`; games only on explicit request.
+- **Main is the sole git commit/push.** Feature sessions implement → report;
+  main pathspec-stages only the reported files → commit → board/step/README →
+  sanity → push. No whole-repo `git add .`.
+- input/audio/physics/render/scene = **parked unless assigned**.
+- Next active system: **resources/assets pipeline** (Step 163 landed the load
+  system contract test; boundary verified, gaps were test gaps only).
 
 | Session | Owns | Status | Last update | Notes |
 |---------|------|--------|-------------|-------|
-| PureEngine_main | board, trackers, packaging/docs, catch-up counts, ONLY committer | active | 2026-09-21 | Input FINISHED REPORT processed: union fix split-staged (only union hunks; scene's in-flight round-trip hunks left unstaged), committed `2cacf5f`, pushed. Step 160 recorded (126 entries, 35–160). Working-tree CTest fails ONLY in scene's unstaged checkSceneManagerRoundTrip — not in committed state, unrelated to input fix. |
+| PureEngine_main | board, trackers, packaging/docs, catch-up counts, ONLY committer | active | 2026-09-21 | Step 163 recorded (resource load system contract test, `bf45f1b` + record `fa568da`); tree clean at push. Report flow exercised: pathspec-stage → commit → record → sanity → push. |
 | PureEngine_physics | physics.h, collision.h, simulation.h | parked | 2026-09-21 | P1–P6 landed (`df4ca52`, `c1919f6`, `3799fc9`) + P6-integration kinematic platform (`72af8f2`, lost content RESTORED as `8b8bfbd` statics-append — riders carried, controller treats platform as infinite mass). Kinematic carry complete at HEAD. Messages left as-is per no-rewrite ruling. |
 | PureEngine_input | input.h, gamepad.h | parked | 2026-09-21 | Campaign complete + union fix landed: `keysForAllActions()` includes Action::Console (default 12→13, remap test 13→14) — `2cacf5f`. Steps 154–159 recorded (`32125e9`…`54a7918`); Step 160 adoption + union recorded. Action::Console rebindable — campaign closed/parked. |
 | PureEngine_audio | audio.h | parked | 2026-09-21 | A1–A5 landed (`58b5b7c`, `20d8f05`, `a1d348b`, `2a5a181`); queryable load state + pool rotation proven. Resource load system contract (Step 163) verified the blob/pack/cache half headlessly; audio's 3-probe + unified failure line share the same contract by construction. |
