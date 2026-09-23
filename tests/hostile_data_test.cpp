@@ -4596,6 +4596,246 @@ static bool checkAnimClipKeep() {
     return true;
 }
 
+// --- Animation contract: load -> bind -> update -> switch -> loop/end -> failure ---
+// Covers the untested halves: loadAnimations parsing/failure, non-loop end,
+// zero-duration frame skip, not-playing no-ops, getCurrentFrame nullptrs.
+static bool checkAnimationSystem() {
+    bool ok = true;
+    const fs::path tmpDir = fs::temp_directory_path() / "pureengine_animation_test";
+    fs::create_directories(tmpDir);
+
+    // 1) Valid load: absolute path bypasses the probe (Step-34 pattern).
+    const fs::path goodPath = tmpDir / "__pureengine_anim_good___.txt";
+    if (!writeFile(goodPath,
+            "# comment and blank line tolerated\n"
+            "\n"
+            "animation=walk_left,4,0.1,true\n"
+            "animation=attack,2,0.25,false\n")) {
+        std::cerr << "animation test: good file write failed\n";
+        return false;
+    }
+    const std::map<std::string, pe::Animation> loaded = pe::loadAnimations(goodPath.string());
+    if (loaded.size() != 2) {
+        std::cerr << "loadAnimations expected 2 clips, got " << loaded.size() << "\n";
+        return false;
+    }
+    auto walk = loaded.find("walk_left");
+    auto attack = loaded.find("attack");
+    if (walk == loaded.end() || attack == loaded.end()) {
+        std::cerr << "loadAnimations lost a named clip\n";
+        return false;
+    }
+    if (walk->second.frames.size() != 4 || walk->second.loops != true ||
+        !assertFloatClose(walk->second.totalDuration, 0.4f) ||
+        walk->second.frames[2].frameIndex != 2 ||
+        !assertFloatClose(walk->second.frames[0].duration, 0.1f)) {
+        std::cerr << "loadAnimations walk_left fields wrong\n";
+        return false;
+    }
+    if (attack->second.frames.size() != 2 || attack->second.loops != false ||
+        !assertFloatClose(attack->second.totalDuration, 0.5f)) {
+        std::cerr << "loadAnimations attack fields wrong\n";
+        return false;
+    }
+
+    // 2) Malformed lines: skipped with a warning, parsing continues;
+    // bad count/duration/loop flag each skip their own entry.
+    const fs::path badPath = tmpDir / "__pureengine_anim_bad___.txt";
+    if (!writeFile(badPath,
+            "not an animation line\n"
+            "animation=\n"
+            "animation=zero_count,0,0.1,true\n"
+            "animation=bad_duration,2,abc,true\n"
+            "animation=bad_loop,2,0.1,perhaps\n"
+            "animation=garbled_count,2x,0.1,true\n"
+            "animation=good_after_bad,3,0.05,false\n")) {
+        std::cerr << "animation test: bad file write failed\n";
+        return false;
+    }
+    const std::map<std::string, pe::Animation> bad = pe::loadAnimations(badPath.string());
+    if (bad.size() != 1 || bad.find("good_after_bad") == bad.end() ||
+        bad.find("zero_count") != bad.end() ||
+        bad.find("bad_duration") != bad.end() ||
+        bad.find("bad_loop") != bad.end() ||
+        bad.find("garbled_count") != bad.end()) {
+        std::cerr << "Malformed animation entries did not skip cleanly\n";
+        return false;
+    }
+
+    // 3) Duplicate names: last wins.
+    const fs::path dupPath = tmpDir / "__pureengine_anim_dup___.txt";
+    if (!writeFile(dupPath,
+            "animation=dup,2,0.1,true\n"
+            "animation=dup,5,0.2,false\n")) {
+        std::cerr << "animation test: dup file write failed\n";
+        return false;
+    }
+    const std::map<std::string, pe::Animation> dup = pe::loadAnimations(dupPath.string());
+    if (dup.size() != 1 || dup.find("dup") == dup.end() ||
+        dup.find("dup")->second.frames.size() != 5 ||
+        dup.find("dup")->second.loops != false) {
+        std::cerr << "Duplicate animation name: last wins failed\n";
+        return false;
+    }
+
+    // 4) Missing file: empty map (warning, no crash).
+    const fs::path missingPath = tmpDir / "__definitely_no_anim___.txt";
+    if (fs::exists(missingPath)) {
+        fs::remove(missingPath);
+    }
+    const std::map<std::string, pe::Animation> none = pe::loadAnimations(missingPath.string());
+    if (!none.empty()) {
+        std::cerr << "Missing animation file must load an empty map\n";
+        return false;
+    }
+
+    // 5) Bind to entity: setClip on an empty map fails, state untouched.
+    pe::Entity e;
+    if (pe::setClip(e, none, "walk_left")) {
+        std::cerr << "setClip on empty map must fail\n";
+        return false;
+    }
+    if (e.animationState.currentAnimation != nullptr || e.animationState.isPlaying) {
+        std::cerr << "Failed setClip mutated state\n";
+        return false;
+    }
+    if (!pe::setClip(e, loaded, "walk_left")) {
+        std::cerr << "setClip from loaded map failed\n";
+        return false;
+    }
+    if (e.animationState.currentAnimation != &walk->second ||
+        e.animationState.currentFrameIndex != 0 || !e.animationState.isPlaying) {
+        std::cerr << "setClip did not bind to the loaded clip\n";
+        return false;
+    }
+
+    // 6) Loop wrap: 4 frames at 0.1s loop -> frame 0 again, still playing.
+    for (int i = 0; i < 3; ++i) {
+        if (e.animationState.update(0.1f)) {
+            std::cerr << "Looping animation must not report finished\n";
+            return false;
+        }
+        if (e.animationState.currentFrameIndex != i + 1 || !e.animationState.isPlaying) {
+            std::cerr << "Frame did not advance to " << i + 1 << " after one duration\n";
+            return false;
+        }
+    }
+    if (e.animationState.update(0.1f)) {
+        std::cerr << "Looping animation must not report finished (2)\n";
+        return false;
+    }
+    if (e.animationState.currentFrameIndex != 0) {
+        std::cerr << "Looping animation did not wrap to frame 0\n";
+        return false;
+    }
+
+    // 7) Switch clip mid-play: playhead resets to the new clip's frame 0.
+    e.animationState.elapsedTime = 0.05f;
+    if (!pe::setClip(e, loaded, "attack")) {
+        std::cerr << "Mid-play switch failed\n";
+        return false;
+    }
+    if (e.animationState.currentAnimation->name != "attack" ||
+        e.animationState.currentFrameIndex != 0 ||
+        !assertFloatClose(e.animationState.elapsedTime, 0.0f)) {
+        std::cerr << "Mid-play switch did not reset the playhead\n";
+        return false;
+    }
+
+    // 8) Non-loop end: consumes the last frame, reports finished once,
+    // then stops updating.
+    if (e.animationState.update(0.25f) || e.animationState.currentFrameIndex != 1) {
+        std::cerr << "Non-loop first frame did not advance\n";
+        return false;
+    }
+    if (!e.animationState.update(0.25f)) {
+        std::cerr << "Non-loop end must report finished\n";
+        return false;
+    }
+    if (e.animationState.isPlaying) {
+        std::cerr << "Finished non-loop must stop playing\n";
+        return false;
+    }
+    if (e.animationState.update(0.25f)) {
+        std::cerr << "Stopped animation must stay stopped\n";
+        return false;
+    }
+
+    // 9) Zero-duration frames: skipped without consuming time, never hang.
+    pe::Animation skip;
+    skip.name = "skip";
+    skip.frames = {{0, 0.0f}, {1, 0.05f}};
+    skip.loops = true;
+    e.animationState.currentAnimation = &skip;
+    e.animationState.currentFrameIndex = 0;
+    e.animationState.elapsedTime = 0.0f;
+    e.animationState.isPlaying = true;
+    if (e.animationState.update(0.02f)) {
+        std::cerr << "Skip animation must not report finished\n";
+        return false;
+    }
+    if (e.animationState.currentFrameIndex != 1) {
+        std::cerr << "Zero-duration frame was not skipped\n";
+        return false;
+    }
+
+    // 10) Not playing / no animation: update is a no-op returning false.
+    e.animationState.isPlaying = false;
+    e.animationState.currentFrameIndex = 0;
+    e.animationState.elapsedTime = 0.0f;
+    if (e.animationState.update(0.016f) || e.animationState.currentFrameIndex != 0 ||
+        !assertFloatClose(e.animationState.elapsedTime, 0.0f)) {
+        std::cerr << "Not-playing update must be a no-op\n";
+        return false;
+    }
+    e.animationState.isPlaying = true;
+    e.animationState.currentAnimation = nullptr;
+    if (e.animationState.update(0.016f)) {
+        std::cerr << "No-animation update must return false\n";
+        return false;
+    }
+
+    // 11) getCurrentFrame nullptr cases: no animation, empty list,
+    // out-of-range index.
+    if (e.animationState.getCurrentFrame() != nullptr) {
+        std::cerr << "No-animation getCurrentFrame must be nullptr\n";
+        return false;
+    }
+    pe::Animation empty;
+    e.animationState.currentAnimation = &empty;
+    if (e.animationState.getCurrentFrame() != nullptr) {
+        std::cerr << "Empty-clip getCurrentFrame must be nullptr\n";
+        return false;
+    }
+    e.animationState.currentAnimation = &walk->second;
+    e.animationState.currentFrameIndex = 99;
+    if (e.animationState.getCurrentFrame() != nullptr) {
+        std::cerr << "Out-of-range getCurrentFrame must be nullptr\n";
+        return false;
+    }
+
+    // 12) Caller-applied speed: update(dt * animationSpeed) contract from
+    // main.cpp:1679 — speed 0 freezes playback (no crash, no advance).
+    e.animationState.currentFrameIndex = 0;
+    e.animationState.elapsedTime = 0.0f;
+    e.animationState.isPlaying = true;
+    if (e.animationState.update(0.1f * 0.0f)) {
+        std::cerr << "Zero-speed update must not report finished\n";
+        return false;
+    }
+    if (e.animationState.currentFrameIndex != 0) {
+        std::cerr << "Zero-speed update must not advance\n";
+        return false;
+    }
+
+    fs::remove(goodPath);
+    fs::remove(badPath);
+    fs::remove(dupPath);
+    fs::remove(missingPath);
+    fs::remove(tmpDir);
+    return ok;
+}
+
 static bool checkScenePointerStability() {
     pe::SceneManager m;
     m.scenes.reserve(4);
@@ -4843,6 +5083,7 @@ int main() {
     const bool spawnAfterKillOk = checkSpawnAfterKill();
     const bool multiPersistOk = checkPrefabMultiSpawnPersist();
     const bool animClipKeepOk = checkAnimClipKeep();
+    const bool animationSystemOk = checkAnimationSystem();
     const bool scenePtrOk = checkScenePointerStability();
     const bool persistV2Ok = checkScenePersistenceV2();
     const bool persistComposeOk = checkPrefabScenePersist();
@@ -4874,7 +5115,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
