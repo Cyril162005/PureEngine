@@ -3062,6 +3062,75 @@ static bool checkScreenToWorld() {
     return ok;
 }
 
+// --- Step 73/83: followLerp contract (headless, pure camera math) ---
+// Exponential approach toward the target with the blend clamped to
+// [0,1]: low-fps frames land ON the target (no overshoot), negative/
+// zero dt leaves the position untouched, and repeated calls converge.
+// Additive: follow() snap semantics are untouched (checked last).
+static bool checkFollowLerp() {
+    bool ok = true;
+    // Partial approach: camera (0,0) -> target (10,0), dt=0.1 speed=5
+    // gives blend = 0.5, so the camera covers exactly half the gap.
+    pe::Camera cam;
+    cam.followLerp(pe::Vec3(10.0f, 0.0f, 0.0f), 0.1f);
+    const pe::Vec3& p1 = cam.getPosition();
+    if (!assertFloatClose(p1.x, 5.0f) || !assertFloatClose(p1.y, 0.0f)) {
+        std::cerr << "followLerp must approach by speed*dt fraction\n";
+        ok = false;
+    }
+    // Repeated calls converge: blend 0.5 per call halves the gap; after
+    // 20 calls the remainder is below the assert tolerance.
+    for (int i = 0; i < 20; ++i) {
+        cam.followLerp(pe::Vec3(10.0f, 0.0f, 0.0f), 0.1f);
+    }
+    if (!assertFloatClose(p1.x, 10.0f) || !assertFloatClose(p1.y, 0.0f)) {
+        std::cerr << "followLerp must converge to the target\n";
+        ok = false;
+    }
+    // Upper clamp: huge dt clamps blend to 1 — the camera lands exactly
+    // ON the target in one step, never past it (no overshoot).
+    pe::Camera lowFps;
+    lowFps.followLerp(pe::Vec3(-4.0f, 3.0f, 0.0f), 100.0f);
+    const pe::Vec3& p2 = lowFps.getPosition();
+    if (!assertFloatClose(p2.x, -4.0f) || !assertFloatClose(p2.y, 3.0f)) {
+        std::cerr << "followLerp large dt must land on target, no overshoot\n";
+        ok = false;
+    }
+    // Lower clamp: negative dt clamps blend to 0 — position untouched.
+    pe::Camera negDt;
+    negDt.follow(pe::Vec3(1.0f, 2.0f, 0.0f));
+    negDt.followLerp(pe::Vec3(50.0f, 50.0f, 0.0f), -0.5f);
+    const pe::Vec3& p3 = negDt.getPosition();
+    if (!assertFloatClose(p3.x, 1.0f) || !assertFloatClose(p3.y, 2.0f)) {
+        std::cerr << "followLerp negative dt must leave position untouched\n";
+        ok = false;
+    }
+    // Zero dt: no movement either.
+    negDt.followLerp(pe::Vec3(50.0f, 50.0f, 0.0f), 0.0f);
+    if (!assertFloatClose(p3.x, 1.0f) || !assertFloatClose(p3.y, 2.0f)) {
+        std::cerr << "followLerp zero dt must leave position untouched\n";
+        ok = false;
+    }
+    // Only x/y move: the camera's z stays at the world origin even when
+    // the target carries a z.
+    pe::Camera zCam;
+    zCam.followLerp(pe::Vec3(4.0f, 4.0f, 7.0f), 100.0f);
+    const pe::Vec3& p4 = zCam.getPosition();
+    if (!assertFloatClose(p4.z, 0.0f)) {
+        std::cerr << "followLerp must not move the camera z\n";
+        ok = false;
+    }
+    // Additive contract: follow() still snaps exactly after followLerp
+    // use — the two methods stay independent.
+    zCam.followLerp(pe::Vec3(4.0f, 4.0f, 0.0f), 0.05f);
+    zCam.follow(pe::Vec3(9.0f, -9.0f, 0.0f));
+    if (!assertFloatClose(p4.x, 9.0f) || !assertFloatClose(p4.y, -9.0f)) {
+        std::cerr << "follow must snap exactly after followLerp use\n";
+        ok = false;
+    }
+    return ok;
+}
+
 // --- Step 126: world-to-screen conversion (headless, known numbers) ---
 // Pure math mirroring checkScreenToWorld, plus round-trip proofs
 // against screenToUi in both directions â€” no GLFW, no device.
@@ -5091,6 +5160,7 @@ int main() {
     const bool persistV99Ok = checkSceneVersionUnknown();
     const bool lifecycleOk = checkEntityLifecycle();
     const bool frameUvOk = checkFrameUV();
+    const bool followLerpOk = checkFollowLerp();
     const bool lightingCapOk = checkLightingCap();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
