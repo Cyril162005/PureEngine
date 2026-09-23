@@ -1674,6 +1674,19 @@
    ],
    "implementation": "src/scene.h loadSceneManagerFromFile +83; tests checkSceneManagerRoundTrip (round-trip beta tilemap/cells mismatch guards fixed by scene session, verified green before commit).",
    "verification": "Fresh sanity BEFORE commit: build zero errors, ctest 1/1 Passed 2.28s (previous failure round-trip beta tilemap mismatch fixed by scene session). Arcade/platformer/pong alive re-check pending push; committed-tree green by build+ctest on identical worktree."
+  },
+  {
+   "id": 162,
+   "name": "Scene: manager save path symmetry + Windows re-save rename fix",
+   "status": "completed",
+   "definition_of_done": "saveSceneManagerToFile honors an explicit path (path symmetry with saveSceneToFile); fs::rename re-save fix in both saveSceneToFile and saveSceneManagerToFile (Windows cannot rename onto an existing file — re-save clobbered the target); test case 5e covers explicit-path save + .tmp cleanup.",
+   "notes": "Scene campaign complete: load (161) + path symmetry + re-save (162). Fresh sanity green before commit (ctest 1/1 Passed 1.46s) after prior in-flight failure (round-trip: explicit-path save failed) was fixed by scene session.",
+   "commit": "a1824af",
+   "depends_on": [
+    161
+   ],
+   "implementation": "src/scene.h saveSceneToFile/saveSceneManagerToFile explicit-path + rename-overwrite handling (+47); tests case 5e explicit-path save (+34).",
+   "verification": "Build zero errors; ctest 1/1 Passed 1.46s before commit; post-commit sanity + alive pending push."
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
