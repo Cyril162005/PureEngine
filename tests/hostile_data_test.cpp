@@ -4217,6 +4217,40 @@ static bool checkSceneManagerRoundTrip() {
         std::remove(bad.c_str());
         std::remove((bad + ".tmp").c_str());
     }
+    // 5e. Explicit-path save (path symmetry): the index honors a given
+    //     savedata/ path directly (directory auto-created), the same
+    //     explicit branch saveSceneToFile has. The manager here still
+    //     holds 3 scenes with current=1, so the content assert doubles as
+    //     a write-path proof (loader probe round-trip is case 3/4).
+    {
+        const std::string explicitPath = "savedata/scene_manager_sym_test.txt";
+        std::remove(explicitPath.c_str());
+        std::remove((explicitPath + ".tmp").c_str());
+        if (!pe::saveSceneManagerToFile(manager, explicitPath)) {
+            std::cerr << "round-trip: explicit-path save failed\n";
+            ok = false;
+        } else {
+            std::ifstream in(explicitPath);
+            if (!in) {
+                std::cerr << "round-trip: explicit-path index not written\n";
+                ok = false;
+            } else {
+                std::string line;
+                bool header = false, scenes = false, current = false;
+                while (std::getline(in, line)) {
+                    if (line == "# scene manager v1") header = true;
+                    if (line == "scenes=3") scenes = true;
+                    if (line == "current=1") current = true;
+                }
+                if (!header || !scenes || !current) {
+                    std::cerr << "round-trip: explicit-path index content wrong\n";
+                    ok = false;
+                }
+            }
+        }
+        std::remove(explicitPath.c_str());
+        std::remove((explicitPath + ".tmp").c_str());
+    }
 
     rmArtifacts();
     return ok;

@@ -378,7 +378,15 @@ inline bool saveSceneToFile(const Scene& s, const std::string& fileName) {
     }
     out.close();
     if (!out) { std::remove(tmpPath.c_str()); return false; }
-    if (std::rename(tmpPath.c_str(), writePath.c_str()) != 0) {
+    // std::filesystem::rename, not stdio rename: C rename() fails when the
+    // destination already exists on Windows, which broke every re-save of
+    // the same file (verified: save #2 with an existing destination
+    // returned false). fs::rename replaces existing files and is atomic
+    // on the same volume — tmp sits next to the destination — so the
+    // tmp+rename save stays atomic.
+    std::error_code renameEc;
+    std::filesystem::rename(tmpPath, writePath, renameEc);
+    if (renameEc) {
         std::remove(tmpPath.c_str());
         return false;
     }
@@ -586,11 +594,40 @@ inline bool loadSceneFromFile(const std::string& fileName, Scene& out) {
 
 inline bool saveSceneManagerToFile(const SceneManager& m, const std::string& fileName) {
     if (fileName.empty()) return false;
+    // Path handling mirrors saveSceneToFile: explicit paths (savedata/...)
+    // are honored directly (directory auto-created); bare names probe
+    // assets/, ../assets/, ../../assets/ — the same 3-candidate probe the
+    // per-scene saves and loadSceneManagerFromFile use, so the manager
+    // index round-trips from any CWD the per-scene files reach.
+    const bool explicitPath = fileName.find('/') != std::string::npos ||
+                              fileName.find('\\') != std::string::npos ||
+                              (fileName.size() > 1 && fileName[1] == ':');
+    std::string writePath;
+    std::string tmpPath;
+    std::ofstream out;
+    if (explicitPath) {
+        const std::size_t slash = fileName.find_last_of("/\\");
+        if (slash != std::string::npos) {
+            const std::string dir = fileName.substr(0, slash);
+            std::error_code ec;
+            std::filesystem::create_directories(dir, ec);
+        }
+        writePath = fileName;
+        tmpPath = writePath + ".tmp";
+        out.open(tmpPath, std::ios::binary | std::ios::trunc);
+        if (!out) return false;
+    } else {
+        const std::string dirs[3] = {"assets/", "../assets/", "../../assets/"};
+        for (int i = 0; i < 3; ++i) {
+            writePath = dirs[i] + fileName;
+            tmpPath = writePath + ".tmp";
+            out.open(tmpPath, std::ios::binary | std::ios::trunc);
+            if (out) break;
+            out.clear();
+        }
+        if (!out) return false;
+    }
     // Simple index file: list scene files, one per line
-    const std::string writePath = std::string("assets/") + fileName;
-    const std::string tmpPath = writePath + ".tmp";
-    std::ofstream out(tmpPath, std::ios::binary | std::ios::trunc);
-    if (!out) return false;
     out << "# scene manager v1\n";
     out << "scenes=" << m.scenes.size() << "\n";
     out << "current=" << m.current << "\n";
@@ -604,7 +641,13 @@ inline bool saveSceneManagerToFile(const SceneManager& m, const std::string& fil
     }
     out.close();
     if (!out) { std::remove(tmpPath.c_str()); return false; }
-    if (std::rename(tmpPath.c_str(), writePath.c_str()) != 0) {
+    // Same fs::rename fix as saveSceneToFile: C rename() fails when the
+    // destination exists on Windows (broke every re-save of the same
+    // manager index). fs::rename replaces existing files, atomic on the
+    // same volume.
+    std::error_code renameEc;
+    std::filesystem::rename(tmpPath, writePath, renameEc);
+    if (renameEc) {
         std::remove(tmpPath.c_str());
         return false;
     }
