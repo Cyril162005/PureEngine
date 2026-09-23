@@ -1701,6 +1701,19 @@
    ],
    "implementation": "tests/hostile_data_test.cpp checkResourceSystem (+67) + explicit resources.h include; registered in main() + failure chain.",
    "verification": "Build zero errors; ctest 1/1 Passed 9.06s (107 test-case functions); arcade/platformer/pong alive True."
+  },
+  {
+   "id": 164,
+   "name": "Animation system contract (load/bind/update/switch/loop/end)",
+   "status": "completed",
+   "definition_of_done": "checkAnimationSystem covers: valid parse, malformed skip, duplicate names, missing file, bind/switch/loop/non-loop/zero-duration/speed-freeze. No engine source changes.",
+   "implementation": "tests/hostile_data_test.cpp: checkAnimationSystem cases 1-12",
+   "verification": "cmake->EXIT=0; ctest 1/1 Passed 2.15s (report) — re-verified at commit: 2/2 Passed 1.72s (new resources_test target from concurrent session); PureEngine/Platformer/Pong alive",
+   "commit": "2e11c78",
+   "depends_on": [
+    56,
+    58
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
