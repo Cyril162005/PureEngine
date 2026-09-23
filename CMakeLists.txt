@@ -203,6 +203,36 @@ add_custom_command(TARGET hostile_data_test POST_BUILD
         "$<TARGET_FILE_DIR:hostile_data_test>/assets/prefabs"
 )
 
+# Resources session: dedicated headless resources contract test target.
+# Exercises the WHOLE pe::resources boundary (blob/pack/cache/probe +
+# the texture failure path) as one coherent system, with no GL context
+# or window — the texture all-miss path makes no GL calls. Same fetched
+# dependency pattern as hostile_data_test (stb implementation unit +
+# glad, no new deps; no miniaudio: the resources boundary touches no
+# audio symbols).
+add_executable(resources_test
+    tests/resources_test.cpp
+    src/stb_impl.cpp
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
+)
+target_include_directories(resources_test PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(resources_test PRIVATE "${stb_SOURCE_DIR}")
+add_test(NAME resources_test COMMAND resources_test)
+
+# Blob fixtures for the test: beep.wav + prefabs/ so the 3-candidate
+# probe finds real committed assets from any CWD (mirrors the
+# hostile_data_test fixture pattern). Runtime-written temp fixtures are
+# cleaned up by the test itself.
+add_custom_command(TARGET resources_test POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:resources_test>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/beep.wav"
+        "$<TARGET_FILE_DIR:resources_test>/assets/beep.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/prefabs"
+        "$<TARGET_FILE_DIR:resources_test>/assets/prefabs"
+)
+
 # Keep the test translation unit scoped to the exact header it needs.
 # This avoids exposing the whole src/ directory, which is what makes
 # src/time.h shadow the CRT's time.h during compilation.

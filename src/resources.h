@@ -37,6 +37,33 @@
  * change. stb_image follows the Step 10 declare-everywhere /
  * define-once pattern — declarations here, the ONE implementation in
  * src/stb_impl.cpp.
+ *
+ * CONTRACT (verified 2026-09-22, MSVC 19.44 / C++17; locked by
+ * tests/resources_test.cpp + hostile_data_test checkResourceSystem):
+ *   PROBE  — every loader probes the same 3 CWD-relative candidates in
+ *            order (assets/<name>, ../assets/<name>, ../../assets/<name>);
+ *            the first open that succeeds wins; a directory is never a
+ *            success (MSVC ifstream.open on a directory fails).
+ *   FAILURE— loadBinaryBlob/loadPackEntry return false and leave `out`
+ *            empty; a failed load never enters the cache (retry stays
+ *            possible). loadRgbTexture/loadRgbaTexture return GL name 0
+ *            when all three decodes missed; that path makes NO GL calls,
+ *            so it is headless-safe.
+ *   CACHE  — binaryCache() is process-lifetime and single-threaded; it
+ *            holds exactly the successfully loaded blobs, keyed by the
+ *            requested name. loadBinaryBlobCached returns an independent
+ *            copy. Cached bytes are a snapshot: file changes are not
+ *            re-read until clearBinaryCache(). A 0-byte file is a
+ *            successful load with an empty out.
+ *   OWNERSHIP — GPU: texture loaders hand back a GL name and forget it;
+ *            the caller owns and deletes it (deleting 0 is a safe
+ *            no-op); the loaded texture is left bound to GL_TEXTURE_2D.
+ *            CPU: blob/pack fill the caller's vector; the caller owns
+ *            its copy and the cache retains its own.
+ *   CALLERS MAY ASSUME — success needs only the CWD-relative assets
+ *            bundle (no absolute paths, no env vars); pack v1 hit = the
+ *            pack file's own bytes (entryName ignored); pack fallback =
+ *            entryName as a direct file; both missing = false.
  */
 #ifndef PUREENGINE_RESOURCES_H
 #define PUREENGINE_RESOURCES_H
