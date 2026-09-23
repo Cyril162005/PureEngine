@@ -1751,6 +1751,19 @@
    "depends_on": [
     91
    ]
+  },
+  {
+   "id": 168,
+   "name": "Console contract gaps (wrap cap, empty-history recall, submitHistory-vs-clear, closed-console no-op)",
+   "status": "completed",
+   "definition_of_done": "checkConsoleContract closes the halves the five checkConsole* tests left open: Step 95 wrap splits long lines to 38-col pieces with the 64-line cap enforced under wrapped submits, Up/Down recall is a no-op on empty submitHistory, submitHistory survives clear (lines wiped only), a new submit resets historyPos to the end, drawConsole on a CLOSED console with empty lines is a no-op making zero renderer calls (headless-safe).",
+   "notes": "First build FAILED: LNK2019 glad_gl* unresolved in drawTextString — the console contract test references drawConsole -> drawTextString -> glad symbols; fixed by compiling the already-fetched glad_gl.c into hostile_data_test (same pattern as resources_test; closed-console path never CALLS the GL pointers). Registration idempotency/unknown-command/feedKey/history-cap already covered by existing tests.",
+   "commit": "2d2bdcf",
+   "depends_on": [
+    68,
+    95,
+    144
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
