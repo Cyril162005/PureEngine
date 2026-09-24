@@ -211,6 +211,40 @@ public:
     }
 
     // ------------------------------------------------------------------
+    // Builder: PERSPECTIVE PROJECTION (Step 191 — the 2D+3D goal's math
+    // baseline; explicit user-requested scope expansion). The standard GL
+    // perspective: maps a view frustum to clip space, near plane at
+    // z=-near, far at z=-far in view space. fovyRadians is the VERTICAL
+    // field of view; aspect = width/height.
+    //
+    // Storage matches this file's column-major convention (row index is
+    // SECOND): m[0][0] = f/aspect, m[1][1] = f, m[2][2] = (far+near)/
+    // (near-far), m[3][2] = (2*far*near)/(near-far), m[2][3] = -1 (the
+    // row that makes w' = -z — the GPU divides by w in hardware after
+    // the vertex shader, so no divide code is needed anywhere, per the
+    // Step 6 ruling below).
+    //
+    // NOT constexpr: std::tan runs at runtime on MSVC (same reason
+    // lookAt is not constexpr). All existing 2D orthographic paths are
+    // untouched — this builder is purely additive and unused until a
+    // caller opts in.
+    //
+    // Caller contract: near > 0 and far > near (a degenerate frustum
+    // divides by zero — the caller passes sane values; no guard here,
+    // same minimal-helper discipline as the rest of pe::math).
+    // ------------------------------------------------------------------
+    static Mat4 perspective(float fovyRadians, float aspect, float near, float far) {
+        const float f = 1.0f / std::tan(fovyRadians * 0.5f);
+        Mat4 result;                      // starts as identity
+        result.m[0][0] = f / aspect;
+        result.m[1][1] = f;
+        result.m[2][2] = (far + near) / (near - far);
+        result.m[3][2] = (2.0f * far * near) / (near - far);
+        result.m[2][3] = -1.0f;           // w' = -z: the perspective row
+        return result;
+    }
+
+    // ------------------------------------------------------------------
     // Matrix * Matrix. THE composition operation: applying (this * other)
     // to a vertex is identical to applying 'other' FIRST and 'this' SECOND.
     // Multiplication is NOT commutative: T*R != R*T (translate-then-rotate

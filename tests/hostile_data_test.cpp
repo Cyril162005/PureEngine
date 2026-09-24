@@ -5723,6 +5723,51 @@ static bool checkTimeScale() {
 // scaledTick multiplies by scale, scale 0 gives 0 unpaused, and
 // consecutive ticks never go negative (monotonic clock by
 // construction). No game slow-mo features — mechanism only.
+// Step 191: 3D math baseline (headless). Locks the new perspective
+// builder and the existing lookAt without touching any 2D path:
+// perspective entries finite (no NaN/inf) with the standard GL shape
+// (m[2][3] == -1, m[3][1] == 0), lookAt basis orthonormal-ish (columns
+// of the 3x3 part: pairwise dots ~0, magnitudes ~1), multiply
+// consistency (associativity of operator* on perspective/lookAt/ortho).
+// The w divide is hardware-side per the Step 6 ruling - the CPU
+// transformPoint helper needs none.
+static bool checkPerspective() {
+    bool ok = true;
+    auto finite = [](const pe::Mat4& m) {
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
+            const float v = m.m[c][r];
+            if (!(v == v) || v > 1e30f || v < -1e30f) return false;
+        }
+        return true;
+    };
+    const pe::Mat4 persp = pe::Mat4::perspective(1.0472f, 16.0f/9.0f, 0.1f, 100.0f);
+    if (!finite(persp)) { std::cerr << "Perspective entries must be finite\n"; ok = false; }
+    if (persp.m[2][3] != -1.0f || persp.m[3][1] != 0.0f) {
+        std::cerr << "Perspective must have the standard GL shape\n"; ok = false;
+    }
+    // lookAt basis orthonormal-ish.
+    const pe::Mat4 view = pe::Mat4::lookAt(pe::Vec3(0,0,5), pe::Vec3(0,0,0), pe::Vec3(0,1,0));
+    if (!finite(view)) { std::cerr << "lookAt entries must be finite\n"; ok = false; }
+    auto dot = [](const pe::Mat4& m, int c0, int c1) {
+        float s = 0;
+        for (int r = 0; r < 3; ++r) s += m.m[c0][r] * m.m[c1][r];
+        return s;
+    };
+    if (!assertFloatClose(dot(view,0,1), 0.0f) || !assertFloatClose(dot(view,0,2), 0.0f) ||
+        !assertFloatClose(dot(view,1,2), 0.0f)) {
+        std::cerr << "lookAt basis must be orthonormal-ish\n"; ok = false;
+    }
+    // Multiply consistency: associativity on the 3D matrices.
+    const pe::Mat4 vp1 = (persp * view) * view;
+    const pe::Mat4 vp2 = persp * (view * view);
+    for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
+        if (!assertFloatClose(vp1.m[c][r], vp2.m[c][r])) {
+            std::cerr << "operator* must be associative\n"; ok = false; c = 4; break;
+        }
+    }
+    return ok;
+}
+
 // Step 190: WindowGuard bootstrap helper (headless). Locks the
 // failure-path contract: a null-window guard is a no-op with zero
 // GLFW calls, release() detaches so the caller keeps the window and
@@ -6485,6 +6530,7 @@ int main() {
     const bool timeScaleOk = checkTimeScale();
     const bool timeContractOk = checkTimeContract();
     const bool windowGuardOk = checkWindowGuard();
+    const bool perspectiveOk = checkPerspective();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -6519,7 +6565,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
