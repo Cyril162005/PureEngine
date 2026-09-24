@@ -2089,6 +2089,19 @@
     193,
     13
    ]
+  },
+  {
+   "id": 195,
+   "name": "Renderer: 3D depth state save/enable/restore on the debug path (Goal2 Phase1)",
+   "status": "completed",
+   "definition_of_done": "drawDebugMesh3D saves the caller depth-test enable state (glIsEnabled), enables depth for the occlusion, restores EXACTLY after (2D pass assumes depth OFF; a 3D caller prior state survives). Depth-clear policy documented: the debug path does NOT clear depth - a 3D caller adds GL_DEPTH_BUFFER_BIT to its own clear. Depth mask untouched. checkDepthState: REAL hidden-window GL context (3.3 core, glad) - renderer init, depth before == after the debug draw, 2D world pass leaves depth OFF. SMOKE-only: on-screen occlusion (SMOKE_TEST 7.10).",
+   "notes": "No materials, glTF, ECS, editor UI; games unchanged. Fixes owned this step: drawWorld signature mismatch (projection/view first, vector<char>), stb_impl.cpp added to the hostile_data_test target (renderer init references stbi_load), one discarded-edit incident (my own checkout during an anchor fix - re-added, nothing hidden).",
+   "commit": "c2da121",
+   "depends_on": [
+    194,
+    13,
+    179
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
