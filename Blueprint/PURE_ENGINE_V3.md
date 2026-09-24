@@ -276,6 +276,27 @@ recommended stop under the freeze:
 This note exists so a future session reading the tracker sees an
 explicit, sanctioned stopping point instead of inferring one.
 
+## PureEditor-lite v0 — TOOLING CONTRACT (docs foundation; explicit user-requested scope expansion)
+
+Secondary goal: PureEditor-lite (load/select/nudge/save) — tooling ON TOP
+of existing engine APIs, NOT engine internals.
+
+**Non-goals (binding):** full hierarchy editor, animation studio,
+multiplayer, ECS. No engine API changes; no game level design.
+
+**Required engine APIs (all exist, verified):**
+- \pe::loadSceneFromFile\ / \pe::saveSceneToFile\ (+ explicit-path + rename-overwrite contract, Step 162)
+- \pe::pickEntityAtScreen\ (Step 128; screen-to-world + pickEntity)
+- \pe::Button\ + hitTest (Step 118/121) + \pe::screenToUi\ (Step 125)
+- Console \scene_dump\ / \scene_reload\ (Step 136 persistence interaction)
+
+**v0 must do (the smallest TOOL loop):**
+1. Load a scene file (v1/v2) into a SceneManager
+2. Click-select an entity via pickEntityAtScreen (screen coords in, index out)
+3. Nudge the selected entity (position delta via keys or per-tick)
+4. Save the scene back out (same file or explicit path)
+5. Success test: load -> select -> nudge -> save -> reload -> position changed and persisted (headless; the pick/nudge/save loop is engine-pure — the GL click feel stays a SMOKE gate)
+
 ## Multi-session coordination
 
 Live board: Blueprint/SESSION_BOARD.md — does not replace step history.

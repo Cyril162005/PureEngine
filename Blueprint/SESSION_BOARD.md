@@ -12,6 +12,7 @@ no dups).
   main pathspec-stages only the reported files → commit → board/step/README →
   sanity → push. No whole-repo `git add .`.
 - input/audio/physics/render/scene = **parked unless assigned**.
+- Secondary goal: **PureEditor-lite v0** (load/select/nudge/save — tooling on engine APIs; TOOLING CONTRACT in PURE_ENGINE_V3.md). Non-goals: hierarchy editor, animation studio, multiplayer, ECS.
 - Next active system: physics swept consumer on request — useSwept controller opt-in landed (Step 181); game wire still on request. WindowGuard bootstrap helper landed (Step 190, src/window_guard.h) — opt-in, no game adoption. Otherwise blank— all assigned campaigns COMPLETE:
   console Step 168, particles Step 169, time contract Step 170, lifecycle/init contract Step 171, gamepad-actions Step 172, core loop contract Step 174, swept-twin P7 Step 175, audio matrix 176, input adoption 177, scene matrix 178, render doc 179, resources lifetime 180).
 
