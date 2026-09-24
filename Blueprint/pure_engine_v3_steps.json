@@ -2076,6 +2076,19 @@
     15,
     116
    ]
+  },
+  {
+   "id": 194,
+   "name": "Mesh3D: unit cube + Mat4::translation + opt-in drawDebugMesh3D (Goal2 Phase1 mesh proof)",
+   "status": "completed",
+   "definition_of_done": "src/mesh3d.h unitCubeVertices (36 vertices x 5 floats — aPos+aTexCoord layout the world shaders expect, uv zeros, unit bounds +-0.5); Mat4::translation (constexpr, last column only); renderer.h drawDebugMesh3D (opt-in GL path: temp VAO/VBO, MVP composed on CPU, GL_TRIANGLES, state left clean — games never call it, 2D pipeline unchanged). EVIDENCE SPLIT: checkMesh3D headless (count/bounds/uv/translation/composition) REQUIRED and green; the glDraw* call + pixels SMOKE-only (SMOKE_TEST 7.9 added).",
+   "notes": "No materials system, no glTF, no ECS, no editor UI, no forcing 3D on existing games. 2D non-regression: build zero errors, ctest 2/2, arcade/platformer/pong alive True.",
+   "commit": "70087aa",
+   "depends_on": [
+    191,
+    193,
+    13
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
