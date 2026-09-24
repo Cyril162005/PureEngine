@@ -2026,6 +2026,19 @@
     171,
     176
    ]
+  },
+  {
+   "id": 190,
+   "name": "WindowGuard: ordered init/shutdown failure-path guard (pe bootstrap helper)",
+   "status": "completed",
+   "definition_of_done": "pe::WindowGuard (src/window_guard.h, tiny RAII guard): owns the GLFWwindow* for the INIT SECTION only; destructor destroys the window + terminates GLFW on any early return (teardown insurance, same pattern as Audio destructor); release() detaches for the success path (idempotent, release+destructor safe); copy deleted. Call-site contract for GL documented (destroyAll before guard destruction on later teardown). Headless: checkWindowGuard (null guard no-op, release semantics, never-released cleanup with a real window).",
+   "notes": "Opt-in additive — games NOT forced to rewrite (existing call-site teardown stays valid; no game adoption this turn). No Engine class, no orchestrator.",
+   "commit": "1022f9d",
+   "depends_on": [
+    171,
+    174,
+    9
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
