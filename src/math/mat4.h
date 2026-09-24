@@ -245,6 +245,20 @@ public:
     }
 
     // ------------------------------------------------------------------
+    // Builder: TRANSLATION (Step 194 — the 3D debug mesh's model matrix
+    // builder). Identity with the last column set to (x, y, z) — the
+    // column-major convention means m[3][0..2] IS the translation.
+    // constexpr: pure arithmetic, like orthographic().
+    // ------------------------------------------------------------------
+    static constexpr Mat4 translation(float x, float y, float z) {
+        Mat4 result;
+        result.m[3][0] = x;
+        result.m[3][1] = y;
+        result.m[3][2] = z;
+        return result;
+    }
+
+    // ------------------------------------------------------------------
     // Matrix * Matrix. THE composition operation: applying (this * other)
     // to a vertex is identical to applying 'other' FIRST and 'this' SECOND.
     // Multiplication is NOT commutative: T*R != R*T (translate-then-rotate

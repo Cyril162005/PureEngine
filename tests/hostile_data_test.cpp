@@ -26,6 +26,7 @@
 #include "../src/lighting.h"
 #include "../src/renderer.h"
 #include "../src/resources.h"
+#include "../src/mesh3d.h"
 #include "../src/window_guard.h"
 
 namespace fs = std::filesystem;
@@ -5768,6 +5769,53 @@ static bool checkPerspective() {
     return ok;
 }
 
+// Step 194: 3D debug mesh proof - CPU-side helpers (headless). Locks
+// the pure data before any GL claim: unitCubeVertices is exactly 36
+// vertices x 5 floats (aPos + aTexCoord layout the world shaders
+// expect), all positions within the +-0.5 unit-cube bounds with BOTH
+// extremes present on every axis, uv all zeros, and Mat4::translation
+// sets only the last column (identity elsewhere) and composes like
+// every Mat4. THE EVIDENCE SPLIT: the actual glDraw* call and
+// on-screen pixels are SMOKE-only (SMOKE_TEST 7.9) - never claimed
+// from CI. No materials system, no glTF.
+static bool checkMesh3D() {
+    bool ok = true;
+    const std::vector<float> cube = pe::unitCubeVertices();
+    if (cube.size() != 36 * 5) { std::cerr << "Cube must be 36 vertices x 5 floats\n"; ok = false; }
+    float minX = 1e9f, maxX = -1e9f, minY = 1e9f, maxY = -1e9f, minZ = 1e9f, maxZ = -1e9f;
+    for (std::size_t i = 0; i + 4 < cube.size(); i += 5) {
+        const float x = cube[i], y = cube[i + 1], z = cube[i + 2];
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        if (z < minZ) minZ = z;
+        if (z > maxZ) maxZ = z;
+        if (cube[i + 3] != 0.0f || cube[i + 4] != 0.0f) { std::cerr << "Debug mesh uv must stay zero\n"; ok = false; break; }
+    }
+    if (!assertFloatClose(minX, -0.5f) || !assertFloatClose(maxX, 0.5f) ||
+        !assertFloatClose(minY, -0.5f) || !assertFloatClose(maxY, 0.5f) ||
+        !assertFloatClose(minZ, -0.5f) || !assertFloatClose(maxZ, 0.5f)) {
+        std::cerr << "Cube must span the full unit bounds on every axis\n"; ok = false;
+    }
+    // Translation builder: identity except the last column.
+    const pe::Mat4 t = pe::Mat4::translation(2.0f, -3.0f, 0.5f);
+    for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
+        const float expect = (c == 3 && r < 3) ? ((r == 0) ? 2.0f : (r == 1) ? -3.0f : 0.5f)
+                                               : (c == r ? 1.0f : 0.0f);
+        if (!assertFloatClose(t.m[c][r], expect)) {
+            std::cerr << "translation must set only the last column\n"; ok = false; c = 4; break;
+        }
+    }
+    // Composition: translation * translation == single composed translation.
+    const pe::Mat4 tt = pe::Mat4::translation(1.0f, 0.0f, 0.0f) * pe::Mat4::translation(0.0f, 1.0f, 0.0f);
+    if (!assertFloatClose(tt.m[3][0], 1.0f) || !assertFloatClose(tt.m[3][1], 1.0f) ||
+        !assertFloatClose(tt.m[3][2], 0.0f)) {
+        std::cerr << "translation composition must add offsets\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 193: Camera 3D projection mode (headless). Locks the additive
 // opt-in path: the default camera stays 2D ORTHO (projection equals
 // the 12x9 launch box, isPerspective false), setPerspective switches
@@ -6571,6 +6619,7 @@ int main() {
     const bool windowGuardOk = checkWindowGuard();
     const bool perspectiveOk = checkPerspective();
     const bool camera3DOk = checkCamera3D();
+    const bool mesh3DOk = checkMesh3D();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -6605,7 +6654,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

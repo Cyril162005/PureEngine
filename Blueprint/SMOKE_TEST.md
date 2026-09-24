@@ -97,6 +97,7 @@ real window, never from CI alone.
 | 7.6 | Blend visuals | Semi-transparent sprites blend over the scene; opaque sprites unaffected (Step 112) — HUMAN-ONLY |
 | 7.7 | Tint visuals | Per-entity tint (white default); colliding flag overrides red (Step 86) — HUMAN-ONLY |
 | 7.8 | F-04 assert | entities.size() == colliding.size() holds every frame — a mismatch would abort (asserted every drawWorld call; the absence of an abort IS the pass evidence) — HUMAN-ONLY |
+| 7.9 | Opt-in 3D debug mesh (Step 194) | A caller that opts into `drawDebugMesh3D` (games never do) sees the unit cube drawn with the perspective/view/model composition; the CPU-side data (36×5 vertex layout, unit bounds, translation builder) is CI-proven — the glDraw* call + pixels are HUMAN-ONLY |
 
 ---
 
