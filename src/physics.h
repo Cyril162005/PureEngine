@@ -294,6 +294,15 @@ inline bool checkGrounded(const Entity& character,
 // exact contact, and resolves any residual overlap (start-inside
 // reports, spawn penetration) with the usual min-axis push-out + 
 // velocity zero. Default false preserves the discrete path byte-identical.
+//
+// WHEN TO ENABLE (Step P8 ruling): default OFF is correct for normal
+// platformer speeds — maxFallSpeed (25) + 1/60 substeps bound the
+// per-substep displacement to ~0.42, well inside a 1.0 tile's
+// thickness, and the discrete path is proven there. Enable useSwept
+// for movers whose per-substep displacement can exceed a target's
+// thickness (fast projectiles, fast platforms) or when the 8-substep
+// clamp is insufficient. Composes with the Fixed wrapper: substeps
+// split dt, the sweep catches whatever a substep would still tunnel.
 inline bool updateCharacterController(Entity& character,
                                       const std::vector<Entity>& staticEntities,
                                       float dt,
@@ -392,7 +401,8 @@ inline bool updateCharacterController(Entity& character,
 // tunnel a 1-unit tile in one variable step. Existing callers keep variable-dt;
 // platformer or future movers opt in via the *Fixed wrappers. No new systems,
 // no broadphase, no change to resolve math — just substeps. Step P8: the
-// useSwept flag forwards to every substep (swept move path, off by default).
+// useSwept flag forwards to every substep (swept move path, off by default) —
+// substeps + sweep together are the fast-mover recipe.
 inline bool updateCharacterControllerFixed(Entity& character,
                                             const std::vector<Entity>& staticEntities,
                                             float dt, bool jumpPressed,
