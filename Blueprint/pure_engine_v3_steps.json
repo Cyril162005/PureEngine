@@ -1945,6 +1945,19 @@
     179,
     180
    ]
+  },
+  {
+   "id": 184,
+   "name": "PHYSICS slice verify pass (Steps 21-30 of the 80-step run)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record: sweptAABB contract green (checkSweptAABBContract + boundary-start refinement); sweptMoveAndCollide green (checkSweptMoveAndCollide); useSwept controller green (checkSweptControllerContract, landed 181); useSwept default false = discrete ASSERTED (P8 test: discrete tunnels, swept lands at 0.55 — byte-identical discrete path proven by comparison, not doc); isStatic guards green; kinematic resolve/carry green; resolveCollision green; fixed-substep green. No fixes needed.",
+   "notes": "Steps 21-30 already satisfied by Steps 173/175/181 + existing tests - verified, no new code.",
+   "commit": "(verify-only; see next docs commit)",
+   "depends_on": [
+    173,
+    175,
+    181
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
