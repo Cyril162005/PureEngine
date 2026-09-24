@@ -2872,6 +2872,24 @@ static bool checkPreInitGuards() {
 // runs from build/, where the 3-candidate probe's ../assets/ resolves
 // to repo-root assets/. Audible playback stays human-only.
 static bool checkAudioDeviceLifecycle() {
+    // --- Step 171: documented engine-init order (from source, call-site
+    // based — every game repeats it; a test cannot execute a game's init
+    // headless, so the order is locked HERE as the contract reference) ---
+    // Arcade (main.cpp:558-842), Platformer (platformer.cpp:116-253),
+    // Pong (pong.cpp:33-138, no audio):
+    //   1. glfwInit()                          fail -> return (nothing to undo)
+    //   2. glfwCreateWindow(...)               fail -> glfwTerminate() + return
+    //   3. gladLoadGL(glfwGetProcAddress)      fail -> glfwTerminate() + return
+    //   4. audio.init()   (Arcade/Platformer)  fail -> glfwTerminate() + return
+    //      (cleans its own partial state first; idempotent re-init)
+    //   5. renderer.init()                     fail -> glfwTerminate() + return
+    //      (destroyAll() on failure; destroyAll zeroes members, so a
+    //       double destroyAll is a safe no-op; init() twice is NOT safe —
+    //       call-site contract: games call it once)
+    //   6. frameTime.start()
+    //   7. loadInputBindings(...)              fail -> defaults (non-fatal)
+    // Shutdown: glfwTerminate() once at exit; audio.shutdown() idempotent
+    // with destructor insurance.
     // Device probe: throwaway context init + playback enumeration.
     ma_context context;
     bool hasDevice = false;
@@ -2892,6 +2910,17 @@ static bool checkAudioDeviceLifecycle() {
     pe::Audio audio;
     if (!audio.init()) {
         std::cerr << "init() must succeed with a playback device present\n";
+        return false;
+    }
+    // Step 171: double-init safety — a second init() without shutdown
+    // is an idempotent no-op (engineIsValid guard): the engine stays
+    // valid, the pool is not re-pooled, no device leak.
+    if (!audio.init()) {
+        std::cerr << "second init() without shutdown must be a no-op true\n";
+        return false;
+    }
+    if (!audio.isLoaded(pe::Sound::Beep)) {
+        std::cerr << "double-init must not disturb the loaded pool\n";
         return false;
     }
     // All SFX assets loaded (4-slot beep pool + 2 named events).

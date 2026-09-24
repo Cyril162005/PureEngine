@@ -122,6 +122,14 @@ public:
     // init() had never run, and the caller owns the fatal-exit
     // decision plus all non-audio teardown.
     bool init() {
+        // Step 171: idempotent-init guard — a second init() is a no-op
+        // (the first engine was never uninitialized, so re-initing the
+        // same handle would leak the device). Matches the idempotent
+        // shutdown() contract below; existing single-init callers
+        // behave identically.
+        if (engineIsValid) {
+            return true;
+        }
         if (ma_engine_init(NULL, &engine) != MA_SUCCESS) {
             std::cerr << "audio init: ma_engine_init() failed" << std::endl;
             return false;
