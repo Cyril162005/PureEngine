@@ -1801,6 +1801,18 @@
     20,
     77
    ]
+  },
+  {
+   "id": 172,
+   "name": "Input: checkGamepadActions gamepad-action mapping contract",
+   "status": "completed",
+   "definition_of_done": "checkGamepadActions locks the Step 158 gamepad-action bridge mapping headlessly: fixed action-to-button mapping, edge/level semantics, deadzone interaction per the existing gamepad tests. No input.h changes required.",
+   "implementation": "tests/hostile_data_test.cpp: checkGamepadActions (+148) + registration + failure chain.",
+   "verification": "Fresh sanity before commit: cmake->EXIT=0; ctest 2/2 Passed 2.89s/1.06s; alive pending push.",
+   "commit": "244c9b1",
+   "depends_on": [
+    158
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
