@@ -28,6 +28,7 @@
 
 #include "math/vec3.h"  // Vec3 arithmetic only
 #include "entity.h"    // resolveCollision mutates Entity positions/velocities
+#include "collision.h" // sweptAABB — the swept move's one detection test (no cycle)
 
 namespace pe {
 
@@ -340,6 +341,74 @@ inline void applyPhysicsFixed(std::vector<Entity>& entities, float dt,
         // guard makes the never-moves rule hold by construction, not
         // caller convention.
     }
+}
+
+// --- Step P7: swept move + collide (the discrete resolve's swept twin) ---
+// Moves the mover by velocity*dt along its center path, sweeping against
+// every static/kinematic body's expanded AABB (sweptAABB, collision.h).
+// Where the discrete endpoint test tunnels, the sweep clamps the move at
+// the EARLIEST hit: position = from + delta*tBest, and the velocity
+// component along the contact normal zeroes — the swept equivalent of
+// the character controller's discrete axis-zeroing (walls stop slides,
+// floors stop falls).
+//
+// Contract:
+//   - No contact: the mover takes the FULL delta, returns false.
+//   - Contact: clamps at the earliest hit (min t over all swept bodies),
+//     zeroes only the normal-axis velocity, returns true. The mover's
+//     edge lands exactly on the contacted face (the center path clamps
+//     at the Minkowski-expanded box).
+//   - Start-inside (sweptAABB's overlap report, t=0, zero normal):
+//     contact with NO movement and NO velocity change — overlap
+//     resolution stays the discrete path's job (updateCharacterController
+//     / resolveCollision), exactly as sweptAABB's contract assigns.
+//   - Statics/kinematics are never written; dead bodies collide with
+//     nothing. dt <= 0 is a no-op returning false.
+// API-only (no main/Platformer call in this slice). Free function, same
+// discipline as the rest of physics.h.
+inline bool sweptMoveAndCollide(Entity& mover,
+                                const std::vector<Entity>& staticEntities,
+                                float dt) {
+    if (dt <= 0.0f) {
+        return false;
+    }
+    const Vec3 from = mover.position;
+    const Vec3 delta = mover.velocity * dt;
+    const Vec3 to = from + delta;
+    const Vec3 half(mover.halfExtents.x * mover.scale.x,
+                    mover.halfExtents.y * mover.scale.y,
+                    0.0f);
+
+    float bestT = 1.0f;
+    Vec3 bestNormal(0.0f, 0.0f, 0.0f);
+    bool contacted = false;
+    for (const Entity& e : staticEntities) {
+        if (!e.alive) continue;                       // dead bodies collide with nothing
+        if (!e.isStatic && !e.isKinematic) continue;  // movers test statics/kinematics only
+        const SweepHit h = sweptAABB(
+            from, to, half, e.position,
+            Vec3(e.halfExtents.x * e.scale.x,
+                 e.halfExtents.y * e.scale.y,
+                 0.0f));
+        if (h.hit && h.t < bestT) {
+            bestT = h.t;
+            bestNormal = h.normal;
+            contacted = true;
+        }
+    }
+
+    if (!contacted) {
+        mover.position = to;
+        return false;
+    }
+    mover.position = from + delta * bestT;
+    if (bestNormal.x != 0.0f) {
+        mover.velocity.x = 0.0f;
+    }
+    if (bestNormal.y != 0.0f) {
+        mover.velocity.y = 0.0f;
+    }
+    return true;
 }
 
 } // namespace pe

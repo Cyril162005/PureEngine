@@ -2041,6 +2041,135 @@ static bool checkSweptAABBContract() {
     return true;
 }
 
+// --- Step P7: sweptMoveAndCollide contract (the discrete resolve's twin) ---
+// Locks: the tunnel catch in ONE call (6-unit step vs a thin floor —
+// the discrete endpoint test would tunnel; the sweep clamps at exact
+// contact), full-delta no-contact, wall stop (the center clamps at the
+// expanded box so the mover's edge lands on the face), earliest-hit
+// priority over two floors, start-inside reported as no-move contact,
+// dt<=0 no-op.
+static bool checkSweptMoveAndCollide() {
+    // Tunnel catch: 6-unit step vs a thin floor (half y 0.05) in one
+    // call — clamps at platform top + mover half (0.05 + 0.5 = 0.55).
+    {
+        pe::Entity floor;
+        floor.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+        floor.halfExtents = pe::Vec3(2.5f, 0.05f, 0.0f);
+        floor.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        floor.isStatic = true;
+        std::vector<pe::Entity> statics = {floor};
+        pe::Entity c = makeCharacter(0.0f, 3.0f);
+        c.velocity = pe::Vec3(0.0f, -60.0f, 0.0f);
+        const bool contacted = pe::sweptMoveAndCollide(c, statics, 0.1f);
+        if (!contacted || !assertFloatClose(c.position.y, 0.55f) ||
+            !assertFloatClose(c.velocity.y, 0.0f)) {
+            std::cerr << "Swept move must catch the tunnel at exact contact\n";
+            return false;
+        }
+    }
+    // No contact: full delta, false.
+    {
+        pe::Entity floor;
+        floor.position = pe::Vec3(0.0f, -100.0f, 0.0f);
+        floor.halfExtents = pe::Vec3(2.5f, 0.5f, 0.0f);
+        floor.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        floor.isStatic = true;
+        std::vector<pe::Entity> statics = {floor};
+        pe::Entity c = makeCharacter(0.0f, 0.0f);
+        c.velocity = pe::Vec3(2.0f, -1.0f, 0.0f);
+        const bool contacted = pe::sweptMoveAndCollide(c, statics, 0.1f);
+        if (contacted || !assertFloatClose(c.position.x, 0.2f) ||
+            !assertFloatClose(c.position.y, -0.1f) ||
+            !assertFloatClose(c.velocity.y, -1.0f)) {
+            std::cerr << "No-contact swept move must take the full delta\n";
+            return false;
+        }
+    }
+    // Wall stop: mover center clamps at the expanded box — the mover's
+    // right edge lands exactly on the wall face.
+    {
+        pe::Entity wall;
+        wall.position = pe::Vec3(1.2f, 0.0f, 0.0f);
+        wall.halfExtents = pe::Vec3(0.5f, 0.5f, 0.0f);
+        wall.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        wall.isStatic = true;
+        std::vector<pe::Entity> statics = {wall};
+        pe::Entity c = makeCharacter(0.0f, 0.0f);
+        c.velocity = pe::Vec3(5.0f, 0.0f, 0.0f);
+        const bool contacted = pe::sweptMoveAndCollide(c, statics, 0.1f);
+        if (!contacted || !assertFloatClose(c.position.x, 0.2f) ||
+            !assertFloatClose(c.velocity.x, 0.0f) ||
+            !assertFloatClose(c.position.y, 0.0f)) {
+            std::cerr << "Swept wall stop must land the edge on the face\n";
+            return false;
+        }
+    }
+    // Earliest-hit priority: two floors on the path — the closer one wins.
+    {
+        pe::Entity floorA;
+        floorA.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+        floorA.halfExtents = pe::Vec3(2.5f, 0.25f, 0.0f);
+        floorA.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        floorA.isStatic = true;
+        pe::Entity floorB;
+        floorB.position = pe::Vec3(0.0f, 1.5f, 0.0f);
+        floorB.halfExtents = pe::Vec3(2.5f, 0.25f, 0.0f);
+        floorB.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        floorB.isStatic = true;
+        std::vector<pe::Entity> statics = {floorA, floorB};
+        pe::Entity c = makeCharacter(0.0f, 3.0f);
+        c.velocity = pe::Vec3(0.0f, -60.0f, 0.0f);
+        const bool contacted = pe::sweptMoveAndCollide(c, statics, 0.1f);
+        if (!contacted || !assertFloatClose(c.position.y, 2.25f) ||
+            !assertFloatClose(c.velocity.y, 0.0f)) {
+            std::cerr << "Swept move must clamp at the earliest hit\n";
+            return false;
+        }
+    }
+    // Start-inside: overlapping at the start — contact, no movement, no
+    // velocity change (overlap resolution stays the discrete path's job).
+    {
+        pe::Entity floor;
+        floor.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+        floor.halfExtents = pe::Vec3(2.5f, 0.5f, 0.0f);
+        floor.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        floor.isStatic = true;
+        std::vector<pe::Entity> statics = {floor};
+        pe::Entity c = makeCharacter(0.0f, 0.0f);
+        c.velocity = pe::Vec3(3.0f, -2.0f, 0.0f);
+        const bool contacted = pe::sweptMoveAndCollide(c, statics, 0.1f);
+        if (!contacted || !assertFloatClose(c.position.x, 0.0f) ||
+            !assertFloatClose(c.position.y, 0.0f) ||
+            !assertFloatClose(c.velocity.x, 3.0f) ||
+            !assertFloatClose(c.velocity.y, -2.0f)) {
+            std::cerr << "Start-inside swept move must not move or alter velocity\n";
+            return false;
+        }
+    }
+    // dt <= 0: no-op returning false.
+    {
+        pe::Entity floor;
+        floor.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+        floor.halfExtents = pe::Vec3(2.5f, 0.5f, 0.0f);
+        floor.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        floor.isStatic = true;
+        std::vector<pe::Entity> statics = {floor};
+        pe::Entity c = makeCharacter(0.0f, 3.0f);
+        c.velocity = pe::Vec3(1.0f, -60.0f, 0.0f);
+        if (pe::sweptMoveAndCollide(c, statics, 0.0f) ||
+            pe::sweptMoveAndCollide(c, statics, -1.0f)) {
+            std::cerr << "Non-positive dt must be a no-op\n";
+            return false;
+        }
+        if (!assertFloatClose(c.position.y, 3.0f) ||
+            !assertFloatClose(c.velocity.y, -60.0f)) {
+            std::cerr << "Non-positive dt must not move the mover\n";
+            return false;
+        }
+    }
+    return true;
+}
+
 // --- Physics primitives: applyForce (massless v += force*dt) ---
 // applyForce was written Step 60 but never headless-verified. Locks the
 // contract: force IS the acceleration, dt=0 is a no-op.
@@ -5738,6 +5867,7 @@ int main() {
     const bool kinematicCarryOk = checkKinematicCarry();
     const bool kinematicResolveOk = checkKinematicResolve();
     const bool sweptAABBOk = checkSweptAABBContract();
+    const bool sweptMoveOk = checkSweptMoveAndCollide();
     const bool sceneByNameOk = checkSceneByName();
     const bool platLevelsOk = checkPlatformerLevels();
     const bool platClimbOk = checkPlatformerClimb();
@@ -5815,12 +5945,12 @@ int main() {
         !applyForceOk || !applyPhysicsOk || !applyPhysicsFixedOk || !broadphaseOk ||
         !restClampOk || !bounceStickOk || !approachGuardOk || !edgeTouchOk ||
         !fixedJumpOnceOk || !fixedClampFallbackOk ||
-        !kinematicCarryOk || !kinematicResolveOk || !sweptAABBOk ||
+        !kinematicCarryOk || !kinematicResolveOk || !sweptAABBOk || !sweptMoveOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
-        !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk) {
+        !musicVolumeIndepOk || !preInitGuardsOk || !volumeMatrixOk || !audioDeviceLifecycleOk ||
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
