@@ -1921,6 +1921,18 @@
     175,
     173
    ]
+  },
+  {
+   "id": 182,
+   "name": "MAIN core slice verify pass (Steps 1-10 of the 80-step run)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record: canonical init order already documented (Step 171, checkAudioDeviceLifecycle comment); audio double-init guard asserted (Step 171, A3); renderer.destroyAll idempotent documented (members zeroed); double-init unsafe APIs listed on SESSION_BOARD (renderer.init once, glfwInit pairing); tick-before-poll confirmed in all 3 games (Step 174, Pong fixed); tick->poll->update->render->swap contract documented (Step 174); scaledTick pause interaction green (checkTimeContract); no missing edge test found - contract holds.",
+   "notes": "Steps 1-10 already satisfied by existing code/tests from Steps 171/174 — verified, no new code. Board note (Step 4) was the only real gap.",
+   "commit": "(see next docs commit)",
+   "depends_on": [
+    171,
+    174
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

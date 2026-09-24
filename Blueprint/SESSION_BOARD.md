@@ -27,6 +27,14 @@ no dups).
 | PureEngine_animation | animation.h, animation_data.h + animation tests | parked | 2026-09-21 | Campaign COMPLETE: Step 164 checkAnimationSystem (load/bind/update/switch/loop/end, 12 cases) — commit 2e11c78, no engine source changes. |
 | PureEngine_events | events.h + event tests | parked | 2026-09-21 | Campaign COMPLETE: Step 167 checkEventReentrantOnceGaps (reentrant depth-3, mid-dispatch removal, once refusals/auto-removal/throw) + followLerpOk chain gate fixed — commit e4b9bbf. The Step 165 chain-gating gap is closed. |
 
+## Double-init safety (Step 171 contract)
+- SAFE: audio.init() (idempotent guard), audio.shutdown() (idempotent),
+  renderer.destroyAll() (members zeroed -> deleting 0 is a no-op),
+  frameTime.start()/tick() (stateless clock semantics).
+- UNSAFE — call-site contract, call ONCE: renderer.init() (no guard;
+  re-init leaks the shader program + textures), glfwInit() without a
+  matching glfwTerminate().
+
 ## Hot files
 - `tests/hostile_data_test.cpp` — active test author this hour only; never
   whole-stage while others have uncommitted hunks.
