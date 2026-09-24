@@ -1941,6 +1941,106 @@ static bool checkKinematicResolve() {
     return true;
 }
 
+// --- Step P7: swept segment-vs-AABB contract ---
+// Locks: crossing hit (entry fraction + face normal + contact math),
+// parallel miss, too-far miss, the tunnel catch discrete cannot make
+// (thin platform: the endpoint aabbOverlap misses, the sweep hits),
+// start-inside reported as overlap (t=0, zero normal), and diagonal
+// axis priority (the latest entry axis decides the normal).
+static bool checkSweptAABBContract() {
+    // Crossing hit: fast 6-unit fall onto a platform — contact at
+    // platform top + mover half (0.5 + 0.5 = 1.0), normal +y.
+    {
+        const pe::SweepHit h = pe::sweptAABB(
+            pe::Vec3(0.0f, 3.0f, 0.0f), pe::Vec3(0.0f, -3.0f, 0.0f),
+            pe::Vec3(0.5f, 0.5f, 0.0f),
+            pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(2.5f, 0.5f, 0.0f));
+        if (!h.hit || !assertFloatClose(h.t, 1.0f / 3.0f) ||
+            !assertFloatClose(h.normal.y, 1.0f) ||
+            !assertFloatClose(h.normal.x, 0.0f)) {
+            std::cerr << "Sweep crossing hit wrong\n";
+            return false;
+        }
+        const float contactY = 3.0f + (-6.0f) * h.t;
+        if (!assertFloatClose(contactY, 1.0f)) {
+            std::cerr << "Sweep contact math wrong\n";
+            return false;
+        }
+    }
+    // Parallel miss: same fall, platform far to the side.
+    {
+        const pe::SweepHit h = pe::sweptAABB(
+            pe::Vec3(0.0f, 3.0f, 0.0f), pe::Vec3(0.0f, -3.0f, 0.0f),
+            pe::Vec3(0.5f, 0.5f, 0.0f),
+            pe::Vec3(10.0f, 0.0f, 0.0f), pe::Vec3(2.5f, 0.5f, 0.0f));
+        if (h.hit) {
+            std::cerr << "Sweep must miss a parallel, sideways target\n";
+            return false;
+        }
+    }
+    // Too-far miss: the crossing is beyond the segment's end.
+    {
+        const pe::SweepHit h = pe::sweptAABB(
+            pe::Vec3(0.0f, 2.0f, 0.0f), pe::Vec3(0.0f, 1.5f, 0.0f),
+            pe::Vec3(0.5f, 0.5f, 0.0f),
+            pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(2.5f, 0.5f, 0.0f));
+        if (h.hit) {
+            std::cerr << "Sweep must miss when the crossing is beyond the end\n";
+            return false;
+        }
+    }
+    // Tunnel catch: 6-unit step vs a THIN platform — the endpoint
+    // aabbOverlap misses (mover ends far below), the sweep hits.
+    {
+        const pe::Vec3 from(0.0f, 3.0f, 0.0f);
+        const pe::Vec3 to(0.0f, -3.0f, 0.0f);
+        const pe::Vec3 targetCenter(0.0f, 0.0f, 0.0f);
+        const pe::Vec3 targetHalf(2.5f, 0.05f, 0.0f);
+        const bool discrete = pe::aabbOverlap(
+            to, pe::Vec3(0.5f, 0.5f, 0.0f), targetCenter, targetHalf);
+        const pe::SweepHit h = pe::sweptAABB(
+            from, to, pe::Vec3(0.5f, 0.5f, 0.0f), targetCenter, targetHalf);
+        if (discrete) {
+            std::cerr << "Discrete test setup wrong (expected a tunnel)\n";
+            return false;
+        }
+        if (!h.hit || !(h.t > 0.0f && h.t < 1.0f) ||
+            !assertFloatClose(h.normal.y, 1.0f)) {
+            std::cerr << "Sweep must catch what discrete tunnels past\n";
+            return false;
+        }
+    }
+    // Start-inside: overlapping at the start — hit at t=0, zero normal
+    // (no face-crossing; the caller treats it as the discrete path's job).
+    {
+        const pe::SweepHit h = pe::sweptAABB(
+            pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(0.0f, -2.0f, 0.0f),
+            pe::Vec3(0.5f, 0.5f, 0.0f),
+            pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(2.5f, 0.5f, 0.0f));
+        if (!h.hit || !assertFloatClose(h.t, 0.0f) ||
+            !assertFloatClose(h.normal.x, 0.0f) ||
+            !assertFloatClose(h.normal.y, 0.0f)) {
+            std::cerr << "Start-inside sweep must report overlap at t=0\n";
+            return false;
+        }
+    }
+    // Diagonal: horizontal pass through a tall box — the x entry (latest)
+    // decides the normal (-x), t at the expanded left edge.
+    {
+        const pe::SweepHit h = pe::sweptAABB(
+            pe::Vec3(-5.0f, -1.0f, 0.0f), pe::Vec3(5.0f, -1.0f, 0.0f),
+            pe::Vec3(0.5f, 0.5f, 0.0f),
+            pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(1.0f, 5.0f, 0.0f));
+        if (!h.hit || !assertFloatClose(h.t, 0.35f) ||
+            !assertFloatClose(h.normal.x, -1.0f) ||
+            !assertFloatClose(h.normal.y, 0.0f)) {
+            std::cerr << "Diagonal sweep must use the latest entry axis\n";
+            return false;
+        }
+    }
+    return true;
+}
+
 // --- Physics primitives: applyForce (massless v += force*dt) ---
 // applyForce was written Step 60 but never headless-verified. Locks the
 // contract: force IS the acceleration, dt=0 is a no-op.
@@ -4230,6 +4330,148 @@ static bool checkKeysForAllActions() {
     return ok;
 }
 
+// Step 158 gap closed: headless pad-bridge tests. The fixed
+// gamepadButtonsForAction table and the pure edge pattern need no
+// window or hardware; the isAction* pad tails need a live GLFWwindow
+// for the keyboard half (hidden window, skip-not-failed where GL
+// cannot init — checkInputEdges pattern). Hand-built GamepadStates
+// throughout: no hardware claims.
+static bool checkGamepadActions() {
+    bool ok = true;
+    auto buttonsFor = [](pe::Action a) {
+        return pe::gamepadButtonsForAction(a);
+    };
+    auto singleButton = [](const std::vector<int>& v, int b) {
+        return v.size() == 1 && v[0] == b;
+    };
+    // Fixed table, every action (Step 158 mapping: d-pad moves, A
+    // jumps/confirms, START pauses, B backs).
+    if (!singleButton(buttonsFor(pe::Action::MoveLeft), GLFW_GAMEPAD_BUTTON_DPAD_LEFT) ||
+        !singleButton(buttonsFor(pe::Action::MoveRight), GLFW_GAMEPAD_BUTTON_DPAD_RIGHT) ||
+        !singleButton(buttonsFor(pe::Action::MoveUp), GLFW_GAMEPAD_BUTTON_DPAD_UP) ||
+        !singleButton(buttonsFor(pe::Action::MoveDown), GLFW_GAMEPAD_BUTTON_DPAD_DOWN) ||
+        !singleButton(buttonsFor(pe::Action::Jump), GLFW_GAMEPAD_BUTTON_A) ||
+        !singleButton(buttonsFor(pe::Action::Pause), GLFW_GAMEPAD_BUTTON_START) ||
+        !singleButton(buttonsFor(pe::Action::Confirm), GLFW_GAMEPAD_BUTTON_A) ||
+        !singleButton(buttonsFor(pe::Action::Back), GLFW_GAMEPAD_BUTTON_B)) {
+        std::cerr << "Gamepad action table mapping wrong\n";
+        ok = false;
+    }
+    // Console has NO bridge mapping (d-pad/A/START/B only): the pad can
+    // never fire Console — documented Step 158 exclusion.
+    if (!buttonsFor(pe::Action::Console).empty()) {
+        std::cerr << "Console must have no gamepad mapping\n";
+        ok = false;
+    }
+    // Edge fires ONCE across poll pairs: press, hold, release.
+    pe::GamepadState up, aDown, aHeld;
+    aDown.buttons[GLFW_GAMEPAD_BUTTON_A] = true;
+    aHeld = aDown;
+    if (!pe::gamepadButtonEdge(up, aDown, GLFW_GAMEPAD_BUTTON_A)) {
+        std::cerr << "Pad press must be a rising edge\n";
+        ok = false;
+    }
+    if (pe::gamepadButtonEdge(aHeld, aDown, GLFW_GAMEPAD_BUTTON_A)) {
+        std::cerr << "Held pad button must not re-edge\n";
+        ok = false;
+    }
+    if (pe::gamepadButtonEdge(aDown, up, GLFW_GAMEPAD_BUTTON_A)) {
+        std::cerr << "Pad release must not be a rising edge\n";
+        ok = false;
+    }
+    // Isolation: B drives Back only; START drives Pause only.
+    pe::GamepadState bDown, startDown;
+    bDown.buttons[GLFW_GAMEPAD_BUTTON_B] = true;
+    startDown.buttons[GLFW_GAMEPAD_BUTTON_START] = true;
+    if (!pe::gamepadButtonEdge(up, bDown, GLFW_GAMEPAD_BUTTON_B) ||
+        pe::gamepadButtonEdge(up, bDown, GLFW_GAMEPAD_BUTTON_A)) {
+        std::cerr << "B must edge Back-only via the fixed table\n";
+        ok = false;
+    }
+    if (!pe::gamepadButtonEdge(up, startDown, GLFW_GAMEPAD_BUTTON_START)) {
+        std::cerr << "START must edge via the fixed table\n";
+        ok = false;
+    }
+    // Pad-tail checks through the action system need a GLFWwindow for
+    // the keyboard half. Skip (not fail) where GL cannot init.
+    if (!glfwInit()) {
+        std::cerr << "gamepad action test skipped: glfwInit failed\n";
+        return ok;
+    }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    GLFWwindow* window = glfwCreateWindow(64, 64, "pad-action-test", nullptr, nullptr);
+    if (!window) {
+        std::cerr << "gamepad action test skipped: hidden window failed\n";
+        glfwTerminate();
+        return ok;
+    }
+    pe::Input input{GLFW_KEY_SPACE, GLFW_KEY_ESCAPE};
+    glfwPollEvents();
+    input.update(window);  // settle: keyboard snapshot clean
+    // Keyboard-only path unchanged: nullptr (and omitted) pads, no keys
+    // pressed, no pad buttons — everything silent either way.
+    if (input.isActionDown(window, pe::Action::Jump) ||
+        input.isActionDown(window, pe::Action::Jump, nullptr) ||
+        input.isActionEdge(window, pe::Action::Jump) ||
+        input.isActionEdge(window, pe::Action::Jump, nullptr, nullptr)) {
+        std::cerr << "Keyboard-only action path must read silent\n";
+        ok = false;
+    }
+    // The bridge: pad A down drives Jump even though no key is pressed.
+    pe::GamepadState prevPad;  // zeroed: nothing was down
+    pe::GamepadState curPad;
+    curPad.buttons[GLFW_GAMEPAD_BUTTON_A] = true;
+    if (!input.isActionDown(window, pe::Action::Jump, &curPad)) {
+        std::cerr << "Pad A must drive Jump down via the bridge\n";
+        ok = false;
+    }
+    if (!input.isActionEdge(window, pe::Action::Jump, &prevPad, &curPad)) {
+        std::cerr << "Pad A press must drive Jump edge via the bridge\n";
+        ok = false;
+    }
+    // Edge consumed once: same pad pair again (A held) stays silent.
+    pe::GamepadState heldPrev = curPad;
+    if (input.isActionEdge(window, pe::Action::Jump, &heldPrev, &curPad)) {
+        std::cerr << "Held pad A must not re-fire Jump edge\n";
+        ok = false;
+    }
+    // Release: no edge.
+    if (input.isActionEdge(window, pe::Action::Jump, &curPad, &prevPad)) {
+        std::cerr << "Pad A release must not edge Jump\n";
+        ok = false;
+    }
+    // Pause via START; Back via B (and B must not leak into Jump).
+    if (!input.isActionEdge(window, pe::Action::Pause, &prevPad, &startDown)) {
+        std::cerr << "START must drive Pause edge via the bridge\n";
+        ok = false;
+    }
+    if (!input.isActionEdge(window, pe::Action::Back, &prevPad, &bDown) ||
+        input.isActionEdge(window, pe::Action::Jump, &prevPad, &bDown)) {
+        std::cerr << "B must drive Back edge only\n";
+        ok = false;
+    }
+    // d-pad drives movement actions down.
+    pe::GamepadState dpadLeft;
+    dpadLeft.buttons[GLFW_GAMEPAD_BUTTON_DPAD_LEFT] = true;
+    if (!input.isActionDown(window, pe::Action::MoveLeft, &dpadLeft) ||
+        input.isActionDown(window, pe::Action::MoveRight, &dpadLeft)) {
+        std::cerr << "D-pad left must drive MoveLeft down only\n";
+        ok = false;
+    }
+    // Zeroed/disconnected pad: every action silent (no connected gate —
+    // pollGamepad zeroes absent pads; hand-built states stay usable).
+    pe::GamepadState zero;
+    if (input.isActionDown(window, pe::Action::Jump, &zero) ||
+        input.isActionDown(window, pe::Action::Pause, &zero) ||
+        input.isActionEdge(window, pe::Action::Jump, &zero, &zero)) {
+        std::cerr << "Zeroed pad must drive nothing\n";
+        ok = false;
+    }
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    return ok;
+}
+
 static bool checkInputBindings() {
     const std::string fname = "input_bindings_test_tmp.txt";
     {
@@ -5477,6 +5719,7 @@ int main() {
     const bool fixedClampFallbackOk = checkFixedSubstepClampAndFallback();
     const bool kinematicCarryOk = checkKinematicCarry();
     const bool kinematicResolveOk = checkKinematicResolve();
+    const bool sweptAABBOk = checkSweptAABBContract();
     const bool sceneByNameOk = checkSceneByName();
     const bool platLevelsOk = checkPlatformerLevels();
     const bool platClimbOk = checkPlatformerClimb();
@@ -5516,6 +5759,7 @@ int main() {
     const bool resourceSystemOk = checkResourceSystem();
     const bool keyNamesOk = checkKeyNames();
     const bool keysAllOk = checkKeysForAllActions();
+    const bool gamepadActionsOk = checkGamepadActions();
     const bool inputBindingsOk = checkInputBindings();
     const bool componentOk = checkComponentHelpers();
     const bool sceneDumpOk = checkSceneDumpReload();
@@ -5558,7 +5802,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
