@@ -1933,6 +1933,18 @@
     171,
     174
    ]
+  },
+  {
+   "id": 183,
+   "name": "RENDER slice verify pass (Steps 11-20 of the 80-step run)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record: draw/submit contract block (Step 179) matches SMOKE section 7 (built from the contract GL-only list); OOB fallback + released-slot fallback green (Step 180 checkTextureLifetime + renderer fix); dead-entity skip documented GL/SMOKE-only (Step 179); pure helpers all green (checkFrameUV, checkLightingCap MAX_LIGHTS, checkFollowLerp, checkParticleContract); no doc drift found; no second particle engine.",
+   "notes": "Steps 11-20 already satisfied by Steps 179/180 + existing tests - verified, no new code.",
+   "commit": "(verify-only; see next docs commit)",
+   "depends_on": [
+    179,
+    180
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
