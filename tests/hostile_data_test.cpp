@@ -26,6 +26,7 @@
 #include "../src/lighting.h"
 #include "../src/renderer.h"
 #include "../src/resources.h"
+#include "../src/window_guard.h"
 
 namespace fs = std::filesystem;
 
@@ -2168,6 +2169,80 @@ static bool checkSweptControllerContract() {
         if (!assertFloatClose(c.position.y, 2.5f) ||
             !assertFloatClose(c.velocity.y, 0.0f)) {
             std::cerr << "Swept ceiling stop must match the discrete result\n";
+            return false;
+        }
+    }
+    return true;
+}
+
+// --- Step P8: swept + substeps together (the fast-mover recipe) ---
+// Locks updateCharacterControllerFixed(useSwept=true): substeps split
+// the dt AND the sweep catches what a substep would still tunnel —
+// an unclamped 5-unit/substep fall vs a thin floor clamps at exact
+// contact, stays grounded, and holds a stable rest; the jump is still
+// consumed once across substeps (vy = jumpImpulse - 2*g*sub); exact
+// rest keeps velocity zeroed.
+static bool checkSweptFixedContract() {
+    // Tunnel through substeps + sweep: dt=0.2 (unclamped velocity) at
+    // 1/60 -> 8 substeps of 0.025; a 1.5/substep fall vs a thin floor
+    // (half y 0.05) clamps at exact contact (0.55).
+    {
+        pe::Entity floor;
+        floor.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+        floor.halfExtents = pe::Vec3(2.5f, 0.05f, 0.0f);
+        floor.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        floor.isStatic = true;
+        std::vector<pe::Entity> statics = {floor};
+        pe::Entity c = makeCharacter(0.0f, 3.0f);
+        c.velocity = pe::Vec3(0.0f, -60.0f, 0.0f);
+        c.gravityScale = 0.0f;
+        const bool grounded = pe::updateCharacterControllerFixed(
+            c, statics, 0.2f, false, 1.0f / 60.0f, true);
+        if (!grounded || !assertFloatClose(c.position.y, 0.55f) ||
+            !assertFloatClose(c.velocity.y, 0.0f)) {
+            std::cerr << "Swept+fixed must clamp the tunnel at exact contact\n";
+            return false;
+        }
+        // Hold 10 more frames: the rest must be stable (boundary-start
+        // moves freely, the discrete resolve re-zeros, nothing drifts).
+        for (int i = 0; i < 10; ++i) {
+            pe::updateCharacterControllerFixed(
+                c, statics, 1.0f / 60.0f, false, 1.0f / 60.0f, true);
+        }
+        if (!assertFloatClose(c.position.y, 0.55f) ||
+            !assertFloatClose(c.velocity.y, 0.0f)) {
+            std::cerr << "Swept+fixed rest must be stable\n";
+            return false;
+        }
+    }
+    // Jump consumed once across substeps under swept+fixed.
+    {
+        const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+        pe::Entity c = makeCharacter(0.0f, 0.5f);
+        const float sub = 1.0f / 60.0f;
+        pe::updateCharacterControllerFixed(c, statics, sub, false, sub, true);  // settle
+        pe::updateCharacterControllerFixed(c, statics, 0.05f, true, sub, true); // jump (3 substeps)
+        if (!assertFloatClose(c.velocity.y,
+                              c.jumpImpulse - 2.0f * (-pe::GRAVITY.y) * sub)) {
+            std::cerr << "Swept+fixed jump must be consumed once across substeps\n";
+            return false;
+        }
+        if (!(c.position.y > 0.5f)) {
+            std::cerr << "Swept+fixed jump did not rise\n";
+            return false;
+        }
+    }
+    // Exact rest under swept+fixed: velocity stays zeroed.
+    {
+        const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+        pe::Entity c = makeCharacter(0.0f, 0.5f);
+        for (int i = 0; i < 10; ++i) {
+            pe::updateCharacterControllerFixed(
+                c, statics, 1.0f / 60.0f, false, 1.0f / 60.0f, true);
+        }
+        if (!assertFloatClose(c.position.y, 0.5f) ||
+            !assertFloatClose(c.velocity.y, 0.0f)) {
+            std::cerr << "Swept+fixed exact rest must keep velocity zeroed\n";
             return false;
         }
     }
@@ -5648,6 +5723,41 @@ static bool checkTimeScale() {
 // scaledTick multiplies by scale, scale 0 gives 0 unpaused, and
 // consecutive ticks never go negative (monotonic clock by
 // construction). No game slow-mo features — mechanism only.
+// Step 190: WindowGuard bootstrap helper (headless). Locks the
+// failure-path contract: a null-window guard is a no-op with zero
+// GLFW calls, release() detaches so the caller keeps the window and
+// a release()+destructor sequence is safe, and a never-released guard
+// cleans up on its own (destroy + terminate — a crash here would fail
+// the test binary, the same evidence pattern as the audio destructor
+// insurance). GL-only call-site contract (destroyAll before guard
+// destruction on later teardown) is documented in window_guard.h.
+static bool checkWindowGuard() {
+    bool ok = true;
+    // Null guard: no-op, zero GLFW calls (headless-safe).
+    {
+        pe::WindowGuard none(NULL);
+    }
+    if (!glfwInit()) { std::cerr << "window guard test skipped: glfwInit failed\n"; return false; }
+    GLFWwindow* w = glfwCreateWindow(320, 240, "guard", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "window creation failed\n"; return false; }
+    // Success path: release() detaches; the window stays usable and
+    // the destructor makes no GLFW calls.
+    {
+        pe::WindowGuard guard(w);
+        guard.release();
+        guard.release();  // idempotent
+    }
+    if (glfwWindowShouldClose(w)) { std::cerr << "release() must keep the window usable\n"; ok = false; }
+    glfwDestroyWindow(w);
+    // Failure path: a never-released guard destroys + terminates on
+    // scope exit — cleanup happens without the caller remembering.
+    {
+        GLFWwindow* w2 = glfwCreateWindow(320, 240, "guard2", NULL, NULL);
+        pe::WindowGuard guard2(w2);
+    }
+    return ok;
+}
+
 // Step 174: core loop contract (from source, call-site based — a test
 // cannot execute a game loop headless, so the order is locked HERE).
 // Arcade (main.cpp:1274), Platformer (platformer.cpp:278), Pong
@@ -6339,6 +6449,7 @@ int main() {
     const bool sweptAABBOk = checkSweptAABBContract();
     const bool sweptMoveOk = checkSweptMoveAndCollide();
     const bool sweptControllerOk = checkSweptControllerContract();
+    const bool sweptFixedOk = checkSweptFixedContract();
     const bool sceneByNameOk = checkSceneByName();
     const bool platLevelsOk = checkPlatformerLevels();
     const bool platClimbOk = checkPlatformerClimb();
@@ -6373,6 +6484,7 @@ int main() {
     const bool eventGapOk = checkEventReentrantOnceGaps();
     const bool timeScaleOk = checkTimeScale();
     const bool timeContractOk = checkTimeContract();
+    const bool windowGuardOk = checkWindowGuard();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -6407,7 +6519,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
@@ -6419,7 +6531,7 @@ int main() {
         !applyForceOk || !applyPhysicsOk || !applyPhysicsFixedOk || !broadphaseOk ||
         !restClampOk || !bounceStickOk || !approachGuardOk || !edgeTouchOk ||
         !fixedJumpOnceOk || !fixedClampFallbackOk ||
-        !kinematicCarryOk || !kinematicResolveOk || !sweptAABBOk || !sweptMoveOk || !sweptControllerOk ||
+        !kinematicCarryOk || !kinematicResolveOk || !sweptAABBOk || !sweptMoveOk || !sweptControllerOk || !sweptFixedOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
