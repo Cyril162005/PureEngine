@@ -5049,6 +5049,24 @@ static bool checkTimeScale() {
 // scaledTick multiplies by scale, scale 0 gives 0 unpaused, and
 // consecutive ticks never go negative (monotonic clock by
 // construction). No game slow-mo features — mechanism only.
+// Step 174: core loop contract (from source, call-site based — a test
+// cannot execute a game loop headless, so the order is locked HERE).
+// Arcade (main.cpp:1274), Platformer (platformer.cpp:278), Pong
+// (pong.cpp:139 — Step 174 moved its tick above poll to match):
+//   1. frameTime.tick()    at the VERY TOP, before glfwPollEvents() —
+//                          the Step 2/17 sampling invariant: each delta
+//                          spans the ENTIRE previous frame
+//   2. glfwPollEvents()    the window belongs to the game loop
+//   3. input               gamepad snapshot + input.update() / isDown
+//   4. update              simulation, animation clips
+//   5. render              drawScene/drawEntities
+//   6. glfwSwapBuffers()
+// State transitions stop event sounds + music (Arcade 1578-1588).
+// Teardown: glfwDestroyWindow on failure paths, glfwTerminate once at
+// exit, audio.shutdown via destructor insurance (Step 171).
+// No pe:: helper added — the order is call-site based and every piece
+// is already owned by an existing boundary; nothing was missing.
+
 static bool checkTimeContract() {
     bool ok = true;
     // glfwGetTime() requires glfwInit(): the test self-contains the

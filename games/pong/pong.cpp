@@ -137,6 +137,12 @@ int main() {
     pe::FrameTime frameTime;
     frameTime.start();
     while (!glfwWindowShouldClose(window)) {
+        // Step 174: tick at the very top, BEFORE glfwPollEvents() — the
+        // Step 2/17 sampling invariant Arcade and Platformer already
+        // follow. Each delta now spans the ENTIRE previous frame
+        // (events, simulation, swap); the old position silently
+        // excluded the event-poll slice from every delta.
+        const float dt = frameTime.tick();
         glfwPollEvents();
         if (pe::Input::isDown(window, GLFW_KEY_ESCAPE)) {
             glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -147,7 +153,6 @@ int main() {
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
             ballVelocity = pe::Vec3(3.0f, 2.0f, 0.0f);
         }
-        const float dt = frameTime.tick();
 
         if (!win) {
         // Paddles (game-owned indices 0/1), clamped to the view
