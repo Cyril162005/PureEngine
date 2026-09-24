@@ -1985,6 +1985,23 @@
     166,
     180
    ]
+  },
+  {
+   "id": 187,
+   "name": "INPUT slice verify pass (Steps 51-60 of the 80-step run)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record: keysForAllActions includes Console + union counts green (Step 160, 13-key default); resetActionOverrides round-trip green; keyNameToGLFW set green (checkKeyNames); Input(vector) adoption order contract green (Step 177, checkInputAdoptionHelper); checkGamepadActions green; mouse pure helpers green (checkMouse*); Console Action default GRAVE correct in loader (Step 159). Residual DOCUMENTED: runtime rebind to fresh keys needs re-adopt (board note). No fixes needed.",
+   "notes": "Steps 51-60 already satisfied by Steps 154-160/177 + existing tests - verified, no new code. Board note (Step 59) was the only doc gap.",
+   "commit": "(verify-only; see next docs commit)",
+   "depends_on": [
+    154,
+    155,
+    157,
+    158,
+    159,
+    160,
+    177
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

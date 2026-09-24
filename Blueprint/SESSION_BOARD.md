@@ -27,6 +27,11 @@ no dups).
 | PureEngine_animation | animation.h, animation_data.h + animation tests | parked | 2026-09-21 | Campaign COMPLETE: Step 164 checkAnimationSystem (load/bind/update/switch/loop/end, 12 cases) — commit 2e11c78, no engine source changes. |
 | PureEngine_events | events.h + event tests | parked | 2026-09-21 | Campaign COMPLETE: Step 167 checkEventReentrantOnceGaps (reentrant depth-3, mid-dispatch removal, once refusals/auto-removal/throw) + followLerpOk chain gate fixed — commit e4b9bbf. The Step 165 chain-gating gap is closed. |
 
+## Input residual (Step 59 of the 80-step run)
+- A runtime rebind (loadInputBindings AFTER Input construction) does NOT
+  update the Input's tracked keys: level-only or newly-mapped keys need
+  RE-ADOPT (reconstruct Input from keysForAllActions(), Step 177 helper).
+
 ## Double-init safety (Step 171 contract)
 - SAFE: audio.init() (idempotent guard), audio.shutdown() (idempotent),
   renderer.destroyAll() (members zeroed -> deleting 0 is a no-op),
