@@ -175,6 +175,10 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 # logic without changing PureEngine.exe's source, flags, or dependency set.
 add_executable(hostile_data_test
     tests/hostile_data_test.cpp
+    # Step 195: the depth-state test inits a full Renderer under the
+    # hidden-window GL context, which references stbi_load - compile
+    # the ONE stb implementation unit (same pattern as resources_test).
+    src/stb_impl.cpp
     # Step 168: the console contract test references drawConsole ->
     # drawTextString -> glad_gl* symbols; compile the already-fetched
     # glad implementation unit (same pattern as resources_test). The

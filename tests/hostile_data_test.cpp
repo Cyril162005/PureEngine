@@ -5769,6 +5769,57 @@ static bool checkPerspective() {
     return ok;
 }
 
+// Step 195: 3D depth state (opt-in). THE MANDATORY EVIDENCE - no
+// loophole: the save/restore invariant is verified under a REAL GL
+// context (hidden-window pattern already used elsewhere - the test
+// binary links glad + GLFW): after drawDebugMesh3D returns, the
+// depth-test enable state MATCHES the pre-call state, and the 2D
+// world pass leaves depth OFF (games never see a change). On-screen
+// occlusion (front faces hide back) is SMOKE-only (SMOKE_TEST 7.10).
+static bool checkDepthState() {
+    if (!glfwInit()) { std::cerr << "depth test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "depth", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "depth test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "depth test skipped: gladLoadGL failed\n"; return true;
+    }
+    bool ok = true;
+    pe::Renderer r;
+    if (!r.init()) { std::cerr << "renderer init must succeed under the test context\n"; ok = false; }
+    else {
+        const GLboolean before = glIsEnabled(GL_DEPTH_TEST);
+        // 3D debug draw: perspective camera, cube in front of the eye.
+        pe::Camera cam;
+        cam.setPerspective(1.0472f, 0.1f, 100.0f);
+        r.drawDebugMesh3D(pe::unitCubeVertices(),
+                          pe::Mat4::translation(0.0f, 0.0f, -2.0f),
+                          cam.view(), cam.projection());
+        const GLboolean after = glIsEnabled(GL_DEPTH_TEST);
+        if (before != after) {
+            std::cerr << "Depth state must match pre-call after drawDebugMesh3D\n"; ok = false;
+        }
+        // 2D world pass: depth stays OFF (games never enable 3D).
+        std::vector<pe::Entity> ents;
+        std::vector<char> colliding;
+        ents.push_back(pe::Entity(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1)));
+        colliding.push_back(0);
+        r.drawWorld(cam.projection(), cam.view(), ents, colliding);
+        if (glIsEnabled(GL_DEPTH_TEST) != GL_FALSE) {
+            std::cerr << "2D world pass must leave depth OFF\n"; ok = false;
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
 // Step 194: 3D debug mesh proof - CPU-side helpers (headless). Locks
 // the pure data before any GL claim: unitCubeVertices is exactly 36
 // vertices x 5 floats (aPos + aTexCoord layout the world shaders
@@ -6620,6 +6671,7 @@ int main() {
     const bool perspectiveOk = checkPerspective();
     const bool camera3DOk = checkCamera3D();
     const bool mesh3DOk = checkMesh3D();
+    const bool depthStateOk = checkDepthState();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -6654,7 +6706,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

@@ -710,20 +710,24 @@ public:
 
     // --- Step 66: full-text strings in SCREEN SPACE ---
     // --- Step 194: opt-in 3D debug mesh draw (SMOKE-ONLY; SMOKE_TEST 7.9) ---
-    // GL path: uploads the vertex soup (mesh3d.h layout: 5 floats per
-    // vertex, aPos + aTexCoord) as GL_TRIANGLES with model/view/
-    // projection composed on the CPU, draws, and leaves no GL state
-    // (temp VAO/VBO deleted after). Games never call it — the 2D
-    // pipeline is unchanged. THE EVIDENCE SPLIT: only the actual
-    // glDraw* call and on-screen pixels are SMOKE-only — the CPU-side
-    // helpers (unitCubeVertices count/bounds, Mat4::translation) are
-    // headless-tested (checkMesh3D); visual proof is never claimed
-    // from CI. No materials system, no glTF, no normals.
+    // Step 195: depth state (opt-in). THE POLICY: save the caller's
+    // depth-test enable state, enable depth for the occlusion, restore
+    // EXACTLY after — the 2D pass assumes depth OFF (no game ever sees
+    // a change), and a 3D caller's prior state survives. Depth-clear
+    // policy: the debug path does NOT clear the depth buffer — a 3D
+    // caller adds GL_DEPTH_BUFFER_BIT to its own clear (documented,
+    // not done here). Depth mask untouched (default TRUE; irrelevant
+    // without depth test on the 2D path). The save/restore invariant
+    // is CI-proven under a real hidden-window GL context
+    // (checkDepthState); on-screen occlusion is SMOKE-only
+    // (SMOKE_TEST 7.10).
     void drawDebugMesh3D(const std::vector<float>& vertices, const Mat4& model,
                          const Mat4& view, const Mat4& projection) {
         if (vertices.empty()) {
             return;
         }
+        const GLboolean depthWasOn = glIsEnabled(GL_DEPTH_TEST);
+        glEnable(GL_DEPTH_TEST);
         GLuint vao = 0, vbo = 0;
         glGenVertexArrays(1, &vao);
         glGenBuffers(1, &vbo);
@@ -742,6 +746,10 @@ public:
         const Mat4 mvp = projection * view * model;
         glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
         glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices.size() / 5));
+        // Step 195: restore the caller's prior depth state EXACTLY.
+        if (depthWasOn == GL_FALSE) {
+            glDisable(GL_DEPTH_TEST);
+        }
         glBindVertexArray(0);
         glDeleteBuffers(1, &vbo);
         glDeleteVertexArrays(1, &vao);

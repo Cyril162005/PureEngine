@@ -98,6 +98,7 @@ real window, never from CI alone.
 | 7.7 | Tint visuals | Per-entity tint (white default); colliding flag overrides red (Step 86) — HUMAN-ONLY |
 | 7.8 | F-04 assert | entities.size() == colliding.size() holds every frame — a mismatch would abort (asserted every drawWorld call; the absence of an abort IS the pass evidence) — HUMAN-ONLY |
 | 7.9 | Opt-in 3D debug mesh (Step 194) | A caller that opts into `drawDebugMesh3D` (games never do) sees the unit cube drawn with the perspective/view/model composition; the CPU-side data (36×5 vertex layout, unit bounds, translation builder) is CI-proven — the glDraw* call + pixels are HUMAN-ONLY |
+| 7.10 | 3D depth occlusion (Step 195) | With two overlapping 3D debug draws, front faces hide back faces (depth test on during the 3D path). CI-proven: the depth-test enable state MATCHES the pre-call state after the draw and the 2D pass leaves depth OFF (hidden-window GL context, `checkDepthState`) — the on-screen occlusion itself is HUMAN-ONLY |
 
 ---
 
