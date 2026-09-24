@@ -1958,6 +1958,20 @@
     175,
     181
    ]
+  },
+  {
+   "id": 185,
+   "name": "SCENE slice verify pass (Steps 31-40 of the 80-step run)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record: manager round-trip green (checkSceneManagerRoundTrip), explicit-path save + Windows re-save green (Step 162), malformed index refuses without corrupting out (failure matrix), missing file refuses + out untouched (checkResourceSystem/blob contract + scene tests), prefab failure matrix green (checkPrefabSceneFailureMatrix), spawn-after-kill index rules green (checkSpawnAfterKill), multi-prefab persist green (checkPrefabMultiSpawnPersist), entity lifecycle alive/kill green (lifecycle tests). No fixes needed.",
+   "notes": "Steps 31-40 already satisfied by Steps 156/161/162/178 + existing tests - verified, no new code.",
+   "commit": "(verify-only; see next docs commit)",
+   "depends_on": [
+    156,
+    161,
+    162,
+    178
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
