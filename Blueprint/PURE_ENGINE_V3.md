@@ -139,6 +139,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 168: Console contract gaps (wrap/cap, empty-history recall, submitHistory-vs-clear, closed-console no-op) + glad link into hostile_data_test — recorded (134 entries)
 - . Step 169: Particles system contract headless lock (spawn guard, accumulator carry, life conversion, swap-with-back) — recorded (135 entries); no src changes
 - . Step 170: Time/timestep contract headless lock (tick advance, 0.1s clamp observed, pause/scale semantics; glfwInit self-contained) — recorded (136 entries); no time.h changes
+- . Step 171: Engine lifecycle/init contract — documented init order from source + audio init idempotent guard (double-init no-op, device-backed green) — recorded (137 entries)
 - ✓ Step 158: Input gamepad-action bridge (fixed gamepadButtonsForAction mapping + optional GamepadState tails on isActionDown/Edge) — completed
 - ✓ Step 159: Input Action::Console (rebindable console toggle; loader maps console properly, pumps use isActionEdge(Console)) — completed
 

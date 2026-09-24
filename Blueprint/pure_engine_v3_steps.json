@@ -1788,6 +1788,19 @@
     17,
     92
    ]
+  },
+  {
+   "id": 171,
+   "name": "Engine lifecycle/init contract (documented order + audio double-init guard)",
+   "status": "completed",
+   "definition_of_done": "Engine-init order documented from source (Arcade main.cpp:558-842, Platformer :116-253, Pong :33-138 — GLFW -> window -> gladLoadGL -> audio.init -> renderer.init -> frameTime.start -> loadInputBindings non-fatal; every failure -> terminate + abort; glfwTerminate once; audio.shutdown idempotent + destructor insurance). audio.init() idempotent guard added (second init no-op — device leak fixed); double-init assertion in checkAudioDeviceLifecycle (device present, ran green). renderer init twice documented NOT-safe (call-site contract); destroyAll twice safe by zeroing.",
+   "notes": "One thin guard in audio.h — no new Engine class. No game features; games call init once, behavior unchanged.",
+   "commit": "d35d46e",
+   "depends_on": [
+    9,
+    20,
+    77
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
