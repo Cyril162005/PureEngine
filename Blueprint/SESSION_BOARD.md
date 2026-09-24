@@ -3,7 +3,7 @@
 Per-session rows; update your row when you start/stop. Claims need real
 command output behind them (see AGENTS.md reporting expectations).
 Feature history stays in pure_engine_v3_steps.json + PURE_ENGINE_V3.md —
-this board never replaces it. Highest step id: 174 (140 entries, 35–174,
+this board never replaces it. Highest step id: 175 (141 entries, 35–175,
 no dups).
 
 ## Focus (binding for all sessions)
@@ -13,7 +13,7 @@ no dups).
   sanity → push. No whole-repo `git add .`.
 - input/audio/physics/render/scene = **parked unless assigned**.
 - Next active system: (awaiting user assignment — all assigned campaigns COMPLETE:
-  console Step 168, particles Step 169, time contract Step 170, lifecycle/init contract Step 171, gamepad-actions Step 172, core loop contract Step 174).
+  console Step 168, particles Step 169, time contract Step 170, lifecycle/init contract Step 171, gamepad-actions Step 172, core loop contract Step 174, swept-twin P7 Step 175).
 
 | Session | Owns | Status | Last update | Notes |
 |---------|------|--------|-------------|-------|

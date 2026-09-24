@@ -1838,6 +1838,19 @@
     17,
     171
    ]
+  },
+  {
+   "id": 175,
+   "name": "Physics: sweptMoveAndCollide swept twin + P7 contract test",
+   "status": "completed",
+   "definition_of_done": "sweptMoveAndCollide (the discrete resolve swept twin: expanded AABBs via sweptAABB, earliest-hit clamp with normal-zeroing, start-inside t=0 handling) in physics.h + checkSweptMoveAndCollide contract (tunnel catch in one call, full-delta no-contact, wall stop, earliest-hit) + sweptMoveOk chain gate.",
+   "notes": "Step id 175 (the requested 174 was already taken by the core loop contract — next free id used). Split-staged: audio volume-matrix, input adoption-helper, prefab-scene-matrix hunks + their registrations left unstaged; renderer.h NOT staged (no Render FINISHED REPORT).",
+   "commit": "bfb7b8f",
+   "depends_on": [
+    129,
+    173,
+    87
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

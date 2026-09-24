@@ -143,6 +143,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 172: Input checkGamepadActions gamepad-action mapping contract — recorded (138 entries); no input.h changes
 - . Step 173: Physics sweptAABB slab package + tunnel-catch contract (SweepHit/sweptAABB + chain gate) — recorded (139 entries); API-only, no game wire yet; Step 172 sweep-in disclosed
 - . Step 174: Core loop contract — Pong tick moved above poll (sampling invariant fixed) + loop-order doc — recorded (140 entries); two mid-write races disclosed
+- . Step 175: Physics sweptMoveAndCollide swept twin + P7 contract test (tunnel catch, earliest-hit) — recorded (141 entries); API-only, no game wire yet
 - ✓ Step 158: Input gamepad-action bridge (fixed gamepadButtonsForAction mapping + optional GamepadState tails on isActionDown/Edge) — completed
 - ✓ Step 159: Input Action::Console (rebindable console toggle; loader maps console properly, pumps use isActionEdge(Console)) — completed
 
