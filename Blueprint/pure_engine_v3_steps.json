@@ -1851,6 +1851,64 @@
     173,
     87
    ]
+  },
+  {
+   "id": 176,
+   "name": "Audio: simultaneous SFX+music volume matrix (headless)",
+   "status": "completed",
+   "definition_of_done": "checkAudioVolumeMatrix: one Audio instance, several matrix points — at each point BOTH composed gains hold at once (SFX = master*sfx*perSound, music = master*musicVol). Headless, no device needed.",
+   "notes": "Step id 176 in COMMIT order (the flow requested input=176): the audio chain reference (!volumeMatrixOk) was already swept into the Step 175 commit (bfb7b8f chain hunk had multiple -/+ pairs; only the first was verified) — the committed tree could not compile until this test+registration landed, so audio went first. Sweep-in disclosed.",
+   "commit": "9aa10c8",
+   "depends_on": [
+    124
+   ]
+  },
+  {
+   "id": 177,
+   "name": "Input: Input(vector) adoption ctor + union-order contract test",
+   "status": "completed",
+   "definition_of_done": "Input(const std::vector<int>&) ctor (the keysForAllActions() adoption helper missing piece — a game loads bindings FIRST then builds Input from the union; every mapped key edge-tracked) + checkInputAdoptionHelper: opt-in ORDER proof + counter-proofs (narrow hand-rolled set stays silent; pre-remap-union Input stays silent). Same contract as the initializer_list ctor.",
+   "notes": "Recorded 177 in commit order (the flow requested 176): the audio chain reference forced audio first (see Step 176 notes).",
+   "commit": "1437b28",
+   "depends_on": [
+    157,
+    158
+   ]
+  },
+  {
+   "id": 178,
+   "name": "Scene: prefab-scene failure matrix (headless contract)",
+   "status": "completed",
+   "definition_of_done": "checkPrefabSceneFailureMatrix closes the failure cells the earlier prefab/spawn tests leave open (malformed lines and non-empty-spawn spawn explicitly NOT repeated — covered by checkPrefabSystem/checkPrefabSceneSpawn).",
+   "implementation": "tests/hostile_data_test.cpp: checkPrefabSceneFailureMatrix (+147) + registration.",
+   "verification": "ctest 2/2 Passed before commit; alive at final check.",
+   "commit": "83c5b24",
+   "depends_on": [
+    120,
+    136
+   ]
+  },
+  {
+   "id": 179,
+   "name": "Render: draw/submit contract doc (headless vs SMOKE split)",
+   "status": "completed",
+   "definition_of_done": "Consolidated draw/submit contract block in renderer.h: submission split (game decides WHAT/WHEN, renderer submits), F-04 1:1 flags, Step 49 depth sort, Step 113 dead skip, Step 84 OOB fallback, Step 78 batching, Step 86 tint, Step 112 blending — with an HONEST verification split (headless-testable list vs GL-only human/SMOKE gate list). Doc only.",
+   "commit": "cd3edd7",
+   "depends_on": [
+    13
+   ]
+  },
+  {
+   "id": 180,
+   "name": "Resources: released texture slot fallback + lifetime contract + checkTextureLifetime",
+   "status": "completed",
+   "definition_of_done": "Draw-path invalid-slot rule widened: OOB AND released slots (runtime unload zeroes the GL name but keeps the registry slot) both fall back to the checker with a distinguishable warn-once log — a stale textureId can never bind GL name 0 and draw undefined content. Registry-side lifetime documented end-to-end in renderer.h (resources.h cross-ref). checkTextureLifetime in resources_test (+50) + registration.",
+   "commit": "2c4b2f8",
+   "depends_on": [
+    84,
+    133,
+    166
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

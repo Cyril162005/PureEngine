@@ -144,6 +144,11 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 173: Physics sweptAABB slab package + tunnel-catch contract (SweepHit/sweptAABB + chain gate) — recorded (139 entries); API-only, no game wire yet; Step 172 sweep-in disclosed
 - . Step 174: Core loop contract — Pong tick moved above poll (sampling invariant fixed) + loop-order doc — recorded (140 entries); two mid-write races disclosed
 - . Step 175: Physics sweptMoveAndCollide swept twin + P7 contract test (tunnel catch, earliest-hit) — recorded (141 entries); API-only, no game wire yet
+- . Step 176: Audio simultaneous SFX+music volume matrix (headless) — recorded (142 entries); chain-reference sweep into 175 disclosed
+- . Step 177: Input Input(vector) adoption ctor + union-order contract test — recorded (143 entries)
+- . Step 178: Scene prefab-scene failure matrix headless contract — recorded (144 entries)
+- . Step 179: Render draw/submit contract doc (headless vs SMOKE split) — recorded (145 entries)
+- . Step 180: Resources released-slot checker fallback + texture lifetime contract + test — recorded (146 entries)
 - ✓ Step 158: Input gamepad-action bridge (fixed gamepadButtonsForAction mapping + optional GamepadState tails on isActionDown/Edge) — completed
 - ✓ Step 159: Input Action::Console (rebindable console toggle; loader maps console properly, pumps use isActionEdge(Console)) — completed
 
