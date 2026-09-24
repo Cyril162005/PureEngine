@@ -5820,6 +5820,78 @@ static bool checkDepthState() {
     return ok;
 }
 
+// Step 197: editor-lite v0 headless success path (the TOOLING
+// CONTRACT's smallest TOOL loop - no GUI, no new binary):
+// load -> select by stable index -> nudge -> save -> reload -> assert
+// persisted. PRECISION RULE (documented): the scene v2 writer is FIXED
+// 4-DECIMAL (scene.h std::setprecision(4)) - lossy beyond 4 places, so
+// a general tool must compare within epsilon 1e-4 (the writer's
+// rounding bound is 0.00005). THIS test uses exactly-representable
+// deltas (1.5) and clean fixture values, so the assert is EXACT and
+// still fails if the nudge did not persist. No SMOKE-only closure.
+static bool checkEditorLiteSuccess() {
+    // Cleanup prior artifacts (all three candidate spellings), the
+    // existing scene-test convention.
+    const char* prefixes[3] = {"assets/", "../assets/", "../../assets/"};
+    for (const char* p : prefixes) {
+        std::remove((std::string(p) + "scene_editor_lite_test.txt").c_str());
+        std::remove((std::string(p) + "scene_editor_lite_test.txt.tmp").c_str());
+    }
+    bool ok = true;
+    // 1. Fixture scene: 2 entities, clean 4-decimal-representable values.
+    pe::Scene fixture;
+    fixture.name = "editor_lite";
+    pe::Entity a(pe::Vec3(1.0f, 2.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    pe::Entity b(pe::Vec3(3.0f, 4.0f, 0.0f), 0.0f, pe::Vec3(2.0f, 2.0f, 2.0f));
+    fixture.entities.push_back(a);
+    fixture.entities.push_back(b);
+    if (!pe::saveSceneToFile(fixture, "scene_editor_lite_test.txt")) {
+        std::cerr << "editor-lite: fixture save failed\n";
+        return false;
+    }
+    // 2. Load (the TOOL loop's open).
+    pe::Scene loaded;
+    if (!pe::loadSceneFromFile("scene_editor_lite_test.txt", loaded) ||
+        loaded.entities.size() != 2) {
+        std::cerr << "editor-lite: load failed\n";
+        return false;
+    }
+    // 3. Select by STABLE index (file order == vector order) + nudge.
+    const float preSaveX = loaded.entities[1].position.x;
+    loaded.entities[1].position.x += 1.5f;
+    const float nudgedX = loaded.entities[1].position.x;
+    // 4. Save back (same file - the rename-overwrite path).
+    if (!pe::saveSceneToFile(loaded, "scene_editor_lite_test.txt")) {
+        std::cerr << "editor-lite: re-save failed\n";
+        return false;
+    }
+    // 5. Reload into a FRESH scene object.
+    pe::Scene reloaded;
+    if (!pe::loadSceneFromFile("scene_editor_lite_test.txt", reloaded) ||
+        reloaded.entities.size() != 2) {
+        std::cerr << "editor-lite: reload failed\n";
+        return false;
+    }
+    // 6. Assert persisted: nudged entity EXACT (representable values),
+    // untouched entity EXACT.
+    if (!assertFloatClose(reloaded.entities[1].position.x, nudgedX) ||
+        !assertFloatClose(reloaded.entities[1].position.x - preSaveX, 1.5f)) {
+        std::cerr << "editor-lite: nudge did not persist\n";
+        ok = false;
+    }
+    if (!assertFloatClose(reloaded.entities[0].position.x, 1.0f) ||
+        !assertFloatClose(reloaded.entities[0].position.y, 2.0f)) {
+        std::cerr << "editor-lite: untouched entity drifted\n";
+        ok = false;
+    }
+    // 7. Cleanup.
+    for (const char* p : prefixes) {
+        std::remove((std::string(p) + "scene_editor_lite_test.txt").c_str());
+        std::remove((std::string(p) + "scene_editor_lite_test.txt.tmp").c_str());
+    }
+    return ok;
+}
+
 // Step 196: 3D debug view (headless). MANDATORY EVIDENCE for the
 // opt-in lookAt-from-eye API:
 //   a) view matrix from KNOWN eye/target/up: entries equal Mat4::lookAt
@@ -6733,6 +6805,7 @@ int main() {
     const bool mesh3DOk = checkMesh3D();
     const bool depthStateOk = checkDepthState();
     const bool view3DOk = checkView3D();
+    const bool editorLiteOk = checkEditorLiteSuccess();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -6767,7 +6840,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
