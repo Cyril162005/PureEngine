@@ -3091,7 +3091,62 @@ static bool checkPreInitGuards() {
     return true;
 }
 
-// --- A3: device-backed init/reuse lifecycle (device required) ---
+// --- Simultaneous SFX + music volume matrix (headless, no device) ---
+// One Audio instance, several matrix points: at each point BOTH composed
+// gains must hold at once — SFX = master*sfx*perSound, music =
+// master*musicVol. checkPerSoundVolume and checkMusicVolumeIndependence
+// each cover one path; this locks them TOGETHER: master multiplies both,
+// sfx only SFX, musicVol only music, and mute zeroes both composed
+// paths while unmute restores both (the live menu-music + SFX state a
+// game actually runs). Headless observation is via stored multipliers;
+// the composition itself runs in applyVolumes() (device-only).
+static bool checkAudioVolumeMatrix() {
+    struct Point { float master, sfx, beep, music; };
+    const Point pts[] = {
+        {1.0f, 1.0f, 1.0f, 1.0f},
+        {0.8f, 0.5f, 0.5f, 0.6f},
+        {0.0f, 1.0f, 1.0f, 1.0f},
+        {1.0f, 0.2f, 0.3f, 0.9f},
+    };
+    pe::Audio audio;  // never init()ed: guards must no-op safely
+    for (const Point& p : pts) {
+        audio.setMasterVolume(p.master);
+        audio.setSfxVolume(p.sfx);
+        audio.setVolume(pe::Sound::Beep, p.beep);
+        audio.setMusicVolume(p.music);
+        if (!assertFloatClose(audio.getMasterVolume() * audio.getSfxVolume() *
+                                  audio.getVolume(pe::Sound::Beep),
+                              p.master * p.sfx * p.beep) ||
+            !assertFloatClose(audio.getMasterVolume() * audio.getMusicVolume(),
+                              p.master * p.music)) {
+            std::cerr << "Volume matrix point wrong (master " << p.master
+                      << " sfx " << p.sfx << " beep " << p.beep
+                      << " music " << p.music << ")\n";
+            return false;
+        }
+    }
+    // Mute zeroes BOTH composed paths while keeping all multipliers.
+    audio.setMasterVolume(0.7f);
+    audio.setSfxVolume(0.5f);
+    audio.setVolume(pe::Sound::Beep, 0.4f);
+    audio.setMusicVolume(0.9f);
+    audio.setMuted(true);
+    if (!assertFloatClose(audio.getMasterVolume() * audio.getSfxVolume() *
+                              audio.getVolume(pe::Sound::Beep), 0.0f) ||
+        !assertFloatClose(audio.getMasterVolume() * audio.getMusicVolume(), 0.0f)) {
+        std::cerr << "Muted matrix must zero both composed paths\n";
+        return false;
+    }
+    // Unmute restores BOTH composed paths from the same stored state.
+    audio.setMuted(false);
+    if (!assertFloatClose(audio.getMasterVolume() * audio.getSfxVolume() *
+                              audio.getVolume(pe::Sound::Beep), 0.7f * 0.5f * 0.4f) ||
+        !assertFloatClose(audio.getMasterVolume() * audio.getMusicVolume(), 0.7f * 0.9f)) {
+        std::cerr << "Unmuted matrix must restore both composed paths\n";
+        return false;
+    }
+    return true;
+}
 // Skip policy: miniaudio is asked directly whether any playback device
 // exists (ma_context_get_devices on a throwaway context). Zero devices
 // means a genuinely headless machine (CI/VM without audio): the check
@@ -5877,6 +5932,7 @@ int main() {
     const bool perSoundVolumeOk = checkPerSoundVolume();
     const bool musicVolumeIndepOk = checkMusicVolumeIndependence();
     const bool preInitGuardsOk = checkPreInitGuards();
+    const bool volumeMatrixOk = checkAudioVolumeMatrix();
     const bool audioDeviceLifecycleOk = checkAudioDeviceLifecycle();
     const bool audioPoolRotationOk = checkAudioPoolRotation();
     const bool screenToWorldOk = checkScreenToWorld();
