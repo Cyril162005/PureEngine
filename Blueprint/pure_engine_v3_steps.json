@@ -1972,6 +1972,19 @@
     162,
     178
    ]
+  },
+  {
+   "id": 186,
+   "name": "RESOURCES slice verify pass (Steps 41-50 of the 80-step run)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record: blob failure/empty green (checkResourceSystem), cache independence + clear green, pack hit vs fallback green, 0-byte file = success + empty out TESTED (resources_test:130-134 fixture); register missing -> -1 no GL green; released slot never binds GL 0 CODE-PATH REVIEWED (renderer.h:534 (!oob && !released) ? entityTextures[slot] : checkerTexture, Step 180 fix); resources.h <-> renderer lifetime cross-ref accurate (Step 180); unloadNonCore empty registry safe. No fixes needed.",
+   "notes": "Steps 41-50 already satisfied by Steps 163/166/180 + existing tests - verified, no new code.",
+   "commit": "(verify-only; see next docs commit)",
+   "depends_on": [
+    163,
+    166,
+    180
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
