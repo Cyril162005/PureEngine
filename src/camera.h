@@ -169,13 +169,51 @@ public:
     // horizontal scales with aspect. Zero/negative size is a no-op (minimized).
     // Step 125: the half-extents are also STORED so the screen-to-world
     // conversion helpers read the same values the projection was built from.
+    // Step 193: rebuilds per MODE — ortho (default) or perspective.
     void onResize(int width, int height) {
         if (width <= 0 || height <= 0) return;
         float aspect = static_cast<float>(width) / static_cast<float>(height);
         halfHeight = 4.5f;
         halfWidth = halfHeight * aspect;
-        proj = Mat4::orthographic(-halfWidth, halfWidth, -halfHeight, halfHeight, -1.0f, 1.0f);
+        rebuildProjection(aspect);
     }
+
+    // --- Step 193: additive 3D projection mode (Goal2 Phase1 camera) ---
+    // Opt-in perspective: the camera gains FOV/near/far fields and a
+    // mode flag. DEFAULT REMAINS 2D ORTHO — no game changes unless it
+    // explicitly calls setPerspective(); the games never do. Switching
+    // back (setOrthographicMode) restores the exact ortho box, so a
+    // mode round-trip cannot drift the 2D defaults. The view stays the
+    // existing lookAt (a translation for a straight-down-Z camera); a
+    // pitched/ yawed 3D view is a later step, not here.
+    //
+    // Caller contract: near > 0 and far > near (delegated to
+    // Mat4::perspective's caller contract). Aspect is derived from the
+    // CURRENT half-extents (the onResize values), so resize keeps the
+    // perspective frustum aspect-correct too.
+    void setPerspective(float fovyRadians, float nearZ, float farZ) {
+        fovY = fovyRadians;
+        this->nearZ = nearZ;
+        this->farZ = farZ;
+        perspectiveMode = true;
+        rebuildProjection(halfWidth / halfHeight);
+    }
+    void setOrthographicMode() {
+        perspectiveMode = false;
+        rebuildProjection(halfWidth / halfHeight);
+    }
+    bool isPerspective() const { return perspectiveMode; }
+
+private:
+    void rebuildProjection(float aspect) {
+        if (perspectiveMode) {
+            proj = Mat4::perspective(fovY, aspect, nearZ, farZ);
+        } else {
+            proj = Mat4::orthographic(-halfWidth, halfWidth, -halfHeight, halfHeight, -1.0f, 1.0f);
+        }
+    }
+
+public:
 
     // --- Step 125: screen-to-world conversion (thin wrappers) ---
     // COORDINATE CONTRACT (documented here, owned here):
@@ -241,6 +279,13 @@ private:
     // fewer pixels (66.7 instead of 100), which is why everything
     // renders visually smaller.
     Mat4 proj = Mat4::orthographic(-6.0f, 6.0f, -4.5f, 4.5f, -1.0f, 1.0f);
+
+    // Step 193: additive 3D mode fields. Defaults keep the camera 2D
+    // ortho — perspectiveMode false until a caller opts in.
+    float fovY = 1.0472f;      // 60 degrees vertical FOV
+    float nearZ = 0.1f;
+    float farZ = 100.0f;
+    bool perspectiveMode = false;
 };
 
 } // namespace pe

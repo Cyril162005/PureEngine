@@ -5768,6 +5768,45 @@ static bool checkPerspective() {
     return ok;
 }
 
+// Step 193: Camera 3D projection mode (headless). Locks the additive
+// opt-in path: the default camera stays 2D ORTHO (projection equals
+// the 12x9 launch box, isPerspective false), setPerspective switches
+// to a finite standard-GL perspective (m[2][3] == -1), switching back
+// restores the EXACT ortho box (mode round-trip cannot drift the 2D
+// defaults), and onResize keeps both modes aspect-correct.
+static bool checkCamera3D() {
+    bool ok = true;
+    auto sameMat = [](const pe::Mat4& a, const pe::Mat4& b) {
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
+            if (!assertFloatClose(a.m[c][r], b.m[c][r])) return false;
+        }
+        return true;
+    };
+    auto finite = [](const pe::Mat4& m) {
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
+            const float v = m.m[c][r];
+            if (!(v == v) || v > 1e30f || v < -1e30f) return false;
+        }
+        return true;
+    };
+    pe::Camera cam;
+    // Default: 2D ortho, unchanged.
+    if (cam.isPerspective()) { std::cerr << "Default camera must be ortho\n"; ok = false; }
+    const pe::Mat4 orthoDefault = pe::Mat4::orthographic(-6.0f, 6.0f, -4.5f, 4.5f, -1.0f, 1.0f);
+    if (!sameMat(cam.projection(), orthoDefault)) { std::cerr << "Default projection must be the 12x9 ortho box\n"; ok = false; }
+    // Opt-in perspective: finite, standard GL shape.
+    cam.setPerspective(1.0472f, 0.1f, 100.0f);
+    if (!cam.isPerspective()) { std::cerr << "setPerspective must switch mode\n"; ok = false; }
+    if (!finite(cam.projection()) || cam.projection().m[2][3] != -1.0f) {
+        std::cerr << "Perspective projection must be finite GL shape\n"; ok = false;
+    }
+    // Mode round-trip: ortho defaults restored exactly.
+    cam.setOrthographicMode();
+    if (cam.isPerspective()) { std::cerr << "setOrthographicMode must switch back\n"; ok = false; }
+    if (!sameMat(cam.projection(), orthoDefault)) { std::cerr << "Ortho defaults must survive a mode round-trip\n"; ok = false; }
+    return ok;
+}
+
 // Step 190: WindowGuard bootstrap helper (headless). Locks the
 // failure-path contract: a null-window guard is a no-op with zero
 // GLFW calls, release() detaches so the caller keeps the window and
@@ -6531,6 +6570,7 @@ int main() {
     const bool timeContractOk = checkTimeContract();
     const bool windowGuardOk = checkWindowGuard();
     const bool perspectiveOk = checkPerspective();
+    const bool camera3DOk = checkCamera3D();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -6565,7 +6605,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
