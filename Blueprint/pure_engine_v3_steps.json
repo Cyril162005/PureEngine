@@ -2063,6 +2063,19 @@
     181,
     192
    ]
+  },
+  {
+   "id": 193,
+   "name": "Camera: additive 3D projection mode (Goal2 Phase1 camera)",
+   "status": "completed",
+   "definition_of_done": "Camera gains fovY/nearZ/farZ fields + perspectiveMode flag + setPerspective/setOrthographicMode/isPerspective; projection() rebuilds per mode (ortho default byte-identical); onResize rebuilds per mode (both aspect-correct). DEFAULT REMAINS 2D ORTHO — games unchanged (never call setPerspective). checkCamera3D: default ortho equals the 12x9 launch box, perspective finite + standard GL shape, mode round-trip restores the EXACT ortho defaults. No mesh/cube draw (later, opt-in). View stays the existing lookAt (pitched/yawed 3D view = later step).",
+   "notes": "Explicit user-requested scope expansion (2D+3D goal Phase 1). Uses Mat4::perspective (Step 191) + existing lookAt. 2D non-regression: build zero errors, ctest 2/2, arcade/platformer/pong alive True.",
+   "commit": "a08a31a",
+   "depends_on": [
+    191,
+    15,
+    116
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
