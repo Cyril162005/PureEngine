@@ -1825,6 +1825,19 @@
     129,
     87
    ]
+  },
+  {
+   "id": 174,
+   "name": "Core loop contract (Pong tick above poll + loop-order doc)",
+   "status": "completed",
+   "definition_of_done": "Loop order documented from source (Arcade main.cpp:1274, Platformer :278, Pong :139): tick at the VERY TOP before glfwPollEvents (Step 2/17 sampling invariant), then poll -> input -> update -> render -> swap; state transitions stop event sounds + music; teardown = glfwDestroyWindow on failure, glfwTerminate once, audio destructor insurance. Pong FIXED: its tick sat AFTER poll (silent event-slice exclusion) — moved above poll to match. No pe:: helper added (nothing was missing).",
+   "notes": "Two transient mid-write races hit during verification: input.h C3861 (ctor half-written during build) and tests C2059 (checkTimeScale header momentarily missing) — both resolved by the writing sessions before rebuild; disclosed. Split-staged MY hunks only (pong.cpp + Step 174 comment); the other sessions in-flight tests (P7 sweptMoveAndCollide, audio volume matrix, input adoption, prefab-scene matrix) left unstaged.",
+   "commit": "9d9050e",
+   "depends_on": [
+    2,
+    17,
+    171
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
