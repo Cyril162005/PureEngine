@@ -2002,6 +2002,17 @@
     160,
     177
    ]
+  },
+  {
+   "id": 188,
+   "name": "ANIMATION slice verify pass (Steps 61-70 of the 80-step run)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record: setClip missing -> false green (checkAnimationClipSwitch:6029 area), mid-play switch resets playhead green, same-clip preserves elapsed green (checkAnimationClipKeep), loop wrap green (checkAnimationSystem loop cases), one-shot end stops playing green (checkAnimationSystem non-loop), empty map setClip safe green, loadAnimations malformed path safe green (checkAnimationSystem parse/failure cases). Multi-track/blend listed as later-not-started on board (Step 69). No fixes needed.",
+   "notes": "Steps 61-70 already satisfied by Steps 164 + existing tests - verified, no new code. Board item (Step 69) was the only doc gap.",
+   "commit": "(verify-only; see next docs commit)",
+   "depends_on": [
+    164
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
