@@ -3,7 +3,7 @@
 Per-session rows; update your row when you start/stop. Claims need real
 command output behind them (see AGENTS.md reporting expectations).
 Feature history stays in pure_engine_v3_steps.json + PURE_ENGINE_V3.md —
-this board never replaces it. Highest step id: 167 (133 entries, 35–167,
+this board never replaces it. Highest step id: 169 (135 entries, 35–169,
 no dups).
 
 ## Focus (binding for all sessions)
@@ -12,9 +12,8 @@ no dups).
   main pathspec-stages only the reported files → commit → board/step/README →
   sanity → push. No whole-repo `git add .`.
 - input/audio/physics/render/scene = **parked unless assigned**.
-- Next active system: **CONSOLE contract** — assigned to **PureEngine_main**
-  (routing: console lives in Main — game-loop system, debug overlay, registered
-  commands; NOT a Scene or Render concern).
+- Next active system: (awaiting user assignment — all assigned campaigns COMPLETE:
+  console Step 168, particles Step 169).
 
 | Session | Owns | Status | Last update | Notes |
 |---------|------|--------|-------------|-------|
@@ -23,7 +22,7 @@ no dups).
 | PureEngine_input | input.h, gamepad.h | parked | 2026-09-21 | Campaign complete + union fix landed: `keysForAllActions()` includes Action::Console (default 12→13, remap test 13→14) — `2cacf5f`. Steps 154–159 recorded (`32125e9`…`54a7918`); Step 160 adoption + union recorded. Action::Console rebindable — campaign closed/parked. |
 | PureEngine_resources | resources.h, resources_test.cpp, CMake test target | parked | 2026-09-22 | Campaign COMPLETE: Step 163 (hostile_data_test contract), Step 166 (CONTRACT block in resources.h + dedicated headless resources_test target, 41 assertions) — commit 4df2842. |
 | PureEngine_audio | audio.h | parked | 2026-09-21 | A1–A5 landed (`58b5b7c`, `20d8f05`, `a1d348b`, `2a5a181`); queryable load state + pool rotation proven. Resource load system contract (Step 163) verified the blob/pack/cache half headlessly; audio's 3-probe + unified failure line share the same contract by construction. |
-| PureEngine_render | renderer.h, camera.h, shader.h, lighting.h | COMPLETE | 2026-09-21 | Campaign 1-3 complete. Inc1: lighting.h doc header + MAX_LIGHTS cap (`af81e15`). Inc2: calculateFrameUV + addLight cap tests (`af8475b`). Inc3: stale Step-13 checklist doc fix (`5780309`). Build/CTest/alive green each step. Disclosure: first inc3 commit briefly swept owner-staged platformer.cpp; fixed same-session (reset --soft + pathspec commit), owner state restored, bad commit never pushed. Post-campaign gap CLOSED as Step 165: checkFollowLerp camera contract — commit feb7db3 (split-staged around events in-flight hunks; followLerpOk registered, chain-gating pending events commit). Render/camera campaign COMPLETE. Particles contract lock (UNCOMMITTED, awaiting main commit): checkParticleContract() headless tests in hostile_data_test (+121/-1) — non-positive maxParticles never spawns, accumulator carry + dt<=0 untouched, maxLife survives update, negative-life never converts, empty-pool conversion, swap-with-back reorder; build/CTest/alive green; no src changes. |
+| PureEngine_render | renderer.h, camera.h, shader.h, lighting.h | COMPLETE | 2026-09-21 | Campaign 1-3 complete. Inc1: lighting.h doc header + MAX_LIGHTS cap (`af81e15`). Inc2: calculateFrameUV + addLight cap tests (`af8475b`). Inc3: stale Step-13 checklist doc fix (`5780309`). Build/CTest/alive green each step. Disclosure: first inc3 commit briefly swept owner-staged platformer.cpp; fixed same-session (reset --soft + pathspec commit), owner state restored, bad commit never pushed. Post-campaign gap CLOSED as Step 165: checkFollowLerp camera contract — commit feb7db3 (split-staged around events in-flight hunks; followLerpOk registered, chain-gating pending events commit). Render/camera campaign COMPLETE. Particles contract lock LANDED as Step 169: checkParticleContract (spawn guard, accumulator carry, life conversion, swap-with-back) — commit 67cc2c2, fresh sanity green before commit, no src changes. Particles contract COMPLETE under Render. |
 | PureEngine_scene | scene.h, prefab.h, tilemap.h (persistence paths) + related tests | parked | 2026-09-21 | CAMPAIGN COMPLETE: Step 156 (manager save/spawn-after-kill/multi-spawn persist), Step 161 (`c8e40fc` load + manager round-trip), Step 162 (`a1824af` save path symmetry + Windows re-save rename fix + test 5e). Fresh sanity green before commit. Path symmetry beyond round-trip still optional later. |
 | PureEngine_animation | animation.h, animation_data.h + animation tests | parked | 2026-09-21 | Campaign COMPLETE: Step 164 checkAnimationSystem (load/bind/update/switch/loop/end, 12 cases) — commit 2e11c78, no engine source changes. |
 | PureEngine_events | events.h + event tests | parked | 2026-09-21 | Campaign COMPLETE: Step 167 checkEventReentrantOnceGaps (reentrant depth-3, mid-dispatch removal, once refusals/auto-removal/throw) + followLerpOk chain gate fixed — commit e4b9bbf. The Step 165 chain-gating gap is closed. |

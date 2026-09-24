@@ -1764,6 +1764,18 @@
     95,
     144
    ]
+  },
+  {
+   "id": 169,
+   "name": "Particles system contract (headless lock)",
+   "status": "completed",
+   "definition_of_done": "checkParticleContract: non-positive maxParticles never spawns, accumulator carry + dt<=0 untouched, maxLife survives update, negative-life never converts, empty-pool conversion, swap-with-back reorder. No src changes.",
+   "implementation": "tests/hostile_data_test.cpp: checkParticleContract (+125) + registration + failure chain; render row note on board.",
+   "verification": "Fresh sanity before commit: cmake->EXIT=0; ctest 2/2 Passed 4.16s/0.91s; alive at post-commit check pending.",
+   "commit": "67cc2c2",
+   "depends_on": [
+    57
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
