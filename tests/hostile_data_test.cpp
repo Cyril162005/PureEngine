@@ -3706,6 +3706,125 @@ static bool checkParticleColorAndEmit() {
     return true;
 }
 
+// --- Step 70 contract lock (headless, documented behaviors unasserted) ---
+// Closes the remaining documented-but-untested particle contracts:
+// non-positive maxParticles never spawns, fractional accumulator carry,
+// dt<=0 emit leaves the accumulator untouched, maxLife survives update,
+// negative-life particles never convert, empty-pool conversion is safe,
+// and swap-with-back reorder on middle death.
+static bool checkParticleContract() {
+    bool ok = true;
+    // Non-positive maxParticles means "never spawn" (0 and negative).
+    pe::Emitter never;
+    never.spawnRate = 10.0f;
+    never.maxParticles = 0;
+    std::vector<pe::Particle> pool0;
+    pe::emit(never, pool0, 1.0f);
+    if (!pool0.empty()) {
+        std::cerr << "maxParticles=0 must never spawn\n";
+        ok = false;
+    }
+    never.maxParticles = -5;
+    pe::emit(never, pool0, 1.0f);
+    if (!pool0.empty()) {
+        std::cerr << "negative maxParticles must never spawn\n";
+        ok = false;
+    }
+    // Skipped budget is consumed, not backlogged: after the room frees,
+    // a fresh 0.1s emit at rate 10 yields exactly 1 (a backlog would burst).
+    never.maxParticles = 256;
+    never.accumulator = 0.0f;
+    pe::emit(never, pool0, 0.1f);
+    if (pool0.size() != 1) {
+        std::cerr << "post-cap fresh emit must yield exactly 1 (no backlog)\n";
+        ok = false;
+    }
+    // Fractional accumulator carry: rate 10 over two 0.05s emits gives
+    // 0.5 + 0.5 = 1 whole unit — exactly one particle, on the second call.
+    pe::Emitter frac;
+    frac.spawnRate = 10.0f;
+    std::vector<pe::Particle> poolFrac;
+    frac.accumulator = 0.0f;
+    pe::emit(frac, poolFrac, 0.05f);
+    if (!poolFrac.empty()) {
+        std::cerr << "0.5 budget must not spawn yet (carry, not early spawn)\n";
+        ok = false;
+    }
+    pe::emit(frac, poolFrac, 0.05f);
+    if (poolFrac.size() != 1) {
+        std::cerr << "0.5+0.5 accumulator carry must spawn exactly 1\n";
+        ok = false;
+    }
+    // dt <= 0 emit leaves the accumulator untouched (the early return
+    // runs before the accumulator line).
+    const float accBefore = frac.accumulator;
+    pe::emit(frac, poolFrac, 0.0f);
+    pe::emit(frac, poolFrac, -1.0f);
+    if (!assertFloatClose(frac.accumulator, accBefore)) {
+        std::cerr << "dt<=0 emit must not touch the accumulator\n";
+        ok = false;
+    }
+    // maxLife survives updateParticles (integration/aging never rewrites it).
+    pe::Particle aged;
+    aged.position = pe::Vec3(0, 0, 0);
+    aged.velocity = pe::Vec3(0, 0, 0);
+    aged.life = 1.0f;
+    aged.maxLife = 3.0f;
+    std::vector<pe::Particle> poolAged = {aged};
+    pe::updateParticles(poolAged, 0.25f);
+    if (!assertFloatClose(poolAged[0].maxLife, 3.0f) ||
+        !assertFloatClose(poolAged[0].life, 0.75f)) {
+        std::cerr << "updateParticles must age life, never rewrite maxLife\n";
+        ok = false;
+    }
+    // A negative-life particle (spawnParticle stores life as given) is
+    // dead from birth: never converts, and one update removes it.
+    std::vector<pe::Particle> poolNeg;
+    pe::spawnParticle(poolNeg, pe::Vec3(1, 1, 0), pe::Vec3(0, 0, 0), -1.0f,
+                      0.5f, pe::Vec3(1, 1, 1));
+    if (!pe::particlesToEntities(poolNeg, 0, 0, 0).empty()) {
+        std::cerr << "negative-life particle must never convert\n";
+        ok = false;
+    }
+    pe::updateParticles(poolNeg, 0.1f);
+    if (!poolNeg.empty()) {
+        std::cerr << "negative-life particle must die on first update\n";
+        ok = false;
+    }
+    // Empty-pool conversion: empty vector, no crash.
+    std::vector<pe::Particle> poolEmpty;
+    if (!pe::particlesToEntities(poolEmpty, 2, 3, 7).empty()) {
+        std::cerr << "empty pool must convert to empty entities\n";
+        ok = false;
+    }
+    // Swap-with-back reorder: killing the FIRST of three moves the last
+    // survivor into its slot — order is NOT preserved (documented pool
+    // behavior). Both survivors must stay alive with intact data.
+    std::vector<pe::Particle> poolReorder;
+    pe::spawnParticle(poolReorder, pe::Vec3(10, 0, 0), pe::Vec3(0, 0, 0),
+                      0.1f, 0.5f, pe::Vec3(1, 1, 1));   // index 0: dies
+    pe::spawnParticle(poolReorder, pe::Vec3(20, 0, 0), pe::Vec3(0, 0, 0),
+                      5.0f, 0.5f, pe::Vec3(1, 1, 1));   // index 1: survives
+    pe::spawnParticle(poolReorder, pe::Vec3(30, 0, 0), pe::Vec3(0, 0, 0),
+                      5.0f, 0.5f, pe::Vec3(1, 1, 1));   // index 2: survives
+    pe::updateParticles(poolReorder, 1.0f);
+    if (poolReorder.size() != 2) {
+        std::cerr << "middle-death reorder: wrong survivor count\n";
+        ok = false;
+    } else {
+        bool found20 = false, found30 = false;
+        for (const pe::Particle& p : poolReorder) {
+            if (assertFloatClose(p.position.x, 20.0f)) found20 = true;
+            if (assertFloatClose(p.position.x, 30.0f)) found30 = true;
+        }
+        if (!found20 || !found30) {
+            std::cerr << "middle-death reorder: survivor data corrupted\n";
+            ok = false;
+        }
+    }
+    return ok;
+}
+
 static bool checkFixedTimestepNoTunnel() {
     // Large dt (0.1s) with fast fall would tunnel a 1-unit tile in one variable step.
     // Fixed substeps (1/60) must keep character on top of floor.
@@ -5333,6 +5452,7 @@ int main() {
     const bool lifecycleOk = checkEntityLifecycle();
     const bool frameUvOk = checkFrameUV();
     const bool followLerpOk = checkFollowLerp();
+    const bool particleContractOk = checkParticleContract();
     const bool lightingCapOk = checkLightingCap();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
@@ -5357,7 +5477,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
