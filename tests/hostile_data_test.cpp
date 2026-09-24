@@ -4769,6 +4769,57 @@ static bool checkTimeScale() {
     return true;
 }
 
+// Step 170: time/timestep contract (headless, wall-clock). Locks the
+// halves checkTimeScale left open: tick() advances each frame (a
+// delta measures only its own frame, never cumulative), the 0.1s
+// clamp engages on a real long frame (sleep 150ms -> tick == 0.1f),
+// paused scaledTick() returns 0 while the underlying clock still
+// advances (pause gates the game's use, it does not freeze time),
+// scaledTick multiplies by scale, scale 0 gives 0 unpaused, and
+// consecutive ticks never go negative (monotonic clock by
+// construction). No game slow-mo features — mechanism only.
+static bool checkTimeContract() {
+    bool ok = true;
+    // glfwGetTime() requires glfwInit(): the test self-contains the
+    // clock's lifetime (checkInputEdges terminates GLFW before this
+    // runs). Headless init — no window needed for the monotonic clock.
+    if (!glfwInit()) { std::cerr << "time test skipped: glfwInit failed\n"; return false; }
+    pe::FrameTime ft;
+    ft.start();
+    // tick ordering: each delta measures its own frame.
+    Sleep(50);
+    const float d1 = ft.tick();
+    if (d1 <= 0.0f || d1 > 0.1f) { std::cerr << "tick must measure its frame\n"; ok = false; }
+    Sleep(30);
+    const float d2 = ft.tick();
+    if (d2 <= 0.0f || d2 > 0.1f) { std::cerr << "tick must advance per frame\n"; ok = false; }
+    if (d2 >= d1 + 0.045f) { std::cerr << "tick delta must not accumulate\n"; ok = false; }
+    // 0.1s clamp on a real long frame (debugger-pause analogue).
+    Sleep(150);
+    const float d3 = ft.tick();
+    if (!assertFloatClose(d3, 0.1f)) { std::cerr << "Long frame must clamp to 0.1s, got " << d3 << "\n"; ok = false; }
+    // Paused: scaledTick is 0; the clock still advances underneath.
+    ft.setPaused(true);
+    Sleep(30);
+    if (ft.scaledTick() != 0.0f) { std::cerr << "Paused scaledTick must be 0\n"; ok = false; }
+    ft.setPaused(false);
+    const float d4 = ft.tick();
+    if (d4 <= 0.0f || d4 > 0.1f) { std::cerr << "Pause must not freeze the clock\n"; ok = false; }
+    // Scale multiply + scale 0 unpaused.
+    ft.setTimeScale(0.5f);
+    Sleep(40);
+    const float d5 = ft.scaledTick();
+    if (d5 <= 0.001f || d5 > 0.045f) { std::cerr << "scaledTick must be scale*delta\n"; ok = false; }
+    ft.setTimeScale(0.0f);
+    Sleep(20);
+    if (ft.scaledTick() != 0.0f) { std::cerr << "Scale 0 unpaused must give 0\n"; ok = false; }
+    // Hygiene: restore defaults for later tests.
+    ft.setTimeScale(1.0f);
+    ft.setPaused(false);
+    glfwTerminate();
+    return ok;
+}
+
 static bool checkAnimationClipSwitch() {
     std::map<std::string, pe::Animation> clips;
     pe::Animation a; a.name = "idle"; a.frames = {{0, 0.1f}}; a.loops = true;
@@ -5429,6 +5480,7 @@ int main() {
     const bool eventThrowOnceOk = checkEventThrowAndOnce();
     const bool eventGapOk = checkEventReentrantOnceGaps();
     const bool timeScaleOk = checkTimeScale();
+    const bool timeContractOk = checkTimeContract();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -5460,7 +5512,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
