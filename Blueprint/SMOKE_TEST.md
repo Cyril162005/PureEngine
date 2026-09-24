@@ -1,14 +1,15 @@
 # PureEngine — Manual Smoke-Test Checklist
 
 **Human verification only — NOT CI.** The automated suite (`ctest`,
-1 test binary, 103 behavior cases) proves engine logic headlessly; this
-checklist covers everything that needs eyes, ears, and hands on a real
-machine. Every item lists the exact command/key and the expected
-observation. Checks that cannot be automated (audible audio, mouse
-feel, resize behavior) are honestly marked HUMAN-ONLY.
+2 test binaries, 126 behavior cases across 119 + 7 test functions)
+proves engine logic headlessly; this checklist covers everything that
+needs eyes, ears, and hands on a real machine. Every item lists the
+exact command/key and the expected observation. Checks that cannot be
+automated (audible audio, mouse feel, resize behavior) are honestly
+marked HUMAN-ONLY.
 
 Machine state used for the last automated pass: Release build zero
-errors, CTest 1/1 Passed, arcade/platformer/pong alive probes True.
+errors, CTest 2/2 Passed, arcade/platformer/pong alive probes True.
 
 ---
 
@@ -79,6 +80,23 @@ Game commands registered in the Arcade (main.cpp): `entities`, `reset`,
 | 6.1 | Platformer: move/jump/land, reach goal | L1 → L2 → WIN — HUMAN (48-case CI suite covers controller logic) |
 | 6.2 | Platformer: `` ` `` console (`entities`, `pos`, `reset`) | Commands respond — HUMAN |
 | 6.3 | Pong: W/S + Up/Down paddles, ESC quits | Paddles move, quit works — HUMAN |
+
+## 7. Draw/submit GL-only gate (Step 179 renderer contract — HUMAN-ONLY)
+
+The Step 179 contract splits verification honestly: these behaviors are
+NOT headless-testable without a GL context — they must be claimed from a
+real window, never from CI alone.
+
+| # | Step | Expected |
+|---|------|----------|
+| 7.1 | Arcade PLAYING, hostile chase | Batch correctness: sprites share one upload per same-texture group, no seams or flicker (Step 78) — HUMAN-ONLY |
+| 7.2 | Watch depth ordering | Entities draw back-to-front by depth; ties keep construction order; colliding[] highlight stays on the right entity (Step 49) — HUMAN-ONLY |
+| 7.3 | Kill an entity (console `damage 100`) | Dead entity draws nothing immediately (Step 113) — HUMAN-ONLY |
+| 7.4 | Console `textures` then give an entity an out-of-range textureId | Checker fallback visual + warn-once log in debug builds (Step 84) — HUMAN-ONLY |
+| 7.5 | Runtime-unload a slot an entity still references (`textures` unload path) | Released slot (kept, GL name 0) also falls back to checker — no undefined texture content (Step 180) — HUMAN-ONLY |
+| 7.6 | Blend visuals | Semi-transparent sprites blend over the scene; opaque sprites unaffected (Step 112) — HUMAN-ONLY |
+| 7.7 | Tint visuals | Per-entity tint (white default); colliding flag overrides red (Step 86) — HUMAN-ONLY |
+| 7.8 | F-04 assert | entities.size() == colliding.size() holds every frame — a mismatch would abort (asserted every drawWorld call; the absence of an abort IS the pass evidence) — HUMAN-ONLY |
 
 ---
 
