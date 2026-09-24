@@ -2013,6 +2013,19 @@
    "depends_on": [
     164
    ]
+  },
+  {
+   "id": 189,
+   "name": "AUDIO slice verify pass (Steps 71-80 of the 80-step run)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record: per-sound composition green (checkPerSoundVolume), music independence green (checkMusicVolumeIndep), volume matrix both paths green (Step 176 checkAudioVolumeMatrix), mute zeroes SFX+music composed green (checkMuteToggle), pre-init guards green (checkPreInitGuards), device lifecycle + double-init guard green (checkAudioDeviceLifecycle ran - no skip, device present), pool rotation green when device present (checkAudioPoolRotation), isLoaded/isMusicLoaded green. No fixes needed.",
+   "notes": "Steps 71-80 already satisfied by Steps 124/171/176 + existing tests - verified, no new code.",
+   "commit": "(verify-only; see next docs commit)",
+   "depends_on": [
+    124,
+    171,
+    176
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

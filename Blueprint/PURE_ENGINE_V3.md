@@ -144,6 +144,15 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 173: Physics sweptAABB slab package + tunnel-catch contract (SweepHit/sweptAABB + chain gate) — recorded (139 entries); API-only, no game wire yet; Step 172 sweep-in disclosed
 - . Step 174: Core loop contract — Pong tick moved above poll (sampling invariant fixed) + loop-order doc — recorded (140 entries); two mid-write races disclosed
 - . Step 175: Physics sweptMoveAndCollide swept twin + P7 contract test (tunnel catch, earliest-hit) — recorded (141 entries); API-only, no game wire yet
+- . Step 181: Physics controller useSwept opt-in + sweptAABB boundary-start refinement (touching = NO hit) + checkSweptControllerContract — recorded (147 entries)
+- . Step 182: MAIN core slice verify pass (80-step run Steps 1-10) — already holds; board double-init note — recorded (148 entries)
+- . Step 183: RENDER slice verify pass (Steps 11-20) — already holds — recorded (149 entries)
+- . Step 184: PHYSICS slice verify pass (Steps 21-30) — already holds; useSwept default-false = discrete ASSERTED — recorded (150 entries)
+- . Step 185: SCENE slice verify pass (Steps 31-40) — already holds — recorded (151 entries)
+- . Step 186: RESOURCES slice verify pass (Steps 41-50) — already holds; 0-byte fixture tested — recorded (152 entries)
+- . Step 187: INPUT slice verify pass (Steps 51-60) — already holds; rebind re-adopt residual noted — recorded (153 entries)
+- . Step 188: ANIMATION slice verify pass (Steps 61-70) — already holds; multi-track/blend later-not-started — recorded (154 entries)
+- . Step 189: AUDIO slice verify pass (Steps 71-80) — already holds — recorded (155 entries). 80-step run COMPLETE: full ctest 2/2 + alive x3, all departments verified.
 - . Step 176: Audio simultaneous SFX+music volume matrix (headless) — recorded (142 entries); chain-reference sweep into 175 disclosed
 - . Step 177: Input Input(vector) adoption ctor + union-order contract test — recorded (143 entries)
 - . Step 178: Scene prefab-scene failure matrix headless contract — recorded (144 entries)
