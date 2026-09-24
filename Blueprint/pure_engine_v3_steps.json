@@ -2039,6 +2039,18 @@
     174,
     9
    ]
+  },
+  {
+   "id": 191,
+   "name": "Math: Mat4::perspective builder + 3D math baseline tests (Goal2 Phase1)",
+   "status": "completed",
+   "definition_of_done": "Mat4::perspective (fovyRadians, aspect, near, far) — the standard GL perspective in this file column-major convention, m[2][3]=-1 (w-prime = -z), NOT constexpr (std::tan), purely additive and unused until a caller opts in; caller contract: near>0, far>near (degenerate frustum is the caller job). checkPerspective: entries finite, standard GL shape, lookAt basis orthonormal-ish (pairwise dots ~0), operator* associativity on perspective/view/ortho.",
+   "notes": "The requested step id 190 was taken (WindowGuard 1022f9d) — next free id 191 used. Explicit user-requested scope expansion (2D+3D goal Phase 1 foundations). lookAt ALREADY EXISTED (mat4.h:189) — no new view builder needed. 2D non-regression: all ortho paths untouched; build zero errors; ctest 2/2; arcade/platformer/pong alive True. No game mesh, no editor.",
+   "commit": "cb69907",
+   "depends_on": [
+    6,
+    171
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
