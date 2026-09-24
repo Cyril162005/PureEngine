@@ -141,6 +141,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 170: Time/timestep contract headless lock (tick advance, 0.1s clamp observed, pause/scale semantics; glfwInit self-contained) — recorded (136 entries); no time.h changes
 - . Step 171: Engine lifecycle/init contract — documented init order from source + audio init idempotent guard (double-init no-op, device-backed green) — recorded (137 entries)
 - . Step 172: Input checkGamepadActions gamepad-action mapping contract — recorded (138 entries); no input.h changes
+- . Step 173: Physics sweptAABB slab package + tunnel-catch contract (SweepHit/sweptAABB + chain gate) — recorded (139 entries); API-only, no game wire yet; Step 172 sweep-in disclosed
 - ✓ Step 158: Input gamepad-action bridge (fixed gamepadButtonsForAction mapping + optional GamepadState tails on isActionDown/Edge) — completed
 - ✓ Step 159: Input Action::Console (rebindable console toggle; loader maps console properly, pumps use isActionEdge(Console)) — completed
 

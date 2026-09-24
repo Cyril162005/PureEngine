@@ -3,7 +3,7 @@
 Per-session rows; update your row when you start/stop. Claims need real
 command output behind them (see AGENTS.md reporting expectations).
 Feature history stays in pure_engine_v3_steps.json + PURE_ENGINE_V3.md —
-this board never replaces it. Highest step id: 172 (138 entries, 35–172,
+this board never replaces it. Highest step id: 173 (139 entries, 35–173,
 no dups).
 
 ## Focus (binding for all sessions)
@@ -18,7 +18,7 @@ no dups).
 | Session | Owns | Status | Last update | Notes |
 |---------|------|--------|-------------|-------|
 | PureEngine_main | board, trackers, packaging/docs, catch-up counts, ONLY committer + CONSOLE contract (assigned) | active | 2026-09-21 | Steps 164–167 processed (animation 2e11c78, followLerp feb7db3, resources 4df2842, events e4b9bbf); split-stages disclosed; followLerpOk chain gate fixed in 167. Now: CONSOLE contract (Step 168) assigned to main. |
-| PureEngine_physics | physics.h, collision.h, simulation.h | parked | 2026-09-21 | P1–P6 landed (`df4ca52`, `c1919f6`, `3799fc9`) + P6-integration kinematic platform (`72af8f2`, lost content RESTORED as `8b8bfbd` statics-append — riders carried, controller treats platform as infinite mass). Kinematic carry complete at HEAD. Messages left as-is per no-rewrite ruling. |
+| PureEngine_physics | physics.h, collision.h, simulation.h | parked | 2026-09-24 | P1–P6 + kinematic platform + SWEPT AABB PACKAGE COMPLETE (Step 173: SweepHit/sweptAABB slabs + chain gate, commit e24f2dc). API-only — no game wire yet. Disclosure: Step 172 commit 244c9b1 swept the physics test function+registration (concurrent-write race); completed honestly in 173. |
 | PureEngine_input | input.h, gamepad.h | parked | 2026-09-21 | Campaign complete + union fix landed: `keysForAllActions()` includes Action::Console (default 12→13, remap test 13→14) — `2cacf5f`. Steps 154–159 recorded (`32125e9`…`54a7918`); Step 160 adoption + union recorded. Action::Console rebindable — campaign closed/parked. |
 | PureEngine_resources | resources.h, resources_test.cpp, CMake test target | parked | 2026-09-22 | Campaign COMPLETE: Step 163 (hostile_data_test contract), Step 166 (CONTRACT block in resources.h + dedicated headless resources_test target, 41 assertions) — commit 4df2842. |
 | PureEngine_audio | audio.h | parked | 2026-09-21 | A1–A5 landed (`58b5b7c`, `20d8f05`, `a1d348b`, `2a5a181`); queryable load state + pool rotation proven. Resource load system contract (Step 163) verified the blob/pack/cache half headlessly; audio's 3-probe + unified failure line share the same contract by construction. |

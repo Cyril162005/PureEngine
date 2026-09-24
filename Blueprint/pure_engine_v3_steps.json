@@ -1813,6 +1813,18 @@
    "depends_on": [
     158
    ]
+  },
+  {
+   "id": 173,
+   "name": "Physics: sweptAABB slab package + contract (tunnel catch)",
+   "status": "completed",
+   "definition_of_done": "SweepHit struct + sweptAABB (slab package, X/Y/Z slabs, inline) in collision.h; checkSweptAABBContract tunnels-catch contract + sweptAABBOk failure-chain gate. API-only: no game wire yet.",
+   "notes": "SWEEP-IN DISCLOSED: Step 172 commit 244c9b1 accidentally swept the physics session checkSweptAABBContract (+106) + sweptAABBOk registration (concurrent-write race between diff verification and commit; commit whole-staged the shared test file). This commit (173) completes the package with collision.h + the chain gate. No Platformer adoption this turn.",
+   "commit": "e24f2dc",
+   "depends_on": [
+    129,
+    87
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
