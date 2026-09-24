@@ -5346,6 +5346,152 @@ static bool checkPrefabMultiSpawnPersist() {
     return ok;
 }
 
+// --- System increment (Prefab <-> Scene failure matrix) ---
+// One contract closing the failure cells the earlier prefab/spawn tests
+// leave open. Already covered elsewhere (not repeated here): malformed
+// no-'=' line (checkPrefabSystem), spawn into a NON-empty scene
+// (checkPrefabSceneSpawn), kill+spawn index rules (checkSpawnAfterKill),
+// kill->save-drops-dead with survivors (checkPrefabMultiSpawnPersist),
+// no-current addEntity (checkSceneNoCurrentNoOps), OOB kill size rule
+// (checkEntityLifecycle). This closes: (1) loadPrefab failure leaves out
+// UNTOUCHED (missing file AND wrong header — sentinel assert, not just
+// `false`); (2) a malformed NUMERIC value skips the key and keeps the
+// field default (warn+skip is per-line); (3) instantiatePrefab from a
+// failed-load Prefab yields a default-config entity (no partial state);
+// (4) prefab-composed spawnEntity into an EMPTY scene lands at index 0
+// (Scene has no capacity cap — "full" is not a real failure mode, the
+// vector always grows); (5) an ALL-dead scene round-trips to zero
+// entities with its name intact (multi-persist covers 2-live+1-dead).
+static bool checkPrefabSceneFailureMatrix() {
+    bool ok = true;
+    auto rmAll = [&]() {
+        const char* prefixes[3] = {"assets/", "../assets/", "../../assets/"};
+        for (const char* p : prefixes) {
+            std::remove((std::string(p) + "scene_test_matrix_alldead.txt").c_str());
+            std::remove((std::string(p) + "scene_test_matrix_alldead.txt.tmp").c_str());
+        }
+        std::filesystem::remove("test_prefab_matrix_badheader.txt");
+        std::filesystem::remove("test_prefab_matrix_badnum.txt");
+    };
+    rmAll();
+
+    // Cell 1: missing file -> false, out untouched.
+    pe::Prefab sentinel;
+    sentinel.name = "sentinel";
+    sentinel.textureId = 9;
+    pe::Prefab p = sentinel;
+    if (pe::loadPrefab("nonexistent_prefab_matrix.txt", p)) {
+        std::cerr << "matrix: missing prefab must refuse\n";
+        return false;
+    }
+    if (p.name != "sentinel" || p.textureId != 9) {
+        std::cerr << "matrix: failed load must leave out untouched\n";
+        ok = false;
+    }
+
+    // Cell 2: wrong header -> false, out untouched.
+    {
+        std::ofstream f("test_prefab_matrix_badheader.txt");
+        f << "# not a prefab header\nname=wrong\n";
+    }
+    p = sentinel;
+    pe::loadPrefab("test_prefab_matrix_badheader.txt", p);  // false; no crash
+    if (p.name != "sentinel" || p.textureId != 9) {
+        std::cerr << "matrix: wrong-header load must leave out untouched\n";
+        ok = false;
+    }
+
+    // Cell 3: malformed numeric value -> key skipped, default kept;
+    // later lines still parse (warn+skip is per-line).
+    {
+        std::ofstream f("test_prefab_matrix_badnum.txt");
+        f << "# PureEngine prefab v1\n";
+        f << "name=badnum\n";
+        f << "moveSpeed=abc\n";   // parse fail -> key skipped, default kept
+        f << "health=50.0\n";
+    }
+    pe::Prefab p3;
+    pe::loadPrefab("test_prefab_matrix_badnum.txt", p3);  // true; no crash
+    if (p3.name != "badnum") { std::cerr << "matrix: name should parse\n"; ok = false; }
+    if (p3.moveSpeed != 0.0f) {
+        std::cerr << "matrix: malformed numeric must keep field default\n";
+        ok = false;
+    }
+    if (std::abs(p3.health - 50.0f) >= 1e-5f) {
+        std::cerr << "matrix: fields after malformed numeric should parse\n";
+        ok = false;
+    }
+
+    // Cell 4: instantiatePrefab from the failed-load Prefab — defaults
+    // only (the untouched badnum result), no partial state.
+    pe::Entity e = pe::instantiatePrefab(p3, pe::Vec3(0.0f, 0.0f, 0.0f));
+    if (!e.alive) { std::cerr << "matrix: instantiated must be alive\n"; ok = false; }
+    if (std::abs(e.moveSpeed) >= 1e-5f) {
+        std::cerr << "matrix: instantiated moveSpeed must be the default-kept 0\n";
+        ok = false;
+    }
+    if (std::abs(e.scale.x - 1.0f) >= 1e-5f || std::abs(e.scale.y - 1.0f) >= 1e-5f) {
+        std::cerr << "matrix: instantiated scale must be default\n";
+        ok = false;
+    }
+    if (e.textureId != 0) {
+        std::cerr << "matrix: instantiated textureId must be default\n";
+        ok = false;
+    }
+
+    // Cell 5: prefab-composed spawn into an EMPTY scene -> index 0.
+    pe::Scene fresh;
+    fresh.name = "matrix_empty";
+    pe::Prefab shipped;
+    if (!pe::loadPrefab("enemy.txt", shipped)) {
+        std::cerr << "matrix: shipped enemy.txt failed to load\n";
+        rmAll();
+        return false;
+    }
+    const pe::Entity composed = pe::instantiatePrefab(shipped, pe::Vec3(1.0f, 1.0f, 0.0f));
+    const std::size_t idx = pe::spawnEntity(fresh, composed);
+    if (idx != 0 || fresh.entities.size() != 1 || !fresh.entities[0].alive ||
+        fresh.entities[0].tag != shipped.tag) {
+        std::cerr << "matrix: spawn into empty scene must land at index 0 alive\n";
+        rmAll();
+        ok = false;
+    }
+
+    // Cell 6: kill the spawned instance -> the ALL-dead scene round-trips
+    // to zero entities, name intact (save writes no entity lines; load
+    // keeps the scene slot with an empty list).
+    pe::killEntity(fresh, idx);
+    if (fresh.entities[0].alive) {
+        std::cerr << "matrix: killEntity must mark the spawned instance dead\n";
+        rmAll();
+        ok = false;
+    }
+    if (!pe::saveSceneToFile(fresh, "scene_test_matrix_alldead.txt")) {
+        std::cerr << "matrix: all-dead save failed\n";
+        rmAll();
+        return false;
+    }
+    pe::Scene after;
+    if (!pe::loadSceneFromFile("scene_test_matrix_alldead.txt", after)) {
+        std::cerr << "matrix: all-dead load failed\n";
+        rmAll();
+        return false;
+    }
+    if (!after.entities.empty()) {
+        std::cerr << "matrix: all-dead scene must round-trip to zero entities\n";
+        rmAll();
+        ok = false;
+    }
+    if (after.name != "matrix_empty") {
+        std::cerr << "matrix: all-dead round-trip must keep the scene name\n";
+        rmAll();
+        ok = false;
+    }
+
+    rmAll();
+    return ok;
+}
+
 static bool checkTimeScale() {
     pe::FrameTime ft;
     if (!assertFloatClose(ft.getTimeScale(), 1.0f) || ft.isPaused()) { std::cerr << "Time default failed\n"; return false; }
@@ -6108,6 +6254,7 @@ int main() {
     const bool managerRoundTripOk = checkSceneManagerRoundTrip();
     const bool spawnAfterKillOk = checkSpawnAfterKill();
     const bool multiPersistOk = checkPrefabMultiSpawnPersist();
+    const bool prefabMatrixOk = checkPrefabSceneFailureMatrix();
     const bool animClipKeepOk = checkAnimClipKeep();
     const bool animationSystemOk = checkAnimationSystem();
     const bool scenePtrOk = checkScenePointerStability();
