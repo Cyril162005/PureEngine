@@ -2115,6 +2115,18 @@
     195,
     15
    ]
+  },
+  {
+   "id": 197,
+   "name": "Editor-lite v0 headless success path (TOOL loop)",
+   "status": "completed",
+   "definition_of_done": "checkEditorLiteSuccess: load (fixture scene, 2 entities) -> select by STABLE index (file order == vector order) -> nudge (+1.5) -> save (rename-overwrite path) -> reload into a FRESH scene -> assert nudged position EXACT + untouched entity EXACT + count 2. PRECISION RULE documented: the v2 writer is FIXED 4-DECIMAL (scene.h setprecision(4)) - lossy beyond 4 places, so a general tool compares within epsilon 1e-4 (writer rounding bound 0.00005); this test uses exactly-representable values so the assert is EXACT. CTest fails if the nudge did not persist. No SMOKE-only closure.",
+   "notes": "No GUI, no new binary, no gizmos/hierarchy/animation studio/ECS/networking/3D mesh work. Fixes owned this step: saveSceneToFile argument order (Scene, string) + missing ok declaration. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "3abc34e",
+   "depends_on": [
+    162,
+    136
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
