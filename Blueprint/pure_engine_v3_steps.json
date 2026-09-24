@@ -1776,6 +1776,18 @@
    "depends_on": [
     57
    ]
+  },
+  {
+   "id": 170,
+   "name": "Time/timestep contract (tick advance, clamp observed, pause/scale semantics)",
+   "status": "completed",
+   "definition_of_done": "checkTimeContract: tick advances per frame (deltas never cumulative), the 0.1s clamp engages on a real long frame (Sleep 150ms -> exactly 0.1f), paused scaledTick returns 0 while the clock still advances underneath, scaledTick = scale*delta, scale 0 gives 0 unpaused, defaults restored. No time.h changes.",
+   "notes": "First ctest run FAILED: tick returned 0 for every call — glfwGetTime() requires glfwInit() and checkInputEdges terminates GLFW before this test runs; fixed by self-containing glfwInit/glfwTerminate inside checkTimeContract (headless init, no window). Gap-closing only: delta clamp, timeScale, pause/scaledTick, non-negative monotonic dt.",
+   "commit": "682f91b",
+   "depends_on": [
+    17,
+    92
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
