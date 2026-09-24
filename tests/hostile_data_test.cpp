@@ -5820,6 +5820,66 @@ static bool checkDepthState() {
     return ok;
 }
 
+// Step 196: 3D debug view (headless). MANDATORY EVIDENCE for the
+// opt-in lookAt-from-eye API:
+//   a) view matrix from KNOWN eye/target/up: entries equal Mat4::lookAt
+//      of the same inputs, basis orthonormal-ish;
+//   b) mode round-trip still restores the EXACT ortho defaults
+//      (projection untouched by the view fields);
+//   c) ISOLATION: setting eye/target/up while perspectiveMode is OFF
+//      leaves the ortho projection AND the existing 2D follow/position
+//      state byte-for-byte unchanged (separate members, gated reads).
+// On-screen cube under perspective + depth: SMOKE-only (SMOKE_TEST
+// 7.9/7.10); CI does not claim pixels.
+static bool checkView3D() {
+    bool ok = true;
+    auto sameMat = [](const pe::Mat4& a, const pe::Mat4& b) {
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
+            if (!assertFloatClose(a.m[c][r], b.m[c][r])) return false;
+        }
+        return true;
+    };
+    const pe::Vec3 eye(0.0f, 2.0f, 5.0f);
+    const pe::Vec3 target(0.0f, 0.0f, 0.0f);
+    const pe::Vec3 up(0.0f, 1.0f, 0.0f);
+    // (c) ISOLATION while OFF: 2D state + ortho projection unchanged.
+    pe::Camera cam;
+    cam.follow(pe::Vec3(eye.x, eye.y, 0.0f));
+    const pe::Mat4 orthoDefault = pe::Mat4::orthographic(-6.0f, 6.0f, -4.5f, 4.5f, -1.0f, 1.0f);
+    cam.setEyeTargetUp(eye, target, up);
+    if (cam.isPerspective()) { std::cerr << "setEyeTargetUp must not switch mode\n"; ok = false; }
+    if (!sameMat(cam.projection(), orthoDefault)) { std::cerr << "Ortho projection must be unchanged while OFF\n"; ok = false; }
+    if (!assertFloatClose(cam.getPosition().x, eye.x) ||
+        !assertFloatClose(cam.getPosition().y, eye.y)) {
+        std::cerr << "2D follow/position state must be byte-for-byte unchanged\n"; ok = false;
+    }
+    const pe::Mat4 view2D = cam.view();
+    if (!sameMat(view2D, pe::Mat4::lookAt(cam.getPosition(),
+                                          cam.getPosition() + pe::Vec3(0,0,-1),
+                                          pe::Vec3(0,1,0)))) {
+        std::cerr << "OFF-mode view must stay the 2D translation lookAt\n"; ok = false;
+    }
+    // (a) ON: view from the known eye/target/up.
+    cam.setPerspective(1.0472f, 0.1f, 100.0f);
+    const pe::Mat4 v3 = cam.view();
+    if (!sameMat(v3, pe::Mat4::lookAt(eye, target, up))) {
+        std::cerr << "ON-mode view must be lookAt of the set eye/target/up\n"; ok = false;
+    }
+    auto dot = [](const pe::Mat4& m, int c0, int c1) {
+        float s = 0;
+        for (int r = 0; r < 3; ++r) s += m.m[c0][r] * m.m[c1][r];
+        return s;
+    };
+    if (!assertFloatClose(dot(v3,0,1), 0.0f) || !assertFloatClose(dot(v3,0,2), 0.0f) ||
+        !assertFloatClose(dot(v3,1,2), 0.0f)) {
+        std::cerr << "3D view basis must be orthonormal-ish\n"; ok = false;
+    }
+    // (b) mode round-trip: ortho defaults restored exactly.
+    cam.setOrthographicMode();
+    if (!sameMat(cam.projection(), orthoDefault)) { std::cerr << "Mode round-trip must restore ortho defaults\n"; ok = false; }
+    return ok;
+}
+
 // Step 194: 3D debug mesh proof - CPU-side helpers (headless). Locks
 // the pure data before any GL claim: unitCubeVertices is exactly 36
 // vertices x 5 floats (aPos + aTexCoord layout the world shaders
@@ -6672,6 +6732,7 @@ int main() {
     const bool camera3DOk = checkCamera3D();
     const bool mesh3DOk = checkMesh3D();
     const bool depthStateOk = checkDepthState();
+    const bool view3DOk = checkView3D();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -6706,7 +6767,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

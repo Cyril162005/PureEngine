@@ -126,10 +126,32 @@ public:
     // world +Y up. Shifting the position moves every rendered vertex
     // by the OPPOSITE amount — the camera pans, the geometry stays
     // put. Rebuilt per frame, exactly as drawWorld used to do it.
+    //
+    // Step 196: gated 3D view (opt-in, additive). When perspectiveMode
+    // is ON, the view comes from the SEPARATE eye/target/up fields
+    // (setEyeTargetUp) — they do NOT alias the 2D `position` the
+    // follow/move/followLerp path reads, and the 2D path ignores them
+    // completely while the mode is OFF (isolation: ortho projection +
+    // 2D state byte-for-byte unchanged). Games never call the setter,
+    // so Arcade/Platformer/Pong are identical.
     Mat4 view() const {
+        if (perspectiveMode) {
+            return Mat4::lookAt(eye, lookTarget, upVec);
+        }
         return Mat4::lookAt(position,
                             position + Vec3(0.0f, 0.0f, -1.0f),
                             Vec3(0.0f, 1.0f, 0.0f));
+    }
+
+    // --- Step 196: the 3D view fields' setter (opt-in) ---
+    // No FPS controller, no editor UI: plain data in, no GLFW. Fields
+    // are SEPARATE from the 2D position (no aliasing); callers pass a
+    // sane orthonormal-ish up (Mat4::lookAt normalizes/orthogonalizes
+    // internally).
+    void setEyeTargetUp(const Vec3& e, const Vec3& t, const Vec3& u) {
+        eye = e;
+        lookTarget = t;
+        upVec = u;
     }
 
     // --- Step 6's projection, relocated ---
@@ -286,6 +308,13 @@ private:
     float nearZ = 0.1f;
     float farZ = 100.0f;
     bool perspectiveMode = false;
+
+    // Step 196: SEPARATE 3D view fields (no aliasing with the 2D
+    // position). Defaults give a lookAt from (0,0,5) at the origin —
+    // used ONLY while perspectiveMode is on.
+    Vec3 eye = Vec3(0.0f, 0.0f, 5.0f);
+    Vec3 lookTarget = Vec3(0.0f, 0.0f, 0.0f);
+    Vec3 upVec = Vec3(0.0f, 1.0f, 0.0f);
 };
 
 } // namespace pe
