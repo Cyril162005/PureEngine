@@ -5797,7 +5797,7 @@ int main() {
         !applyForceOk || !applyPhysicsOk || !applyPhysicsFixedOk || !broadphaseOk ||
         !restClampOk || !bounceStickOk || !approachGuardOk || !edgeTouchOk ||
         !fixedJumpOnceOk || !fixedClampFallbackOk ||
-        !kinematicCarryOk || !kinematicResolveOk ||
+        !kinematicCarryOk || !kinematicResolveOk || !sweptAABBOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||

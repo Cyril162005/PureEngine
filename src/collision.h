@@ -119,6 +119,131 @@ constexpr WorldAABB entityWorldAABB(const Entity& e) {
     };
 }
 
+// ------------------------------------------------------------------
+// Step P7: swept segment-vs-AABB (the tunneling fix discrete cannot be).
+// Casts the mover's center path (from -> to) against the target's AABB
+// EXPANDED by the mover's half extents — the Minkowski expansion, the
+// AABB equivalent of capsule-vs-box. A mover whose per-step displacement
+// exceeds the target's thickness tunnels past the endpoint-only
+// aabbOverlap test; the sweep catches the crossing and reports WHEN
+// (entry fraction) and WHERE (face normal) it happens.
+//
+// The slab method, per axis (2D only — the scene is flat, z ignored):
+//   - delta = to - from. If the segment is PARALLEL to the slab
+//     (delta == 0) and outside it, there is no hit ever; inside it,
+//     the axis constrains nothing.
+//   - Otherwise t1/t2 are the slab-boundary crossings; the smaller is
+//     the entry, the larger the exit. The axis whose entry is LATEST
+//     decides the contact normal (the face the mover came through,
+//     pointing back toward the mover).
+//   - Hit iff entry <= exit and entry <= 1.0 (the crossing happens
+//     within the segment). entry < 0 means the segment STARTS inside
+//     the expanded box: reported as a hit at t = 0 with a ZERO normal
+//     (no face-crossing happened — the caller treats it as overlap,
+//     the discrete path's job).
+//
+// Edge policy: a segment STARTING exactly ON a slab boundary gives
+// tEntry == 0 — the sweep reports contact at the start (a sweep is
+// about the path, not the endpoint; the discrete strict-'<' rule
+// still governs aabbOverlap itself). Inline, not constexpr: the
+// zero-delta guards are runtime branches; pure arithmetic otherwise.
+// ------------------------------------------------------------------
+struct SweepHit {
+    bool hit;
+    float t;      // entry fraction along the segment, [0,1]
+    Vec3 normal;  // axis-aligned face normal, pointing toward the mover
+};
+
+inline SweepHit sweptAABB(const Vec3& from, const Vec3& to,
+                          const Vec3& halfExtents,
+                          const Vec3& targetCenter,
+                          const Vec3& targetHalfExtents) {
+    SweepHit out;
+    out.hit = false;
+    out.t = 1.0f;
+    out.normal = Vec3(0.0f, 0.0f, 0.0f);
+
+    // Minkowski expansion: the target grows by the mover's half extents,
+    // so the CENTER's segment is all the sweep needs.
+    const float expandedHx = halfExtents.x + targetHalfExtents.x;
+    const float expandedHy = halfExtents.y + targetHalfExtents.y;
+
+    float tEntry = 0.0f;
+    float tExit = 1.0f;
+    int entryAxis = -1;  // -1: no axis constrained the entry (start-inside)
+    float entrySign = 0.0f;
+
+    // X slab
+    const float dx = to.x - from.x;
+    if (dx != 0.0f) {
+        float t1 = ((targetCenter.x - expandedHx) - from.x) / dx;
+        float t2 = ((targetCenter.x + expandedHx) - from.x) / dx;
+        float sign = -1.0f;  // moving +x enters the min-x face: normal -x
+        if (t1 > t2) {
+            const float tmp = t1;
+            t1 = t2;
+            t2 = tmp;
+            sign = 1.0f;     // moving -x enters the max-x face: normal +x
+        }
+        if (t1 > tEntry) {
+            tEntry = t1;
+            entryAxis = 0;
+            entrySign = sign;
+        }
+        if (t2 < tExit) {
+            tExit = t2;
+        }
+    } else if (from.x < targetCenter.x - expandedHx ||
+               from.x > targetCenter.x + expandedHx) {
+        return out;  // parallel to the slab and outside it: no hit ever
+    }
+
+    // Y slab (same structure)
+    const float dy = to.y - from.y;
+    if (dy != 0.0f) {
+        float t1 = ((targetCenter.y - expandedHy) - from.y) / dy;
+        float t2 = ((targetCenter.y + expandedHy) - from.y) / dy;
+        float sign = -1.0f;
+        if (t1 > t2) {
+            const float tmp = t1;
+            t1 = t2;
+            t2 = tmp;
+            sign = 1.0f;
+        }
+        if (t1 > tEntry) {
+            tEntry = t1;
+            entryAxis = 1;
+            entrySign = sign;
+        }
+        if (t2 < tExit) {
+            tExit = t2;
+        }
+    } else if (from.y < targetCenter.y - expandedHy ||
+               from.y > targetCenter.y + expandedHy) {
+        return out;
+    }
+
+    if (tEntry > tExit || tEntry > 1.0f) {
+        return out;  // slabs never overlap in time, or the crossing is
+                     // beyond the segment's end
+    }
+    if (tEntry < 0.0f) {
+        // Segment starts inside the expanded box: overlap, not a crossing.
+        out.hit = true;
+        out.t = 0.0f;
+        out.normal = Vec3(0.0f, 0.0f, 0.0f);
+        return out;
+    }
+    out.hit = true;
+    out.t = tEntry;
+    if (entryAxis == 0) {
+        out.normal = Vec3(entrySign, 0.0f, 0.0f);
+    } else if (entryAxis == 1) {
+        out.normal = Vec3(0.0f, entrySign, 0.0f);
+    }
+    return out;
+}
+
 // Step 97: minimal grid helper — optional broadphase foundation.
 // Buckets entities by position/cellSize, returns pairs sharing a cell.
 // Does NOT replace existing O(n) scan; available for future use only.
