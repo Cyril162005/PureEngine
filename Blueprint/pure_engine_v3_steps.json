@@ -2102,6 +2102,19 @@
     13,
     179
    ]
+  },
+  {
+   "id": 196,
+   "name": "Camera: setEyeTargetUp 3D debug view (Goal2 Phase1)",
+   "status": "completed",
+   "definition_of_done": "Camera gains SEPARATE eye/lookTarget/upVec fields (no aliasing with the 2D position) + setEyeTargetUp; view() gates on perspectiveMode: ON = lookAt(eye,target,up), OFF = the 2D translation lookAt byte-identical. Games never call the setter - Arcade/Platformer/Pong identical. checkView3D (mandatory evidence): a) view from KNOWN eye/target/up equals Mat4::lookAt + basis orthonormal-ish; b) mode round-trip restores EXACT ortho defaults; c) ISOLATION - setEyeTargetUp while OFF leaves ortho projection AND 2D follow/position byte-for-byte unchanged. SMOKE-only: on-screen cube under perspective + depth (SMOKE 7.9/7.10).",
+   "notes": "No FPS controller, editor UI, glTF, materials, ECS; no forcing 3D on games. Fixes owned: follow takes Vec3 (not x,y).",
+   "commit": "7c2f6a7",
+   "depends_on": [
+    193,
+    195,
+    15
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
