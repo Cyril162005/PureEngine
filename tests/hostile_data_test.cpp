@@ -2038,6 +2038,139 @@ static bool checkSweptAABBContract() {
             return false;
         }
     }
+    // Boundary start: the segment begins exactly ON the expanded box
+    // (mover center at floor top + mover half = 1.0; touching, not
+    // overlapping) — NO constraint; the mover moves freely and the
+    // discrete pass resolves any resulting overlap.
+    {
+        const pe::SweepHit h = pe::sweptAABB(
+            pe::Vec3(0.0f, 1.0f, 0.0f), pe::Vec3(0.0f, 0.9f, 0.0f),
+            pe::Vec3(0.5f, 0.5f, 0.0f),
+            pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(2.5f, 0.5f, 0.0f));
+        if (h.hit) {
+            std::cerr << "Boundary-start sweep must not constrain the move\n";
+            return false;
+        }
+    }
+    return true;
+}
+
+// --- Step P8: swept character controller (updateCharacterController useSwept) ---
+// Locks the opt-in contract: the DISCRETE controller tunnels a thin
+// floor with a 6-unit step while the SWEPT one clamps at exact contact
+// and reports grounded; a resting character under swept keeps velocity.y
+// at 0 (no gravity accumulation while frozen — the boundary-start rule);
+// jump rises and lands back; wall/ceiling stops match the discrete path.
+static bool checkSweptControllerContract() {
+    // Tunnel contrast: 6-unit step vs a thin floor (half y 0.05).
+    {
+        pe::Entity floor;
+        floor.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+        floor.halfExtents = pe::Vec3(2.5f, 0.05f, 0.0f);
+        floor.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        floor.isStatic = true;
+        std::vector<pe::Entity> statics = {floor};
+        // Discrete: no gravity (externally-set velocity, unclamped) —
+        // 6-unit step tunnels past the floor, not grounded.
+        pe::Entity d = makeCharacter(0.0f, 3.0f);
+        d.velocity = pe::Vec3(0.0f, -60.0f, 0.0f);
+        d.gravityScale = 0.0f;
+        const bool dGrounded = pe::updateCharacterController(d, statics, 0.2f, false);
+        if (dGrounded || !(d.position.y < 0.0f)) {
+            std::cerr << "Discrete controller must tunnel this setup\n";
+            return false;
+        }
+        // Swept: same unclamped velocity — clamps at exact contact
+        // (0.05 + 0.5 = 0.55), grounded.
+        pe::Entity s = makeCharacter(0.0f, 3.0f);
+        s.velocity = pe::Vec3(0.0f, -60.0f, 0.0f);
+        s.gravityScale = 0.0f;
+        const bool sGrounded = pe::updateCharacterController(s, statics, 0.2f, false, true);
+        if (!sGrounded || !assertFloatClose(s.position.y, 0.55f) ||
+            !assertFloatClose(s.velocity.y, 0.0f)) {
+            std::cerr << "Swept controller must clamp the tunnel at contact\n";
+            return false;
+        }
+    }
+    // Exact rest: no gravity accumulation while frozen at contact.
+    {
+        const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+        pe::Entity c = makeCharacter(0.0f, 0.5f);
+        for (int i = 0; i < 10; ++i) {
+            pe::updateCharacterController(c, statics, 1.0f / 60.0f, false, true);
+        }
+        if (!assertFloatClose(c.position.y, 0.5f) ||
+            !assertFloatClose(c.velocity.y, 0.0f)) {
+            std::cerr << "Swept rest must keep velocity zeroed at exact contact\n";
+            return false;
+        }
+    }
+    // Jump under swept: rises and lands back at rest height.
+    {
+        const std::vector<pe::Entity> statics = {makeStaticBox(0.0f, -1.0f, 5.0f, 1.0f)};
+        pe::Entity c = makeCharacter(0.0f, 0.5f);
+        pe::updateCharacterController(c, statics, 1.0f / 60.0f, false, true);  // settle
+        pe::updateCharacterController(c, statics, 1.0f / 60.0f, true, true);   // jump
+        if (!assertFloatClose(c.velocity.y, c.jumpImpulse)) {
+            std::cerr << "Swept controller must not kill the jump impulse\n";
+            return false;
+        }
+        float apex = c.position.y;
+        bool landed = false;
+        for (int i = 0; i < 600 && !landed; ++i) {
+            landed = pe::updateCharacterController(c, statics, 1.0f / 60.0f, false, true);
+            if (c.position.y > apex) {
+                apex = c.position.y;
+            }
+        }
+        if (!landed || apex <= 1.0f) {
+            std::cerr << "Swept jump arc did not rise and come down\n";
+            return false;
+        }
+        for (int i = 0; i < 10; ++i) {
+            pe::updateCharacterController(c, statics, 1.0f / 60.0f, false, true);
+        }
+        if (!assertFloatClose(c.position.y, 0.5f)) {
+            std::cerr << "Swept jump did not land at rest height\n";
+            return false;
+        }
+    }
+    // Wall under swept: vx zeroed, center clamps at the expanded box.
+    {
+        pe::Entity wall;
+        wall.position = pe::Vec3(1.2f, 0.0f, 0.0f);
+        wall.halfExtents = pe::Vec3(0.5f, 0.5f, 0.0f);
+        wall.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        wall.isStatic = true;
+        std::vector<pe::Entity> statics = {wall};
+        pe::Entity c = makeCharacter(0.0f, 0.0f);
+        c.velocity = pe::Vec3(5.0f, 0.0f, 0.0f);
+        c.gravityScale = 0.0f;
+        pe::updateCharacterController(c, statics, 0.1f, false, true);
+        if (!assertFloatClose(c.position.x, 0.2f) ||
+            !assertFloatClose(c.velocity.x, 0.0f)) {
+            std::cerr << "Swept wall stop must match the discrete result\n";
+            return false;
+        }
+    }
+    // Ceiling under swept: vy zeroed, mover top lands on the ceiling.
+    {
+        pe::Entity ceiling;
+        ceiling.position = pe::Vec3(0.0f, 4.0f, 0.0f);
+        ceiling.halfExtents = pe::Vec3(5.0f, 1.0f, 0.0f);
+        ceiling.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        ceiling.isStatic = true;
+        std::vector<pe::Entity> statics = {ceiling};
+        pe::Entity c = makeCharacter(0.0f, 2.0f);
+        c.velocity = pe::Vec3(0.0f, 10.0f, 0.0f);
+        c.gravityScale = 0.0f;
+        pe::updateCharacterController(c, statics, 0.1f, false, true);
+        if (!assertFloatClose(c.position.y, 2.5f) ||
+            !assertFloatClose(c.velocity.y, 0.0f)) {
+            std::cerr << "Swept ceiling stop must match the discrete result\n";
+            return false;
+        }
+    }
     return true;
 }
 
@@ -6205,6 +6338,7 @@ int main() {
     const bool kinematicResolveOk = checkKinematicResolve();
     const bool sweptAABBOk = checkSweptAABBContract();
     const bool sweptMoveOk = checkSweptMoveAndCollide();
+    const bool sweptControllerOk = checkSweptControllerContract();
     const bool sceneByNameOk = checkSceneByName();
     const bool platLevelsOk = checkPlatformerLevels();
     const bool platClimbOk = checkPlatformerClimb();
@@ -6285,7 +6419,7 @@ int main() {
         !applyForceOk || !applyPhysicsOk || !applyPhysicsFixedOk || !broadphaseOk ||
         !restClampOk || !bounceStickOk || !approachGuardOk || !edgeTouchOk ||
         !fixedJumpOnceOk || !fixedClampFallbackOk ||
-        !kinematicCarryOk || !kinematicResolveOk || !sweptAABBOk || !sweptMoveOk ||
+        !kinematicCarryOk || !kinematicResolveOk || !sweptAABBOk || !sweptMoveOk || !sweptControllerOk ||
         !sceneByNameOk ||
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||

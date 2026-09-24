@@ -161,6 +161,75 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
     b.velocity.y += ny * impulse;
 }
 
+// --- Step P7: swept move + collide (the discrete resolve's swept twin) ---
+// Moves the mover by velocity*dt along its center path, sweeping against
+// every static/kinematic body's expanded AABB (sweptAABB, collision.h).
+// Where the discrete endpoint test tunnels, the sweep clamps the move at
+// the EARLIEST hit: position = from + delta*tBest, and the velocity
+// component along the contact normal zeroes — the swept equivalent of
+// the character controller's discrete axis-zeroing (walls stop slides,
+// floors stop falls).
+//
+// Contract:
+//   - No contact: the mover takes the FULL delta, returns false.
+//   - Contact: clamps at the earliest hit (min t over all swept bodies),
+//     zeroes only the normal-axis velocity, returns true. The mover's
+//     edge lands exactly on the contacted face (the center path clamps
+//     at the Minkowski-expanded box).
+//   - Start-inside (sweptAABB's overlap report, t=0, zero normal):
+//     contact with NO movement and NO velocity change — overlap
+//     resolution stays the discrete path's job (updateCharacterController
+//     / resolveCollision), exactly as sweptAABB's contract assigns.
+//   - Statics/kinematics are never written; dead bodies collide with
+//     nothing. dt <= 0 is a no-op returning false.
+// API-only (no main/Platformer call in this slice). Free function, same
+// discipline as the rest of physics.h. Defined BEFORE the character
+// controller so the controller's swept opt-in can call it.
+inline bool sweptMoveAndCollide(Entity& mover,
+                                const std::vector<Entity>& staticEntities,
+                                float dt) {
+    if (dt <= 0.0f) {
+        return false;
+    }
+    const Vec3 from = mover.position;
+    const Vec3 delta = mover.velocity * dt;
+    const Vec3 to = from + delta;
+    const Vec3 half(mover.halfExtents.x * mover.scale.x,
+                    mover.halfExtents.y * mover.scale.y,
+                    0.0f);
+
+    float bestT = 1.0f;
+    Vec3 bestNormal(0.0f, 0.0f, 0.0f);
+    bool contacted = false;
+    for (const Entity& e : staticEntities) {
+        if (!e.alive) continue;                       // dead bodies collide with nothing
+        if (!e.isStatic && !e.isKinematic) continue;  // movers test statics/kinematics only
+        const SweepHit h = sweptAABB(
+            from, to, half, e.position,
+            Vec3(e.halfExtents.x * e.scale.x,
+                 e.halfExtents.y * e.scale.y,
+                 0.0f));
+        if (h.hit && h.t < bestT) {
+            bestT = h.t;
+            bestNormal = h.normal;
+            contacted = true;
+        }
+    }
+
+    if (!contacted) {
+        mover.position = to;
+        return false;
+    }
+    mover.position = from + delta * bestT;
+    if (bestNormal.x != 0.0f) {
+        mover.velocity.x = 0.0f;
+    }
+    if (bestNormal.y != 0.0f) {
+        mover.velocity.y = 0.0f;
+    }
+    return true;
+}
+
 // --- Character controller (Step 71: platformer hardening) ---
 // Minimal platformer character controller built on the existing physics
 // primitives. The controller:
@@ -215,10 +284,21 @@ inline bool checkGrounded(const Entity& character,
 // Order: horizontal force -> gravity -> integrate -> horizontal collision
 // resolution -> vertical collision resolution -> grounded check.
 // Returns true if the character is grounded AFTER this frame's updates.
+//
+// Step P8 opt-in: useSwept=true swaps the integrate step for the swept
+// move (sweptMoveAndCollide) — the center path sweeps against every
+// static/kinematic body, so a mover whose per-substep displacement
+// exceeds the target's thickness clamps at the earliest crossing
+// instead of tunneling past the endpoint test. The discrete resolve
+// pass below still runs after the sweep: it no-ops when the sweep left
+// exact contact, and resolves any residual overlap (start-inside
+// reports, spawn penetration) with the usual min-axis push-out + 
+// velocity zero. Default false preserves the discrete path byte-identical.
 inline bool updateCharacterController(Entity& character,
                                       const std::vector<Entity>& staticEntities,
                                       float dt,
-                                      bool jumpPressed) {
+                                      bool jumpPressed,
+                                      bool useSwept = false) {
     if (dt <= 0.0f) return false;  // no-op for non-positive dt
 
     // --- Coyote timer ---
@@ -243,7 +323,16 @@ inline bool updateCharacterController(Entity& character,
     if (character.velocity.y < -character.maxFallSpeed) {
         character.velocity.y = -character.maxFallSpeed;
     }
-    integrate(character.position, character.velocity, dt);
+    if (useSwept) {
+        // Swept move: clamps tunnel crossings at the earliest hit and
+        // zeroes the normal-axis velocity (including a boundary-start
+        // rest contact — sweptAABB reports the face normal there, so a
+        // resting character keeps velocity.y at 0 instead of
+        // accumulating gravity while frozen at exact contact).
+        sweptMoveAndCollide(character, staticEntities, dt);
+    } else {
+        integrate(character.position, character.velocity, dt);
+    }
 
     // --- Static collision resolution (walls/floor/ceiling, one pass) ---
     // Each overlap resolves along its MIN-penetration axis: floor/ceiling
@@ -302,11 +391,13 @@ inline bool updateCharacterController(Entity& character,
 // Splits a large dt into fixedDt chunks (default 1/60) so a fast mover cannot
 // tunnel a 1-unit tile in one variable step. Existing callers keep variable-dt;
 // platformer or future movers opt in via the *Fixed wrappers. No new systems,
-// no broadphase, no change to resolve math — just substeps.
+// no broadphase, no change to resolve math — just substeps. Step P8: the
+// useSwept flag forwards to every substep (swept move path, off by default).
 inline bool updateCharacterControllerFixed(Entity& character,
-                                           const std::vector<Entity>& staticEntities,
-                                           float dt, bool jumpPressed,
-                                           float fixedDt = 1.0f / 60.0f) {
+                                            const std::vector<Entity>& staticEntities,
+                                            float dt, bool jumpPressed,
+                                            float fixedDt = 1.0f / 60.0f,
+                                            bool useSwept = false) {
     if (dt <= 0.0f) return checkGrounded(character, staticEntities);
     if (fixedDt <= 0.0f) fixedDt = 1.0f / 60.0f;
     int steps = static_cast<int>(std::ceil(dt / fixedDt));
@@ -316,7 +407,7 @@ inline bool updateCharacterControllerFixed(Entity& character,
     bool grounded = false;
     for (int i = 0; i < steps; ++i) {
         bool jp = (i == 0) ? jumpPressed : false; // consume jump once
-        grounded = updateCharacterController(character, staticEntities, sub, jp);
+        grounded = updateCharacterController(character, staticEntities, sub, jp, useSwept);
     }
     return grounded;
 }
@@ -341,74 +432,6 @@ inline void applyPhysicsFixed(std::vector<Entity>& entities, float dt,
         // guard makes the never-moves rule hold by construction, not
         // caller convention.
     }
-}
-
-// --- Step P7: swept move + collide (the discrete resolve's swept twin) ---
-// Moves the mover by velocity*dt along its center path, sweeping against
-// every static/kinematic body's expanded AABB (sweptAABB, collision.h).
-// Where the discrete endpoint test tunnels, the sweep clamps the move at
-// the EARLIEST hit: position = from + delta*tBest, and the velocity
-// component along the contact normal zeroes — the swept equivalent of
-// the character controller's discrete axis-zeroing (walls stop slides,
-// floors stop falls).
-//
-// Contract:
-//   - No contact: the mover takes the FULL delta, returns false.
-//   - Contact: clamps at the earliest hit (min t over all swept bodies),
-//     zeroes only the normal-axis velocity, returns true. The mover's
-//     edge lands exactly on the contacted face (the center path clamps
-//     at the Minkowski-expanded box).
-//   - Start-inside (sweptAABB's overlap report, t=0, zero normal):
-//     contact with NO movement and NO velocity change — overlap
-//     resolution stays the discrete path's job (updateCharacterController
-//     / resolveCollision), exactly as sweptAABB's contract assigns.
-//   - Statics/kinematics are never written; dead bodies collide with
-//     nothing. dt <= 0 is a no-op returning false.
-// API-only (no main/Platformer call in this slice). Free function, same
-// discipline as the rest of physics.h.
-inline bool sweptMoveAndCollide(Entity& mover,
-                                const std::vector<Entity>& staticEntities,
-                                float dt) {
-    if (dt <= 0.0f) {
-        return false;
-    }
-    const Vec3 from = mover.position;
-    const Vec3 delta = mover.velocity * dt;
-    const Vec3 to = from + delta;
-    const Vec3 half(mover.halfExtents.x * mover.scale.x,
-                    mover.halfExtents.y * mover.scale.y,
-                    0.0f);
-
-    float bestT = 1.0f;
-    Vec3 bestNormal(0.0f, 0.0f, 0.0f);
-    bool contacted = false;
-    for (const Entity& e : staticEntities) {
-        if (!e.alive) continue;                       // dead bodies collide with nothing
-        if (!e.isStatic && !e.isKinematic) continue;  // movers test statics/kinematics only
-        const SweepHit h = sweptAABB(
-            from, to, half, e.position,
-            Vec3(e.halfExtents.x * e.scale.x,
-                 e.halfExtents.y * e.scale.y,
-                 0.0f));
-        if (h.hit && h.t < bestT) {
-            bestT = h.t;
-            bestNormal = h.normal;
-            contacted = true;
-        }
-    }
-
-    if (!contacted) {
-        mover.position = to;
-        return false;
-    }
-    mover.position = from + delta * bestT;
-    if (bestNormal.x != 0.0f) {
-        mover.velocity.x = 0.0f;
-    }
-    if (bestNormal.y != 0.0f) {
-        mover.velocity.y = 0.0f;
-    }
-    return true;
 }
 
 } // namespace pe

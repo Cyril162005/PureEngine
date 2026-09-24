@@ -142,11 +142,18 @@ constexpr WorldAABB entityWorldAABB(const Entity& e) {
 //     (no face-crossing happened — the caller treats it as overlap,
 //     the discrete path's job).
 //
-// Edge policy: a segment STARTING exactly ON a slab boundary gives
-// tEntry == 0 — the sweep reports contact at the start (a sweep is
-// about the path, not the endpoint; the discrete strict-'<' rule
-// still governs aabbOverlap itself). Inline, not constexpr: the
-// zero-delta guards are runtime branches; pure arithmetic otherwise.
+// Edge policy: the segment beginning inside-or-on the expanded box
+// (no slab crossing within the path) splits by the FROM position:
+//   - STRICTLY INSIDE the expanded box: overlap report — hit at t = 0
+//     with a ZERO normal (no face-crossing happened; the caller treats
+//     it as the discrete path's job).
+//   - Exactly ON a slab boundary (touching, not overlapping): NO hit —
+//     the mover moves freely and the discrete pass resolves any
+//     resulting overlap. This keeps a resting character's jump alive
+//     (the next sweep does not freeze it at t=0) while airborne fast
+//     falls (strictly-outside starts) still sweep and clamp.
+// Inline, not constexpr: the zero-delta guards are runtime branches;
+// pure arithmetic otherwise.
 // ------------------------------------------------------------------
 struct SweepHit {
     bool hit;
@@ -170,7 +177,7 @@ inline SweepHit sweptAABB(const Vec3& from, const Vec3& to,
 
     float tEntry = 0.0f;
     float tExit = 1.0f;
-    int entryAxis = -1;  // -1: no axis constrained the entry (start-inside)
+    int entryAxis = -1;  // -1: no axis constrained the entry (inside-or-on)
     float entrySign = 0.0f;
 
     // X slab
@@ -226,6 +233,26 @@ inline SweepHit sweptAABB(const Vec3& from, const Vec3& to,
     if (tEntry > tExit || tEntry > 1.0f) {
         return out;  // slabs never overlap in time, or the crossing is
                      // beyond the segment's end
+    }
+    if (tEntry == 0.0f && entryAxis == -1) {
+        // No slab crossing within the path: the segment begins inside-or-
+        // on the expanded box. Split by the FROM position:
+        const bool insideX = from.x > targetCenter.x - expandedHx &&
+                             from.x < targetCenter.x + expandedHx;
+        const bool insideY = from.y > targetCenter.y - expandedHy &&
+                             from.y < targetCenter.y + expandedHy;
+        if (insideX && insideY) {
+            // Strictly inside: overlap report (committed contract) —
+            // t=0, zero normal; the discrete path resolves it.
+            out.hit = true;
+            out.t = 0.0f;
+            out.normal = Vec3(0.0f, 0.0f, 0.0f);
+            return out;
+        }
+        // Boundary start: touching, not overlapping — NO constraint.
+        // The mover moves freely; the discrete pass resolves any
+        // resulting overlap (keeps a resting character's jump alive).
+        return out;
     }
     if (tEntry < 0.0f) {
         // Segment starts inside the expanded box: overlap, not a crossing.
