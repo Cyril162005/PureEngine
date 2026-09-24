@@ -31,6 +31,7 @@
  * the blob tests read (beep.wav, prefabs/enemy.txt).
  */
 #include "../src/resources.h"
+#include "../src/renderer.h"
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -310,6 +311,50 @@ static bool checkPack() {
     return true;
 }
 
+// --- Texture lifetime contract, headless GL-free half (renderer.h
+// registry side). A DEFAULT-CONSTRUCTED pe::Renderer (no init(), no GL
+// context — GLAD pointers are unloaded) may safely exercise the public
+// paths that make no GL calls: register failure (all-miss -> -1,
+// nothing registered) and unloadNonCoreTextures on an empty registry
+// (its guards and its clearNonCoreTextures loop over no slots return
+// before any GL call). releaseTexture/clearNonCoreTextures are private
+// — their core-slot guards are enforced inside those paths and covered
+// by the console textures command (main.cpp); the live-context half
+// (register success, release of a real slot, destroyAll, the draw-path
+// checker fallback for stale ids) is covered by that command plus the
+// alive probe.
+static bool checkTextureLifetime() {
+    // Default construction is GL-free: all names default to 0.
+    pe::Renderer renderer;
+    if (renderer.textureCount() != 0) {
+        std::cerr << "Fresh renderer registry must be empty\n";
+        return false;
+    }
+    // Register failure: all three probes miss -> -1, and the failure
+    // path makes NO GL calls (loadRgbTexture all-miss is GL-free —
+    // locked above). Nothing enters the registry.
+    if (renderer.registerNonCoreTexture("res_test_missing_lifetime.png") != -1) {
+        std::cerr << "Register with missing asset must return -1\n";
+        return false;
+    }
+    if (renderer.textureCount() != 0) {
+        std::cerr << "Failed register must not grow the registry\n";
+        return false;
+    }
+    // Unload on an empty registry: every guard (core ids, negative,
+    // out-of-range) returns BEFORE any GL call — 0 released, and this
+    // is safe with no context.
+    if (renderer.unloadNonCoreTextures() != 0) {
+        std::cerr << "Unload on empty registry must release 0\n";
+        return false;
+    }
+    if (renderer.textureCount() != 0) {
+        std::cerr << "Unload must not grow the registry\n";
+        return false;
+    }
+    return true;
+}
+
 int main() {
     const bool blobFailureOk = checkBlobFailure();
     const bool blobSuccessOk = checkBlobSuccess();
@@ -317,10 +362,11 @@ int main() {
     const bool textureFailureOk = checkTextureFailureHeadless();
     const bool cacheOk = checkCache();
     const bool packOk = checkPack();
+    const bool textureLifetimeOk = checkTextureLifetime();
     pe::clearBinaryCache();
 
     if (!blobFailureOk || !blobSuccessOk || !probePriorityOk ||
-        !textureFailureOk || !cacheOk || !packOk) {
+        !textureFailureOk || !cacheOk || !packOk || !textureLifetimeOk) {
         std::cerr << "resources_test: FAILED\n";
         return 1;
     }

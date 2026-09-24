@@ -58,6 +58,9 @@
  *   OWNERSHIP — GPU: texture loaders hand back a GL name and forget it;
  *            the caller owns and deletes it (deleting 0 is a safe
  *            no-op); the loaded texture is left bound to GL_TEXTURE_2D.
+ *            The registry-side lifetime (who the caller is at each hop:
+ *            Renderer init loads, game/console register ids, release/
+ *            clear/teardown) is documented end-to-end in renderer.h.
  *            CPU: blob/pack fill the caller's vector; the caller owns
  *            its copy and the cache retains its own.
  *   CALLERS MAY ASSUME — success needs only the CWD-relative assets

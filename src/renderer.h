@@ -510,21 +510,28 @@ private:
             if (!entity.alive) continue;  // Step 113: dead entities draw nothing
             const int slot = entity.textureId;
             if (groups.empty() || groups.back().textureId != slot) {
+                // Invalid-slot rule: OOB AND released slots (a runtime
+                // unload zeroes the GL name but keeps the registry
+                // slot) both fall back to the checker — a stale
+                // textureId can never bind GL name 0 and draw
+                // undefined texture content.
                 const bool oob = (slot < 0 || slot >= static_cast<int>(entityTextures.size()));
+                const bool released = (!oob && entityTextures[slot] == 0);
 #ifndef NDEBUG
-                if (oob) {
+                if (oob || released) {
                     static std::set<int> warned;
                     if (warned.find(slot) == warned.end()) {
                         std::cerr << "[PureEngine] Warning: textureId "
                                   << slot
-                                  << " out of range [0,"
-                                  << static_cast<int>(entityTextures.size()) - 1
-                                  << "], using checker fallback\n";
+                                  << (released ? " released (slot kept, GL name 0)"
+                                               : " out of range [0,"
+                                                 + std::to_string(static_cast<int>(entityTextures.size()) - 1) + "]")
+                                  << ", using checker fallback\n";
                         warned.insert(slot);
                     }
                 }
 #endif
-                const GLuint tex = !oob ? entityTextures[slot] : checkerTexture;
+                const GLuint tex = (!oob && !released) ? entityTextures[slot] : checkerTexture;
                 groups.push_back({slot, tex, {}});
             }
             groups.back().indices.push_back(k);
@@ -815,12 +822,42 @@ public:
     // --- Step 133: console-proof accessors (thin, additive) ---
     // Thin public wrappers over the PRIVATE Step 89/94 unload APIs so a
     // console command can prove the registry end-to-end. SAFETY RULE
-    // (unchanged, enforced inside the private paths): core texture slots
-    // 0..4 are protected by the id < 5 guard in releaseTexture AND
-    // clearNonCoreTextures — a runtime unload can never break the
-    // running frame. unloadNonCoreTextures returns how many non-core
-    // slots were released (clearNonCoreTextures itself stays void and
-    // byte-identical).
+    // (enforced inside the private paths AND the draw path): core
+    // texture slots 0..4 are protected by the id < 5 guard in
+    // releaseTexture AND clearNonCoreTextures — a runtime unload can
+    // never break the running frame. unloadNonCoreTextures returns how
+    // many non-core slots were released (clearNonCoreTextures itself
+    // stays void and byte-identical).
+    //
+    // TEXTURE LIFETIME CONTRACT (end-to-end, documented 2026-09-22;
+    // load side in src/resources.h CONTRACT, registry side here):
+    //   LOAD    — pe::loadRgbTexture/loadRgbaTexture hand back a GL name
+    //             and forget it. pe::Renderer is the caller for init
+    //             (checker, entityTextures 0..4, font atlas) and owns
+    //             every name it receives; the game/console is the caller
+    //             for registerNonCoreTexture.
+    //   REGISTER— registerNonCoreTexture returns the new slot id (or -1
+    //             on load failure — nothing is registered, no GL call on
+    //             that path). The caller owns only the INDEX; the GL
+    //             object belongs to the renderer's registry and is
+    //             deleted by the renderer, never by the caller.
+    //   DRAW    — entity.textureId addresses the slot array directly.
+    //             OOB and released (zeroed) slots both fall back to the
+    //             checker texture; a stale id can never bind GL name 0.
+    //   RELEASE — releaseTexture serves slots >= 5 only (core 0..4 are
+    //             refuse-only); it refuses OOB and already-released ids,
+    //             deletes the GL name, and zeroes the slot (the registry
+    //             keeps its size, so ids stay stable).
+    //   CLEAR   — clearNonCoreTextures/unloadNonCoreTextures release
+    //             every non-core slot at once; re-registering after an
+    //             unload appends a fresh slot and works.
+    //   TEARDOWN— destroyAll deletes every owned GL object and resets
+    //             all names to 0; safe at ANY point of a partial init
+    //             (with a live context — headless GLAD pointers are
+    //             unloaded, so it is NOT callable without one).
+    //   STALE IDS — entities holding a released id keep drawing (via
+    //             the checker) with no crash and no texture-0 bind; the
+    //             caller may assume no state corruption from an unload.
     int textureCount() const { return static_cast<int>(entityTextures.size()); }
     int registerNonCoreTexture(const std::string& baseFilename) {
         return registerTexture(baseFilename);
