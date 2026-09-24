@@ -1909,6 +1909,18 @@
     133,
     166
    ]
+  },
+  {
+   "id": 181,
+   "name": "Physics: controller useSwept opt-in + boundary-start refinement + checkSweptControllerContract",
+   "status": "completed",
+   "definition_of_done": "updateCharacterController gains useSwept (Step P8 opt-in: swaps the integrate step for the swept move, default false = discrete byte-identical); sweptAABB boundary-start policy refined: exactly ON a slab boundary (touching, not overlapping) = NO hit; checkSweptControllerContract (P8) + chain gate.",
+   "notes": "In-flight physics landed (P0-P3 of the 80-step run). Boundary-start is a refinement of the Step 173/175 edge policy (touching is not overlapping) — the physics session boundary.",
+   "commit": "b2cd8cc",
+   "depends_on": [
+    175,
+    173
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
