@@ -4656,6 +4656,142 @@ static bool checkGamepadActions() {
     return ok;
 }
 
+// Step 158-follow-up: keysForAllActions adoption helper. Proves the
+// opt-in ORDER that closes the silent untracked-key gap: load bindings
+// FIRST, then construct Input from the union — every remapped key is
+// tracked and isActionEdge fires. Counter-proofs: a narrow hand-rolled
+// tracked set stays silent, and an Input built from the PRE-remap union
+// must NOT track a fresh key (the documented residual: runtime rebinds
+// to fresh keys need re-adoption). Needs a hidden window + key
+// injection (checkInputEdges pattern); skipped where GL cannot init.
+static bool checkInputAdoptionHelper() {
+    if (!glfwInit()) {
+        std::cerr << "adoption test skipped: glfwInit failed\n";
+        return true;
+    }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    GLFWwindow* window = glfwCreateWindow(64, 64, "adoption-test", nullptr, nullptr);
+    if (!window) {
+        std::cerr << "adoption test skipped: hidden window failed\n";
+        glfwTerminate();
+        return true;
+    }
+    bool ok = true;
+    // --- Phase A: correct order (bindings BEFORE construction) ---
+    pe::resetActionOverrides();
+    const std::string fname = "adoption_test_tmp.txt";
+    {
+        std::filesystem::create_directories("assets");
+        std::ofstream out("assets/" + fname);
+        if (!out) {
+            std::filesystem::create_directories("../assets");
+            out.open("../assets/" + fname);
+        }
+        if (!out) { std::cerr << "Failed to write adoption test file\n"; return false; }
+        out << "Pause=F5\nJump=BACKSPACE\n";
+    }
+    const bool loaded = pe::loadInputBindings(fname);
+    std::remove(("assets/" + fname).c_str());
+    std::remove(("../assets/" + fname).c_str());
+    std::remove(("../../assets/" + fname).c_str());
+    if (!loaded) { std::cerr << "Adoption test bindings load failed\n"; return false; }
+    const std::vector<int> tracked = pe::keysForAllActions();
+    bool hasF5 = false, hasBack = false;
+    for (int k : tracked) {
+        if (k == GLFW_KEY_F5) hasF5 = true;
+        if (k == GLFW_KEY_BACKSPACE) hasBack = true;
+    }
+    if (!hasF5 || !hasBack) {
+        std::cerr << "Post-remap union must contain remapped keys\n";
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return false;
+    }
+    pe::Input adopted{tracked};  // vector ctor: the adoption piece
+    glfwPollEvents();
+    adopted.update(window);  // settle: snapshot clean
+    // F5 (fresh key, in the union only because bindings loaded first)
+    // must fire Pause through isActionEdge.
+    postKey(window, VK_F5, true);
+    Sleep(150);
+    glfwPollEvents();
+    if (!adopted.isActionEdge(window, pe::Action::Pause)) {
+        std::cerr << "Union adoption must fire a remapped fresh key\n";
+        ok = false;
+    }
+    adopted.update(window);
+    postKey(window, VK_F5, false);
+    Sleep(150);
+    glfwPollEvents();
+    adopted.update(window);
+    // BACKSPACE (a key another action already held) must fire Jump.
+    postKey(window, VK_BACK, true);
+    Sleep(150);
+    glfwPollEvents();
+    if (!adopted.isActionEdge(window, pe::Action::Jump)) {
+        std::cerr << "Union adoption must fire a remapped shared key\n";
+        ok = false;
+    }
+    adopted.update(window);
+    postKey(window, VK_BACK, false);
+    Sleep(150);
+    glfwPollEvents();
+    adopted.update(window);
+    // Counter-proof: a narrow hand-rolled tracked set stays silent on
+    // both remapped keys (the gap the adoption closes).
+    pe::Input narrow{GLFW_KEY_ESCAPE, GLFW_KEY_SPACE};
+    narrow.update(window);
+    postKey(window, VK_F5, true);
+    Sleep(150);
+    glfwPollEvents();
+    if (narrow.isActionEdge(window, pe::Action::Pause) ||
+        narrow.isEdge(window, GLFW_KEY_F5)) {
+        std::cerr << "Untracked key must stay silent in the narrow set\n";
+        ok = false;
+    }
+    narrow.update(window);
+    postKey(window, VK_F5, false);
+    Sleep(150);
+    glfwPollEvents();
+    narrow.update(window);
+    // --- Phase B: wrong order (construction BEFORE bindings) ---
+    // The pre-remap union covers only default keys: a runtime rebind to
+    // a FRESH key (F5) stays untracked — the documented residual.
+    pe::resetActionOverrides();
+    const std::vector<int> defUnion = pe::keysForAllActions();
+    pe::Input early{defUnion};
+    glfwPollEvents();
+    early.update(window);
+    {
+        std::ofstream out("assets/" + fname);
+        if (!out) out.open("../assets/" + fname);
+        if (!out) { std::cerr << "Failed to rewrite adoption test file\n"; return false; }
+        out << "Pause=F5\n";
+    }
+    const bool loaded2 = pe::loadInputBindings(fname);
+    std::remove(("assets/" + fname).c_str());
+    std::remove(("../assets/" + fname).c_str());
+    std::remove(("../../assets/" + fname).c_str());
+    if (!loaded2) { std::cerr << "Adoption phase B load failed\n"; return false; }
+    postKey(window, VK_F5, true);
+    Sleep(150);
+    glfwPollEvents();
+    if (early.isActionEdge(window, pe::Action::Pause)) {
+        std::cerr << "Pre-remap union must not track a fresh key\n";
+        ok = false;
+    }
+    early.update(window);
+    postKey(window, VK_F5, false);
+    Sleep(150);
+    glfwPollEvents();
+    early.update(window);
+    // Restore the shipped-file state for later checks.
+    pe::loadInputBindings("input_bindings.txt");
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    return ok;
+}
+
 static bool checkInputBindings() {
     const std::string fname = "input_bindings_test_tmp.txt";
     {
@@ -5964,6 +6100,7 @@ int main() {
     const bool keyNamesOk = checkKeyNames();
     const bool keysAllOk = checkKeysForAllActions();
     const bool gamepadActionsOk = checkGamepadActions();
+    const bool adoptionOk = checkInputAdoptionHelper();
     const bool inputBindingsOk = checkInputBindings();
     const bool componentOk = checkComponentHelpers();
     const bool sceneDumpOk = checkSceneDumpReload();

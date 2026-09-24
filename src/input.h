@@ -301,6 +301,16 @@ public:
         : trackedKeys(edgeTrackedKeys),
           wasDownLastFrame(edgeTrackedKeys.size(), 0) {}
 
+    // Step 158-follow-up: construct from a runtime key list — the
+    // keysForAllActions() adoption helper's missing piece. A game that
+    // loads its bindings FIRST and then builds Input from the union
+    // gets edge tracking for every mapped key, so isActionEdge keeps
+    // firing after any remap. Same contract as the initializer_list
+    // ctor: listed keys are tracked, untracked keys report no edge.
+    explicit Input(const std::vector<int>& edgeTrackedKeys)
+        : trackedKeys(edgeTrackedKeys),
+          wasDownLastFrame(edgeTrackedKeys.size(), 0) {}
+
     // --- Level read: the key's state RIGHT NOW, no memory ---
     // The Step 3/6/8 pattern, relocated whole. Static because it is
     // stateless: two parallel vectors of level reads would agree.
