@@ -356,6 +356,43 @@ public:
     // arrive as DATA from main.cpp — since Step 15 the view comes
     // prebuilt from pe::Camera, and this method performs no camera
     // math at all; it only submits.
+    // --- Draw/submit contract (consolidated; each rule lives in the
+    // inline comment at its implementation site) ---
+    //
+    // SUBMISSION SPLIT (Step 13): main.cpp decides WHAT draws and WHEN
+    // (state-dependent clear color, which pass, which entities); the
+    // renderer only submits. drawWorld receives projection AND view as
+    // data and constructs nothing camera-related.
+    //
+    // THE RULES (in draw order of concern, not call order):
+    //   - F-04: entities.size() == colliding.size() — flags 1:1 with
+    //     entities, asserted every drawWorld call.
+    //   - Step 49 depth sort: a stable_sort of INDEX permutations by
+    //     entity.depth; entities/colliding never reorder in place (the
+    //     colliding[] lookup addresses by ORIGINAL index). Ties keep
+    //     construction order.
+    //   - Step 113 dead entities draw nothing (skipped before batching).
+    //   - Step 84 OOB textureId: out-of-range slots fall back to the
+    //     checker texture, with a warn-once log in debug builds only.
+    //   - Step 78 batching: consecutive same-textureId entities share
+    //     ONE VBO upload + ONE texture bind per group; per-entity
+    //     uniform updates + offset draws within the group.
+    //   - Step 86 tint: Entity.tint (white default) per entity; the
+    //     colliding flag overrides to red (1,0,0). Text paths reset
+    //     to white before drawing.
+    //   - Step 112 blending: ON for the whole world pass, OFF again
+    //     after — opaque sprites unaffected.
+    //
+    // VERIFICATION STATUS (honest split):
+    //   - Headless (hostile_data_test, no GL): calculateFrameUV edge
+    //     cases (Step 57), Particle.color -> Entity.tint carry (Step 86,
+    //     via particlesToEntities), LightingState cap (Step 79),
+    //     screen<->world conversions (Steps 125/126).
+    //   - GL-only — HUMAN/SMOKE gate (window required; listed for the
+    //     release checklist): batch visual correctness, depth-order
+    //     visuals, OOB fallback visual, dead-entity skip, blend state,
+    //     the F-04 assert, the warn-once log. Not headless-testable
+    //     without a GL context; do not claim them from CI alone.
     void drawWorld(const Mat4& projection, const Mat4& view,
                    const std::vector<Entity>& entities,
                    const std::vector<char>& colliding) {
