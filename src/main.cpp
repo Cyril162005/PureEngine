@@ -1103,6 +1103,9 @@ if (clip != animations.end()) {
     bool debug3d = false;
     pe::registerCommand(console, "debug3d", [&debug3d](const std::vector<std::string>& args) {
         if (pe::parseOnOff(args, debug3d)) {
+            // Step 202 amendment: runtime log — the command's state is
+            // visible in the launching terminal (SMOKE-only evidence).
+            std::cout << "[CONSOLE] debug3d state: " << (debug3d ? "ON" : "OFF") << std::endl;
             return std::string(debug3d ? "debug3d on" : "debug3d off");
         }
         return std::string("usage: debug3d on|off");
@@ -1352,7 +1355,8 @@ if (clip != animations.end()) {
         const bool consoleWasOpen =
             (currentState == pe::GameState::PLAYING ||
              currentState == pe::GameState::PLAYING_ALT ||
-             currentState == pe::GameState::PAUSED) &&
+             currentState == pe::GameState::PAUSED ||
+             currentState == pe::GameState::MENU) &&
             console.open;
         // Integration sprint: shared console pump for PLAYING + PAUSED.
         // GRAVE toggles; an open console owns ESC (close) and the typing
@@ -1413,19 +1417,25 @@ if (clip != animations.end()) {
 
         switch (currentState) {
         case pe::GameState::MENU:
-            // ESC quits. LEVEL polling is fine here: the only effect is
-            // setting the close flag — idempotent even while held, and
-            // glfwSetWindowShouldClose destroys nothing immediately (the
-            // loop condition checks it, cleanup runs as usual).
-            if (escIsPressedNow) {
+            // --- Step 202 amendment: the console is a GAME-LOOP system —
+            // the MENU gets the same pump (backtick toggles; an open
+            // console swallows the game-start keys). Before this, GRAVE
+            // in the MENU did nothing visible — the console never opened
+            // and never drew, so typed keys appeared to leak to the
+            // terminal.
+            pumpConsole();
+            // ESC quits — but an open console owns ESC (close), the
+            // same ownership rule PLAYING/PAUSED follow.
+            if (escIsPressedNow && !consoleAteFrame) {
                 glfwSetWindowShouldClose(window, GLFW_TRUE);
             // SPACE starts a game: reset the world to its initial data,
-            // then enter PLAYING. EDGE — one start per press.
-            } else if (spaceEdge) {
+            // then enter PLAYING. EDGE — one start per press. Swallowed
+            // while the console owns the frame.
+            } else if (spaceEdge && !consoleAteFrame) {
                 activateScene("arena", defaultHostileDefaults);
                 resetGame();
                 currentState = pe::GameState::PLAYING;
-            } else if (input.isEdge(window, GLFW_KEY_2)) {
+            } else if (input.isEdge(window, GLFW_KEY_2) && !consoleAteFrame) {
                 activateScene("arena_alt", alternateHostileDefaults);
                 resetGame();
                 currentState = pe::GameState::PLAYING_ALT;
@@ -1956,6 +1966,10 @@ if (clip != animations.end()) {
             // centered label; the hit rects above are invisible but live.
             pe::drawButton(renderer, camera.projection(), menuStartButton);
             pe::drawButton(renderer, camera.projection(), menuAltButton);
+            // Step 202 amendment: the console overlay draws in the MENU
+            // too (an open console must be VISIBLE — before this, the
+            // MENU branch never drew it even when open).
+            pe::drawConsole(renderer, camera.projection(), console);
         }
 
         // --- Step 202: opt-in 3D debug-frame trigger (diagnostic hook) ---

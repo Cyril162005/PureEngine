@@ -796,6 +796,16 @@ static bool checkConsoleFeedKey() {
         std::cerr << "Backspace on empty input wrote state\n";
         return false;
     }
+    // Step 202 amendment: the TOGGLE key (GRAVE) must never insert a
+    // literal backtick into the buffer from the same press — feedKey
+    // ignores it (the toggle is the caller's edge-detect, not a char).
+    pe::Console grave;
+    pe::feedKey(grave, GLFW_KEY_GRAVE_ACCENT, false);
+    pe::feedKey(grave, GLFW_KEY_GRAVE_ACCENT, true);
+    if (!grave.input.empty()) {
+        std::cerr << "GRAVE must not insert a literal backtick\n";
+        return false;
+    }
     return true;
 }
 
