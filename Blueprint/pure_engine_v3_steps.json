@@ -2191,6 +2191,18 @@
     196,
     144
    ]
+  },
+  {
+   "id": 203,
+   "name": "Renderer: debug3d cube black-box fix (explicit tint + checker bind + offset eye)",
+   "status": "completed",
+   "definition_of_done": "INSPECTED FIRST - actual cause found: the default shader is texel.rgb * color with GL uniform defaults of 0 - drawDebugMesh3D never set the color uniform -> texel.rgb * (0,0,0) = BLACK (primary); it also never bound a texture (the sampler read whatever GL_TEXTURE0 last held); and the eye (0,0,5) looked straight down the cube +Z face normal (flat square, secondary). Fix: bind checkerTexture (deterministic) + glUniform3f(colorLocation, 0.25, 0.55, 1.0) debug-blue tint + eye offset to (3,2,5) so the lookAt rotates the world and multiple faces are visible (no Mat4::rotation needed).",
+   "notes": "DEPTH LOGIC UNTOUCHED (the 195 save/restore + 201 depth-only clear) - checkDepthState and checkDebugFrameDepth still pass unchanged (verified). No new pure data/math added (no per-vertex colors, no rotation matrix) -> no new headless test required. SMOKE-only: the visual result (a shaded multi-face cube now) - SMOKE_TEST 7.9 expectations unchanged (invoke debug3d on).",
+   "commit": "e8e22ab",
+   "depends_on": [
+    202,
+    201
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
