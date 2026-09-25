@@ -33,6 +33,14 @@ no dups).
 - Multi-track clips and cross-clip blending: NOT started, not planned —
   additive engine-pure steps only if a session explicitly requests one.
 
+## Physics wiring finding (Step 208 — real usage check)
+- resolveCollision (mass/restitution/friction, Steps 205-207) has ZERO
+  game consumers: Pong ball-paddle is hand-scripted (velocity flip +
+  raw aabbOverlap, pong.cpp:202-205); Platformer never calls
+  resolveCollision (the controller sweeps statics only). Follow-up
+  wiring options: Pong paddle -> resolveCollision (~10 lines) or
+  Platformer dynamic-tile support (larger). AWAITING USER ASSIGNMENT.
+
 ## Input residual (Step 59 of the 80-step run)
 - A runtime rebind (loadInputBindings AFTER Input construction) does NOT
   update the Input's tracked keys: level-only or newly-mapped keys need
