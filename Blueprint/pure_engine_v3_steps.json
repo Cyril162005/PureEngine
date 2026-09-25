@@ -2127,6 +2127,18 @@
     162,
     136
    ]
+  },
+  {
+   "id": 198,
+   "name": "Editor-lite select safety + multi-entity persist (headless)",
+   "status": "completed",
+   "definition_of_done": "checkEditorLiteSafety: a) OOB select - ONE contract (caller-side bounds-check select helper pattern documented in the test; engine APIs frozen): OOB index signals failure + scene state byte-identical before/after; b) multi-entity persist: two entities nudged -> save -> reload -> both correct, third untouched; c) EPSILON PATH (first CI exercise of the precision rule): +0.33333 nudge reloads within epsilon 1e-4 (NOT exact) - exercises the fixed-4-decimal writer bound; d) pickEntity at a known world point returns the containing index + picked nudge persists.",
+   "notes": "No GUI, gizmos, hierarchy UI, undo, ECS, net, 3D mesh work. Engine APIs unchanged. 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "6bd0538",
+   "depends_on": [
+    197,
+    127
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
