@@ -5820,6 +5820,109 @@ static bool checkDepthState() {
     return ok;
 }
 
+// Step 198: editor-lite select safety + multi-entity persist
+// (headless only, no GUI). Closes the safety cells:
+//   a) OOB select - ONE contract: select-by-index is caller-side
+//      bounds-checked (the TOOLING CONTRACT keeps engine APIs frozen,
+//      so the select helper pattern lives HERE as the documented
+//      contract); an OOB index signals failure and the scene state
+//      stays byte-identical;
+//   b) multi-entity persist: two different entities nudged -> save ->
+//      reload -> both positions correct, the third untouched;
+//   c) EPSILON PATH (first CI exercise of the precision rule): a nudge
+//      NOT exactly representable at 4 decimals (+0.33333) reloads
+//      within epsilon 1e-4, NOT exact - this exercises the fixed-4-
+//      decimal writer bound (rounding error <= 0.00005);
+//   d) pickEntity compose: a pick at a known world point returns that
+//      entity's index, and a nudge through the picked index persists.
+// CTest fails if isolation, multi-persist, or the epsilon check
+// breaks. No SMOKE-only closure.
+static bool checkEditorLiteSafety() {
+    const char* prefixes[3] = {"assets/", "../assets/", "../../assets/"};
+    auto rmArtifacts = [&]() {
+        for (const char* p : prefixes) {
+            std::remove((std::string(p) + "scene_editor_safety_test.txt").c_str());
+            std::remove((std::string(p) + "scene_editor_safety_test.txt.tmp").c_str());
+        }
+    };
+    rmArtifacts();
+    // Select-by-index contract (documented here): caller bounds-checks.
+    auto selectIndex = [](pe::Scene& s, std::size_t i, pe::Entity& out) -> bool {
+        if (i >= s.entities.size()) {
+            return false;
+        }
+        out = s.entities[i];
+        return true;
+    };
+    // Fixture: 3 entities, clean 4-decimal-representable values.
+    pe::Scene fixture;
+    fixture.name = "editor_safety";
+    pe::Entity a(pe::Vec3(1.0f, 1.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    pe::Entity b(pe::Vec3(2.0f, 2.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    pe::Entity c(pe::Vec3(3.0f, 3.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    fixture.entities.push_back(a);
+    fixture.entities.push_back(b);
+    fixture.entities.push_back(c);
+    // (a) OOB select: failure signal + scene byte-identical.
+    bool ok = true;
+    pe::Entity out;
+    if (selectIndex(fixture, 3, out)) { std::cerr << "OOB select must fail\n"; ok = false; }
+    const std::string before = [&]() {
+        std::string s;
+        for (const pe::Entity& e : fixture.entities) {
+            s += std::to_string(e.position.x) + "," + std::to_string(e.position.y) + ";";
+        }
+        return s;
+    }();
+    if (selectIndex(fixture, 99, out)) { std::cerr << "Far-OOB select must fail\n"; ok = false; }
+    const std::string after = [&]() {
+        std::string s;
+        for (const pe::Entity& e : fixture.entities) {
+            s += std::to_string(e.position.x) + "," + std::to_string(e.position.y) + ";";
+        }
+        return s;
+    }();
+    if (before != after) { std::cerr << "OOB select must leave state byte-identical\n"; ok = false; }
+    // (d) pickEntity compose: pick at a point inside entity 0's unit box.
+    const int picked = pe::pickEntity(fixture.entities, 1.0f, 1.0f);
+    if (picked != 0) { std::cerr << "pick must return the containing entity\n"; ok = false; }
+    // (b) + (c) + (d): nudge through distinct paths, save, reload.
+    fixture.entities[0].position.x += 1.0f;                       // picked nudge
+    fixture.entities[2].position.y -= 2.0f;                       // second entity
+    const float epsPre = fixture.entities[1].position.x;          // 2.0
+    fixture.entities[1].position.x += 0.33333f;                   // NOT 4-decimal exact
+    const float epsExpect = epsPre + 0.33333f;
+    if (!pe::saveSceneToFile(fixture, "scene_editor_safety_test.txt")) {
+        std::cerr << "editor safety: save failed\n";
+        return false;
+    }
+    pe::Scene reloaded;
+    if (!pe::loadSceneFromFile("scene_editor_safety_test.txt", reloaded) ||
+        reloaded.entities.size() != 3) {
+        std::cerr << "editor safety: reload failed\n";
+        return false;
+    }
+    // (b): both nudged entities correct.
+    if (!assertFloatClose(reloaded.entities[0].position.x, 2.0f)) {
+        std::cerr << "Picked-entity nudge must persist\n"; ok = false;
+    }
+    if (!assertFloatClose(reloaded.entities[2].position.y, 1.0f)) {
+        std::cerr << "Second-entity nudge must persist\n"; ok = false;
+    }
+    // (c): the epsilon path - within 1e-4, the writer's bound exercised.
+    const float diff = reloaded.entities[1].position.x - epsExpect;
+    if (diff > 1e-4f || diff < -1e-4f) {
+        std::cerr << "Epsilon nudge must reload within 1e-4, got diff " << diff << "\n";
+        ok = false;
+    }
+    // (b): the untouched middle entity's y stays exact.
+    if (!assertFloatClose(reloaded.entities[1].position.y, 2.0f)) {
+        std::cerr << "Untouched entity must stay exact\n"; ok = false;
+    }
+    rmArtifacts();
+    return ok;
+}
+
 // Step 197: editor-lite v0 headless success path (the TOOLING
 // CONTRACT's smallest TOOL loop - no GUI, no new binary):
 // load -> select by stable index -> nudge -> save -> reload -> assert
@@ -6806,6 +6909,7 @@ int main() {
     const bool depthStateOk = checkDepthState();
     const bool view3DOk = checkView3D();
     const bool editorLiteOk = checkEditorLiteSuccess();
+    const bool editorSafetyOk = checkEditorLiteSafety();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -6840,7 +6944,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
