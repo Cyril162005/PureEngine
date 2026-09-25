@@ -2228,6 +2228,18 @@
     192,
     76
    ]
+  },
+  {
+   "id": 206,
+   "name": "Physics: per-body restitution (max-combined bounce)",
+   "status": "completed",
+   "definition_of_done": "Entity gains restitution (default 0.5 - byte-identical with the resolveCollision parameter default). EFFECTIVE VALUE (documented in physics.h): an explicit parameter (any value != the 0.5 default) overrides; the default call uses max(a.restitution, b.restitution) - Box2D-style, the bouncier body wins; clamped [0,1] like the parameter always was. checkRestitution (REQUIRED headless, exact): 1:1 e=0 = perfectly inelastic (both normal velocities stop exactly - the pre-206 baseline), e=1 = separating (a.vel -1, b.vel +1 exact), per-body max 0.2 vs 0.9 -> 0.9 exit velocities exact, static vs dynamic: the dynamic bounces (exit = e * impact speed: 0.9 * 2 = 1.8 exact), static never moves.",
+   "notes": "The parameter semantics were locked by existing tests (explicit -0.5/0/1/5 + no-arg defaults) - the override-when-explicit design keeps ALL existing tests unchanged (non-breaking). No rotational inertia, friction cone, joints, continuous contact solver, ECS. 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "fbf6ed1",
+   "depends_on": [
+    205,
+    76
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
