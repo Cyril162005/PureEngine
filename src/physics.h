@@ -142,23 +142,37 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
         return;
     }
 
-    // Neither static: equal split (original behavior)
-    const float half = pen * 0.5f;
-    a.position.x -= nx * half;
-    a.position.y -= ny * half;
-    b.position.x += nx * half;
-    b.position.y += ny * half;
+    // Neither static: INVERSE-MASS WEIGHTING (Step 205; the standard
+    // impulse resolution). FORMULA (exact, stated):
+    //   invMass = (isStatic || isKinematic || mass <= 0) ? 0 : 1/mass
+    //   positional: each body moves along -n/+n by
+    //               pen * invMass / (invMassA + invMassB)
+    //   impulse:    j = -(1 + restitution) * relVelAlongNormal
+    //                     / (invMassA + invMassB)
+    //               a.velocity -= n * (j * invMassA)
+    //               b.velocity += n * (j * invMassB)
+    // Heavier bodies move less (a 1:2 pair splits the correction 1/3
+    // vs 2/3 the OTHER way). With both masses 1.0 (the default) this
+    // reduces EXACTLY to the original equal split (0.5/0.5) — the
+    // behavior is byte-identical when mass is unset (non-regression).
+    float invMassA = (aStatic || a.mass <= 0.0f) ? 0.0f : 1.0f / a.mass;
+    float invMassB = (bStatic || b.mass <= 0.0f) ? 0.0f : 1.0f / b.mass;
+    const float invSum = invMassA + invMassB;
+    a.position.x -= nx * pen * (invMassA / invSum);
+    a.position.y -= ny * pen * (invMassA / invSum);
+    b.position.x += nx * pen * (invMassB / invSum);
+    b.position.y += ny * pen * (invMassB / invSum);
 
     const float relNx = (b.velocity.x - a.velocity.x) * nx;
     const float relNy = (b.velocity.y - a.velocity.y) * ny;
     if (relNx + relNy >= 0.0f) {
         return;
     }
-    const float impulse = -(1.0f + restitution) * (relNx + relNy) * 0.5f;
-    a.velocity.x -= nx * impulse;
-    a.velocity.y -= ny * impulse;
-    b.velocity.x += nx * impulse;
-    b.velocity.y += ny * impulse;
+    const float impulse = -(1.0f + restitution) * (relNx + relNy) / invSum;
+    a.velocity.x -= nx * (impulse * invMassA);
+    a.velocity.y -= ny * (impulse * invMassA);
+    b.velocity.x += nx * (impulse * invMassB);
+    b.velocity.y += ny * (impulse * invMassB);
 }
 
 // --- Step P7: swept move + collide (the discrete resolve's swept twin) ---

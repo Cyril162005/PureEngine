@@ -5933,6 +5933,82 @@ static bool checkDebug3dParse() {
     return ok;
 }
 
+// Step 205: physics mass weighting (headless, pure math). REQUIRED
+// evidence: known masses -> known resolve outputs, EXACT values.
+// Setup: two unit boxes at (0,0) and (0.5,0) -> overlapX = 1.5 (the
+// smaller overlap), nx = 1 (b right of a), pen = 1.5.
+//   1:1 (both default): each moves 1.5*0.5 = 0.75 -> a.x = -0.75,
+//        b.x = 1.25 - the ORIGINAL equal split, byte-identical.
+//   1:2: invMass 1 vs 0.5 (sum 1.5) -> a moves 1.0 (x=-1.0), b moves
+//        0.5 (x=1.0) - the heavier body moves LESS; impulse j = 2.0
+//        splits by inverse mass too (a.vel 1->-1, b.vel -1->0).
+//   static-infinite: the static takes nothing, the dynamic takes the
+//        FULL 1.5 correction (unchanged Step P6 behavior).
+//   mass 0 = infinite: invMass 0 -> the zero-mass body never moves,
+//        the other takes the full correction.
+static bool checkMassWeighting() {
+    bool ok = true;
+    // 1:1 (both default 1.0): the original equal split, exact.
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);   // unit boxes: ahx+bhx-adx = 1.5
+        b.halfExtents = pe::Vec3(1,1,1);
+        pe::resolveCollision(a, b);
+        if (!assertFloatClose(a.position.x, -0.75f) ||
+            !assertFloatClose(b.position.x, 1.25f)) {
+            std::cerr << "1:1 resolve must be the equal split\n"; ok = false;
+        }
+    }
+    // 1:2: the heavier body moves less; velocity impulse weighted too.
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);   // unit boxes: ahx+bhx-adx = 1.5
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.mass = 1.0f;
+        b.mass = 2.0f;
+        a.velocity = pe::Vec3(1.0f, 0.0f, 0.0f);
+        b.velocity = pe::Vec3(-1.0f, 0.0f, 0.0f);
+        pe::resolveCollision(a, b);
+        if (!assertFloatClose(a.position.x, -1.0f) ||
+            !assertFloatClose(b.position.x, 1.0f)) {
+            std::cerr << "1:2 positional split must be 1/3 vs 2/3\n"; ok = false;
+        }
+        if (!assertFloatClose(a.velocity.x, -1.0f) ||
+            !assertFloatClose(b.velocity.x, 0.0f)) {
+            std::cerr << "1:2 impulse must split by inverse mass (j=2.0)\n"; ok = false;
+        }
+    }
+    // static-infinite: unchanged behavior - full correction on the dynamic.
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);   // unit boxes: ahx+bhx-adx = 1.5
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.isStatic = true;
+        pe::resolveCollision(a, b);
+        if (!assertFloatClose(a.position.x, 0.0f) ||
+            !assertFloatClose(b.position.x, 2.0f)) {
+            std::cerr << "Static must take zero, dynamic the full 1.5\n"; ok = false;
+        }
+    }
+    // mass 0 = infinite (zero inverse mass).
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);   // unit boxes: ahx+bhx-adx = 1.5
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.mass = 0.0f;
+        pe::resolveCollision(a, b);
+        if (!assertFloatClose(a.position.x, 0.0f) ||
+            !assertFloatClose(b.position.x, 2.0f)) {
+            std::cerr << "mass 0 must behave as infinite\n"; ok = false;
+        }
+    }
+    return ok;
+}
+
 // Step 204: Mat4::rotationY + the stateless spin contract (headless).
 // REQUIRED evidence: known angles -> exact expected matrix values
 // (0 rad = identity; pi/2 = col0 (0,0,-1) / col2 (1,0,0) — +X turns
@@ -7278,6 +7354,7 @@ int main() {
     const bool debugFrameOk = checkDebugFrameDepth();
     const bool debug3dParseOk = checkDebug3dParse();
     const bool rotationYOk = checkRotationY();
+    const bool massWeightingOk = checkMassWeighting();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7312,7 +7389,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

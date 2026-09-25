@@ -90,6 +90,13 @@ struct Entity {
     // massless model, no persistent acceleration field).
     Vec3 velocity = Vec3(0.0f, 0.0f, 0.0f);
     float gravityScale = 0.0f;
+
+    // Step 205: per-body mass (default 1.0 - existing behavior is
+    // byte-identical when unset). mass <= 0 is treated as INFINITE
+    // mass (zero inverse mass) by the collision resolve - a static
+    // body never moves; this field is the dynamic-dynamic weighting
+    // input. No rotational inertia, no joints (out of scope).
+    float mass = 1.0f;
     // --- Step 65: hierarchy link (inert by default) — Step 83 freeze ---
     // Contract: attachment only (translation); parent indices invalid after
     // erase/reorder — re-establish after any structural change (same
