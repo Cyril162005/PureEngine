@@ -5898,6 +5898,31 @@ static bool checkDebugFrameDepth() {
     return ok;
 }
 
+// Step 202: debug3d console trigger - the command-parsing logic
+// (MANDATORY headless evidence; pure state, no GL). parseOnOff:
+// "on"/"ON"/"On" -> true, "off"/"OFF" -> false; empty args, extra
+// tokens, garbage -> safe no-op (out unchanged, false returned). The
+// on-screen cube once the command is typed at runtime: SMOKE-only
+// (SMOKE_TEST 7.9-7.11 document the invocation).
+static bool checkDebug3dParse() {
+    bool ok = true;
+    bool state = false;
+    if (!pe::parseOnOff({"on"}, state) || !state) { std::cerr << "on must set true\n"; ok = false; }
+    if (!pe::parseOnOff({"ON"}, state) || !state) { std::cerr << "ON must set true (case-insensitive)\n"; ok = false; }
+    if (!pe::parseOnOff({"On"}, state) || !state) { std::cerr << "On must set true\n"; ok = false; }
+    if (!pe::parseOnOff({"off"}, state) || state) { std::cerr << "off must set false\n"; ok = false; }
+    if (!pe::parseOnOff({"OFF"}, state) || state) { std::cerr << "OFF must set false\n"; ok = false; }
+    // Garbage / empty / multi-arg: safe no-op - the toggle is untouched.
+    state = true;
+    if (pe::parseOnOff({}, state)) { std::cerr << "Empty args must fail\n"; ok = false; }
+    if (!state) { std::cerr << "Empty args must not touch the toggle\n"; ok = false; }
+    if (pe::parseOnOff({"maybe"}, state)) { std::cerr << "Garbage must fail\n"; ok = false; }
+    if (!state) { std::cerr << "Garbage must not touch the toggle\n"; ok = false; }
+    if (pe::parseOnOff({"on", "extra"}, state)) { std::cerr << "Multi-arg must fail\n"; ok = false; }
+    if (!state) { std::cerr << "Multi-arg must not touch the toggle\n"; ok = false; }
+    return ok;
+}
+
 // Step 199: editor-lite kill/remove + persist (headless). Locks the
 // kill side of the TOOL loop: load -> kill one -> save -> reload ->
 // count DECREASED and the dead entity NOT restored (the save drops
@@ -7180,6 +7205,7 @@ int main() {
     const bool editorKillOk = checkEditorLiteKill();
     const bool editorSpawnOk = checkEditorLiteSpawn();
     const bool debugFrameOk = checkDebugFrameDepth();
+    const bool debug3dParseOk = checkDebug3dParse();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7214,7 +7240,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

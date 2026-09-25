@@ -290,6 +290,20 @@ inline void drawConsole(Renderer& renderer, const Mat4& projection,
                             projection);
 }
 
-}  // namespace pe
+// Step 202: generic on/off argument parse (pure state, testable
+// without a GL context). "on" (any case) sets out = true, "off" sets
+// out = false; anything else (empty, extra tokens, garbage) leaves out
+// UNCHANGED and returns false — the caller decides the message.
+// Engine-pure: no game data, no GLFW.
+inline bool parseOnOff(const std::vector<std::string>& args, bool& out) {
+    if (args.size() == 1) {
+        const std::string v = console_detail::lower(args[0]);
+        if (v == "on") { out = true; return true; }
+        if (v == "off") { out = false; return true; }
+    }
+    return false;
+}
+
+} // namespace pe
 
 #endif  // PUREENGINE_CONSOLE_H

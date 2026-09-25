@@ -176,6 +176,7 @@
 #include "gamepad.h"    // Integration sprint: stick movement + button edges
 #include "particles.h"  // Integration sprint: catch-burst particles
 #include "lighting.h"   // Step 79: point light state
+#include "mesh3d.h"     // Step 202: unit cube for the opt-in debug3d trigger
 
 // --- Step 9: Audio Playback ---
 // miniaudio — a single-file audio library fetched by CMake via
@@ -1095,6 +1096,17 @@ if (clip != animations.end()) {
              << " master " << audio.getMasterVolume();
         return echo.str();
     });
+    // --- Step 202: debug3d console trigger (diagnostic hook, default OFF) ---
+    // The pure parse lives in console.h (parseOnOff, CI-tested); this
+    // handler carries the game-side state. Games boot exactly as
+    // before — nothing changes unless this command is typed.
+    bool debug3d = false;
+    pe::registerCommand(console, "debug3d", [&debug3d](const std::vector<std::string>& args) {
+        if (pe::parseOnOff(args, debug3d)) {
+            return std::string(debug3d ? "debug3d on" : "debug3d off");
+        }
+        return std::string("usage: debug3d on|off");
+    });
     // --- Step 130: pick console command (live consumer for Steps 127-129) ---
     // Reads the current mouse snapshot, converts pixels -> world via the
     // Step 128 wrapper (pickEntityAtScreen composes screenToWorld +
@@ -1944,6 +1956,25 @@ if (clip != animations.end()) {
             // centered label; the hit rects above are invisible but live.
             pe::drawButton(renderer, camera.projection(), menuStartButton);
             pe::drawButton(renderer, camera.projection(), menuAltButton);
+        }
+
+        // --- Step 202: opt-in 3D debug-frame trigger (diagnostic hook) ---
+        // "debug3d on" at the console flips the toggle; this runs ONLY
+        // when on. Per frame: enable the 3D view (perspective + a fixed
+        // eye that sees the cube), draw the unit cube with a depth-only
+        // clear, then RESTORE the ortho mode — the camera's persistent
+        // state never stays 3D (the Step 193/196 round-trip restores
+        // the exact live ortho box), so the 2D path of every later
+        // frame is unaffected.
+        if (debug3d) {
+            camera.setPerspective(1.0472f, 0.1f, 100.0f);
+            camera.setEyeTargetUp(pe::Vec3(0.0f, 0.0f, 5.0f),
+                                  pe::Vec3(0.0f, 0.0f, 0.0f),
+                                  pe::Vec3(0.0f, 1.0f, 0.0f));
+            renderer.drawDebugMesh3D(pe::unitCubeVertices(),
+                                     pe::Mat4::translation(0.0f, 0.0f, -2.0f),
+                                     camera.view(), camera.projection(), true);
+            camera.setOrthographicMode();
         }
 
         // C. Swap buffers
