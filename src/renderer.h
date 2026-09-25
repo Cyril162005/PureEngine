@@ -57,6 +57,7 @@
 // Include guard, same pattern as entity.h and the math headers.
 
 #include <algorithm>     // Step 49: std::stable_sort for depth-based draw order
+#include "mesh3d.h"      // Step 211: unitCubeVertices (the drawEntity3D path)
 #include <cassert>       // F-04: drawWorld contract assert
 #include <glad/gl.h>     // every GL call below goes through the GLAD loader
 #include <iostream>      // the same stderr diagnostics main.cpp always used
@@ -710,6 +711,23 @@ public:
 
     // --- Step 66: full-text strings in SCREEN SPACE ---
     // --- Step 194: opt-in 3D debug mesh draw (SMOKE-ONLY; SMOKE_TEST 7.9) ---
+
+    // --- Step 211: the 3D Entity render path (the meshId consumer) ---
+    // meshId == 0 -> IMMEDIATE no-op (no matrix work on the hot path).
+    // meshId > 0 -> model = translation(position) * scale(scale)
+    // (rotation optional later), drawn via the unit-cube path under
+    // the caller's camera (perspective when the caller enables it).
+    // NOT called from any game render pass (Pong/Platformer never) —
+    // the opt-in diagnostic path only (main's debug3d block).
+    void drawEntity3D(const Entity& e, const Mat4& view, const Mat4& projection) {
+        if (e.meshId == 0) {
+            return;   // 2D-only entity: no 3D draw, no matrix work
+        }
+        const Mat4 model = Mat4::translation(e.position.x, e.position.y, e.position.z) *
+                           Mat4::scale(e.scale.x, e.scale.y, e.scale.z);
+        drawDebugMesh3D(unitCubeVertices(), model, view, projection);
+    }
+
     // Step 195: depth state (opt-in). THE POLICY: save the caller's
     // depth-test enable state, enable depth for the occlusion, restore
     // EXACTLY after — the 2D pass assumes depth OFF (no game ever sees

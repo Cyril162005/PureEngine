@@ -270,6 +270,20 @@ public:
     }
 
     // ------------------------------------------------------------------
+    // Builder: SCALE (Step 211 — the 3D Entity render path's model
+    // matrix builder). Diagonal (x, y, z, 1) — pure arithmetic,
+    // constexpr, like orthographic(). Part of the model composition
+    // translation * scale (+ rotation later).
+    // ------------------------------------------------------------------
+    static constexpr Mat4 scale(float x, float y, float z) {
+        Mat4 result;
+        result.m[0][0] = x;
+        result.m[1][1] = y;
+        result.m[2][2] = z;
+        return result;
+    }
+
+    // ------------------------------------------------------------------
     // Builder: TRANSLATION (Step 194 — the 3D debug mesh's model matrix
     // builder). Identity with the last column set to (x, y, z) — the
     // column-major convention means m[3][0..2] IS the translation.

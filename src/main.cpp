@@ -2002,6 +2002,15 @@ if (clip != animations.end()) {
                                        pe::Mat4::rotationY(1.0f * debug3dElapsed);
             renderer.drawDebugMesh3D(pe::unitCubeVertices(), spinModel,
                                      camera.view(), camera.projection(), true);
+            // Step 211: the meshId consumer — any Arcade entity with
+            // meshId > 0 renders as a 3D cube under the same debug
+            // camera. No Arcade entity sets meshId today, so this draws
+            // nothing extra until one is bound (the path is live and
+            // dischargeable). Pong/Platformer render passes never call
+            // drawEntity3D.
+            for (pe::Entity& e : activeScene->entities) {
+                renderer.drawEntity3D(e, camera.view(), camera.projection());
+            }
             camera.setOrthographicMode();
         }
 

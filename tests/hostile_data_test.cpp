@@ -6017,6 +6017,95 @@ static bool checkRestitution() {
     return ok;
 }
 
+// Step 211: the 3D Entity render path (the meshId consumer).
+// MANDATORY headless evidence:
+//   - Mat4::scale exact values (diag);
+//   - the model matrix from KNOWN position/scale: translation *
+//     scale maps the unit cube's center to the position and the
+//     corner to position +- scale/2 (EXACT values);
+//   - the meshId==0 SKIP contract under a REAL hidden-window GL
+//     context: drawEntity3D on a meshId==0 entity makes NO GL draw
+//     (the framebuffer is byte-identical before/after) - the 2D-only
+//     hot path does zero matrix work.
+// SMOKE-only: an on-screen cube for a debug entity with meshId>0
+// (SMOKE_TEST 7.9); CI does not claim pixels.
+static bool checkEntity3D() {
+    bool ok = true;
+    auto sameMat = [](const pe::Mat4& a, const pe::Mat4& b) {
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
+            if (!assertFloatClose(a.m[c][r], b.m[c][r])) return false;
+        }
+        return true;
+    };
+    // Mat4::scale: exact diagonal.
+    const pe::Mat4 s = pe::Mat4::scale(2.0f, 3.0f, 4.0f);
+    pe::Mat4 sExpect = pe::Mat4();
+    sExpect.m[0][0] = 2.0f; sExpect.m[1][1] = 3.0f; sExpect.m[2][2] = 4.0f;
+    if (!sameMat(s, sExpect)) { std::cerr << "scale must be the exact diagonal\n"; ok = false; }
+    // Model from known position/scale: center -> position; corner ->
+    // position +- scale/2.
+    const pe::Mat4 model = pe::Mat4::translation(2.0f, 3.0f, 0.0f) *
+                           pe::Mat4::scale(2.0f, 2.0f, 2.0f);
+    const pe::Vec3 center = model.transformPoint(pe::Vec3(0.0f, 0.0f, 0.0f));
+    if (!assertFloatClose(center.x, 2.0f) || !assertFloatClose(center.y, 3.0f) ||
+        !assertFloatClose(center.z, 0.0f)) {
+        std::cerr << "Model center must be the entity position\n"; ok = false;
+    }
+    const pe::Vec3 corner = model.transformPoint(pe::Vec3(0.5f, 0.5f, 0.5f));
+    if (!assertFloatClose(corner.x, 3.0f) || !assertFloatClose(corner.y, 4.0f) ||
+        !assertFloatClose(corner.z, 1.0f)) {
+        std::cerr << "Model corner must be position + scale/2\n"; ok = false;
+    }
+    // meshId==0 SKIP under a real GL context: no draw, no pixel change.
+    if (!glfwInit()) { std::cerr << "entity3d test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "entity3d", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "entity3d test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "entity3d test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        unsigned char before[4] = {0, 0, 0, 0};
+        glReadPixels(2, 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, before);
+        pe::Entity flat;          // meshId 0: the skip contract
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            r.drawEntity3D(flat, cam.view(), cam.projection());
+            unsigned char after[4] = {0, 0, 0, 0};
+            glReadPixels(2, 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, after);
+            if (before[0] != after[0] || before[1] != after[1]) {
+                std::cerr << "meshId==0 must draw NOTHING (framebuffer unchanged)\n";
+                ok = false;
+            }
+            // meshId > 0: the cube path renders (depth written at the
+            // center - real draw evidence for the consumer path).
+            flat.meshId = 1;
+            flat.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+            r.drawEntity3D(flat, cam.view(), cam.projection());
+            float depth = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+            if (!(depth < 1.0f)) {
+                std::cerr << "meshId>0 entity must render via the cube path\n";
+                ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
 // Step 210: 3D mesh handle on Entity (data only; the 2D entity arc
 // opens here). REQUIRED headless evidence:
 //   - the DEFAULT Entity has no 3D mesh bound (meshId 0 = 2D-only);
@@ -7566,6 +7655,7 @@ int main() {
     const bool restitutionOk = checkRestitution();
     const bool frictionOk = checkFriction();
     const bool meshHandleOk = checkMeshHandle();
+    const bool entity3DOk = checkEntity3D();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7600,7 +7690,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
