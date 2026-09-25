@@ -5820,6 +5820,85 @@ static bool checkDepthState() {
     return ok;
 }
 
+// Step 199: editor-lite kill/remove + persist (headless). Locks the
+// kill side of the TOOL loop: load -> kill one -> save -> reload ->
+// count DECREASED and the dead entity NOT restored (the save drops
+// dead entities, scene.h:364 - CTest fails if a killed entity
+// reappears); surviving entities positions unchanged EXACT (clean
+// 4-decimal values); OOB kill stays a safe no-op. No SMOKE-only
+// closure.
+static bool checkEditorLiteKill() {
+    const char* prefixes[3] = {"assets/", "../assets/", "../../assets/"};
+    auto rmArtifacts = [&]() {
+        for (const char* p : prefixes) {
+            std::remove((std::string(p) + "scene_editor_kill_test.txt").c_str());
+            std::remove((std::string(p) + "scene_editor_kill_test.txt.tmp").c_str());
+        }
+    };
+    rmArtifacts();
+    // Fixture: 3 live entities at distinct clean positions.
+    pe::Scene fixture;
+    fixture.name = "editor_kill";
+    pe::Entity a(pe::Vec3(1.0f, 1.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    pe::Entity b(pe::Vec3(2.0f, 2.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    pe::Entity c(pe::Vec3(3.0f, 3.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    fixture.entities.push_back(a);
+    fixture.entities.push_back(b);
+    fixture.entities.push_back(c);
+    // OOB kill: safe no-op (nothing changes).
+    pe::killEntity(fixture, 99);
+    if (fixture.entities.size() != 3 || !fixture.entities[2].alive) {
+        std::cerr << "OOB kill must be a safe no-op\n";
+        return false;
+    }
+    // Save + load: 3 live entities round-trip.
+    if (!pe::saveSceneToFile(fixture, "scene_editor_kill_test.txt")) {
+        std::cerr << "editor kill: fixture save failed\n";
+        return false;
+    }
+    pe::Scene loaded;
+    if (!pe::loadSceneFromFile("scene_editor_kill_test.txt", loaded) ||
+        loaded.entities.size() != 3) {
+        std::cerr << "editor kill: load failed\n";
+        return false;
+    }
+    // Kill the middle entity + save + reload.
+    pe::killEntity(loaded, 1);
+    if (loaded.entities[1].alive) { std::cerr << "kill must mark dead\n"; return false; }
+    if (!pe::saveSceneToFile(loaded, "scene_editor_kill_test.txt")) {
+        std::cerr << "editor kill: re-save failed\n";
+        return false;
+    }
+    pe::Scene reloaded;
+    if (!pe::loadSceneFromFile("scene_editor_kill_test.txt", reloaded)) {
+        std::cerr << "editor kill: reload failed\n";
+        return false;
+    }
+    // THE FAIL-IF-RESTORED assert: count decreased, dead NOT restored.
+    if (reloaded.entities.size() != 2) {
+        std::cerr << "Killed entity must not reappear after reload\n";
+        return false;
+    }
+    for (const pe::Entity& e : reloaded.entities) {
+        if (!e.alive) { std::cerr << "Reloaded entities must be alive\n"; return false; }
+        if (!assertFloatClose(e.position.x, 2.0f) && !assertFloatClose(e.position.x, 1.0f) &&
+            !assertFloatClose(e.position.x, 3.0f)) {
+            std::cerr << "Survivor position mismatch\n"; return false;
+        }
+    }
+    // Survivors' positions unchanged EXACT: index 0 stays (1,1), the
+    // old index 2 stays (3,3).
+    if (!assertFloatClose(reloaded.entities[0].position.x, 1.0f) ||
+        !assertFloatClose(reloaded.entities[0].position.y, 1.0f) ||
+        !assertFloatClose(reloaded.entities[1].position.x, 3.0f) ||
+        !assertFloatClose(reloaded.entities[1].position.y, 3.0f)) {
+        std::cerr << "Survivor positions must be unchanged\n";
+        return false;
+    }
+    rmArtifacts();
+    return true;
+}
+
 // Step 198: editor-lite select safety + multi-entity persist
 // (headless only, no GUI). Closes the safety cells:
 //   a) OOB select - ONE contract: select-by-index is caller-side
@@ -6910,6 +6989,7 @@ int main() {
     const bool view3DOk = checkView3D();
     const bool editorLiteOk = checkEditorLiteSuccess();
     const bool editorSafetyOk = checkEditorLiteSafety();
+    const bool editorKillOk = checkEditorLiteKill();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -6944,7 +7024,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
