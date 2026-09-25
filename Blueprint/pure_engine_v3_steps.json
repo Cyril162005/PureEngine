@@ -2165,6 +2165,18 @@
     195,
     113
    ]
+  },
+  {
+   "id": 201,
+   "name": "Renderer: opt-in 3D debug-frame depth clear (Goal2 Phase1)",
+   "status": "completed",
+   "definition_of_done": "drawDebugMesh3D gains clearDepth (default false - existing callers unchanged, 2D clear path byte-identical when unused); clearDepth=true clears ONLY GL_DEPTH_BUFFER_BIT - GL_COLOR_BUFFER_BIT NEVER touched (the 2D frame color survives underneath). checkDebugFrameDepth (hidden-window GL, the ONE invariant that matters): two cubes at different depths distinguish occlusion from the clear by DEPTH values (A z=-2 vs B z=-4): B occluded without a clear (center depth stays dA), B passes WITH the clear (dB != dA), a corner pixel OUTSIDE both cubes stays the seeded red after every depth-only clear (COLOR LEAK would fail), depth-test enable restores. First test design FLAWED (cube overdraw conflated with a leak) - rewritten with the depth-based method; the rewrite deleted the Step 199/200 tests (cut spanned them) - restored with amendments re-applied, all disclosed.",
+   "notes": "SMOKE-only: on-screen occlusion under real draws (SMOKE_TEST 7.11). No materials, glTF, ECS, editor UI; games unchanged. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "ee4f25b",
+   "depends_on": [
+    195,
+    194
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
