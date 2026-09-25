@@ -2240,6 +2240,19 @@
     205,
     76
    ]
+  },
+  {
+   "id": 207,
+   "name": "Physics: per-body friction (geometric mean + Coulomb tangent impulse)",
+   "status": "completed",
+   "definition_of_done": "Entity gains friction (default 0.0 - frictionless, byte-identical baseline). resolveCollision: COMBINED FRICTION = sqrt(fA * fB) (geometric mean, documented); the tangent = the PERPENDICULAR axis (normals are always axis-aligned AABB - no general 2D derivation); TANGENT IMPULSE: j_t = -relVelTangent / invSum clamped to +-friction * j_n (COULOMB CLAMP stated exactly), applied weighted by the SAME invMass values as the normal impulse (hoisted before the static branches - no second split); jn <= 0 = no friction (friction requires a normal force). applyFriction lambda called in BOTH the static branches AND the dynamic-dynamic branch (the missing dynamic-dynamic call was found by value diagnostics and fixed).",
+   "notes": "checkFriction (REQUIRED headless, exact): friction 0 = byte-identical to pre-207 (e=0.5 default baseline -0.5/0.5); friction>0 exact values (normal-on-Y setup: a.vel (1.625,0.25), b.vel (0.375,0.75) - tangential rel 2 -> 1.25, clamp 0.375); static vs dynamic (static unmoved, dyn.vel (1.5,1) per formula - test bug owned: dyn.friction defaulted to 0 and the geometric mean correctly killed the pair); MASS INTERACTION: 1:2 masses + shared friction -> the heavier body tangential dV 0.25 vs the lighter 0.5 (invMass weighting, same invMass values). No rotational inertia, joints, sequential manifold solver, ECS, 3D mesh binding. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "6dd1d7c",
+   "depends_on": [
+    205,
+    206,
+    76
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
