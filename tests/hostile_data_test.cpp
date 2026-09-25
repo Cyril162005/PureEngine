@@ -6017,6 +6017,32 @@ static bool checkRestitution() {
     return ok;
 }
 
+// Step 210: 3D mesh handle on Entity (data only; the 2D entity arc
+// opens here). REQUIRED headless evidence:
+//   - the DEFAULT Entity has no 3D mesh bound (meshId 0 = 2D-only);
+//   - setting the mesh id leaves mass/restitution/friction AND the 2D
+//     fields (position/scale/textureId/velocity/alive) byte-for-byte
+//     unchanged - the handle is pure additive data;
+//   - no draw call consumes it (verified: nothing reads meshId in any
+//     game - the games are unchanged this step).
+static bool checkMeshHandle() {
+    bool ok = true;
+    const pe::Entity fresh;
+    if (fresh.meshId != 0) { std::cerr << "Default Entity must have no 3D mesh bound\n"; ok = false; }
+    pe::Entity e;
+    e.meshId = 1;
+    // Isolation: every other field byte-identical to the defaults.
+    if (e.mass != 1.0f || e.restitution != 0.5f || e.friction != 0.0f ||
+        e.gravityScale != 0.0f || e.position.x != 0.0f || e.position.y != 0.0f ||
+        e.position.z != 0.0f || e.scale.x != 1.0f || e.scale.y != 1.0f ||
+        e.textureId != 0 || e.velocity.x != 0.0f || e.velocity.y != 0.0f ||
+        !e.alive || e.isStatic || e.isKinematic) {
+        std::cerr << "Setting meshId must leave all other fields unchanged\n";
+        ok = false;
+    }
+    return ok;
+}
+
 // Step 207: per-body friction - tangent impulse (headless, pure
 // math). REQUIRED evidence:
 //   - friction 0 (default): identical to the pre-207 baseline (the
@@ -7539,6 +7565,7 @@ int main() {
     const bool massWeightingOk = checkMassWeighting();
     const bool restitutionOk = checkRestitution();
     const bool frictionOk = checkFriction();
+    const bool meshHandleOk = checkMeshHandle();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7573,7 +7600,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

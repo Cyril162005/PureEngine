@@ -109,6 +109,14 @@ struct Entity {
     // (the geometric mean, documented in physics.h); the tangent
     // impulse is Coulomb-clamped to friction * j_n.
     float friction = 0.0f;
+
+    // Step 210: OPTIONAL 3D mesh handle (data only; the 2D entity arc
+    // opens here). 0 = no 3D mesh bound (2D-only - the default, and
+    // every existing constructor value). Nonzero = a mesh handle for a
+    // FUTURE draw path (today nothing consumes it - no draw calls in
+    // any game this step). Does not alter position/scale/physics
+    // defaults; no materials system, no glTF.
+    int meshId = 0;
     // --- Step 65: hierarchy link (inert by default) — Step 83 freeze ---
     // Contract: attachment only (translation); parent indices invalid after
     // erase/reorder — re-establish after any structural change (same
