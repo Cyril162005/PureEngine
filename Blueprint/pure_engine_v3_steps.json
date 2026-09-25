@@ -2253,6 +2253,20 @@
     206,
     76
    ]
+  },
+  {
+   "id": 209,
+   "name": "Pong: ball-paddle through resolveCollision (wiring option A)",
+   "status": "completed",
+   "definition_of_done": "Pong paddle contacts go through pe::resolveCollision (the Step 205-207 impulse path gains its first game consumer): paddles isKinematic (never pushed - their motion is the direct position sets; applyPhysics not called in Pong), ball restitution 1.0 (the exit speed matches the old flip EXACTLY: e * impact = 1 * 3; the 0.5 default would halve the speed every hit - INTENTIONAL DELTA documented), friction 0 keeps the Y velocity untouched by paddle hits (byte-identical). Paddle-FIRST argument order (a=kinematic, b=ball) - the static branch fires the impulse on the ball only; the overlap clear is now the EXACT positional correction (not a fixed 0.6). Walls keep the existing position-threshold flip (not entities).",
+   "notes": "Fix owned: pong.cpp lacked the physics.h include. Headless: the resolve math itself is CI-proven (Steps 205-207 exact values); the post-hit velocity is derivable exactly (vx -3 -> +3) - the FEEL is SMOKE-only. Arcade/Platformer untouched. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "91bf676",
+   "depends_on": [
+    208,
+    205,
+    206,
+    207
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
