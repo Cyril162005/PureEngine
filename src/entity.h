@@ -103,6 +103,12 @@ struct Entity {
     // max(a.restitution, b.restitution) - Box2D-style, the bouncier
     // body wins; an explicit resolveCollision parameter overrides.
     float restitution = 0.5f;
+
+    // Step 207: per-body friction (default 0.0 - frictionless,
+    // byte-identical baseline). The combined value is sqrt(fA * fB)
+    // (the geometric mean, documented in physics.h); the tangent
+    // impulse is Coulomb-clamped to friction * j_n.
+    float friction = 0.0f;
     // --- Step 65: hierarchy link (inert by default) — Step 83 freeze ---
     // Contract: attachment only (translation); parent indices invalid after
     // erase/reorder — re-establish after any structural change (same

@@ -6017,6 +6017,104 @@ static bool checkRestitution() {
     return ok;
 }
 
+// Step 207: per-body friction - tangent impulse (headless, pure
+// math). REQUIRED evidence:
+//   - friction 0 (default): identical to the pre-207 baseline (the
+//     205/206 setups with no friction - byte-identical, covered there
+//     and re-asserted here once).
+//   - friction > 0: reduces the tangential relative velocity, EXACT
+//     values. Setup: normal on Y (overlap 1.5, pen 1.5), tangential
+//     relative velocity 2 on X, friction 0.5/0.5 -> combined
+//     sqrt(0.25) = 0.5; j_n = 0.75; Coulomb clamp maxJt = 0.375
+//     (CLAMPED - |j_t| was 1.0): a.vel = (1.625, 0.25), b.vel =
+//     (0.375, 0.75) - the tangential relative velocity 2 -> 1.25.
+//   - static vs dynamic: static unmoved; the dynamic's tangential
+//     velocity per formula (j_n = 3, clamp 1.5, dyn.vel.x 3 -> 1.5).
+//   - MASS INTERACTION: 1:2 masses + shared friction 0.5 -> the
+//     heavier body's tangential velocity changes LESS (0.25 vs 0.5),
+//     matching the invMass weighting (the SAME invMass values as the
+//     normal impulse - no second split).
+// FORMULAS (documented in physics.h): combined = sqrt(fA*fB);
+// j_t = -relVelTangent / invSum clamped to +-friction * j_n.
+static bool checkFriction() {
+    bool ok = true;
+    // friction 0: identical to the pre-207 baseline.
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.velocity = pe::Vec3(1.0f, 0.0f, 0.0f);
+        b.velocity = pe::Vec3(-1.0f, 0.0f, 0.0f);
+        pe::resolveCollision(a, b);  // friction 0 + default e=0.5
+        if (!assertFloatClose(a.velocity.x, -0.5f) ||
+            !assertFloatClose(b.velocity.x, 0.5f)) {
+            std::cerr << "friction 0 must be byte-identical to pre-207\n"; ok = false;
+        }
+    }
+    // friction > 0: tangent impulse with the Coulomb clamp, exact.
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0,0.5f,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.velocity = pe::Vec3(2.0f, 1.0f, 0.0f);   // normal approach + tangential
+        a.friction = 0.5f;
+        b.friction = 0.5f;                          // combined sqrt(0.25) = 0.5
+        pe::resolveCollision(a, b);
+        if (!assertFloatClose(a.velocity.x, 1.625f) ||
+            !assertFloatClose(a.velocity.y, 0.25f) ||
+            !assertFloatClose(b.velocity.x, 0.375f) ||
+            !assertFloatClose(b.velocity.y, 0.75f)) {
+            std::cerr << "Friction impulse values wrong (clamp 0.375)\n"; ok = false;
+        }
+    }
+    // static vs dynamic: static unmoved, dynamic tangential per formula.
+    {
+        pe::Entity floor(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity dyn(pe::Vec3(0,0.9f,0), 0.0f, pe::Vec3(1,1,1));
+        floor.halfExtents = pe::Vec3(2.0f, 0.5f, 2.0f);
+        dyn.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+        floor.isStatic = true;
+        floor.friction = 0.5f;
+        dyn.friction = 0.5f;   // both must contribute (geometric mean)
+        dyn.velocity = pe::Vec3(3.0f, -2.0f, 0.0f);
+        pe::resolveCollision(floor, dyn);
+        if (!assertFloatClose(floor.position.x, 0.0f) ||
+            !assertFloatClose(floor.velocity.x, 0.0f)) {
+            std::cerr << "Static must never move\n"; ok = false;
+        }
+        if (!assertFloatClose(dyn.velocity.x, 1.5f) ||
+            !assertFloatClose(dyn.velocity.y, 1.0f)) {
+            std::cerr << "Dynamic tangential must follow the Coulomb formula\n"; ok = false;
+        }
+    }
+    // MASS INTERACTION: 1:2 masses + shared friction - the heavier
+    // body's tangential velocity changes less (invMass weighting).
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0,0.5f,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.mass = 1.0f;
+        b.mass = 2.0f;
+        a.velocity = pe::Vec3(2.0f, 1.0f, 0.0f);
+        a.friction = 0.5f;
+        b.friction = 0.5f;
+        pe::resolveCollision(a, b);
+        // j_n = 1.0; clamp 0.5; a (invMass 1) dVt = 0.5, b (invMass 0.5) dVt = 0.25.
+        if (!assertFloatClose(a.velocity.x, 1.5f) ||
+            !assertFloatClose(b.velocity.x, 0.25f)) {
+            std::cerr << "Heavier body tangential velocity must change less\n"; ok = false;
+        }
+        if (!assertFloatClose(a.velocity.y, 0.0f) ||
+            !assertFloatClose(b.velocity.y, 0.5f)) {
+            std::cerr << "Normal impulse must stay invMass-weighted\n"; ok = false;
+        }
+    }
+    return ok;
+}
+
 // Step 205: physics mass weighting (headless, pure math). REQUIRED
 // evidence: known masses -> known resolve outputs, EXACT values.
 // Setup: two unit boxes at (0,0) and (0.5,0) -> overlapX = 1.5 (the
@@ -7440,6 +7538,7 @@ int main() {
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool restitutionOk = checkRestitution();
+    const bool frictionOk = checkFriction();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7474,7 +7573,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

@@ -120,6 +120,50 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
     const bool aStatic = a.isStatic || a.isKinematic;
     const bool bStatic = b.isStatic || b.isKinematic;
 
+    // Step 205 inverse masses, HOISTED here (Step 207): the friction
+    // impulse needs the SAME values in BOTH branches — no second,
+    // separate split. invMass = static||kinematic||mass<=0 ? 0 : 1/mass.
+    const float invMassA = (aStatic || a.mass <= 0.0f) ? 0.0f : 1.0f / a.mass;
+    const float invMassB = (bStatic || b.mass <= 0.0f) ? 0.0f : 1.0f / b.mass;
+    const float invSum = invMassA + invMassB;
+
+    // Step 207: TANGENTIAL FRICTION IMPULSE (Coulomb clamp, stated
+    // exactly). COMBINED FRICTION = sqrt(fA * fB) - the GEOMETRIC MEAN
+    // (both bodies contribute; a frictionless body (0) kills the
+    // pair's friction). The normals are always AXIS-ALIGNED (AABB
+    // resolve), so the tangent is the PERPENDICULAR axis - no general
+    // 2D direction derivation. COULOMB CLAMP: |j_t| <= friction * j_n,
+    // where j_n is the normal impulse magnitude from THIS contact.
+    //   j_t = -relVelTangent / invSum, clamped to +-friction * j_n
+    // Applied weighted by the SAME invMass values as the normal
+    // impulse (no second split). jn <= 0 (no normal impulse) means no
+    // friction - friction requires a normal force.
+    auto applyFriction = [&](float jn) {
+        const float friction = std::sqrt(a.friction * b.friction);
+        if (friction <= 0.0f || jn <= 0.0f) {
+            return;
+        }
+        float tvx = 0.0f, tvy = 0.0f;
+        if (nx != 0.0f) { tvy = 1.0f; } else { tvx = 1.0f; }
+        const float relTangent = (b.velocity.x - a.velocity.x) * tvx +
+                                 (b.velocity.y - a.velocity.y) * tvy;
+        if (relTangent == 0.0f) {
+            return;
+        }
+        float jt = -relTangent / invSum;
+        const float maxJt = friction * jn;
+        if (jt > maxJt) {
+            jt = maxJt;
+        }
+        if (jt < -maxJt) {
+            jt = -maxJt;
+        }
+        a.velocity.x -= tvx * (jt * invMassA);
+        a.velocity.y -= tvy * (jt * invMassA);
+        b.velocity.x += tvx * (jt * invMassB);
+        b.velocity.y += tvy * (jt * invMassB);
+    };
+
     if (aStatic && bStatic) {
         return;  // both static: no movement possible
     }
@@ -136,6 +180,7 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
                 const float impulse = -(1.0f + restitution) * (relNx + relNy);
                 b.velocity.x += nx * impulse;
                 b.velocity.y += ny * impulse;
+                applyFriction(impulse);
             }
         } else {
             a.position.x -= nx * pen;
@@ -146,6 +191,7 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
                 const float impulse = -(1.0f + restitution) * (relNx + relNy);
                 a.velocity.x -= nx * impulse;
                 a.velocity.y -= ny * impulse;
+                applyFriction(impulse);
             }
         }
         return;
@@ -164,9 +210,8 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
     // vs 2/3 the OTHER way). With both masses 1.0 (the default) this
     // reduces EXACTLY to the original equal split (0.5/0.5) — the
     // behavior is byte-identical when mass is unset (non-regression).
-    float invMassA = (aStatic || a.mass <= 0.0f) ? 0.0f : 1.0f / a.mass;
-    float invMassB = (bStatic || b.mass <= 0.0f) ? 0.0f : 1.0f / b.mass;
-    const float invSum = invMassA + invMassB;
+    // (Step 207: invMassA/invMassB/invSum are computed ONCE above —
+    // the same values feed the normal impulse and the friction impulse.)
     a.position.x -= nx * pen * (invMassA / invSum);
     a.position.y -= ny * pen * (invMassA / invSum);
     b.position.x += nx * pen * (invMassB / invSum);
@@ -182,6 +227,7 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
     a.velocity.y -= ny * (impulse * invMassA);
     b.velocity.x += nx * (impulse * invMassB);
     b.velocity.y += ny * (impulse * invMassB);
+    applyFriction(impulse);
 }
 
 // --- Step P7: swept move + collide (the discrete resolve's swept twin) ---
