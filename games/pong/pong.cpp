@@ -22,6 +22,7 @@
 
 #include "../../src/entity.h"
 #include "../../src/collision.h"
+#include "../../src/physics.h"   // Step 209: resolveCollision (paddle wire)
 #include "../../src/renderer.h"
 #include "../../src/camera.h"
 #include "../../src/input.h"
@@ -101,6 +102,8 @@ int main() {
     pe::Entity paddleL;
     paddleL.position = pe::Vec3(-5.0f, 0.0f, 0.0f);   // inside the +/-6 view box
     paddleL.scale = pe::Vec3(0.5f, 2.0f, 1.0f);       // thin tall paddle
+    paddleL.isKinematic = true;   // Step 209: never pushed by the resolve
+                                  // (motion is the direct position sets below)
     paddleL.roleId = 0;
     paddleL.textureId = 4;   // slot 4 = paddle sheet (NOT slots 0/1:
                              // 16px singles would slice into slivers)
@@ -111,6 +114,7 @@ int main() {
     pe::Entity paddleR;
     paddleR.position = pe::Vec3(5.0f, 0.0f, 0.0f);
     paddleR.scale = pe::Vec3(0.5f, 2.0f, 1.0f);
+    paddleR.isKinematic = true;   // Step 209: never pushed by the resolve
     paddleR.roleId = 1;
     paddleR.textureId = 4;   // slot 4 = paddle sheet
     paddleR.cols = 8;
@@ -121,6 +125,10 @@ int main() {
     ball.position = pe::Vec3(0.0f, 0.0f, 0.0f);
     ball.scale = pe::Vec3(0.3f, 0.3f, 1.0f);
     ball.roleId = 2;
+    ball.restitution = 1.0f; // Step 209: perfectly bouncy - the paddle-hit
+                             // exit speed matches the old flip exactly
+                             // (e * impact = 1 * 3); the 0.5 default would
+                             // halve the ball speed on every hit.
     ball.textureId = 2;      // slot 2 = crimson
     entities.push_back(ball);
     std::vector<char> colliding(entities.size(), 0);
@@ -201,13 +209,19 @@ int main() {
         if (entities[2].position.y > 4.3f || entities[2].position.y < -4.3f) {
             ballVelocity.y *= -1.0f;
         }
+        // --- Step 209: paddle contacts through pe::resolveCollision ---
+        // Paddle-FIRST order (a=kinematic, b=ball): the static branch
+        // fires the impulse on the ball only. Ball e=1.0 -> the exit
+        // speed matches the old flip exactly (e * impact = 1 * 3);
+        // friction 0 keeps the Y velocity untouched by paddle hits
+        // (byte-identical); the overlap clear is now the EXACT
+        // positional correction (not a fixed 0.6). Walls keep the
+        // existing position-threshold flip (they are not entities).
         if (pe::aabbOverlap(entities[2], entities[0]) && ballVelocity.x < 0.0f) {
-            ballVelocity.x *= -1.0f;
-            entities[2].position.x = entities[0].position.x + 0.6f;   // clear overlap
+            pe::resolveCollision(entities[0], entities[2]);
         }
         if (pe::aabbOverlap(entities[2], entities[1]) && ballVelocity.x > 0.0f) {
-            ballVelocity.x *= -1.0f;
-            entities[2].position.x = entities[1].position.x - 0.6f;   // clear overlap
+            pe::resolveCollision(entities[1], entities[2]);
         }
         // Score: ball past side edge → point for opposite side, reset ball, win check
         if (entities[2].position.x < -7.0f) {
