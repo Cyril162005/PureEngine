@@ -2144,9 +2144,9 @@
    "id": 199,
    "name": "Editor-lite kill/remove + persist (headless)",
    "status": "completed",
-   "definition_of_done": "checkEditorLiteKill: load -> killEntity(1) -> save -> reload -> count DECREASED (2) and the dead entity NOT restored (the save drops dead, scene.h:364; CTest fails if it reappears); survivors positions unchanged EXACT (index 0 (1,1), old index 2 (3,3)); OOB kill safe no-op asserted. No SMOKE-only closure.",
-   "notes": "No GUI, undo stack, hierarchy UI, ECS, net, 3D. Engine APIs unchanged (killEntity existing contract). 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
-   "commit": "ee46125",
+   "definition_of_done": "checkEditorLiteKill: a) killEntity(1) of 3 (NOT last) -> save -> reload: count DECREASED (2), killed data absent (dead dropped on save, scene.h:364; CTest fails if it reappears); b) INDEX REMAP (required, documented): entities after the killed index shift DOWN by one on reload - index stability holds only until a save that drops entities; callers must RE-SELECT after kill+save+reload; the shifted survivor asserted at its NEW index; c) survivors positions EXACT at their NEW indices; d) PRE-SAVE SELECTABILITY: after kill but BEFORE save, the dead entity is NOT pickable (pickEntity respects alive - collision.h skips !e.alive; engine gap did NOT exist, verified + asserted) and a live one still picks; OOB kill safe no-op. No SMOKE-only closure.",
+   "notes": "Amended per the revised Step 199 spec (index remap + pre-save pickability). No engine fix needed - pickEntity already respected alive (Step 127 contract held). No GUI, undo stack, hierarchy UI, ECS, net, 3D. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "a62118b",
    "depends_on": [
     197,
     198,
