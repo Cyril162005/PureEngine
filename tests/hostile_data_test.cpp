@@ -5825,7 +5825,14 @@ static bool checkDepthState() {
 // count DECREASED and the dead entity NOT restored (the save drops
 // dead entities, scene.h:364 - CTest fails if a killed entity
 // reappears); surviving entities positions unchanged EXACT (clean
-// 4-decimal values); OOB kill stays a safe no-op. No SMOKE-only
+// 4-decimal values); OOB kill stays a safe no-op. INDEX REMAP CONTRACT
+// (required, documented): index stability holds only until a save that
+// drops entities - entities after the killed index shift DOWN by one on
+// reload, so callers must RE-SELECT after kill+save+reload (the test
+// asserts the shifted survivor at its NEW index). Pre-save
+// selectability: the dead entity is not pickable at pick time (alive
+// checked there, not only at save - pickEntity already respects alive).
+// No SMOKE-only
 // closure.
 static bool checkEditorLiteKill() {
     const char* prefixes[3] = {"assets/", "../assets/", "../../assets/"};
@@ -5862,9 +5869,20 @@ static bool checkEditorLiteKill() {
         std::cerr << "editor kill: load failed\n";
         return false;
     }
-    // Kill the middle entity + save + reload.
+    // Kill the middle entity (index 1 of 3 - NOT last) + save + reload.
     pe::killEntity(loaded, 1);
     if (loaded.entities[1].alive) { std::cerr << "kill must mark dead\n"; return false; }
+    // (d) PRE-SAVE SELECTABILITY (before any save): the dead entity is
+    // NOT pickable at its old position (pickEntity respects alive -
+    // collision.h skips !e.alive), and a live one still picks.
+    if (pe::pickEntity(loaded.entities, 2.0f, 2.0f) != -1) {
+        std::cerr << "Dead entity must not be pickable pre-save\n";
+        return false;
+    }
+    if (pe::pickEntity(loaded.entities, 1.0f, 1.0f) != 0) {
+        std::cerr << "Live entity must stay pickable after the kill\n";
+        return false;
+    }
     if (!pe::saveSceneToFile(loaded, "scene_editor_kill_test.txt")) {
         std::cerr << "editor kill: re-save failed\n";
         return false;
