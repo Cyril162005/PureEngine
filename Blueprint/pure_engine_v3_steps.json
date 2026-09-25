@@ -2203,6 +2203,31 @@
     202,
     201
    ]
+  },
+  {
+   "id": 204,
+   "name": "Math: Mat4::rotationY + stateless debug-cube spin (real unscaled time)",
+   "status": "completed",
+   "definition_of_done": "Mat4::rotationY(angleRadians) (new pure primitive, same style as translation/rotationZ: col0 (cos,0,-sin), col2 (sin,0,cos), NOT constexpr) + checkRotationY (REQUIRED headless evidence): 0 rad = identity, pi/2 exact values (col0 (0,0,-1) / col2 (1,0,0)), pi = diag(-1,1,-1), spin-in-place composition (translation * rotation keeps the cube center FIXED at the translation - rotation applies FIRST to local vertices; reverse would orbit), rotation preserves the corner distance, stateless-linear angle function (no accumulation, no drift).",
+   "notes": "TIME DECISION (stated, not defaulted): the debug cube rotates with REAL UNSCALED time (dt as the loop delivers it via tick(); ignores pause) - a render-path diagnostic must keep rotating while the world is frozen. main.cpp tracks elapsed locally (accumulates only while debug3d is on); the angle is computed STATELESSLY each frame as speed * elapsed (no matrix accumulation frame-over-frame). Model = translation * rotation (T*R order: rotate-then-translate = spin in place; stated in code). Depth logic (195/201) and camera state (196) untouched - ctest 2/2 unchanged, no new failures. SMOKE-only: the cube visibly rotating smoothly.",
+   "commit": "6afe87d",
+   "depends_on": [
+    203,
+    201,
+    17
+   ]
+  },
+  {
+   "id": 205,
+   "name": "Physics: mass weighting (per-body mass + inverse-mass resolve)",
+   "status": "completed",
+   "definition_of_done": "Entity gains mass (default 1.0 - byte-identical when unset; mass <= 0 = infinite). resolveCollision dynamic-dynamic branch reworked to INVERSE-MASS WEIGHTING (the standard impulse resolution; FORMULA stated in the comment): invMass = static||kinematic||mass<=0 ? 0 : 1/mass; positional: pen * invMass/(invMassA+invMassB) along -n/+n; impulse j = -(1+e)*relVelAlongNormal/(invMassA+invMassB), applied as n*j*invMass each side. checkMassWeighting (REQUIRED headless, exact values): 1:1 = the original 0.75/0.75 equal split (byte-identical), 1:2 = 1.0/0.5 positional + impulse j=2.0 (a.vel 1->-1, b.vel -1->0), static-infinite = full 1.5 on the dynamic (unchanged P6), mass 0 = infinite.",
+   "notes": "The equal-mass assumption was ONLY in resolveCollision dynamic-dynamic branch (pen*0.5 split + impulse*0.5); the static branches already encoded infinite mass; the swept/fixed paths sweep statics only. No general rigidbody dynamics, rotational inertia, joints. Test fix owned: halfExtents default is (0.7071,0.7071,0) - the test now sets (1,1,1) explicitly (first ctest run failed on ALL FOUR asserts - a setup bug, not an engine bug). 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "02854a6",
+   "depends_on": [
+    192,
+    76
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
