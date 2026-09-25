@@ -2279,6 +2279,19 @@
     210,
     194
    ]
+  },
+  {
+   "id": 211,
+   "name": "Renderer: drawEntity3D meshId consumer (3D Entity render path)",
+   "status": "completed",
+   "definition_of_done": "drawEntity3D (renderer.h): meshId == 0 -> IMMEDIATE no-op (no matrix work on the hot path); meshId > 0 -> model = translation(position) * scale(scale) (Mat4::scale new constexpr primitive) drawn via the unit-cube path under the caller camera. Wired ONLY under the debug3d diagnostic path in Arcade main (any entity with meshId>0 renders as a 3D cube - no entity sets meshId today, nothing extra draws); Pong/Platformer render passes NEVER call it. checkEntity3D (MANDATORY headless): Mat4::scale exact diagonal; the model matrix from KNOWN position/scale (center -> position, corner -> position + scale/2, EXACT); the meshId==0 SKIP under a REAL hidden-window GL context (framebuffer byte-identical before/after) + a meshId>0 entity renders (depth written at the center).",
+   "notes": "SMOKE-only: an on-screen cube for a debug entity with meshId>0 (SMOKE_TEST 7.9 updated). Fixes owned: renderer.h lacked the mesh3d.h include (unitCubeVertices); the test sExpect const. No materials/lighting, glTF, forcing 3D on Pong/Platformer, editor UI, ECS, ice tiles. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "d0bdd26",
+   "depends_on": [
+    210,
+    194,
+    193
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
