@@ -2139,6 +2139,19 @@
     197,
     127
    ]
+  },
+  {
+   "id": 199,
+   "name": "Editor-lite kill/remove + persist (headless)",
+   "status": "completed",
+   "definition_of_done": "checkEditorLiteKill: load -> killEntity(1) -> save -> reload -> count DECREASED (2) and the dead entity NOT restored (the save drops dead, scene.h:364; CTest fails if it reappears); survivors positions unchanged EXACT (index 0 (1,1), old index 2 (3,3)); OOB kill safe no-op asserted. No SMOKE-only closure.",
+   "notes": "No GUI, undo stack, hierarchy UI, ECS, net, 3D. Engine APIs unchanged (killEntity existing contract). 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "ee46125",
+   "depends_on": [
+    197,
+    198,
+    113
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
