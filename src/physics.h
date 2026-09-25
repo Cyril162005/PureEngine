@@ -74,6 +74,15 @@ inline void integrate(Vec3& position, const Vec3& velocity, float dt) {
 // Static bodies never receive impulse and their velocity is not modified.
 // Manual |.| throughout (collision.h's constexpr-safe rule: no fabs).
 inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
+    // Step 206: per-body restitution. EFFECTIVE VALUE: an explicit
+    // parameter (any value != the 0.5 default) overrides; the default
+    // call uses max(a.restitution, b.restitution) - Box2D-style (the
+    // bouncier body wins). With both bodies unset (0.5) the default
+    // path is byte-identical to the pre-206 behavior. Clamped to
+    // [0,1] below like the parameter always was.
+    if (restitution == 0.5f) {
+        restitution = a.restitution > b.restitution ? a.restitution : b.restitution;
+    }
     if (restitution < 0.0f) {
         restitution = 0.0f;
     }

@@ -5933,6 +5933,90 @@ static bool checkDebug3dParse() {
     return ok;
 }
 
+// Step 206: per-body restitution (headless, pure math). REQUIRED
+// evidence:
+//   - mass 1:1, explicit e=0: perfectly inelastic - BOTH normal
+//     velocities stop exactly (the pre-206 inelastic baseline).
+//   - e=1: separating velocities after impact (exact: a.vel -1,
+//     b.vel +1 from a +1/-1 head-on at equal mass).
+//   - per-body max: a.restitution 0.2 + b 0.9 -> combined 0.9 -> exact
+//     exit velocities (the default-path formula exercised).
+//   - static vs dynamic: the dynamic bounces (exit = e * impact
+//     speed), the static never moves.
+// FORMULA (documented in physics.h): effective = explicit param when
+// != 0.5 default, else max(a.restitution, b.restitution); clamped
+// [0,1]; impulse j = -(1+e)*relVelNormal/(invMassA+invMassB).
+static bool checkRestitution() {
+    bool ok = true;
+    // 1:1, e=0 explicit: both normal velocities stop exactly.
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.velocity = pe::Vec3(1.0f, 0.0f, 0.0f);
+        b.velocity = pe::Vec3(-1.0f, 0.0f, 0.0f);
+        pe::resolveCollision(a, b, 0.0f);
+        if (!assertFloatClose(a.velocity.x, 0.0f) ||
+            !assertFloatClose(b.velocity.x, 0.0f)) {
+            std::cerr << "e=0 must be perfectly inelastic (both stop)\n"; ok = false;
+        }
+    }
+    // e=1: separating after impact, exact.
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.velocity = pe::Vec3(1.0f, 0.0f, 0.0f);
+        b.velocity = pe::Vec3(-1.0f, 0.0f, 0.0f);
+        pe::resolveCollision(a, b, 1.0f);
+        if (!assertFloatClose(a.velocity.x, -1.0f) ||
+            !assertFloatClose(b.velocity.x, 1.0f)) {
+            std::cerr << "e=1 must bounce back exactly\n"; ok = false;
+        }
+    }
+    // per-body max: 0.2 vs 0.9 -> 0.9.
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.velocity = pe::Vec3(1.0f, 0.0f, 0.0f);
+        b.velocity = pe::Vec3(-1.0f, 0.0f, 0.0f);
+        a.restitution = 0.2f;
+        b.restitution = 0.9f;
+        pe::resolveCollision(a, b);  // default path -> max = 0.9
+        if (!assertFloatClose(a.velocity.x, -0.9f) ||
+            !assertFloatClose(b.velocity.x, 0.9f)) {
+            std::cerr << "per-body max (0.9) must drive the exit velocity\n"; ok = false;
+        }
+    }
+    // static vs dynamic: the dynamic bounces (e * impact speed), the
+    // static never moves.
+    {
+        pe::Entity floor(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity dyn(pe::Vec3(0,0.9f,0), 0.0f, pe::Vec3(1,1,1));
+        floor.halfExtents = pe::Vec3(2.0f, 0.5f, 2.0f);
+        dyn.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+        floor.isStatic = true;
+        dyn.velocity = pe::Vec3(0.0f, -2.0f, 0.0f);
+        dyn.restitution = 0.9f;   // max(0.5 default, 0.9) -> 0.9
+        pe::resolveCollision(floor, dyn);  // default path
+        if (!assertFloatClose(floor.position.x, 0.0f) ||
+            !assertFloatClose(floor.position.y, 0.0f)) {
+            std::cerr << "Static must never move\n"; ok = false;
+        }
+        if (!assertFloatClose(dyn.position.y, 1.0f)) {
+            std::cerr << "Dynamic must be pushed fully out of the floor\n"; ok = false;
+        }
+        if (!assertFloatClose(dyn.velocity.y, 1.8f)) {
+            std::cerr << "Bounce exit must be e * impact speed (0.9 * 2)\n"; ok = false;
+        }
+    }
+    return ok;
+}
+
 // Step 205: physics mass weighting (headless, pure math). REQUIRED
 // evidence: known masses -> known resolve outputs, EXACT values.
 // Setup: two unit boxes at (0,0) and (0.5,0) -> overlapX = 1.5 (the
@@ -7355,6 +7439,7 @@ int main() {
     const bool debug3dParseOk = checkDebug3dParse();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
+    const bool restitutionOk = checkRestitution();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7389,7 +7474,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

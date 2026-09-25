@@ -97,6 +97,12 @@ struct Entity {
     // body never moves; this field is the dynamic-dynamic weighting
     // input. No rotational inertia, no joints (out of scope).
     float mass = 1.0f;
+
+    // Step 206: per-body restitution (default 0.5 - byte-identical with
+    // the resolveCollision parameter default). The combined value is
+    // max(a.restitution, b.restitution) - Box2D-style, the bouncier
+    // body wins; an explicit resolveCollision parameter overrides.
+    float restitution = 0.5f;
     // --- Step 65: hierarchy link (inert by default) — Step 83 freeze ---
     // Contract: attachment only (translation); parent indices invalid after
     // erase/reorder — re-establish after any structural change (same
