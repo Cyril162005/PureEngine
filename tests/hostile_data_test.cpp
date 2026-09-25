@@ -5820,6 +5820,84 @@ static bool checkDepthState() {
     return ok;
 }
 
+// Step 201: opt-in 3D debug-frame depth clear. THE ONE INVARIANT THAT
+// MATTERS, CI-proven under a real hidden-window GL context (same
+// pattern as checkDepthState): a depth clear that leaked into color
+// would silently erase every 2D game's frame. Method: two cubes at
+// DIFFERENT depths (A z=-2, B z=-4) - the shader draws one shared
+// color, so occlusion + the clear are distinguished by DEPTH values:
+//   1. Draw A (no clear): center depth = dA.
+//   2. Draw B behind (no clear): center depth STILL dA (B occluded -
+//      the depth test works).
+//   3. Draw B WITH clearDepth=true: the clear wipes A's depth -> B
+//      passes -> center depth = dB != dA. THE CLEAR WORKED.
+//   4. A corner pixel OUTSIDE both cubes stays the seeded red after
+//      every depth-only clear - COLOR NEVER TOUCHED.
+// Default clearDepth=false is exercised by checkDepthState (signature
+// default); games never pass true. On-screen occlusion under real
+// draws: SMOKE-only (SMOKE_TEST 7.10/7.11).
+static bool checkDebugFrameDepth() {
+    if (!glfwInit()) { std::cerr << "debug frame test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "dbgframe", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "debug frame test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "debug frame test skipped: gladLoadGL failed\n"; return true;
+    }
+    bool ok = true;
+    pe::Renderer r;
+    if (!r.init()) { std::cerr << "renderer init must succeed under the test context\n"; ok = false; }
+    else {
+        pe::Camera cam;
+        cam.setPerspective(1.0472f, 0.1f, 100.0f);
+        const pe::Mat4 front = pe::Mat4::translation(0.0f, 0.0f, -2.0f);
+        const pe::Mat4 back = pe::Mat4::translation(0.0f, 0.0f, -4.0f);
+        glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // 1. Front cube.
+        r.drawDebugMesh3D(pe::unitCubeVertices(), front, cam.view(), cam.projection());
+        float dA = 1.0f;
+        glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &dA);
+        if (!(dA < 1.0f)) { std::cerr << "Front cube must write depth\n"; ok = false; }
+        // 2. Back cube, no clear: occluded - center depth stays dA.
+        r.drawDebugMesh3D(pe::unitCubeVertices(), back, cam.view(), cam.projection());
+        float dOccluded = 0.0f;
+        glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &dOccluded);
+        if (!assertFloatClose(dOccluded, dA)) {
+            std::cerr << "Back cube must be depth-occluded without a clear\n"; ok = false;
+        }
+        // 3. Back cube WITH the depth-only clear: A's depth wiped - B passes.
+        r.drawDebugMesh3D(pe::unitCubeVertices(), back, cam.view(), cam.projection(), true);
+        float dB = 0.0f;
+        glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &dB);
+        if (assertFloatClose(dB, dA)) {
+            std::cerr << "Depth-only clear must wipe A's depth (B must pass)\n"; ok = false;
+        }
+        if (!(dB < 1.0f)) { std::cerr << "B must write its own depth after the clear\n"; ok = false; }
+        // 4. THE INVARIANT: a corner pixel OUTSIDE both cubes stays the
+        // seeded red after every depth-only clear - color never touched.
+        unsigned char corner[4] = {0, 0, 0, 0};
+        glReadPixels(2, 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, corner);
+        if (corner[0] != 255 || corner[1] != 0 || corner[2] != 0) {
+            std::cerr << "COLOR LEAK: the depth-only clear must never touch the color buffer\n";
+            ok = false;
+        }
+        // Depth-test enable state matches pre-call (the Step 195 restore).
+        if (glIsEnabled(GL_DEPTH_TEST) != GL_FALSE) {
+            std::cerr << "Depth-test enable must restore after the draws\n"; ok = false;
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
 // Step 199: editor-lite kill/remove + persist (headless). Locks the
 // kill side of the TOOL loop: load -> kill one -> save -> reload ->
 // count DECREASED and the dead entity NOT restored (the save drops
@@ -7101,6 +7179,7 @@ int main() {
     const bool editorSafetyOk = checkEditorLiteSafety();
     const bool editorKillOk = checkEditorLiteKill();
     const bool editorSpawnOk = checkEditorLiteSpawn();
+    const bool debugFrameOk = checkDebugFrameDepth();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7135,7 +7214,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

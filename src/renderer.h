@@ -721,13 +721,26 @@ public:
     // is CI-proven under a real hidden-window GL context
     // (checkDepthState); on-screen occlusion is SMOKE-only
     // (SMOKE_TEST 7.10).
+    //
+    // Step 201: OPT-IN DEPTH-ONLY CLEAR. clearDepth=true clears ONLY
+    // GL_DEPTH_BUFFER_BIT — GL_COLOR_BUFFER_BIT is NEVER touched, so
+    // the 2D frame's color content survives underneath the 3D debug
+    // draw (the invariant checkDebugFrameDepth proves: a depth clear
+    // that leaked into color would silently erase every 2D game's
+    // frame). Default false — existing callers unchanged; the 2D clear
+    // path (color-only) is byte-identical when unused.
     void drawDebugMesh3D(const std::vector<float>& vertices, const Mat4& model,
-                         const Mat4& view, const Mat4& projection) {
+                         const Mat4& view, const Mat4& projection,
+                         bool clearDepth = false) {
         if (vertices.empty()) {
             return;
         }
         const GLboolean depthWasOn = glIsEnabled(GL_DEPTH_TEST);
         glEnable(GL_DEPTH_TEST);
+        // Step 201: depth-ONLY clear (opt-in) - color never touched.
+        if (clearDepth) {
+            glClear(GL_DEPTH_BUFFER_BIT);
+        }
         GLuint vao = 0, vbo = 0;
         glGenVertexArrays(1, &vao);
         glGenBuffers(1, &vbo);
