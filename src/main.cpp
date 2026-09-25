@@ -1982,7 +1982,7 @@ if (clip != animations.end()) {
         // frame is unaffected.
         if (debug3d) {
             camera.setPerspective(1.0472f, 0.1f, 100.0f);
-            camera.setEyeTargetUp(pe::Vec3(0.0f, 0.0f, 5.0f),
+            camera.setEyeTargetUp(pe::Vec3(3.0f, 2.0f, 5.0f),
                                   pe::Vec3(0.0f, 0.0f, 0.0f),
                                   pe::Vec3(0.0f, 1.0f, 0.0f));
             renderer.drawDebugMesh3D(pe::unitCubeVertices(),

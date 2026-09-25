@@ -735,6 +735,15 @@ public:
         if (vertices.empty()) {
             return;
         }
+        // Step 203 bugfix: bind the checker texture (deterministic —
+        // before this the sampler read whatever GL_TEXTURE0 last held,
+        // possibly nothing) and set an EXPLICIT tint. The default
+        // shader is texel.rgb * color with GL uniform defaults of 0 —
+        // an unset color uniform rendered the cube BLACK.
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, checkerTexture);
+        glUseProgram(shaderProgram);
+        glUniform3f(colorLocation, 0.25f, 0.55f, 1.0f);  // debug blue tint
         const GLboolean depthWasOn = glIsEnabled(GL_DEPTH_TEST);
         glEnable(GL_DEPTH_TEST);
         // Step 201: depth-ONLY clear (opt-in) - color never touched.
@@ -755,7 +764,6 @@ public:
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
-        glUseProgram(shaderProgram);
         const Mat4 mvp = projection * view * model;
         glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
         glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices.size() / 5));
