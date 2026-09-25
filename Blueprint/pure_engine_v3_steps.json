@@ -2267,6 +2267,18 @@
     206,
     207
    ]
+  },
+  {
+   "id": 210,
+   "name": "Entity: optional 3D mesh handle (data only; 2D entity arc opened)",
+   "status": "completed",
+   "definition_of_done": "Entity gains meshId (int, default 0 = no 3D mesh bound / 2D-only - every existing constructor value). Nonzero = a mesh handle for a FUTURE draw path (nothing consumes it today - verified: no game or main.cpp reads meshId; no draw calls in Arcade/Platformer/Pong this step). Does not alter position/scale/physics defaults. checkMeshHandle (REQUIRED headless): the default Entity has no 3D mesh bound; setting meshId leaves mass/restitution/friction AND the 2D fields (position/scale/textureId/velocity/alive/isStatic/isKinematic) byte-for-byte unchanged.",
+   "notes": "No materials system, no glTF, no full 3D game scene, no forcing 3D on Pong, no Platformer ice tiles, no editor UI, no ECS. 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "990231d",
+   "depends_on": [
+    210,
+    194
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
