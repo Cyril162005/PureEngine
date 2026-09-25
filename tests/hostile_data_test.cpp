@@ -5917,6 +5917,98 @@ static bool checkEditorLiteKill() {
     return true;
 }
 
+// Step 200: editor-lite spawn/add + persist (headless). Answers (not
+// assumes) the index-assignment rule and stresses the kill+spawn
+// interaction in ONE save cycle:
+//   - RULE (documented, from scene.h:195): spawnEntity APPENDS at the
+//     end - it does NOT reuse a freed slot from a prior kill (kill
+//     marks alive=false in place; the vector only grows until a save
+//     drops the dead). A spawn on an N-entity fixture lands at index N.
+//   - COMBINED case: kill(1) THEN spawn in the same session -> the new
+//     entity lands at index 3 pre-save (after the still-present dead
+//     one); the save drops the dead -> reload compacts -> the new
+//     entity sits at RELOADED index 2. CTest fails if the new entity
+//     does not persist or the count/position/index math is wrong.
+// No SMOKE-only closure.
+static bool checkEditorLiteSpawn() {
+    const char* prefixes[3] = {"assets/", "../assets/", "../../assets/"};
+    auto rmArtifacts = [&]() {
+        for (const char* p : prefixes) {
+            std::remove((std::string(p) + "scene_editor_spawn_test.txt").c_str());
+            std::remove((std::string(p) + "scene_editor_spawn_test.txt.tmp").c_str());
+        }
+    };
+    rmArtifacts();
+    // Fixture: 3 live entities.
+    pe::Scene fixture;
+    fixture.name = "editor_spawn";
+    pe::Entity a(pe::Vec3(1.0f, 1.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    pe::Entity b(pe::Vec3(2.0f, 2.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    pe::Entity c(pe::Vec3(3.0f, 3.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    fixture.entities.push_back(a);
+    fixture.entities.push_back(b);
+    fixture.entities.push_back(c);
+    // 1. Spawn on the clean fixture: appended at the END (index 3).
+    pe::Entity fresh(pe::Vec3(5.0f, 6.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    const std::size_t freshIdx = pe::spawnEntity(fixture, fresh);
+    if (freshIdx != 3 || fixture.entities.size() != 4) {
+        std::cerr << "Spawn must append at the end (index N)\n";
+        return false;
+    }
+    // 2. Save + reload: the new entity persists at that position, count 4.
+    if (!pe::saveSceneToFile(fixture, "scene_editor_spawn_test.txt")) {
+        std::cerr << "editor spawn: save failed\n";
+        return false;
+    }
+    pe::Scene reloaded;
+    if (!pe::loadSceneFromFile("scene_editor_spawn_test.txt", reloaded) ||
+        reloaded.entities.size() != 4) {
+        std::cerr << "editor spawn: reload failed or count wrong\n";
+        return false;
+    }
+    if (!assertFloatClose(reloaded.entities[3].position.x, 5.0f) ||
+        !assertFloatClose(reloaded.entities[3].position.y, 6.0f)) {
+        std::cerr << "Spawned entity must persist at its position\n";
+        return false;
+    }
+    // 3. COMBINED: kill(1) THEN spawn in the same session.
+    pe::Scene combo = fixture;  // 4 live entities (0,1,2,3)
+    pe::killEntity(combo, 1);
+    pe::Entity late(pe::Vec3(7.0f, 8.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f));
+    const std::size_t lateIdx = pe::spawnEntity(combo, late);
+    // Appended AFTER the still-present dead one: index 4 (not a slot reuse).
+    if (lateIdx != 4 || combo.entities.size() != 5 || !combo.entities[4].alive) {
+        std::cerr << "Kill+spawn: spawn must append (index 4), not reuse the killed slot\n";
+        return false;
+    }
+    if (!pe::saveSceneToFile(combo, "scene_editor_spawn_test.txt")) {
+        std::cerr << "editor spawn: combined save failed\n";
+        return false;
+    }
+    pe::Scene comboReload;
+    if (!pe::loadSceneFromFile("scene_editor_spawn_test.txt", comboReload)) {
+        std::cerr << "editor spawn: combined reload failed\n";
+        return false;
+    }
+    // Dead dropped (1 gone) -> count 4; the late entity shifted DOWN to
+    // reloaded index 3; the (5,6) entity now sits at index 2.
+    if (comboReload.entities.size() != 4) {
+        std::cerr << "Combined reload must drop the dead entity (count 4)\n";
+        return false;
+    }
+    if (!assertFloatClose(comboReload.entities[3].position.x, 7.0f) ||
+        !assertFloatClose(comboReload.entities[3].position.y, 8.0f)) {
+        std::cerr << "Late entity must sit at reloaded index 3 (remap)\n";
+        return false;
+    }
+    if (!assertFloatClose(comboReload.entities[2].position.x, 5.0f)) {
+        std::cerr << "Earlier spawn must shift down after the drop\n";
+        return false;
+    }
+    rmArtifacts();
+    return true;
+}
+
 // Step 198: editor-lite select safety + multi-entity persist
 // (headless only, no GUI). Closes the safety cells:
 //   a) OOB select - ONE contract: select-by-index is caller-side
@@ -7008,6 +7100,7 @@ int main() {
     const bool editorLiteOk = checkEditorLiteSuccess();
     const bool editorSafetyOk = checkEditorLiteSafety();
     const bool editorKillOk = checkEditorLiteKill();
+    const bool editorSpawnOk = checkEditorLiteSpawn();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7042,7 +7135,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
