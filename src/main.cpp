@@ -1101,6 +1101,12 @@ if (clip != animations.end()) {
     // handler carries the game-side state. Games boot exactly as
     // before — nothing changes unless this command is typed.
     bool debug3d = false;
+    // Step 204: the debug cube's spin clock — REAL UNSCALED time (dt as
+    // the loop delivers it via tick(); ignores pause — a render-path
+    // diagnostic must keep rotating while the world is frozen). The
+    // angle is computed STATELESSLY each frame as speed * elapsed (no
+    // matrix accumulation — that drifts and is untestable).
+    float debug3dElapsed = 0.0f;
     pe::registerCommand(console, "debug3d", [&debug3d](const std::vector<std::string>& args) {
         if (pe::parseOnOff(args, debug3d)) {
             // Step 202 amendment: runtime log — the command's state is
@@ -1981,12 +1987,20 @@ if (clip != animations.end()) {
         // the exact live ortho box), so the 2D path of every later
         // frame is unaffected.
         if (debug3d) {
+            // Step 204: stateless spin — angle = speed * total elapsed
+            // (real unscaled dt; accumulates only while debug3d is on).
+            // Model = translation * rotation: the rotation applies FIRST
+            // to the local vertices (spin in place around the cube's own
+            // center), then the translation places it — the reverse order
+            // would orbit the cube around the world origin.
+            debug3dElapsed += dt;
             camera.setPerspective(1.0472f, 0.1f, 100.0f);
             camera.setEyeTargetUp(pe::Vec3(3.0f, 2.0f, 5.0f),
                                   pe::Vec3(0.0f, 0.0f, 0.0f),
                                   pe::Vec3(0.0f, 1.0f, 0.0f));
-            renderer.drawDebugMesh3D(pe::unitCubeVertices(),
-                                     pe::Mat4::translation(0.0f, 0.0f, -2.0f),
+            const pe::Mat4 spinModel = pe::Mat4::translation(0.0f, 0.0f, -2.0f) *
+                                       pe::Mat4::rotationY(1.0f * debug3dElapsed);
+            renderer.drawDebugMesh3D(pe::unitCubeVertices(), spinModel,
                                      camera.view(), camera.projection(), true);
             camera.setOrthographicMode();
         }

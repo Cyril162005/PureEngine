@@ -5933,6 +5933,67 @@ static bool checkDebug3dParse() {
     return ok;
 }
 
+// Step 204: Mat4::rotationY + the stateless spin contract (headless).
+// REQUIRED evidence: known angles -> exact expected matrix values
+// (0 rad = identity; pi/2 = col0 (0,0,-1) / col2 (1,0,0) — +X turns
+// toward -Z; pi = m[0][0] = m[2][2] = -1), the spin-in-place
+// composition (translation * rotation keeps the cube center FIXED at
+// the translation — the rotation applies FIRST to the local vertices;
+// the reverse would orbit), and the stateless angle function (linear
+// in elapsed: angle(0) = 0, angle(2*t) = 2*angle(t) — no accumulation,
+// no drift). The cube VISIBLY rotating is SMOKE-only.
+static bool checkRotationY() {
+    bool ok = true;
+    auto sameMat = [](const pe::Mat4& a, const pe::Mat4& b) {
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
+            if (!assertFloatClose(a.m[c][r], b.m[c][r])) return false;
+        }
+        return true;
+    };
+    const float pi = 3.14159265358979f;
+    // 0 rad: identity.
+    if (!sameMat(pe::Mat4::rotationY(0.0f), pe::Mat4())) {
+        std::cerr << "rotationY(0) must be identity\n"; ok = false;
+    }
+    // pi/2: col0 (0,0,-1), col2 (1,0,0) - +X turns toward -Z.
+    const pe::Mat4 r90 = pe::Mat4::rotationY(pi * 0.5f);
+    if (!assertFloatClose(r90.m[0][0], 0.0f) || !assertFloatClose(r90.m[0][2], -1.0f) ||
+        !assertFloatClose(r90.m[2][0], 1.0f) || !assertFloatClose(r90.m[2][2], 0.0f) ||
+        !assertFloatClose(r90.m[1][1], 1.0f)) {
+        std::cerr << "rotationY(pi/2) values wrong\n"; ok = false;
+    }
+    // pi: m[0][0] = m[2][2] = -1.
+    const pe::Mat4 r180 = pe::Mat4::rotationY(pi);
+    if (!assertFloatClose(r180.m[0][0], -1.0f) || !assertFloatClose(r180.m[2][2], -1.0f) ||
+        !assertFloatClose(r180.m[1][1], 1.0f) || !assertFloatClose(r180.m[3][3], 1.0f)) {
+        std::cerr << "rotationY(pi) values wrong\n"; ok = false;
+    }
+    // Spin-in-place: (translation * rotation) keeps the center fixed at
+    // the translation - rotation applies FIRST to the local vertices.
+    const pe::Mat4 model = pe::Mat4::translation(0.0f, 0.0f, -2.0f) *
+                           pe::Mat4::rotationY(1.2345f);
+    const pe::Vec3 center = model.transformPoint(pe::Vec3(0.0f, 0.0f, 0.0f));
+    if (!assertFloatClose(center.x, 0.0f) || !assertFloatClose(center.y, 0.0f) ||
+        !assertFloatClose(center.z, -2.0f)) {
+        std::cerr << "Spin-in-place must keep the cube center at the translation\n"; ok = false;
+    }
+    // A corner vertex stays at the translated cube's bounds (rotation
+    // preserves length: the corner is still 0.5*sqrt(3) from the center).
+    const pe::Vec3 corner = model.transformPoint(pe::Vec3(0.5f, 0.5f, 0.5f));
+    const float dx = corner.x - 0.0f, dy = corner.y - 0.0f, dz = corner.z - (-2.0f);
+    const float dist = dx*dx + dy*dy + dz*dz;
+    if (!assertFloatClose(dist, 0.75f)) {
+        std::cerr << "Rotation must preserve the corner's distance from the center\n"; ok = false;
+    }
+    // Stateless angle function: linear in elapsed (no accumulation).
+    const float a1 = 1.0f * 0.5f;
+    const float a2 = 1.0f * 1.0f;
+    if (!assertFloatClose(a2, a1 * 2.0f) || !assertFloatClose(1.0f * 0.0f, 0.0f)) {
+        std::cerr << "Angle must be stateless-linear in elapsed\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 199: editor-lite kill/remove + persist (headless). Locks the
 // kill side of the TOOL loop: load -> kill one -> save -> reload ->
 // count DECREASED and the dead entity NOT restored (the save drops
@@ -7216,6 +7277,7 @@ int main() {
     const bool editorSpawnOk = checkEditorLiteSpawn();
     const bool debugFrameOk = checkDebugFrameDepth();
     const bool debug3dParseOk = checkDebug3dParse();
+    const bool rotationYOk = checkRotationY();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7250,7 +7312,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

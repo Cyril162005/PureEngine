@@ -245,6 +245,31 @@ public:
     }
 
     // ------------------------------------------------------------------
+    // Builder: ROTATION about the Y axis by 'angleRadians' (Step 204 —
+    // the 3D debug cube's spin primitive; same style as translation/
+    // rotationZ). Y rotation spins the XZ plane and leaves Y alone:
+    //      [ cos  0  sin ]
+    //      [  0   1   0  ]
+    //      [-sin  0  cos ]
+    // Placed column-major (row index SECOND):
+    //   column 0 = ( cos, 0, -sin)
+    //   column 2 = ( sin, 0,  cos)
+    // Positive angles turn +X toward -Z (right-handed about +Y up).
+    // NOT constexpr: std::sin/std::cos cannot run at compile time on MSVC.
+    // ------------------------------------------------------------------
+    static Mat4 rotationY(float angleRadians) {
+        float c = std::cos(angleRadians);
+        float s = std::sin(angleRadians);
+        Mat4 result;                        // starts as identity (Y row/col
+                                            // untouched => y passes through)
+        result.m[0][0] =  c;                // column 0, row 0
+        result.m[0][2] = -s;                // column 0, row 2 (note the sign)
+        result.m[2][0] =  s;                // column 2, row 0
+        result.m[2][2] =  c;                // column 2, row 2
+        return result;
+    }
+
+    // ------------------------------------------------------------------
     // Builder: TRANSLATION (Step 194 — the 3D debug mesh's model matrix
     // builder). Identity with the last column set to (x, y, z) — the
     // column-major convention means m[3][0..2] IS the translation.
