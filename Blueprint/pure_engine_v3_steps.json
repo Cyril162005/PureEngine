@@ -2152,6 +2152,19 @@
     198,
     113
    ]
+  },
+  {
+   "id": 200,
+   "name": "Editor-lite spawn/add + persist + kill-spawn same-cycle index math",
+   "status": "completed",
+   "definition_of_done": "checkEditorLiteSpawn answers the index rule (documented, from scene.h:195): spawnEntity APPENDS at the end - it does NOT reuse a freed slot from a prior kill (kill marks alive=false in place; the vector only grows until a save drops the dead). Spawn on a 3-entity fixture -> index 3, persists (count 4, position exact). COMBINED case (the untested interaction): kill(1) THEN spawn in the same session -> the new entity lands at index 4 pre-save (appended AFTER the still-present dead one, NOT a slot reuse) -> the save drops the dead -> reload compacts to count 4 -> the late entity sits at RELOADED index 3 (remap) and the earlier spawn shifts to index 2. CTest fails on wrong count/position/index or a non-persisting spawn. No SMOKE-only closure.",
+   "notes": "No GUI, undo stack, hierarchy UI, ECS, net, 3D. Engine APIs unchanged (spawnEntity/killEntity existing contracts). 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "e2ee7a8",
+   "depends_on": [
+    199,
+    195,
+    113
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
