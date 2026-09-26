@@ -1,5 +1,7 @@
 # Platformer level 1 "first steps" (10x8, tileSize 1.0).
 # 1 = solid wall/floor (texture slot 1).
+# 2 = ICE tile (Step 220: friction 0 - the player slides; texture slot 2).
+# 3 = BOUNCY tile (Step 220: restitution 1 - the player bounces; slot 3).
 # Goal rect on the floor before the right wall (see platformer.cpp).
 # Platform row 5 cols 3-5: 1.5 above the floor (jump apex is ~2.5).
 # Left wall col 0 rows 3-7: backstop so the player cannot walk off the
@@ -15,4 +17,4 @@ row=1,0,0,0,0,0,0,0,0,0
 row=1,0,0,0,0,0,0,0,0,1
 row=1,0,0,1,1,1,0,0,0,1
 row=1,0,0,0,0,0,0,0,0,1
-row=1,1,1,1,1,1,1,1,1,1
+row=1,1,1,2,2,3,3,1,1,1

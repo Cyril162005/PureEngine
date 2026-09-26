@@ -443,8 +443,47 @@ inline bool updateCharacterController(Entity& character,
                 character.position.y -= ny * overlapY;
                 if (ny > 0.0f) {
                     hitCeiling = true;  // wall above: ceiling
+                    character.velocity.y = 0.0f;   // the ceiling ALWAYS stops (byte-identical)
+                } else {
+                    // Step 220: the FLOOR — per-tile restitution. THE
+                    // TILE CONTRACT: bounciness is restitution ABOVE the
+                    // Entity default (0.5); at-or-below = the no-bounce
+                    // baseline (byte-identical — pre-existing statics
+                    // with the 0.5 default never bounce; the bouncy tile
+                    // sets 1.0 and flips to the entry height).
+                    const float e = wall.restitution > 0.5f ? wall.restitution : 0.0f;
+                    character.velocity.y = -character.velocity.y * e;
                 }
-                character.velocity.y = 0.0f;
+            }
+        }
+    }
+
+    // --- Step 220: ground friction (the tangent concept on the
+    // controller's floor contact). A tile with friction > 0 decays the
+    // horizontal velocity per substep (a dt-scaled proportional decay —
+    // deterministic under the platformer's fixed substeps); a tile with
+    // friction == 0 (the ICE tile AND the converter baseline) applies NO
+    // decay — the player slides. The caller's input handling decides
+    // whether to zero velocity.x when not inputting (the byte-identical
+    // instant stop) or let the friction stop it.
+    if (character.wasGrounded || checkGrounded(character, staticEntities)) {
+        for (const Entity& wall : staticEntities) {
+            if (!wall.isStatic && !wall.isKinematic) continue;
+            if (wall.friction <= 0.0f) continue;
+            // Only tiles the character actually rests on (same geometry
+            // as checkGrounded's scan): a grounded contact overlaps.
+            const float chx = character.halfExtents.x * character.scale.x;
+            const float chy = character.halfExtents.y * character.scale.y;
+            const float whx = wall.halfExtents.x * wall.scale.x;
+            const float why = wall.halfExtents.y * wall.scale.y;
+            const float gx = wall.position.x - character.position.x;
+            const float gy = wall.position.y - character.position.y;
+            // <= not <: the EXACT rest contact sits on the boundary
+            // (chy + why == |gy| after the resolution) and counts.
+            if ((gx >= 0.0f ? gx : -gx) <= chx + whx &&
+                (gy >= 0.0f ? gy : -gy) <= chy + why) {
+                character.velocity.x -= character.velocity.x * wall.friction * dt * 25.0f;
+                break;   // one ground friction per frame
             }
         }
     }

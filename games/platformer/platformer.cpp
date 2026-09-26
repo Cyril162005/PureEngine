@@ -435,7 +435,17 @@ int main() {
                         move = -1.0f;
                     }
                 }
-                player->velocity.x = move * kMoveSpeed;
+                if (move != 0.0f) {
+                    // Step 220: while inputting, the input drives directly.
+                    player->velocity.x = move * kMoveSpeed;
+                } else if (!player->wasGrounded) {
+                    // Airborne, no input: keep momentum (no air friction).
+                } else {
+                    // Step 220: grounded, no input - the tile's ground
+                    // friction decays the slide (the ice tile's friction 0
+                    // = no decay = the player keeps sliding; the default
+                    // ground's 0.8 stops in ~3 substeps).
+                }
                 const bool jumpEdge =
                     input.isActionEdge(window, pe::Action::Jump, &prevPad, &curPad);
                 if (jumpEdge && player->wasGrounded) {
@@ -448,6 +458,22 @@ int main() {
                     pe::tilemapToEntities(activeScene->tilemap, 0.0f, 3);
                 for (auto& t : tileStatics) {
                     t.isStatic = true;
+                    // Step 220: per-type tile physics through the
+                    // controller's resolve path. The tilemap cells are
+                    // INTEGER values and textureId == the cell value
+                    // (the converter's mapping), so the type maps on
+                    // textureId with no Entity change. Cell 2 = ICE
+                    // (friction 0 - the player slides); cell 3 = BOUNCY
+                    // (restitution 1 - the player bounces to the entry
+                    // height). Default tiles: friction 0.8 (a quick
+                    // ~3-substep stop) + restitution 0 (the byte-
+                    // identical no-bounce baseline - `-vy * 0` = 0).
+                    // INTENTIONAL DELTA (documented): the default
+                    // ground's stop is now a quick decay instead of the
+                    // instant zero - the alternative (friction 0 default)
+                    // would make ice indistinguishable from normal ground.
+                    t.restitution = (t.textureId == 3) ? 1.0f : 0.0f;
+                    t.friction = (t.textureId == 2) ? 0.0f : 0.8f;
                 }
                 // The kinematic platform joins the statics: the controller
                 // treats it as infinite mass (never pushed, no impulse)

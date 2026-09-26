@@ -6515,6 +6515,77 @@ static bool checkFriction() {
     return ok;
 }
 
+// Step 220: Platformer tiles through the controller resolve path
+// (headless, pure math - no GL). Known player velocity + tile type ->
+// EXACT resolve outputs, matching the formulas (the ground friction is
+// a dt-scaled proportional decay: vx -= vx * friction * dt * 25; the
+// floor bounce is -vy * restitution):
+//   - DEFAULT tile (friction 0.8, restitution 0): a fall (-3) stops
+//     dead (byte-identical no-bounce baseline) and a slide (5, no
+//     input) decays to ~0 in a few substeps;
+//   - ICE tile (friction 0): a slide (5) is UNTOUCHED (no decay - the
+//     player slides); a fall still stops (no bounce);
+//   - BOUNCY tile (restitution 1): a fall (-3) flips to +3 EXACTLY
+//     (the entry height bounce).
+static bool checkTileResolve() {
+    bool ok = true;
+    const float dt60 = 1.0f / 60.0f;
+    // A character resting on a tile: the same geometry as checkGrounded.
+    auto makeSetup = [](pe::Entity& character, pe::Entity& tile, float fric, float rest) {
+        character = pe::Entity(pe::Vec3(0.0f, 0.9f, 0.0f), 0.0f, pe::Vec3(1,1,1));
+        character.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+        character.maxFallSpeed = 25.0f;
+        tile = pe::Entity(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1,1,1));
+        tile.halfExtents = pe::Vec3(2.0f, 0.5f, 0.5f);
+        tile.isStatic = true;
+        tile.friction = fric;
+        tile.restitution = rest;
+    };
+    // DEFAULT tile: the fall stops dead; the slide decays.
+    {
+        pe::Entity c, tile;
+        makeSetup(c, tile, 0.8f, 0.0f);
+        c.velocity = pe::Vec3(0.0f, -3.0f, 0.0f);
+        pe::updateCharacterController(c, {tile}, dt60, false);
+        if (!assertFloatClose(c.velocity.y, 0.0f)) {
+            std::cerr << "Default tile must stop a fall dead (no bounce)\n"; ok = false;
+        }
+        makeSetup(c, tile, 0.8f, 0.0f);
+        c.velocity = pe::Vec3(5.0f, 0.0f, 0.0f);
+        pe::updateCharacterController(c, {tile}, dt60, false);
+        if (!(c.velocity.x < 4.9f && c.velocity.x > 3.0f)) {
+            std::cerr << "Default tile friction must decay the slide\n"; ok = false;
+        }
+    }
+    // ICE tile: the slide is untouched; the fall still stops.
+    {
+        pe::Entity c, tile;
+        makeSetup(c, tile, 0.0f, 0.0f);
+        c.velocity = pe::Vec3(5.0f, 0.0f, 0.0f);
+        pe::updateCharacterController(c, {tile}, dt60, false);
+        if (!assertFloatClose(c.velocity.x, 5.0f)) {
+            std::cerr << "Ice tile must not decay the slide\n"; ok = false;
+        }
+        makeSetup(c, tile, 0.0f, 0.0f);
+        c.velocity = pe::Vec3(0.0f, -3.0f, 0.0f);
+        pe::updateCharacterController(c, {tile}, dt60, false);
+        if (!assertFloatClose(c.velocity.y, 0.0f)) {
+            std::cerr << "Ice tile fall must still stop (no bounce)\n"; ok = false;
+        }
+    }
+    // BOUNCY tile: the fall flips to +3 exactly.
+    {
+        pe::Entity c, tile;
+        makeSetup(c, tile, 0.8f, 1.0f);
+        c.velocity = pe::Vec3(0.0f, -3.0f, 0.0f);
+        pe::updateCharacterController(c, {tile}, dt60, false);
+        if (!assertFloatClose(c.velocity.y, 3.0f)) {
+            std::cerr << "Bouncy tile must flip the fall to +3\n"; ok = false;
+        }
+    }
+    return ok;
+}
+
 // Step 205: physics mass weighting (headless, pure math). REQUIRED
 // evidence: known masses -> known resolve outputs, EXACT values.
 // Setup: two unit boxes at (0,0) and (0.5,0) -> overlapX = 1.5 (the
@@ -7937,6 +8008,7 @@ int main() {
     const bool debug3dParseOk = checkDebug3dParse();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
+    const bool tileResolveOk = checkTileResolve();
     const bool restitutionOk = checkRestitution();
     const bool frictionOk = checkFriction();
     const bool meshHandleOk = checkMeshHandle();
@@ -7982,7 +8054,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
