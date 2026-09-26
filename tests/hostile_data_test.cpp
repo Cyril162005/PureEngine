@@ -6586,6 +6586,48 @@ static bool checkTileResolve() {
     return ok;
 }
 
+// Step 225: bouncy-tile tunneling check (headless math, no code
+// change expected). The Step 192 threshold: useSwept is for movers
+// whose PER-SUBSTEP displacement can exceed a target's thickness.
+// The player's bounce off the restitution=1 tile preserves |vy| (the
+// entry velocity, CLAMPED by maxFallSpeed = 25); per-substep
+// displacement = 25 * dt(1/60) = 0.417 < the 1.0 tile thickness ->
+// the threshold is NOT reached: maxFallSpeed bounds every fall, and
+// restitution 1 cannot exceed the clamp (repeated bounces preserve
+// |vy| = 25 at most). Asserted exactly.
+static bool checkBounceTunneling() {
+    bool ok = true;
+    // The documented threshold math: 25/60 vs 1.0.
+    const float perSubstep = 25.0f / 60.0f;
+    if (!(perSubstep < 1.0f)) {
+        std::cerr << "Per-substep displacement must stay under the tile thickness\n";
+        ok = false;
+    }
+    // A bounce sequence off the restitution=1 tile preserves |vy| at
+    // the maxFallSpeed clamp: three bounces, each |vy| stays <= 25.
+    pe::Entity c(pe::Vec3(0,0.9f,0), 0.0f, pe::Vec3(1,1,1));
+    c.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+    c.maxFallSpeed = 25.0f;
+    pe::Entity tile(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+    tile.halfExtents = pe::Vec3(2.0f, 0.5f, 0.5f);
+    tile.isStatic = true;
+    tile.restitution = 1.0f;
+    c.velocity = pe::Vec3(0.0f, -40.0f, 0.0f);   // an extreme fall
+    for (int i = 0; i < 3; ++i) {
+        pe::updateCharacterController(c, {tile}, 1.0f / 60.0f, false);
+        if (c.velocity.y > 25.0f || c.velocity.y < -25.0f) {
+            std::cerr << "Bounce must respect the maxFallSpeed clamp\n"; ok = false; break;
+        }
+        // Each bounce's per-substep displacement stays under 1.0.
+        if (!(c.velocity.y * (1.0f / 60.0f) < 1.0f) &&
+            !(c.velocity.y == 0.0f)) {
+            std::cerr << "Bounce displacement must stay under the tile thickness\n";
+            ok = false; break;
+        }
+    }
+    return ok;
+}
+
 // Step 205: physics mass weighting (headless, pure math). REQUIRED
 // evidence: known masses -> known resolve outputs, EXACT values.
 // Setup: two unit boxes at (0,0) and (0.5,0) -> overlapX = 1.5 (the
@@ -8009,6 +8051,7 @@ int main() {
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
+    const bool bounceTunnelOk = checkBounceTunneling();
     const bool restitutionOk = checkRestitution();
     const bool frictionOk = checkFriction();
     const bool meshHandleOk = checkMeshHandle();
@@ -8054,7 +8097,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !bounceTunnelOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
