@@ -1114,6 +1114,16 @@ if (clip != animations.end()) {
         // parse is engine-pure (parseFloat6, CI-tested); garbage fails
         // WITHOUT mutating the camera (the Step 196 isolation: the 3D
         // view fields never alias the 2D follow/position path).
+        // --- Step 216: debug3d cam reset - restore the documented
+        // defaults (eye (0,0,5), target origin, up (0,1,0)) + the
+        // default FOV (60 degrees, 215 landed).
+        if (args.size() == 2 && args[0] == "cam" && args[1] == "reset") {
+            camera.setEyeTargetUp(pe::Vec3(0.0f, 0.0f, 5.0f),
+                                  pe::Vec3(0.0f, 0.0f, 0.0f),
+                                  pe::Vec3(0.0f, 1.0f, 0.0f));
+            camera.setFov(1.0472f);
+            return std::string("debug3d cam reset");
+        }
         if (args.size() == 7 && args[0] == "cam") {
             float ex, ey, ez, tx, ty, tz;
             if (pe::parseFloat6({args[1], args[2], args[3], args[4], args[5], args[6]},
@@ -2038,9 +2048,11 @@ if (clip != animations.end()) {
             // would orbit the cube around the world origin.
             debug3dElapsed += dt;
             camera.setPerspective(1.0472f, 0.1f, 100.0f);
-            camera.setEyeTargetUp(pe::Vec3(3.0f, 2.0f, 5.0f),
-                                  pe::Vec3(0.0f, 0.0f, 0.0f),
-                                  pe::Vec3(0.0f, 1.0f, 0.0f));
+            // Step 216: the per-frame setEyeTargetUp REMOVED - it
+            // clobbered the debug3d cam command's values every frame
+            // (the cam set lasted one frame at most). The eye/target
+            // now come from the Camera's defaults (0,0,5) or the cam
+            // command, and stick until changed.
             const pe::Mat4 spinModel = pe::Mat4::translation(0.0f, 0.0f, -2.0f) *
                                        pe::Mat4::rotationY(1.0f * debug3dElapsed);
             renderer.drawDebugMesh3D(pe::unitCubeVertices(), spinModel,
