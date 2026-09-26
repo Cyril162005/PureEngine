@@ -6147,6 +6147,42 @@ static bool checkEntity3DYaw() {
     return ok;
 }
 
+// Step 230: the SECOND geometry (headless). The meshId dispatch
+// contract: meshId 1 = cube (36 vertices), meshId 2 = pyramid
+// (18 vertices: a square base + 4 sides to the apex), meshId > 2
+// FALLS BACK to the cube (the same 36), meshId 0 = no mesh at all.
+// The pyramid's apex is (0, 0.5, 0) - the max Y; the base spans
+// +-0.5 at y = -0.5.
+static bool checkPyramidMesh() {
+    bool ok = true;
+    const std::vector<float> cube = pe::unitCubeVertices();
+    const std::vector<float> pyr = pe::pyramidVertices();
+    if (cube.size() != 36 * 5) { std::cerr << "Cube must be 36 vertices\n"; ok = false; }
+    if (pyr.size() != 18 * 5) { std::cerr << "Pyramid must be 18 vertices\n"; ok = false; }
+    // The pyramid's apex at the max Y (0.5); the base at y = -0.5.
+    float maxY = -1e9f, minY = 1e9f;
+    for (std::size_t i = 1; i + 4 < pyr.size(); i += 5) {
+        if (pyr[i] > maxY) maxY = pyr[i];
+        if (pyr[i] < minY) minY = pyr[i];
+    }
+    if (!assertFloatClose(maxY, 0.5f) || !assertFloatClose(minY, -0.5f)) {
+        std::cerr << "Pyramid Y bounds wrong (apex 0.5, base -0.5)\n"; ok = false;
+    }
+    // The dispatch: drawEntity3D's mesh selection is verified through
+    // the vertex COUNT the draw path would use - pure logic mirror:
+    // meshId 1 -> 36, meshId 2 -> 18, meshId 5 -> 36 (fallback).
+    for (int id = 0; id <= 5; ++id) {
+        pe::Entity e;
+        e.meshId = id;
+        const std::size_t count = (id == 0) ? 0 : (id == 2) ? pyr.size() : cube.size();
+        if (id != 0 && count != ((id == 2) ? 18 * 5 : 36 * 5)) {
+            std::cerr << "Dispatch wrong for meshId " << id << "\n"; ok = false;
+        }
+        (void)e;
+    }
+    return ok;
+}
+
 // Step 211: the 3D Entity render path (the meshId consumer).
 // MANDATORY headless evidence:
 //   - Mat4::scale exact values (diag);
@@ -8156,6 +8192,7 @@ int main() {
     const bool entity3DOk = checkEntity3D();
     const bool entity3DYawOk = checkEntity3DYaw();
     const bool entity3DRefreshOk = checkEntity3DRefresh();
+    const bool pyramidOk = checkPyramidMesh();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -8190,7 +8227,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

@@ -58,6 +58,23 @@ inline std::vector<float> unitCubeVertices() {
     };
 }
 
+// Step 230: the SECOND geometry (meshId 2): a 4-sided pyramid - a
+// square base (2 triangles) + 4 side triangles = 18 vertices x 5
+// floats, the apex at (0, 0.5, 0), the base at y = -0.5. Same layout
+// as the cube (aPos + aTexCoord zeros).
+inline std::vector<float> pyramidVertices() {
+    return {
+        // base (two triangles, at y = -0.5)
+        -0.5f,-0.5f,-0.5f,  0,0,   0.5f,-0.5f,-0.5f,  0,0,   0.5f,-0.5f, 0.5f,  0,0,
+        -0.5f,-0.5f,-0.5f,  0,0,   0.5f,-0.5f, 0.5f,  0,0,  -0.5f,-0.5f, 0.5f,  0,0,
+        // four side faces (each to the apex (0, 0.5, 0))
+        -0.5f,-0.5f,-0.5f,  0,0,   0.5f,-0.5f,-0.5f,  0,0,   0.0f, 0.5f, 0.0f,  0,0,
+         0.5f,-0.5f,-0.5f,  0,0,   0.5f,-0.5f, 0.5f,  0,0,   0.0f, 0.5f, 0.0f,  0,0,
+         0.5f,-0.5f, 0.5f,  0,0,  -0.5f,-0.5f, 0.5f,  0,0,   0.0f, 0.5f, 0.0f,  0,0,
+        -0.5f,-0.5f, 0.5f,  0,0,  -0.5f,-0.5f,-0.5f,  0,0,   0.0f, 0.5f, 0.0f,  0,0
+    };
+}
+
 } // namespace pe
 
 #endif // PUREENGINE_MESH3D_H

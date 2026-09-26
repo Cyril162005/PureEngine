@@ -732,8 +732,11 @@ public:
         // Step 217: the entity tint drives the debug cube color
         // (drawEntityMesh3D's color param; the unit-cube path's blue
         // tint is the no-entity default). White default = the
-        // texel.rgb * white pass-through.
-        drawEntityMesh3D(unitCubeVertices(), model, view, projection,
+        // texel.rgb * white pass-through. Step 230: meshId 1 = cube,
+        // meshId 2 = pyramid, meshId > 2 FALLS BACK to the cube.
+        const std::vector<float>& mesh =
+            (e.meshId == 2) ? pyramidVertices() : unitCubeVertices();
+        drawEntityMesh3D(mesh, model, view, projection,
                          e.tint.x, e.tint.y, e.tint.z);
     }
 
