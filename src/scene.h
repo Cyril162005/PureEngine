@@ -55,10 +55,47 @@ struct Scene {
     Tilemap tilemap;  // width == 0 means "no tilemap"
     std::string tilemapFile; // optional source file for serialization (basename)
 
+    // Step 227: the DEFERRED SPAWN QUEUE (closes the documented hazard
+    // from the Step 223 verify-only pass). queueSpawn appends HERE
+    // instead of the live entity vector - safe to call from ANYWHERE,
+    // including inside a range-for over entities (iterator
+    // invalidation impossible by construction). flushSpawns merges the
+    // queue into the entity list at END-OF-FRAME (the caller's
+    // responsibility, outside any entity iteration) and returns how
+    // many were merged; the merged entities are appended in queue
+    // order with indices size..size+n-1 (no slot reuse - the same
+    // append rule as spawnEntity).
+    std::vector<Entity> pendingSpawns;
+
+    // Queue one entity for end-of-frame spawn. Returns the index the
+    // entity WILL take after the next flush (entities.size() +
+    // pendingSpawns.size() - 1 - exact, no assumption).
+    std::size_t queueSpawn(const Entity& e) {
+        pendingSpawns.push_back(e);
+        pendingSpawns.back().alive = true;
+        return entities.size() + pendingSpawns.size() - 1;
+    }
+
+    // Merge the queue into the live entity list. Call at end-of-frame,
+    // OUTSIDE any range-for over entities. Returns the merged count.
+    std::size_t flushSpawns() {
+        const std::size_t n = pendingSpawns.size();
+        if (n == 0) {
+            return 0;
+        }
+        for (const Entity& e : pendingSpawns) {
+            entities.push_back(e);
+        }
+        pendingSpawns.clear();
+        return n;
+    }
+
     // Empty the scene in place. The name is identity, not content, so it
     // survives: the slot stays addressable by switchTo() afterwards.
+    // The pending queue empties too (a cleared scene spawns nothing).
     void clear() {
         entities.clear();
+        pendingSpawns.clear();
         tilemap = Tilemap();
         tilemapFile.clear();
     }

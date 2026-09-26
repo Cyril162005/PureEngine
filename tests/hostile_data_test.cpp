@@ -6515,6 +6515,59 @@ static bool checkFriction() {
     return ok;
 }
 
+// Step 227: the deferred spawn queue (headless). Closes the Step 223
+// documented hazard: spawning MID-UPDATE no longer invalidates
+// iteration - queueSpawn appends to the PENDING queue (safe inside a
+// range-for over entities by construction), flushSpawns merges at
+// end-of-frame; existing entities are not skipped; the returned future
+// index is EXACT (entities.size() + pending.size() - 1); clear()
+// empties the queue (a cleared scene spawns nothing).
+static bool checkSpawnQueue() {
+    bool ok = true;
+    pe::Scene s;
+    for (int i = 0; i < 3; ++i) {
+        pe::Entity e(pe::Vec3(float(i), float(i), 0.0f), 0.0f, pe::Vec3(1,1,1));
+        s.entities.push_back(e);
+    }
+    // Simulate mid-update: a range-for over entities that queue-spawns
+    // INSIDE the loop - iterator invalidation would crash or skip.
+    const std::size_t countBefore = s.entities.size();
+    for (const pe::Entity& e : s.entities) {
+        if (e.alive) {
+            pe::Entity spawn;
+            spawn.position = pe::Vec3(9.0f, 9.0f, 0.0f);
+            s.queueSpawn(spawn);
+        }
+    }
+    // The queue is pending: the live list unchanged so far.
+    if (s.entities.size() != countBefore || s.pendingSpawns.size() != 3) {
+        std::cerr << "queueSpawn must not touch the live list mid-iteration\n";
+        ok = false;
+    }
+    // End-of-frame flush: all merged, none skipped.
+    const std::size_t merged = s.flushSpawns();
+    if (merged != 3 || s.entities.size() != countBefore + 3 ||
+        s.pendingSpawns.size() != 0) {
+        std::cerr << "flushSpawns must merge the whole queue\n"; ok = false;
+    }
+    // The future indices were EXACT: the queued entities sit at
+    // countBefore..countBefore+2 with the queued position.
+    for (std::size_t i = 0; i < 3; ++i) {
+        if (!assertFloatClose(s.entities[countBefore + i].position.x, 9.0f) ||
+            !s.entities[countBefore + i].alive) {
+            std::cerr << "Queued entities must persist at their promised indices\n";
+            ok = false; break;
+        }
+    }
+    // clear() empties the queue.
+    s.queueSpawn(pe::Entity());
+    s.clear();
+    if (!s.pendingSpawns.empty() || !s.entities.empty()) {
+        std::cerr << "clear() must empty the pending queue\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 220: Platformer tiles through the controller resolve path
 // (headless, pure math - no GL). Known player velocity + tile type ->
 // EXACT resolve outputs, matching the formulas (the ground friction is
@@ -8052,6 +8105,7 @@ int main() {
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
     const bool bounceTunnelOk = checkBounceTunneling();
+    const bool spawnQueueOk = checkSpawnQueue();
     const bool restitutionOk = checkRestitution();
     const bool frictionOk = checkFriction();
     const bool meshHandleOk = checkMeshHandle();
@@ -8097,7 +8151,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !bounceTunnelOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
