@@ -2396,6 +2396,20 @@
     211,
     212
    ]
+  },
+  {
+   "id": 220,
+   "name": "Platformer: ice + bouncy tiles through the controller resolve",
+   "status": "completed",
+   "definition_of_done": "Per-type tile physics through the controller path: the tilemap cells are INTEGER values and textureId == the cell value (the converter mapping) - the type maps on textureId with NO Entity change. Cell 2 = ICE (friction 0 - the player slides); cell 3 = BOUNCY (restitution 1 - the player bounces to the entry height). checkTileResolve (headless, exact): the default tile stops a fall dead + decays the slide; the ice tile never decays the slide; the bouncy tile flips -3 to +3 exactly. Controller changes: the floor branch honors per-tile restitution (THE TILE CONTRACT: bounciness = restitution ABOVE the Entity default 0.5; at-or-below = the no-bounce baseline - pre-existing statics never bounce; the CEILING always stops byte-identical); ground friction = a dt-scaled proportional decay (vx -= vx * friction * dt * 25) only on tiles with friction > 0, scanned with <= (the exact rest contact sits on the boundary).",
+   "notes": "INTENTIONAL DELTA (documented in code): the default ground stop is now a quick ~3-substep decay instead of the instant zero (the alternative - friction 0 default - would make ice indistinguishable); the platformer input no longer zeroes velocity.x when grounded and not inputting (the friction stops it). Test fixes owned: the level edit initially blocked the L1 goal airspace + changed the solid count (checkPlatLevels caught it - the level now keeps 8 rows / 20 solids, the goal airspace empty); one row was lost to an ambiguous replace (rewritten cleanly). 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "29186c5",
+   "depends_on": [
+    205,
+    206,
+    207,
+    220
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

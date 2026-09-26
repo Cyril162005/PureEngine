@@ -33,12 +33,12 @@ no dups).
 - Multi-track clips and cross-clip blending: NOT started, not planned —
   additive engine-pure steps only if a session explicitly requests one.
 
-## Physics wiring (Step 208 finding RESOLVED by option A, Step 209)
-- DONE: Pong ball-paddle goes through resolveCollision (kinematic
-  paddles, ball e=1.0 - the exit speed matches the old flip exactly).
-- STILL OPEN: Platformer never calls resolveCollision (the controller
-  sweeps statics only; ice/bouncy dynamic tiles = the larger wiring
-  option, awaiting user assignment).
+## Physics wiring (Step 208 finding RESOLVED: options A + B, Steps 209+220)
+- DONE: Pong ball-paddle through resolveCollision (kinematic paddles,
+  ball e=1.0).
+- DONE: Platformer ice (cell 2, friction 0) + bouncy (cell 3,
+  restitution 1) tiles through the controller resolve path (220) -
+  Cyril's playtest verdict pending (Step 222).
 
 ## Input residual (Step 59 of the 80-step run)
 - A runtime rebind (loadInputBindings AFTER Input construction) does NOT
