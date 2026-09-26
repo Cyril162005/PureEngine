@@ -1107,14 +1107,31 @@ if (clip != animations.end()) {
     // angle is computed STATELESSLY each frame as speed * elapsed (no
     // matrix accumulation — that drifts and is untestable).
     float debug3dElapsed = 0.0f;
-    pe::registerCommand(console, "debug3d", [&debug3d](const std::vector<std::string>& args) {
+    pe::registerCommand(console, "debug3d", [&debug3d, &camera](const std::vector<std::string>& args) {
+        // --- Step 213: debug3d cam — the eye/target console command ---
+        // debug3d cam <ex> <ey> <ez> <tx> <ty> <tz> -> setEyeTargetUp
+        // with a fixed up vector (pitch/yaw/free-fly out of scope). The
+        // parse is engine-pure (parseFloat6, CI-tested); garbage fails
+        // WITHOUT mutating the camera (the Step 196 isolation: the 3D
+        // view fields never alias the 2D follow/position path).
+        if (args.size() == 7 && args[0] == "cam") {
+            float ex, ey, ez, tx, ty, tz;
+            if (pe::parseFloat6({args[1], args[2], args[3], args[4], args[5], args[6]},
+                                ex, ey, ez, tx, ty, tz)) {
+                camera.setEyeTargetUp(pe::Vec3(ex, ey, ez),
+                                      pe::Vec3(tx, ty, tz),
+                                      pe::Vec3(0.0f, 1.0f, 0.0f));
+                return std::string("debug3d cam set");
+            }
+            return std::string("usage: debug3d cam <ex> <ey> <ez> <tx> <ty> <tz>");
+        }
         if (pe::parseOnOff(args, debug3d)) {
             // Step 202 amendment: runtime log — the command's state is
             // visible in the launching terminal (SMOKE-only evidence).
             std::cout << "[CONSOLE] debug3d state: " << (debug3d ? "ON" : "OFF") << std::endl;
             return std::string(debug3d ? "debug3d on" : "debug3d off");
         }
-        return std::string("usage: debug3d on|off");
+        return std::string("usage: debug3d on|off|cam <6 floats>");
     });
     // --- Step 212: meshid console command (the live meshId consumer) ---
     // Sets meshId on an existing scene entity; with debug3d on, a cube

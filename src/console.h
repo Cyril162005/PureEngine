@@ -329,6 +329,29 @@ inline bool parseIndexId(const std::vector<std::string>& args,
     return true;
 }
 
+// Step 213: six-float argument parse (pure numbers — engine-pure, no
+// camera/entity knowledge). All six tokens must parse as floats;
+// anything else (wrong count, garbage) leaves out UNCHANGED and
+// returns false — the caller decides whether to mutate the camera.
+inline bool parseFloat6(const std::vector<std::string>& args,
+                        float& a, float& b, float& c,
+                        float& d, float& e, float& f) {
+    if (args.size() != 6) {
+        return false;
+    }
+    try {
+        a = std::stof(args[0]);
+        b = std::stof(args[1]);
+        c = std::stof(args[2]);
+        d = std::stof(args[3]);
+        e = std::stof(args[4]);
+        f = std::stof(args[5]);
+    } catch (...) {
+        return false;
+    }
+    return true;
+}
+
 } // namespace pe
 
 #endif  // PUREENGINE_CONSOLE_H

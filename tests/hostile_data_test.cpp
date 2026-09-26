@@ -6106,6 +6106,48 @@ static bool checkEntity3D() {
     return ok;
 }
 
+// Step 213: debug3d cam - the eye/target console command's REQUIRED
+// headless parse evidence. parseFloat6 (engine-pure numbers):
+//   - valid 6 floats -> true, all six values out EXACTLY;
+//   - wrong count (5/7 args) -> false, out UNCHANGED;
+//   - garbage tokens -> false, out UNCHANGED.
+// The camera side is already held: a successful setEyeTargetUp leaves
+// the exact eye/target on Camera (checkView3D's view-from-known-inputs
+// evidence, 196) and the isolation contract holds (ortho/2D follow
+// unaffected while perspectiveMode is off - checkView3D (c)).
+static bool checkCamParse() {
+    bool ok = true;
+    float a = -1.0f, b = -1.0f, c = -1.0f, d = -1.0f, e = -1.0f, f = -1.0f;
+    if (!pe::parseFloat6({"3", "2", "5", "0", "0", "0"}, a, b, c, d, e, f) ||
+        !assertFloatClose(a, 3.0f) || !assertFloatClose(b, 2.0f) ||
+        !assertFloatClose(c, 5.0f) || !assertFloatClose(d, 0.0f) ||
+        !assertFloatClose(e, 0.0f) || !assertFloatClose(f, 0.0f)) {
+        std::cerr << "Valid 6 floats must parse exactly\n"; ok = false;
+    }
+    // Negative/decimal values parse.
+    if (!pe::parseFloat6({"-3.5", "0.25", "1e1", "0", "0", "-2"}, a, b, c, d, e, f) ||
+        !assertFloatClose(a, -3.5f) || !assertFloatClose(b, 0.25f) ||
+        !assertFloatClose(c, 10.0f) || !assertFloatClose(f, -2.0f)) {
+        std::cerr << "Negative/decimal/exp values must parse\n"; ok = false;
+    }
+    // Wrong count: out UNCHANGED.
+    a = -1.0f;
+    if (pe::parseFloat6({"1", "2", "3", "4", "5"}, a, b, c, d, e, f)) {
+        std::cerr << "5 args must fail\n"; ok = false;
+    }
+    if (!assertFloatClose(a, -1.0f)) { std::cerr << "Failed parse must not write out\n"; ok = false; }
+    if (pe::parseFloat6({"1", "2", "3", "4", "5", "6", "7"}, a, b, c, d, e, f)) {
+        std::cerr << "7 args must fail\n"; ok = false;
+    }
+    // Garbage: out UNCHANGED.
+    if (pe::parseFloat6({"x", "2", "3", "4", "5", "6"}, a, b, c, d, e, f)) {
+        std::cerr << "Garbage must fail\n"; ok = false;
+    }
+    if (pe::parseFloat6({}, a, b, c, d, e, f)) { std::cerr << "Empty must fail\n"; ok = false; }
+    if (!assertFloatClose(a, -1.0f)) { std::cerr << "Garbage must not write out\n"; ok = false; }
+    return ok;
+}
+
 // Step 212: meshid console command - the REQUIRED pure-parse test for
 // the new syntax (same pattern as Step 202's checkDebug3dParse; the
 // parse is engine-pure numbers with a caller-supplied bound):
@@ -7689,6 +7731,7 @@ int main() {
     const bool frictionOk = checkFriction();
     const bool meshHandleOk = checkMeshHandle();
     const bool meshIdParseOk = checkMeshIdParse();
+    const bool camParseOk = checkCamParse();
     const bool entity3DOk = checkEntity3D();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
@@ -7724,7 +7767,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
