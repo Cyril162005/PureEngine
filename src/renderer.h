@@ -714,8 +714,11 @@ public:
 
     // --- Step 211: the 3D Entity render path (the meshId consumer) ---
     // meshId == 0 -> IMMEDIATE no-op (no matrix work on the hot path).
-    // meshId > 0 -> model = translation(position) * scale(scale)
-    // (rotation optional later), drawn via the unit-cube path under
+    // meshId > 0 -> model = translation * rotationY * scale (Step 214:
+    // rotationAngle REINTERPRETED as YAW — the 2D path reads the same
+    // number as a Z-rotation (spin in the XY plane); the 3D path reads
+    // it as a heading about +Y. SAME FIELD, AXIS PER MODE — documented
+    // here as the explicit choice), drawn via the unit-cube path under
     // the caller's camera (perspective when the caller enables it).
     // NOT called from any game render pass (Pong/Platformer never) —
     // the opt-in diagnostic path only (main's debug3d block).
@@ -724,6 +727,7 @@ public:
             return;   // 2D-only entity: no 3D draw, no matrix work
         }
         const Mat4 model = Mat4::translation(e.position.x, e.position.y, e.position.z) *
+                           Mat4::rotationY(e.rotationAngle) *
                            Mat4::scale(e.scale.x, e.scale.y, e.scale.z);
         drawDebugMesh3D(unitCubeVertices(), model, view, projection);
     }

@@ -6017,6 +6017,34 @@ static bool checkRestitution() {
     return ok;
 }
 
+// Step 214: drawEntity3D uses rotationAngle as YAW (headless). The
+// model matrix at a KNOWN angle: T((2,3,0)) * R(pi/2) * S((2,2,2))
+// maps the +X local axis (0.5,0,0) to (2, 3, -1) EXACTLY (scale first,
+// then the yaw turns +X toward -Z, then the translation) - the model
+// = T * R * S order verified per-component. The meshId==0 skip still
+// holds (immediate no-op before any matrix work).
+static bool checkEntity3DYaw() {
+    bool ok = true;
+    const pe::Mat4 model = pe::Mat4::translation(2.0f, 3.0f, 0.0f) *
+                           pe::Mat4::rotationY(1.5707963267948966f) *
+                           pe::Mat4::scale(2.0f, 2.0f, 2.0f);
+    // +X local half-extent point: scale -> (1,0,0); yaw pi/2 -> (0,0,-1);
+    // translate -> (2,3,-1). EXACT.
+    const pe::Vec3 p = model.transformPoint(pe::Vec3(0.5f, 0.0f, 0.0f));
+    if (!assertFloatClose(p.x, 2.0f) || !assertFloatClose(p.y, 3.0f) ||
+        !assertFloatClose(p.z, -1.0f)) {
+        std::cerr << "Yaw model matrix at 90 degrees wrong\n"; ok = false;
+    }
+    // The +Z local axis under the yaw: scale -> (0,0,1); yaw pi/2 ->
+    // (1,0,0) (col2 (s,0,c) = (1,0,0)); translate -> (3,3,0).
+    const pe::Vec3 q = model.transformPoint(pe::Vec3(0.0f, 0.0f, 0.5f));
+    if (!assertFloatClose(q.x, 3.0f) || !assertFloatClose(q.y, 3.0f) ||
+        !assertFloatClose(q.z, 0.0f)) {
+        std::cerr << "Yaw model +Z axis wrong\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 211: the 3D Entity render path (the meshId consumer).
 // MANDATORY headless evidence:
 //   - Mat4::scale exact values (diag);
@@ -7733,6 +7761,7 @@ int main() {
     const bool meshIdParseOk = checkMeshIdParse();
     const bool camParseOk = checkCamParse();
     const bool entity3DOk = checkEntity3D();
+    const bool entity3DYawOk = checkEntity3DYaw();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7767,7 +7796,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
