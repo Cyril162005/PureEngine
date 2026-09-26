@@ -2484,6 +2484,18 @@
     220,
     222
    ]
+  },
+  {
+   "id": 227,
+   "name": "Scene: deferred spawn queue (closes the 223 hazard)",
+   "status": "completed",
+   "definition_of_done": "Scene gains pendingSpawns + queueSpawn (appends to the PENDING queue - safe to call from ANYWHERE incl. inside a range-for over entities; iterator invalidation impossible by construction; returns the EXACT future index entities.size()+pending.size()-1) + flushSpawns (merges at end-of-frame, OUTSIDE any entity iteration; returns the merged count; append order, no slot reuse - the same rule as spawnEntity). clear() empties the queue (a cleared scene spawns nothing). checkSpawnQueue (headless): a range-for that queue-spawns INSIDE the loop does not crash or skip; the live list unchanged mid-iteration; the whole queue merges; the promised indices exact; clear empties the queue.",
+   "notes": "Closes the Step 223 documented hazard (a wave-spawner inside the chase loop would have invalidated). No dynamic spawning feature built on it yet (228 next). 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    223,
+    200
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
