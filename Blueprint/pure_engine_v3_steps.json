@@ -2509,6 +2509,19 @@
     211,
     205
    ]
+  },
+  {
+   "id": 229,
+   "name": "Camera: orbitEye + debug3d orbit command (debug3d-only)",
+   "status": "completed",
+   "definition_of_done": "Camera::orbitEye(deltaRadians) + getOrbitProbe (a read-only eye getter): the eye orbits the lookTarget on the XZ PLANE; the TARGET unchanged; the Y preserved; the radius = the XZ-ONLY distance (FIXED: the 3D length leaked the eye height into the radius - 5.385 = sqrt(25+4) was the bug, found by value diagnostics). debug3d orbit <degrees> command (the pure parseFloat1; garbage does not mutate). debug3d OFF: never called. checkOrbitEye (headless, tight tolerance): the half-turn -> (-5,2,~0), the full turn returns, the radius preserved, the degenerate eye-on-target is a no-op.",
+   "notes": "No free-fly FPS controller (the orbit is the only camera motion added). 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    229,
+    213,
+    196
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
