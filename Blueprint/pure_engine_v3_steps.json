@@ -2434,6 +2434,18 @@
     220,
     209
    ]
+  },
+  {
+   "id": 223,
+   "name": "VERIFY-ONLY: spawnEntity is mid-update safe (no fix needed)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record (inspection only, no code change): spawnEntity (appends to scene.entities) is SAFE to call mid-update-loop TODAY - no range-for over the entity vector encloses any spawn call site: the console commands (spawn_prefab/meshid) run in the PUMP phase (main.cpp:1466/1569), which is SEQUENTIAL with - never nested inside - the simulation/draw entity loops (1577/1761/1954/2066). Iterator invalidation would require a spawn INSIDE a range-for; none exists. Real debt noted for the future: a wave-spawner inside the chase loop WOULD invalidate - index-based iteration or a deferred-append queue would be the fix, out of scope until such a caller exists.",
+   "notes": "No-op report per the already-safe ruling. 2D non-regression: ctest 2/2, alive x3 True (unchanged from 220).",
+   "commit": "(no code change - verify-only)",
+   "depends_on": [
+    200,
+    222
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
