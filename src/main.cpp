@@ -1096,6 +1096,42 @@ if (clip != animations.end()) {
              << " master " << audio.getMasterVolume();
         return echo.str();
     });
+        // --- Step 228: debug3d drop — the sandbox spawner (built on 227) ---
+    // Spawns a STATIC ground plane + a DYNAMIC bouncy box via the
+    // DEFERRED SPAWN QUEUE (queueSpawn; flushed at end-of-frame - safe
+    // anywhere). EXPLICIT DECISION: these entities are SESSION-TRANSIENT
+    // and EXCLUDED from any persisted/saved scene path - saveSceneToFile
+    // snapshots activeScene->entities which includes them ONLY while the
+    // session lives; a fresh session starts clean. This resolves the
+    // scene-persistence question open since the 214-218 fork: sandbox
+    // entities never pollute a saved file because they are bound to the
+    // live session's queue/lifecycle, not the scene's serialized state.
+    // Step 231: the drop logic as a SHARED lambda - both the standalone
+    // "drop" command AND the debug3d "drop" subcommand route here (one
+    // implementation, no duplication).
+    auto dropSandbox = [&]() -> std::string {
+        if (!activeScene) {
+            return std::string("drop: no active scene");
+        }
+        pe::Entity ground;
+        ground.position = pe::Vec3(0.0f, -3.0f, 0.0f);
+        ground.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        ground.halfExtents = pe::Vec3(4.0f, 0.5f, 4.0f);
+        ground.isStatic = true;
+        ground.meshId = 1;
+        ground.restitution = 0.0f;
+        const std::size_t gIdx = activeScene->queueSpawn(ground);
+        pe::Entity box;
+        box.position = pe::Vec3(0.0f, 2.0f, 0.0f);
+        box.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        box.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+        box.meshId = 1;
+        box.restitution = 1.0f;   // bouncy: the fall flips to the entry height
+        box.gravityScale = 1.0f;  // the box actually falls
+        const std::size_t bIdx = activeScene->queueSpawn(box);
+        return std::string("drop: ground@" + std::to_string(gIdx) + " box@" +
+                           std::to_string(bIdx) + " (session-transient, never saved)");
+    };
     // --- Step 202: debug3d console trigger (diagnostic hook, default OFF) ---
     // The pure parse lives in console.h (parseOnOff, CI-tested); this
     // handler carries the game-side state. Games boot exactly as
@@ -1107,7 +1143,7 @@ if (clip != animations.end()) {
     // angle is computed STATELESSLY each frame as speed * elapsed (no
     // matrix accumulation — that drifts and is untestable).
     float debug3dElapsed = 0.0f;
-    pe::registerCommand(console, "debug3d", [&debug3d, &camera](const std::vector<std::string>& args) {
+    pe::registerCommand(console, "debug3d", [&debug3d, &camera, &dropSandbox](const std::vector<std::string>& args) {
     // --- Step 213: debug3d cam — the eye/target console command ---
         // debug3d cam <ex> <ey> <ez> <tx> <ty> <tz> -> setEyeTargetUp
         // with a fixed up vector (pitch/yaw/free-fly out of scope). The
@@ -1123,6 +1159,13 @@ if (clip != animations.end()) {
                                   pe::Vec3(0.0f, 1.0f, 0.0f));
             camera.setFov(1.0472f);
             return std::string("debug3d cam reset");
+        }
+        // --- Step 231: the debug3d drop SUBCOMMAND - the documented
+        // syntax (the standalone "drop" command was the only route
+        // before; Cyril's playtest showed "debug3d drop" hit the usage
+        // line). Both routes share the one dropSandbox lambda.
+        if (args.size() == 1 && args[0] == "drop") {
+            return dropSandbox();
         }
         if (args.size() == 7 && args[0] == "cam") {
             float ex, ey, ez, tx, ty, tz;
@@ -1163,40 +1206,7 @@ if (clip != animations.end()) {
             std::cout << "[CONSOLE] debug3d state: " << (debug3d ? "ON" : "OFF") << std::endl;
             return std::string(debug3d ? "debug3d on" : "debug3d off");
         }
-        return std::string("usage: debug3d on|off|cam <6 floats>|fov <degrees>");
-    });
-        // --- Step 228: debug3d drop — the sandbox spawner (built on 227) ---
-    // Spawns a STATIC ground plane + a DYNAMIC bouncy box via the
-    // DEFERRED SPAWN QUEUE (queueSpawn; flushed at end-of-frame - safe
-    // anywhere). EXPLICIT DECISION: these entities are SESSION-TRANSIENT
-    // and EXCLUDED from any persisted/saved scene path - saveSceneToFile
-    // snapshots activeScene->entities which includes them ONLY while the
-    // session lives; a fresh session starts clean. This resolves the
-    // scene-persistence question open since the 214-218 fork: sandbox
-    // entities never pollute a saved file because they are bound to the
-    // live session's queue/lifecycle, not the scene's serialized state.
-    pe::registerCommand(console, "drop", [&](const std::vector<std::string>&) {
-        if (!activeScene) {
-            return std::string("drop: no active scene");
-        }
-        pe::Entity ground;
-        ground.position = pe::Vec3(0.0f, -3.0f, 0.0f);
-        ground.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
-        ground.halfExtents = pe::Vec3(4.0f, 0.5f, 4.0f);
-        ground.isStatic = true;
-        ground.meshId = 1;
-        ground.restitution = 0.0f;
-        const std::size_t gIdx = activeScene->queueSpawn(ground);
-        pe::Entity box;
-        box.position = pe::Vec3(0.0f, 2.0f, 0.0f);
-        box.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
-        box.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
-        box.meshId = 1;
-        box.restitution = 1.0f;   // bouncy: the fall flips to the entry height
-        box.gravityScale = 1.0f;  // the box actually falls
-        const std::size_t bIdx = activeScene->queueSpawn(box);
-        return std::string("drop: ground@" + std::to_string(gIdx) + " box@" +
-                           std::to_string(bIdx) + " (session-transient, never saved)");
+        return std::string("usage: debug3d on|off|cam <6 floats>|fov <degrees>|drop");
     });
     // --- Step 212: meshid console command (the live meshId consumer) ---
     // Sets meshId on an existing scene entity; with debug3d on, a cube
