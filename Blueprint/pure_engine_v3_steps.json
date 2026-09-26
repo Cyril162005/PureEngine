@@ -2343,6 +2343,19 @@
     202,
     193
    ]
+  },
+  {
+   "id": 216,
+   "name": "Console: debug3d cam reset + per-frame clobber fix",
+   "status": "completed",
+   "definition_of_done": "debug3d cam reset restores the documented defaults (eye (0,0,5), target origin, up (0,1,0)) + the default FOV (60 degrees, 215). REAL BUG FIXED (inspection first): the debug3d per-frame block called setEyeTargetUp((3,2,5)) EVERY FRAME - it clobbered the Step 213 cam command values (the cam set lasted one frame at most); the per-frame setEyeTargetUp REMOVED - the eye/target now come from the Camera defaults or the cam command and stick until changed.",
+   "notes": "The Step 213 cam command was effectively broken until this fix (the clobber was introduced in Step 204 block work, before the cam command existed - the two features landed in the wrong order). SMOKE optional. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    215,
+    213,
+    204
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
