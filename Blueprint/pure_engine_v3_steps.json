@@ -2318,6 +2318,18 @@
     196,
     202
    ]
+  },
+  {
+   "id": 214,
+   "name": "Renderer: drawEntity3D yaw from rotationAngle (T*R*S)",
+   "status": "completed",
+   "definition_of_done": "drawEntity3D model = translation * rotationY(rotationAngle) * scale. DECISION (stated): the 3D path REINTERPRETS the same rotationAngle number as YAW (rotation about +Y); the 2D path keeps it as a Z-rotation (spin in the XY plane) - SAME FIELD, AXIS PER MODE, documented in drawEntity3D. meshId==0 still the immediate no-op. checkEntity3DYaw (REQUIRED headless, exact axes): the model at pi/2 maps the +X local half-extent point (0.5,0,0) to (2,3,-1) EXACTLY (scale first, yaw turns +X toward -Z, translate) and the +Z local axis to (3,3,0) - the T*R*S order verified per-component.",
+   "notes": "SMOKE: meshid + debug3d, set the entity rotationAngle - the cube orientation changes. 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    211,
+    204
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
