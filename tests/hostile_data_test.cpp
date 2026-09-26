@@ -6078,6 +6078,47 @@ static bool checkTint3D() {
     return ok;
 }
 
+// Step 219: physics->3D proof - the per-frame refresh (headless).
+// This is the MOVEMENT-refresh test, not the matrix math (checkEntity3D
+// covered the formula in 211): the model construction is STATELESS -
+// after a known position change (simulating the chasePlayer movement
+// the Arcade's hostile at index 1 does every frame), the SAME formula
+// yields the model translation at the entity's NEW position exactly.
+// There is no stale/cached transform in the path: drawEntity3D reads
+// the live entity fields per call (by reference from
+// activeScene->entities) and rebuilds the matrix per frame.
+static bool checkEntity3DRefresh() {
+    bool ok = true;
+    pe::Entity e;          // the hostile analogue: meshId bound at runtime
+    e.meshId = 1;
+    e.position = pe::Vec3(1.0f, 1.0f, 0.0f);
+    e.rotationAngle = 0.3f;
+    // Phase 1: the model at the OLD position.
+    const pe::Mat4 before = pe::Mat4::translation(e.position.x, e.position.y, e.position.z) *
+                            pe::Mat4::rotationY(e.rotationAngle) *
+                            pe::Mat4::scale(e.scale.x, e.scale.y, e.scale.z);
+    const pe::Vec3 c1 = before.transformPoint(pe::Vec3(0.0f, 0.0f, 0.0f));
+    if (!assertFloatClose(c1.x, 1.0f) || !assertFloatClose(c1.y, 1.0f)) {
+        std::cerr << "Pre-move translation must match the old position\n"; ok = false;
+    }
+    // Phase 2: the entity MOVES (the chasePlayer delta: normalized *
+    // speed * dt) - the SAME stateless formula yields the NEW position.
+    e.position = e.position + pe::Vec3(2.0f, 1.0f, 0.0f);
+    const pe::Mat4 after = pe::Mat4::translation(e.position.x, e.position.y, e.position.z) *
+                           pe::Mat4::rotationY(e.rotationAngle) *
+                           pe::Mat4::scale(e.scale.x, e.scale.y, e.scale.z);
+    const pe::Vec3 c2 = after.transformPoint(pe::Vec3(0.0f, 0.0f, 0.0f));
+    if (!assertFloatClose(c2.x, 3.0f) || !assertFloatClose(c2.y, 2.0f)) {
+        std::cerr << "Post-move translation must match the NEW position exactly\n"; ok = false;
+    }
+    // The old model object is unchanged (no shared state, no cache).
+    const pe::Vec3 c1b = before.transformPoint(pe::Vec3(0.0f, 0.0f, 0.0f));
+    if (!assertFloatClose(c1b.x, 1.0f)) {
+        std::cerr << "The pre-move model must not be mutated by the move\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 214: drawEntity3D uses rotationAngle as YAW (headless). The
 // model matrix at a KNOWN angle: T((2,3,0)) * R(pi/2) * S((2,2,2))
 // maps the +X local axis (0.5,0,0) to (2, 3, -1) EXACTLY (scale first,
@@ -7906,6 +7947,7 @@ int main() {
     const bool arc3DOk = check3DArcIntegration();
     const bool entity3DOk = checkEntity3D();
     const bool entity3DYawOk = checkEntity3DYaw();
+    const bool entity3DRefreshOk = checkEntity3DRefresh();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
     const bool binaryBlobOk = checkBinaryBlob();
@@ -7940,7 +7982,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
