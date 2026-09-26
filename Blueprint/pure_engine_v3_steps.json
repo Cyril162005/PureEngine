@@ -2356,6 +2356,19 @@
     213,
     204
    ]
+  },
+  {
+   "id": 217,
+   "name": "Renderer: Entity::tint on the 3D debug draw",
+   "status": "completed",
+   "definition_of_done": "drawEntity3D (meshId>0) now drives the debug cube color from Entity::tint via drawEntityMesh3D (new: the unit-cube path with the color uniform from the caller instead of the fixed debug blue; same GL state handling - checker bind + depth save/enable/restore + depth-only clear). White default = the texel.rgb * white pass-through (pre-217 behavior unchanged). checkTint3D (REQUIRED headless): the tint field isolation (setting tint leaves meshId/mass/restitution/friction/position/scale/textureId/alive unchanged) + the pass-through formula + a real-context tinted meshId>0 entity renders (depth written; the COLOR pixels stay SMOKE).",
+   "notes": "SMOKE: a meshid entity with a non-white tint (the tinted pixels are SMOKE-only - CI never claims the color). One registration fix owned (the anchor assumed adjacent lines). 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    217,
+    210,
+    202
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
