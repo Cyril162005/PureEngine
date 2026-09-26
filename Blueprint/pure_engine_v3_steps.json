@@ -2330,6 +2330,19 @@
     211,
     204
    ]
+  },
+  {
+   "id": 215,
+   "name": "Camera setFov + debug3d fov <degrees> command",
+   "status": "completed",
+   "definition_of_done": "Camera::setFov (radians): updates the projection ONLY when perspectiveMode is on; the ortho path unchanged when off (the field updates silently for a later setPerspective). pe::parseFloat1 (single-float pure parse) + checkFovParse (REQUIRED headless): valid/decimal -> true + value out; garbage/empty/two-arg -> false + out UNCHANGED; setFov in perspectiveMode changes m[1][1] (fov 30 vs 60, EXACT Mat4::perspective comparison) and matches Mat4::perspective(30deg); setFov while OFF leaves the ortho projection byte-identical.",
+   "notes": "The debug3d fov command takes DEGREES (the command edge; the camera speaks radians - converted in the handler; garbage does not mutate the camera; range 0-180). SMOKE: fov 30 vs 90 changes the cube size on screen. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    215,
+    202,
+    193
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
