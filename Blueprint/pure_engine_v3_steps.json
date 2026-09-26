@@ -2383,6 +2383,19 @@
     216,
     217
    ]
+  },
+  {
+   "id": 219,
+   "name": "Physics->3D proof: the per-frame refresh on the hostile (index 1)",
+   "status": "completed",
+   "definition_of_done": "The SPECIFIC entity named: a HOSTILE (roleId == ArcadeRole::Hostile, INDEX 1 in the default arena list) - it moves every frame via chasePlayer (simulation.h:104: position += normalized * moveSpeed * dt) and its rotationAngle advances via advanceRotations. CONFIRMED (not assumed): drawEntity3D reads the LIVE position - the debug3d block loops activeScene->entities BY REFERENCE and the model is rebuilt from the live fields per call; NO cache/stale transform anywhere (no fix needed). Opt-in: the EXISTING meshid command (meshid 1 1) - no new command. checkEntity3DRefresh (headless): the two-phase refresh assert - the model at the OLD position, then after a known chasePlayer-style movement the SAME stateless formula yields the NEW position exactly; the pre-move model object unchanged (no shared state/cache).",
+   "notes": "SMOKE (7.9 updated): debug3d on + meshid 1 1 -> the cube FOLLOWS the chasing hostile; play normally and watch it chase. No materials, glTF, free-fly, Platformer ice, editor UI, ECS, no new entity-spawning commands (debug3d drop deferred pending the scene-persistence question). 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "62cc861",
+   "depends_on": [
+    218,
+    211,
+    212
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
