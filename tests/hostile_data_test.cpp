@@ -6017,6 +6017,67 @@ static bool checkRestitution() {
     return ok;
 }
 
+// Step 217: Entity::tint on the 3D debug draw (headless). The tint
+// field isolation: setting tint does not change meshId/mass/etc. (the
+// Step 210 isolation, extended with tint). The color PASS-THROUGH is
+// pure-computable only as the FORMULA (texel.rgb * tint - the shader
+// multiplies); the tinted pixels are SMOKE-only (SMOKE_TEST 7.9).
+// The real-context draw: a tinted meshId>0 entity renders via
+// drawEntityMesh3D (the tinted color uniform set - verified by the
+// draw not crashing + depth written; the COLOR pixels stay SMOKE).
+static bool checkTint3D() {
+    bool ok = true;
+    // Field isolation: setting tint leaves everything else unchanged.
+    pe::Entity e;
+    e.tint = pe::Vec3(1.0f, 0.5f, 0.25f);
+    if (e.meshId != 0 || e.mass != 1.0f || e.restitution != 0.5f ||
+        e.friction != 0.0f || e.position.x != 0.0f || e.scale.x != 1.0f ||
+        e.textureId != 0 || !e.alive) {
+        std::cerr << "Setting tint must leave all other fields unchanged\n";
+        ok = false;
+    }
+    // The pass-through formula: the 2D tint default (1,1,1) is white -
+    // the 3D draw with a white tint is the pre-217 behavior.
+    if (!assertFloatClose(e.tint.x, 1.0f * 1.0f)) {
+        std::cerr << "tint must pass through\n"; ok = false;
+    }
+    // Real context: a tinted meshId>0 entity renders via drawEntityMesh3D.
+    if (!glfwInit()) { std::cerr << "tint3d test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "tint3d", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "tint3d test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "tint3d test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        pe::Entity cube;          // meshId 0
+        cube.tint = pe::Vec3(0.2f, 0.8f, 0.4f);
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            cube.meshId = 1;
+            cube.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+            r.drawEntity3D(cube, cam.view(), cam.projection());
+            float depth = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+            if (!(depth < 1.0f)) {
+                std::cerr << "Tinted meshId>0 entity must render\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
 // Step 214: drawEntity3D uses rotationAngle as YAW (headless). The
 // model matrix at a KNOWN angle: T((2,3,0)) * R(pi/2) * S((2,2,2))
 // maps the +X local axis (0.5,0,0) to (2, 3, -1) EXACTLY (scale first,
@@ -7805,6 +7866,7 @@ int main() {
     const bool meshIdParseOk = checkMeshIdParse();
     const bool camParseOk = checkCamParse();
     const bool fovParseOk = checkFovParse();
+    const bool tint3DOk = checkTint3D();
     const bool entity3DOk = checkEntity3D();
     const bool entity3DYawOk = checkEntity3DYaw();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
@@ -7841,7 +7903,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

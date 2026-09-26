@@ -729,7 +729,55 @@ public:
         const Mat4 model = Mat4::translation(e.position.x, e.position.y, e.position.z) *
                            Mat4::rotationY(e.rotationAngle) *
                            Mat4::scale(e.scale.x, e.scale.y, e.scale.z);
-        drawDebugMesh3D(unitCubeVertices(), model, view, projection);
+        // Step 217: the entity tint drives the debug cube color
+        // (drawEntityMesh3D's color param; the unit-cube path's blue
+        // tint is the no-entity default). White default = the
+        // texel.rgb * white pass-through.
+        drawEntityMesh3D(unitCubeVertices(), model, view, projection,
+                         e.tint.x, e.tint.y, e.tint.z);
+    }
+
+    // Step 217: the tinted 3D entity mesh draw (the unit-cube path's
+    // color made explicit). Same GL state handling as drawDebugMesh3D
+    // (checker bind + depth save/enable/restore + depth-only clear);
+    // the color uniform comes from the caller instead of the fixed
+    // debug blue. White = texel.rgb * white pass-through.
+    void drawEntityMesh3D(const std::vector<float>& vertices, const Mat4& model,
+                          const Mat4& view, const Mat4& projection,
+                          float r, float g, float b) {
+        if (vertices.empty()) {
+            return;
+        }
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, checkerTexture);
+        glUseProgram(shaderProgram);
+        glUniform3f(colorLocation, r, g, b);
+        const GLboolean depthWasOn = glIsEnabled(GL_DEPTH_TEST);
+        glEnable(GL_DEPTH_TEST);
+        if (true) {
+            glClear(GL_DEPTH_BUFFER_BIT);
+        }
+        GLuint vao = 0, vbo = 0;
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &vbo);
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER,
+                     static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
+                     vertices.data(), GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        const Mat4 mvp = projection * view * model;
+        glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
+        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices.size() / 5));
+        if (depthWasOn == GL_FALSE) {
+            glDisable(GL_DEPTH_TEST);
+        }
+        glBindVertexArray(0);
+        glDeleteBuffers(1, &vbo);
+        glDeleteVertexArrays(1, &vao);
     }
 
     // Step 195: depth state (opt-in). THE POLICY: save the caller's
