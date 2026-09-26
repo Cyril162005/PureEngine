@@ -2446,6 +2446,19 @@
     200,
     222
    ]
+  },
+  {
+   "id": 224,
+   "name": "Checkpoint: physics-in-games closed + explicit deferrals",
+   "status": "completed",
+   "definition_of_done": "DOCS ONLY. The Step 208 finding is CLOSED: Pong wired (209) + Platformer ice/bouncy tiles (220); the Step 222 playtest verdict is recorded as PENDING (Cyril plays - his verdict is the completion criterion; tuning is a later step regardless). EXPLICITLY DEFERRED, not urgent: orbit-camera controls, meshId==2 second geometry, debug3d drop sandbox spawning (pending the scene-persistence question), physics->3D driving-3D-render bridge. The board records the deferrals.",
+   "notes": "No new render features - docs only. 2D non-regression: ctest 2/2, alive x3 True (unchanged).",
+   "commit": "(docs-only; see record commit)",
+   "depends_on": [
+    220,
+    222,
+    223
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
