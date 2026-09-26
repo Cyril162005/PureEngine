@@ -435,23 +435,6 @@ int main() {
                         move = -1.0f;
                     }
                 }
-                if (move != 0.0f) {
-                    // Step 220: while inputting, the input drives directly.
-                    player->velocity.x = move * kMoveSpeed;
-                } else if (!player->wasGrounded) {
-                    // Airborne, no input: keep momentum (no air friction).
-                } else {
-                    // Step 220: grounded, no input - the tile's ground
-                    // friction decays the slide (the ice tile's friction 0
-                    // = no decay = the player keeps sliding; the default
-                    // ground's 0.8 stops in ~3 substeps).
-                }
-                const bool jumpEdge =
-                    input.isActionEdge(window, pe::Action::Jump, &prevPad, &curPad);
-                if (jumpEdge && player->wasGrounded) {
-                    audio.playNext();
-                    std::cout << "platformer: jump" << std::endl;
-                }
                 // Tiles become static bodies for the controller (no logic
                 // duplicated: converter builds them, one flag marks them).
                 std::vector<pe::Entity> tileStatics =
@@ -480,6 +463,27 @@ int main() {
                 // and its grounding scan sees it — the carry is positional.
                 if (platform) {
                     tileStatics.push_back(*platform);
+                }
+                if (move != 0.0f) {
+                    // Step 220: while inputting, the input drives directly.
+                    player->velocity.x = move * kMoveSpeed;
+                } else if (!player->wasGrounded) {
+                    // Airborne, no input: keep momentum (no air friction).
+                } else {
+                    // Step 226 (Cyril's verdict: the decay felt wrong):
+                    // grounded, no input - INSTANT stop on any ground
+                    // with friction > 0 (the default ground); the ICE
+                    // tile (friction 0) keeps sliding - the slippery
+                    // physics stay on the actual ice tiles only.
+                    if (pe::groundFrictionAt(*player, tileStatics) > 0.0f) {
+                        player->velocity.x = 0.0f;
+                    }
+                }
+                const bool jumpEdge =
+                    input.isActionEdge(window, pe::Action::Jump, &prevPad, &curPad);
+                if (jumpEdge && player->wasGrounded) {
+                    audio.playNext();
+                    std::cout << "platformer: jump" << std::endl;
                 }
                 // Physics P5: opt into the fixed-substep controller (Step
                 // 87) — a fast fall cannot tunnel a 1-unit tile in one

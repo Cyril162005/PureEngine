@@ -372,6 +372,29 @@ inline bool checkGrounded(const Entity& character,
 // thickness (fast projectiles, fast platforms) or when the 8-substep
 // clamp is insufficient. Composes with the Fixed wrapper: substeps
 // split dt, the sweep catches whatever a substep would still tunnel.
+// Step 226: the ground friction UNDER the character (pure, testable) —
+// the friction of the tile the character actually rests on (the
+// checkGrounded geometry, <= boundary like the decay scan), or 0 when
+// nothing is under it. The CALLER decides the stop policy: friction > 0
+// = instant stop; friction 0 (ice) = slide.
+inline float groundFrictionAt(const Entity& character,
+                              const std::vector<Entity>& staticEntities) {
+    const float chx = character.halfExtents.x * character.scale.x;
+    const float chy = character.halfExtents.y * character.scale.y;
+    for (const Entity& wall : staticEntities) {
+        if (!wall.isStatic && !wall.isKinematic) continue;
+        const float whx = wall.halfExtents.x * wall.scale.x;
+        const float why = wall.halfExtents.y * wall.scale.y;
+        const float gx = wall.position.x - character.position.x;
+        const float gy = wall.position.y - character.position.y;
+        if ((gx >= 0.0f ? gx : -gx) <= chx + whx &&
+            (gy >= 0.0f ? gy : -gy) <= chy + why) {
+            return wall.friction;
+        }
+    }
+    return 0.0f;
+}
+
 inline bool updateCharacterController(Entity& character,
                                       const std::vector<Entity>& staticEntities,
                                       float dt,
