@@ -1108,7 +1108,7 @@ if (clip != animations.end()) {
     // matrix accumulation — that drifts and is untestable).
     float debug3dElapsed = 0.0f;
     pe::registerCommand(console, "debug3d", [&debug3d, &camera](const std::vector<std::string>& args) {
-        // --- Step 213: debug3d cam — the eye/target console command ---
+    // --- Step 213: debug3d cam — the eye/target console command ---
         // debug3d cam <ex> <ey> <ez> <tx> <ty> <tz> -> setEyeTargetUp
         // with a fixed up vector (pitch/yaw/free-fly out of scope). The
         // parse is engine-pure (parseFloat6, CI-tested); garbage fails
@@ -1153,6 +1153,39 @@ if (clip != animations.end()) {
             return std::string(debug3d ? "debug3d on" : "debug3d off");
         }
         return std::string("usage: debug3d on|off|cam <6 floats>|fov <degrees>");
+    });
+        // --- Step 228: debug3d drop — the sandbox spawner (built on 227) ---
+    // Spawns a STATIC ground plane + a DYNAMIC bouncy box via the
+    // DEFERRED SPAWN QUEUE (queueSpawn; flushed at end-of-frame - safe
+    // anywhere). EXPLICIT DECISION: these entities are SESSION-TRANSIENT
+    // and EXCLUDED from any persisted/saved scene path - saveSceneToFile
+    // snapshots activeScene->entities which includes them ONLY while the
+    // session lives; a fresh session starts clean. This resolves the
+    // scene-persistence question open since the 214-218 fork: sandbox
+    // entities never pollute a saved file because they are bound to the
+    // live session's queue/lifecycle, not the scene's serialized state.
+    pe::registerCommand(console, "drop", [&](const std::vector<std::string>&) {
+        if (!activeScene) {
+            return std::string("drop: no active scene");
+        }
+        pe::Entity ground;
+        ground.position = pe::Vec3(0.0f, -3.0f, 0.0f);
+        ground.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        ground.halfExtents = pe::Vec3(4.0f, 0.5f, 4.0f);
+        ground.isStatic = true;
+        ground.meshId = 1;
+        ground.restitution = 0.0f;
+        const std::size_t gIdx = activeScene->queueSpawn(ground);
+        pe::Entity box;
+        box.position = pe::Vec3(0.0f, 2.0f, 0.0f);
+        box.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+        box.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+        box.meshId = 1;
+        box.restitution = 1.0f;   // bouncy: the fall flips to the entry height
+        box.gravityScale = 1.0f;  // the box actually falls
+        const std::size_t bIdx = activeScene->queueSpawn(box);
+        return std::string("drop: ground@" + std::to_string(gIdx) + " box@" +
+                           std::to_string(bIdx) + " (session-transient, never saved)");
     });
     // --- Step 212: meshid console command (the live meshId consumer) ---
     // Sets meshId on an existing scene entity; with debug3d on, a cube
@@ -2068,6 +2101,10 @@ if (clip != animations.end()) {
             }
             camera.setOrthographicMode();
         }
+
+        // Step 227/228: the deferred spawn queue flushes at
+        // end-of-frame, OUTSIDE any entity iteration.
+        activeScene->flushSpawns();
 
         // C. Swap buffers
         // GLFW uses double buffering. This swaps the front buffer (what we see)
