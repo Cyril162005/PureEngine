@@ -6316,6 +6316,44 @@ static bool check3DArcIntegration() {
     return ok;
 }
 
+// Step 229: orbitEye (debug3d-only; headless, tight tolerance). The
+// target is UNCHANGED; the eye moves on the XZ circle of the SAME
+// radius; the Y coordinate is preserved; two opposite half-turn orbits
+// return the eye; the full-turn orbit returns exactly; a degenerate
+// eye-on-target is a no-op. debug3d OFF: never called.
+static bool checkOrbitEye() {
+    bool ok = true;
+    pe::Camera cam;
+    cam.setEyeTargetUp(pe::Vec3(5.0f, 2.0f, 0.0f), pe::Vec3(0.0f, 0.0f, 0.0f),
+                       pe::Vec3(0.0f, 1.0f, 0.0f));
+    // The target unchanged + the Y preserved + the radius preserved.
+    cam.orbitEye(3.14159265358979f);   // a half turn: the eye -> (-5, 2, ~0)
+    const pe::Vec3 eye1 = cam.getOrbitProbe();
+    if (!assertFloatClose(eye1.x, -5.0f) || !assertFloatClose(eye1.y, 2.0f)) {
+        std::cerr << "Half-turn orbit moved the eye wrong\n"; ok = false;
+    }
+    // Full turn: back to the start (two half turns).
+    cam.orbitEye(3.14159265358979f);
+    const pe::Vec3 eye2 = cam.getOrbitProbe();
+    if (!assertFloatClose(eye2.x, 5.0f) || !assertFloatClose(eye2.y, 2.0f)) {
+        std::cerr << "Full-turn orbit must return the eye\n"; ok = false;
+    }
+    // The radius preserved through the orbits (distance to target).
+    const float dx = eye2.x, dz = eye2.z;
+    if (!assertFloatClose(dx*dx + dz*dz, 25.0f)) {
+        std::cerr << "Orbit must preserve the radius\n"; ok = false;
+    }
+    // Degenerate: the eye ON the target is a no-op.
+    cam.setEyeTargetUp(pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(0.0f, 0.0f, 0.0f),
+                       pe::Vec3(0.0f, 1.0f, 0.0f));
+    cam.orbitEye(1.0f);
+    const pe::Vec3 eye3 = cam.getOrbitProbe();
+    if (!assertFloatClose(eye3.x, 0.0f) || !assertFloatClose(eye3.y, 0.0f)) {
+        std::cerr << "Degenerate orbit must be a no-op\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 213: debug3d cam - the eye/target console command's REQUIRED
 // headless parse evidence. parseFloat6 (engine-pure numbers):
 //   - valid 6 floats -> true, all six values out EXACTLY;
@@ -8111,6 +8149,7 @@ int main() {
     const bool meshHandleOk = checkMeshHandle();
     const bool meshIdParseOk = checkMeshIdParse();
     const bool camParseOk = checkCamParse();
+    const bool orbitOk = checkOrbitEye();
     const bool fovParseOk = checkFovParse();
     const bool tint3DOk = checkTint3D();
     const bool arc3DOk = check3DArcIntegration();
@@ -8151,7 +8190,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

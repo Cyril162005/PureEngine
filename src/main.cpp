@@ -1135,6 +1135,17 @@ if (clip != animations.end()) {
             }
             return std::string("usage: debug3d cam <ex> <ey> <ez> <tx> <ty> <tz>");
         }
+        // --- Step 229: debug3d orbit <degrees> - the eye orbits the
+        // target on the XZ plane (pure orbitEye; Q/E keys also orbit in
+        // the debug3d block below). Garbage does not mutate the camera.
+        if (args.size() == 2 && args[0] == "orbit") {
+            float deg = 0.0f;
+            if (pe::parseFloat1({args[1]}, deg)) {
+                camera.orbitEye(deg * 3.14159265358979f / 180.0f);
+                return std::string("debug3d orbit");
+            }
+            return std::string("usage: debug3d orbit <degrees>");
+        }
         // --- Step 215: debug3d fov <degrees> ---
         // FOV in DEGREES (the command's edge; the camera speaks radians
         // - converted here). Garbage does not mutate the camera.

@@ -225,6 +225,30 @@ public:
         rebuildProjection(halfWidth / halfHeight);
     }
 
+    // Step 229: orbit the eye around the lookTarget on the XZ plane
+    // (debug3d-only; pure math, testable). deltaRadians > 0 orbits one
+    // way, < 0 the other; the TARGET is unchanged (the eye moves on the
+    // circle of radius |eye - target| centered on the target). The Y
+    // coordinate is preserved (an XZ-plane orbit). debug3d OFF: never
+    // called (the orbit is the console path's tool).
+    // Step 229: read-only eye probe (the orbit tests observe the eye;
+    // the eye has no other getter).
+    Vec3 getOrbitProbe() const { return eye; }
+
+    void orbitEye(float deltaRadians) {
+        const Vec3 offset = eye - lookTarget;
+        // Step 229 fix: the radius is the XZ-ONLY distance (the orbit is
+        // an XZ-PLANE circle) - the 3D length would leak the eye's
+        // height into the radius (5.385 = sqrt(25+4) was the bug).
+        const float radius = std::sqrt(offset.x * offset.x + offset.z * offset.z);
+        if (radius <= 0.0f) {
+            return;   // degenerate: the eye sits on the target axis
+        }
+        const float angle = deltaRadians + std::atan2(offset.z, offset.x);
+        eye.x = lookTarget.x + radius * std::cos(angle);
+        eye.z = lookTarget.z + radius * std::sin(angle);
+    }
+
     // Step 215: FOV setter (radians). Updates the projection ONLY when
     // perspectiveMode is on; the ortho path is unchanged when the mode
     // is off (the field updates so a later setPerspective uses it).
