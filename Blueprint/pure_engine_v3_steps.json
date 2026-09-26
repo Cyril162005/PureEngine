@@ -2496,6 +2496,19 @@
     223,
     200
    ]
+  },
+  {
+   "id": 228,
+   "name": "Console: debug3d drop sandbox (built on the 227 queue)",
+   "status": "completed",
+   "definition_of_done": "debug3d drop spawns a STATIC ground plane + a DYNAMIC bouncy box (restitution 1, gravityScale 1) via the DEFERRED SPAWN QUEUE (queueSpawn; flushed at end-of-frame, outside any entity iteration); both carry meshId 1 (the 3D render path). EXPLICIT DECISION (stated in code + here): these entities are SESSION-TRANSIENT and EXCLUDED from any persisted/saved scene path - they bind to the live session queue/lifecycle, not the scene serialized state; a fresh session starts clean. This RESOLVES the scene-persistence question open since the 214-218 fork.",
+   "notes": "Fix owned: the drop command initially landed INSIDE the debug3d lambda (the anchor was the cam comment at the top of the lambda body) - the nested [&] could not capture console/activeScene (the enclosing lambda captured only [&debug3d,&camera]); moved out after the lambda close. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    227,
+    211,
+    205
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
