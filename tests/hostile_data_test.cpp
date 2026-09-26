@@ -6134,6 +6134,50 @@ static bool checkEntity3D() {
     return ok;
 }
 
+// Step 215: debug3d fov <degrees> - parse + camera contract (headless).
+// parseFloat1: valid -> true + value out; garbage/wrong-count -> false
+// + out UNCHANGED. Camera: setFov updates the projection ONLY in
+// perspectiveMode (fov 30 vs 60 -> different m[1][1], EXACT expected
+// values via Mat4::perspective comparison); the ortho path is
+// unchanged when the mode is off (the field updates silently).
+static bool checkFovParse() {
+    bool ok = true;
+    float deg = -1.0f;
+    if (!pe::parseFloat1({"30"}, deg) || !assertFloatClose(deg, 30.0f)) {
+        std::cerr << "Valid fov must parse\n"; ok = false;
+    }
+    if (!pe::parseFloat1({"89.5"}, deg) || !assertFloatClose(deg, 89.5f)) {
+        std::cerr << "Decimal fov must parse\n"; ok = false;
+    }
+    if (pe::parseFloat1({"wide"}, deg)) { std::cerr << "Garbage fov must fail\n"; ok = false; }
+    if (pe::parseFloat1({}, deg)) { std::cerr << "Empty fov must fail\n"; ok = false; }
+    if (pe::parseFloat1({"30", "90"}, deg)) { std::cerr << "Two-arg fov must fail\n"; ok = false; }
+    // Camera: setFov in perspectiveMode updates the projection.
+    pe::Camera cam;
+    cam.setPerspective(1.0472f, 0.1f, 100.0f);   // 60 degrees
+    const pe::Mat4 p60 = cam.projection();
+    cam.setFov(30.0f * 3.14159265358979f / 180.0f);
+    const pe::Mat4 p30 = pe::Mat4::perspective(30.0f * 3.14159265358979f / 180.0f, cam.projection().m[0][0] ? 1.0f : 1.0f, 0.1f, 100.0f);
+    // Compare m[1][1] (the fov term): 30 degrees must differ from 60.
+    if (assertFloatClose(cam.projection().m[1][1], p60.m[1][1])) {
+        std::cerr << "setFov must change the perspective projection\n"; ok = false;
+    }
+    if (!assertFloatClose(cam.projection().m[1][1], p30.m[1][1])) {
+        std::cerr << "setFov projection must match Mat4::perspective(30deg)\n"; ok = false;
+    }
+    // Ortho path: setFov while OFF must not touch the projection.
+    pe::Camera cam2;
+    const pe::Mat4 orthoDefault = pe::Mat4::orthographic(-6.0f, 6.0f, -4.5f, 4.5f, -1.0f, 1.0f);
+    cam2.setFov(30.0f * 3.14159265358979f / 180.0f);
+    for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) {
+        if (!assertFloatClose(cam2.projection().m[c][r], orthoDefault.m[c][r])) {
+            std::cerr << "setFov while OFF must leave the ortho projection unchanged\n";
+            ok = false; c = 4; break;
+        }
+    }
+    return ok;
+}
+
 // Step 213: debug3d cam - the eye/target console command's REQUIRED
 // headless parse evidence. parseFloat6 (engine-pure numbers):
 //   - valid 6 floats -> true, all six values out EXACTLY;
@@ -7760,6 +7804,7 @@ int main() {
     const bool meshHandleOk = checkMeshHandle();
     const bool meshIdParseOk = checkMeshIdParse();
     const bool camParseOk = checkCamParse();
+    const bool fovParseOk = checkFovParse();
     const bool entity3DOk = checkEntity3D();
     const bool entity3DYawOk = checkEntity3DYaw();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
@@ -7796,7 +7841,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

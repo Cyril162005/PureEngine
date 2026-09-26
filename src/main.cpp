@@ -1125,13 +1125,24 @@ if (clip != animations.end()) {
             }
             return std::string("usage: debug3d cam <ex> <ey> <ez> <tx> <ty> <tz>");
         }
+        // --- Step 215: debug3d fov <degrees> ---
+        // FOV in DEGREES (the command's edge; the camera speaks radians
+        // - converted here). Garbage does not mutate the camera.
+        if (args.size() == 2 && args[0] == "fov") {
+            float deg = 0.0f;
+            if (pe::parseFloat1({args[1]}, deg) && deg > 0.0f && deg < 180.0f) {
+                camera.setFov(deg * 3.14159265358979f / 180.0f);
+                return std::string("debug3d fov set");
+            }
+            return std::string("usage: debug3d fov <degrees 0-180>");
+        }
         if (pe::parseOnOff(args, debug3d)) {
             // Step 202 amendment: runtime log — the command's state is
             // visible in the launching terminal (SMOKE-only evidence).
             std::cout << "[CONSOLE] debug3d state: " << (debug3d ? "ON" : "OFF") << std::endl;
             return std::string(debug3d ? "debug3d on" : "debug3d off");
         }
-        return std::string("usage: debug3d on|off|cam <6 floats>");
+        return std::string("usage: debug3d on|off|cam <6 floats>|fov <degrees>");
     });
     // --- Step 212: meshid console command (the live meshId consumer) ---
     // Sets meshId on an existing scene entity; with debug3d on, a cube

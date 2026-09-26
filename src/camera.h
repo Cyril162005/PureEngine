@@ -224,6 +224,16 @@ public:
         perspectiveMode = false;
         rebuildProjection(halfWidth / halfHeight);
     }
+
+    // Step 215: FOV setter (radians). Updates the projection ONLY when
+    // perspectiveMode is on; the ortho path is unchanged when the mode
+    // is off (the field updates so a later setPerspective uses it).
+    void setFov(float fovyRadians) {
+        fovY = fovyRadians;
+        if (perspectiveMode) {
+            rebuildProjection(halfWidth / halfHeight);
+        }
+    }
     bool isPerspective() const { return perspectiveMode; }
 
 private:

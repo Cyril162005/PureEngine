@@ -329,6 +329,21 @@ inline bool parseIndexId(const std::vector<std::string>& args,
     return true;
 }
 
+// Step 215: single-float argument parse (pure numbers, engine-pure).
+// One token must parse as a float; anything else leaves out UNCHANGED
+// and returns false.
+inline bool parseFloat1(const std::vector<std::string>& args, float& out) {
+    if (args.size() != 1) {
+        return false;
+    }
+    try {
+        out = std::stof(args[0]);
+    } catch (...) {
+        return false;
+    }
+    return true;
+}
+
 // Step 213: six-float argument parse (pure numbers — engine-pure, no
 // camera/entity knowledge). All six tokens must parse as floats;
 // anything else (wrong count, garbage) leaves out UNCHANGED and
