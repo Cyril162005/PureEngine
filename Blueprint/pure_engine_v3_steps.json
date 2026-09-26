@@ -2305,6 +2305,19 @@
     202,
     210
    ]
+  },
+  {
+   "id": 213,
+   "name": "Console: debug3d cam eye/target command",
+   "status": "completed",
+   "definition_of_done": "debug3d cam <ex> <ey> <ez> <tx> <ty> <tz> -> setEyeTargetUp(eye, target, fixed up (0,1,0)); pitch/yaw/free-fly out of scope. pe::parseFloat6 (console.h, engine-pure numbers) + checkCamParse (REQUIRED headless parse evidence): valid 6 floats -> true + all values out EXACTLY; negative/decimal/exp values parse; wrong count (5/7)/garbage/empty -> false + out UNCHANGED (no camera mutation). The camera side already held: checkView3D (196) proves a successful setEyeTargetUp leaves the exact eye/target (view-from-known-inputs) and the isolation contract (ortho/2D follow unaffected while perspectiveMode is off).",
+   "notes": "The debug3d handler now takes the camera too ([&debug3d, &camera]); the on/off path unchanged. SMOKE-only: with debug3d + meshid set, debug3d cam moves the view - the cube from a new angle (SMOKE 7.9 updated). Pong/Platformer untouched. No free-fly FPS controller, materials, glTF, physics->3D bridge, editor UI, ECS. 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "41fce5b",
+   "depends_on": [
+    212,
+    196,
+    202
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
