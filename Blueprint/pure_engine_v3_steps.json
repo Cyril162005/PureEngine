@@ -2471,6 +2471,19 @@
     220,
     192
    ]
+  },
+  {
+   "id": 226,
+   "name": "Platformer: instant stop restored (Cyril verdict); ice keeps sliding",
+   "status": "completed",
+   "definition_of_done": "CYRIL PLAYTEST VERDICT (the actual result, Step 222 closed): the normal floor felt way too slippery (one move and it slides all) - WRONG. FIX: grounded + no input -> INSTANT stop on any ground with friction > 0 (the default ground - byte-identical to pre-220); the ICE tile (friction 0) keeps sliding (the slippery physics stay on the actual ice tiles). pe::groundFrictionAt (new pure helper: the friction of the tile the character rests on, the checkGrounded geometry with the <= boundary, 0 if none) + the platformer input gate reads it; the tileStatics build moved before the input (use-before-declaration fix).",
+   "notes": "The Step 222 verdict is now CLOSED (the playtest happened + the fix landed). The controller friction-decay mechanism stays (proven by checkTileResolve) - the input zero runs first on the default ground so the decay is moot there; the ice tile (friction 0) skips both. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    226,
+    220,
+    222
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
