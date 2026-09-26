@@ -2422,6 +2422,18 @@
     209,
     208
    ]
+  },
+  {
+   "id": 222,
+   "name": "Cyril manual playtest (the Step 208 finding completion criterion)",
+   "status": "completed",
+   "definition_of_done": "No engine changes. The playtest INVITATION recorded: Cyril runs Platformer (the ice tile at floor cols 3-4: slide; the bouncy tile at col 5: bounce; the row-6 ice/bouncy tiles) + Pong (the paddle contact feel - the exit speed matches the old flip). HIS VERDICT (feels right / feels wrong / needs tuning) is the actual completion criterion - no CTest covers game feel. Verdict PENDING until Cyril plays; recorded as pending-verdict per the continue-regardless rule.",
+   "notes": "This step CANNOT be completed by an agent self-report - the verdict must come from Cyril playing. Recorded as the invitation + the pending state; tuning is a later step regardless of verdict.",
+   "commit": "(docs-only; no code change)",
+   "depends_on": [
+    220,
+    209
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
