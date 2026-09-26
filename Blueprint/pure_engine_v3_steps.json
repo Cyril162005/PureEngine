@@ -2292,6 +2292,19 @@
     194,
     193
    ]
+  },
+  {
+   "id": 212,
+   "name": "Console: meshid command (live meshId consumer)",
+   "status": "completed",
+   "definition_of_done": "console command meshid <index> <id> sets meshId on an existing scene entity (with debug3d on, a cube renders at its position via drawEntity3D). pe::parseIndexId (console.h, engine-pure numbers with a caller-supplied entity-count bound) + checkMeshIdParse (REQUIRED pure-parse test, same pattern as checkDebug3dParse): valid index+id -> true + values out; OOB index (>= maxIndex, negative) -> false + out UNCHANGED; garbage/non-integer/wrong-count/zero-bound -> false; the field-isolation side already proven (checkMeshHandle, 210).",
+   "notes": "Pong/Platformer never set meshId. No physics bridging this step (the physics-driving-3D-render option is deliberately deferred to its own step). SMOKE-only: a cube at the entity position with debug3d on (SMOKE 7.9 updated with the meshid invocation). No materials, glTF, forcing 3D on games, editor UI, ECS. 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "4b47155",
+   "depends_on": [
+    211,
+    202,
+    210
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
