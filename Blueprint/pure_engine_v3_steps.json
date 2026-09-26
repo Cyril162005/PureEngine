@@ -2369,6 +2369,20 @@
     210,
     202
    ]
+  },
+  {
+   "id": 218,
+   "name": "3D arc checkpoint (docs + board + integration glue test)",
+   "status": "completed",
+   "definition_of_done": "The 3D stack documented in the board/PURE_ENGINE_V3: perspective (191), camera mode (193), mesh (194), depth (195), lookAt (196), meshId (210), drawEntity3D (211), meshid (212), cam (213), fov (215), reset (216), tint (217), rotation-yaw (214). NOT STARTED listed: physics->3D proof scene, materials, glTF, free-fly, full 3D game. Optional CTest landed: check3DArcIntegration (meshId>0 + rotation + tint + physics fields COEXIST on one entity - the composed model matrix exact at the known yaw; the isolation contracts hold together).",
+   "notes": "No new render features required - docs + one glue test. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    214,
+    215,
+    216,
+    217
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

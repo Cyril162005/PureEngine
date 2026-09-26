@@ -153,6 +153,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 187: INPUT slice verify pass (Steps 51-60) — already holds; rebind re-adopt residual noted — recorded (153 entries)
 - . Step 188: ANIMATION slice verify pass (Steps 61-70) — already holds; multi-track/blend later-not-started — recorded (154 entries)
 - . Step 189: AUDIO slice verify pass (Steps 71-80) — already holds — recorded (155 entries). 80-step run COMPLETE: full ctest 2/2 + alive x3, all departments verified.
+- . Steps 214-218: the 3D arc chain - drawEntity3D yaw from rotationAngle (214), debug3d fov (215), cam reset + the per-frame setEyeTargetUp clobber fix (216 - the Step 213 cam command was broken until this), Entity::tint on the 3D debug draw via drawEntityMesh3D (217), and the 3D arc checkpoint with an integration glue test (218) - recorded (183 entries). 2D non-regression held every step.
 - . Step 176: Audio simultaneous SFX+music volume matrix (headless) — recorded (142 entries); chain-reference sweep into 175 disclosed
 - . Step 177: Input Input(vector) adoption ctor + union-order contract test — recorded (143 entries)
 - . Step 178: Scene prefab-scene failure matrix headless contract — recorded (144 entries)
