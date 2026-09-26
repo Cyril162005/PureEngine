@@ -2410,6 +2410,18 @@
     207,
     220
    ]
+  },
+  {
+   "id": 221,
+   "name": "VERIFY-ONLY: Pong ball-paddle already wired (Step 209 landed it)",
+   "status": "completed",
+   "definition_of_done": "Verify-and-record: the prompt assumed no tracker record - the ACTUAL finding is that Step 209 (commit 91bf676) ALREADY wired the ball-paddle through resolveCollision (kinematic paddles, ball e=1.0 - the exit speed matches the old flip exactly; friction 0; walls keep the threshold flip). Confirmed in source (pong.cpp:212-224) + the tracker (Step 209). Nothing to wire; no intentional deviation to state (the deviation was already stated in the 209 record).",
+   "notes": "Skipped to 222 per the already-wired ruling. 2D non-regression: ctest 2/2 green.",
+   "commit": "(verify-only; no code change)",
+   "depends_on": [
+    209,
+    208
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
