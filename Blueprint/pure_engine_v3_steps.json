@@ -2522,6 +2522,18 @@
     213,
     196
    ]
+  },
+  {
+   "id": 230,
+   "name": "Mesh3D: pyramid second geometry (meshId==2)",
+   "status": "completed",
+   "definition_of_done": "pyramidVertices (mesh3d.h): a 4-sided pyramid - a square base (2 triangles) + 4 side triangles to the apex (0,0.5,0) = 18 vertices x 5 floats, the same aPos+aTexCoord layout. drawEntity3D dispatch: meshId 1 = cube, meshId 2 = pyramid, meshId > 2 FALLS BACK to the cube, meshId 0 = no mesh. checkPyramidMesh (headless): the vertex counts per meshId (36/18/36-fallback), the apex at max Y (0.5), the base at y=-0.5.",
+   "notes": "No materials, glTF, ECS. 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "(see record commit)",
+   "depends_on": [
+    230,
+    211
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
