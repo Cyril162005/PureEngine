@@ -2459,6 +2459,18 @@
     222,
     223
    ]
+  },
+  {
+   "id": 225,
+   "name": "VERIFY-ONLY: bouncy-tile tunneling threshold not reached",
+   "status": "completed",
+   "definition_of_done": "VERIFY-ONLY (headless math, no code change): the Step 192 useSwept threshold is NOT reached - the player per-substep displacement = maxFallSpeed(25) * dt(1/60) = 0.417 < the 1.0 tile thickness. Restitution 1 preserves |vy| at the CLAMP (repeated bounces cannot exceed 25); the clamp bounds every fall. checkBounceTunneling: the threshold math asserted + a 3-bounce sequence from an extreme fall (-40) respects the clamp and stays under the thickness. useSwept stays OFF for the player controller.",
+   "notes": "No code change - the threshold is unreachable while maxFallSpeed clamps at 25. 2D non-regression: ctest 2/2, alive x3 True. First-try green.",
+   "commit": "(verify-only; no code change)",
+   "depends_on": [
+    220,
+    192
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
