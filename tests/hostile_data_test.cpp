@@ -6239,6 +6239,42 @@ static bool checkFovParse() {
     return ok;
 }
 
+// Step 218: the 3D arc checkpoint - one integration assert chain
+// (docs-only step; this glue is the single test). The FULL 3D stack
+// COEXISTS on one entity: meshId>0 + rotationAngle (yaw) + tint +
+// position/scale - the composed model matrix is exact, and the fields
+// are mutually isolated (setting one never disturbs the others - the
+// Step 210/217 isolation contracts hold together).
+static bool check3DArcIntegration() {
+    bool ok = true;
+    pe::Entity e;
+    e.meshId = 1;
+    e.rotationAngle = 1.5707963267948966f;
+    e.tint = pe::Vec3(0.9f, 0.3f, 0.6f);
+    e.position = pe::Vec3(4.0f, -1.0f, 2.0f);
+    e.scale = pe::Vec3(3.0f, 3.0f, 3.0f);
+    e.mass = 2.0f;
+    e.restitution = 0.8f;
+    e.friction = 0.4f;
+    // All fields coexist (no aliasing): re-read each.
+    if (e.meshId != 1 || e.mass != 2.0f || e.restitution != 0.8f ||
+        e.friction != 0.4f) {
+        std::cerr << "3D + physics fields must coexist\n"; ok = false;
+    }
+    // The composed model at the known yaw: T * R(pi/2) * S(3).
+    const pe::Mat4 model = pe::Mat4::translation(e.position.x, e.position.y, e.position.z) *
+                           pe::Mat4::rotationY(e.rotationAngle) *
+                           pe::Mat4::scale(e.scale.x, e.scale.y, e.scale.z);
+    // The +X local half-extent (0.5,0,0): scale -> (1.5,0,0); yaw ->
+    // (0,0,-1.5); translate -> (4, -1, 0.5). EXACT.
+    const pe::Vec3 p = model.transformPoint(pe::Vec3(0.5f, 0.0f, 0.0f));
+    if (!assertFloatClose(p.x, 4.0f) || !assertFloatClose(p.y, -1.0f) ||
+        !assertFloatClose(p.z, 0.5f)) {
+        std::cerr << "3D arc composed model wrong\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 213: debug3d cam - the eye/target console command's REQUIRED
 // headless parse evidence. parseFloat6 (engine-pure numbers):
 //   - valid 6 floats -> true, all six values out EXACTLY;
@@ -7867,6 +7903,7 @@ int main() {
     const bool camParseOk = checkCamParse();
     const bool fovParseOk = checkFovParse();
     const bool tint3DOk = checkTint3D();
+    const bool arc3DOk = check3DArcIntegration();
     const bool entity3DOk = checkEntity3D();
     const bool entity3DYawOk = checkEntity3DYaw();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
@@ -7903,7 +7940,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
