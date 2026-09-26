@@ -1116,6 +1116,21 @@ if (clip != animations.end()) {
         }
         return std::string("usage: debug3d on|off");
     });
+    // --- Step 212: meshid console command (the live meshId consumer) ---
+    // Sets meshId on an existing scene entity; with debug3d on, a cube
+    // renders at its position (drawEntity3D). The parse is engine-pure
+    // (parseIndexId, CI-tested incl. the OOB index).
+    pe::registerCommand(console, "meshid", [&](const std::vector<std::string>& args) {
+        int idx = -1, id = 0;
+        const std::size_t count = activeScene ? activeScene->entities.size() : 0;
+        if (!pe::parseIndexId(args, count, idx, id)) {
+            return std::string("usage: meshid <index> <id> (entity count "
+                               + std::to_string(count) + ")");
+        }
+        activeScene->entities[idx].meshId = id;
+        return std::string("meshid: entity " + std::to_string(idx) +
+                           " -> mesh " + std::to_string(id));
+    });
     // --- Step 130: pick console command (live consumer for Steps 127-129) ---
     // Reads the current mouse snapshot, converts pixels -> world via the
     // Step 128 wrapper (pickEntityAtScreen composes screenToWorld +

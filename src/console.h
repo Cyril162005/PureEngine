@@ -304,6 +304,31 @@ inline bool parseOnOff(const std::vector<std::string>& args, bool& out) {
     return false;
 }
 
+// Step 212: index+id argument parse with a caller-supplied bound
+// (pure numbers — the console knows no entities). Both tokens must
+// parse as integers; an index < 0 or >= maxIndex fails (the caller's
+// range as data — testable headlessly, same discipline as parseOnOff);
+// anything else leaves out UNCHANGED and returns false.
+inline bool parseIndexId(const std::vector<std::string>& args,
+                         std::size_t maxIndex, int& outIndex, int& outId) {
+    if (args.size() != 2) {
+        return false;
+    }
+    int idx = 0, id = 0;
+    try {
+        idx = std::stoi(args[0]);
+        id = std::stoi(args[1]);
+    } catch (...) {
+        return false;
+    }
+    if (idx < 0 || idx >= static_cast<int>(maxIndex)) {
+        return false;
+    }
+    outIndex = idx;
+    outId = id;
+    return true;
+}
+
 } // namespace pe
 
 #endif  // PUREENGINE_CONSOLE_H

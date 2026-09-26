@@ -6106,6 +6106,39 @@ static bool checkEntity3D() {
     return ok;
 }
 
+// Step 212: meshid console command - the REQUIRED pure-parse test for
+// the new syntax (same pattern as Step 202's checkDebug3dParse; the
+// parse is engine-pure numbers with a caller-supplied bound):
+//   - valid index+id -> true, both values out;
+//   - OOB index (>= maxIndex, negative) -> false, out unchanged;
+//   - garbage / non-integer / wrong count -> false, out unchanged.
+// The field-isolation side is already proven (checkMeshHandle, 210).
+// SMOKE-only: with debug3d on + meshid <index> <id>, a cube appears at
+// the entity's position (drawEntity3D).
+static bool checkMeshIdParse() {
+    bool ok = true;
+    int idx = -1, id = -1;
+    if (!pe::parseIndexId({"2", "1"}, 5, idx, id) || idx != 2 || id != 1) {
+        std::cerr << "Valid index+id must parse\n"; ok = false;
+    }
+    if (!pe::parseIndexId({"0", "3"}, 5, idx, id) || idx != 0 || id != 3) {
+        std::cerr << "Index 0 must parse\n"; ok = false;
+    }
+    // OOB index: the caller's bound is data - false, out unchanged.
+    idx = -1; id = -1;
+    if (pe::parseIndexId({"5", "1"}, 5, idx, id)) { std::cerr << "OOB index must fail\n"; ok = false; }
+    if (idx != -1 || id != -1) { std::cerr << "OOB must not write out\n"; ok = false; }
+    if (pe::parseIndexId({"-1", "1"}, 5, idx, id)) { std::cerr << "Negative index must fail\n"; ok = false; }
+    // Garbage / wrong count.
+    if (pe::parseIndexId({"abc", "1"}, 5, idx, id)) { std::cerr << "Non-integer must fail\n"; ok = false; }
+    if (pe::parseIndexId({"1"}, 5, idx, id)) { std::cerr << "Single-arg must fail\n"; ok = false; }
+    if (pe::parseIndexId({}, 5, idx, id)) { std::cerr << "Empty args must fail\n"; ok = false; }
+    if (pe::parseIndexId({"1", "2", "3"}, 5, idx, id)) { std::cerr << "Three-arg must fail\n"; ok = false; }
+    // Zero bound: nothing is in range.
+    if (pe::parseIndexId({"0", "1"}, 0, idx, id)) { std::cerr << "Zero-count bound must reject\n"; ok = false; }
+    return ok;
+}
+
 // Step 210: 3D mesh handle on Entity (data only; the 2D entity arc
 // opens here). REQUIRED headless evidence:
 //   - the DEFAULT Entity has no 3D mesh bound (meshId 0 = 2D-only);
@@ -7655,6 +7688,7 @@ int main() {
     const bool restitutionOk = checkRestitution();
     const bool frictionOk = checkFriction();
     const bool meshHandleOk = checkMeshHandle();
+    const bool meshIdParseOk = checkMeshIdParse();
     const bool entity3DOk = checkEntity3D();
     const bool hierarchyFreezeOk = checkHierarchyContractFreeze();
     const bool animClipOk = checkAnimationClipSwitch();
@@ -7690,7 +7724,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
