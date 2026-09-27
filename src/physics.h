@@ -28,6 +28,7 @@
 
 #include "math/vec3.h"  // Vec3 arithmetic only
 #include "entity.h"    // resolveCollision mutates Entity positions/velocities
+#include "lifecycle.h" // Step 233: ArcadeRole::Sandbox (the pair selection)
 #include "collision.h" // sweptAABB — the swept move's one detection test (no cycle)
 
 namespace pe {
@@ -178,7 +179,7 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
             const float relNy = (b.velocity.y) * ny;
             if (relNx + relNy < 0.0f) {
                 const float impulse = -(1.0f + restitution) * (relNx + relNy);
-                b.velocity.x += nx * impulse;
+                                b.velocity.x += nx * impulse;
                 b.velocity.y += ny * impulse;
                 applyFriction(impulse);
             }
@@ -228,6 +229,38 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
     b.velocity.x += nx * (impulse * invMassB);
     b.velocity.y += ny * (impulse * invMassB);
     applyFriction(impulse);
+}
+
+// --- Step 233: the SANDBOX-SCOPED all-pairs resolve (THE STRUCTURAL
+// FINDING, disclosed): the games' PLAYING loop previously had NO physics
+// resolution at all - the only pair tests were the Player-vs-Hostile and
+// Player-vs-Scenery CATCH DETECTORS (a hub-and-spoke structure, since
+// that is all the original 2D games needed), so dynamic Sandbox entities
+// fell through statics. A full engine-wide all-pairs resolver would
+// BREAK the catch mechanic (resolving Player-hostile overlaps prevents
+// the touch that ends the run) - so this pass resolves ONLY the
+// Sandbox-role pairs (Sandbox-vs-Sandbox, Sandbox-vs-static) via the
+// SAME resolveCollision path as everything else (no bespoke resolve
+// math). The O(n^2) pair scan is fine at the sandbox entity counts
+// (the Step 150 budget).
+inline void resolveSandboxPairs(std::vector<Entity>& entities) {
+    const std::size_t n = entities.size();
+    if (n < 2) {
+        return;
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+        Entity& a = entities[i];
+        if (!a.alive) continue;
+        if (a.roleId != static_cast<int>(ArcadeRole::Sandbox)) continue;
+        if (a.isStatic || a.isKinematic) continue;   // statics resolve from the other side
+        for (std::size_t j = 0; j < n; ++j) {
+            if (j == i) continue;
+            Entity& b = entities[j];
+            if (!b.alive) continue;
+            if (b.roleId != static_cast<int>(ArcadeRole::Sandbox)) continue;
+            resolveCollision(a, b);
+        }
+    }
 }
 
 // --- Step P7: swept move + collide (the discrete resolve's swept twin) ---

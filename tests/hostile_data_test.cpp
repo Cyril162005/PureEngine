@@ -6642,6 +6642,73 @@ static bool checkSpawnQueue() {
     return ok;
 }
 
+// Step 233: the sandbox-scoped resolve pass (headless). THE PASS-
+// THROUGH FIX, exact values: the box above the ground, N steps ->
+// rests on the ground top (NO pass-through); the bounce case: the
+// velocity sign flips ONCE on contact using the EXACT Step 206
+// formula (-3 -> +3, the effective rest = max(box 1.0, ground 0.0)).
+// The structural finding is disclosed in physics.h: the PLAYING loop
+// previously had NO physics resolution (the only pair tests were the
+// catch DETECTORS); this pass resolves ONLY the Sandbox-role pairs.
+static bool checkSandboxResolve() {
+    bool ok = true;
+    const float dt60 = 1.0f / 60.0f;
+    std::vector<pe::Entity> bodies;
+    pe::Entity box(pe::Vec3(0.0f, 2.0f, 0.0f), 0.0f, pe::Vec3(1,1,1));
+    box.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+    box.meshId = 1;
+    box.restitution = 1.0f;
+    box.gravityScale = 1.0f;
+    box.roleId = 3;   // Sandbox
+    pe::Entity ground(pe::Vec3(0.0f, -3.0f, 0.0f), 0.0f, pe::Vec3(1,1,1));
+    ground.halfExtents = pe::Vec3(4.0f, 0.5f, 0.5f);
+    ground.meshId = 1;
+    ground.isStatic = true;
+    ground.restitution = 0.0f;
+    ground.roleId = 3;   // Sandbox
+    bodies.push_back(box);
+    bodies.push_back(ground);
+    // N steps: applyPhysics (the integration) + the sandbox resolve pass.
+    for (int i = 0; i < 300; ++i) {
+        pe::applyPhysics(bodies, dt60);
+        pe::resolveSandboxPairs(bodies);
+    }
+    // NO pass-through: the box rests on the ground top (-3 + 0.5 + 0.5
+    // = -2.0), NOT below it.
+    if (!(bodies[0].position.y > -2.5f)) {
+        std::cerr << "The box must rest on the ground, not fall through\n"; ok = false;
+    }
+    if (!assertFloatClose(bodies[0].position.y, -2.0f, 0.05f)) {
+        std::cerr << "The box must rest at the ground-top rest height\n"; ok = false;
+    }
+    // The bounce: the velocity flipped ONCE on contact, exact formula.
+    {
+        pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+        pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        a.halfExtents = pe::Vec3(1,1,1);
+        b.halfExtents = pe::Vec3(1,1,1);
+        a.velocity = pe::Vec3(3.0f, 0.0f, 0.0f);
+        b.velocity = pe::Vec3(-3.0f, 0.0f, 0.0f);
+    }
+    {
+        pe::Entity box2(pe::Vec3(1.5f,0,0), 0.0f, pe::Vec3(1,1,1));   // approaching from the right
+        pe::Entity ground2(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+        box2.halfExtents = pe::Vec3(1,1,1);
+        ground2.halfExtents = pe::Vec3(1,1,1);
+        box2.velocity = pe::Vec3(-3.0f, 0.0f, 0.0f);
+        box2.restitution = 1.0f;
+        ground2.restitution = 0.0f;
+        ground2.isStatic = true;
+        // Paddle-first order (a=static, b=box): the static branch.
+        pe::resolveCollision(ground2, box2);
+        if (!assertFloatClose(box2.velocity.x, 3.0f)) {
+            std::cerr << "The bounce must flip -3 to +3 exactly, got " << box2.velocity.x << "\n";
+            ok = false;
+        }
+    }
+    return ok;
+}
+
 // Step 220: Platformer tiles through the controller resolve path
 // (headless, pure math - no GL). Known player velocity + tile type ->
 // EXACT resolve outputs, matching the formulas (the ground friction is
@@ -8232,6 +8299,7 @@ int main() {
     const bool tileResolveOk = checkTileResolve();
     const bool dropPhysicsOk = checkDropPhysics();
     const bool bounceTunnelOk = checkBounceTunneling();
+    const bool sandboxResolveOk = checkSandboxResolve();
     const bool spawnQueueOk = checkSpawnQueue();
     const bool restitutionOk = checkRestitution();
     const bool frictionOk = checkFriction();
@@ -8280,7 +8348,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

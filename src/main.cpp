@@ -2139,6 +2139,10 @@ if (clip != animations.end()) {
         // Step 227/228: the deferred spawn queue flushes at
         // end-of-frame, OUTSIDE any entity iteration.
         activeScene->flushSpawns();
+        // Step 233: the sandbox-scoped physics resolve pass - the box
+        // no longer falls through the ground (the structural finding:
+        // the PLAYING loop had no physics resolution at all).
+        pe::resolveSandboxPairs(activeScene->entities);
 
         // C. Swap buffers
         // GLFW uses double buffering. This swaps the front buffer (what we see)
