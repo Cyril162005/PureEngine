@@ -64,7 +64,8 @@ namespace pe {
 // 0 = player, 1 = scenery, 2 = hostile. These values are passed
 // explicitly to every engine filter that compares roles — the engine
 // itself never names them.
-enum class ArcadeRole { Player = 0, Scenery = 1, Hostile = 2 };
+enum class ArcadeRole { Player = 0, Scenery = 1, Hostile = 2,
+                        Sandbox = 3 };   // Step 232: the debug3d drop role
 
 // --- Build the initial world: the player and scenery constructions,
 // relocated whole from main.cpp (Step 7 / Step 12 / Phase 1 /

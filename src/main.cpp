@@ -1110,6 +1110,12 @@ if (clip != animations.end()) {
     // "drop" command AND the debug3d "drop" subcommand route here (one
     // implementation, no duplication).
     auto dropSandbox = [&]() -> std::string {
+        // Step 232 (DECISION, stated): drop is PLAYING-ONLY - the
+        // physics (applyPhysics) ticks only in PLAYING, so a drop in
+        // MENU/PAUSED would silently do nothing; the command SAYS so.
+        if (currentState != pe::GameState::PLAYING) {
+            return std::string("drop: physics only runs in PLAYING");
+        }
         if (!activeScene) {
             return std::string("drop: no active scene");
         }
@@ -1119,6 +1125,12 @@ if (clip != animations.end()) {
         ground.halfExtents = pe::Vec3(4.0f, 0.5f, 4.0f);
         ground.isStatic = true;
         ground.meshId = 1;
+        // Step 232: the DISTINCT role - the default roleId 0 IS
+        // ArcadeRole::Player, so the drop entities were being caught by
+        // the Player/Scenery catch detector (GAME_OVER wiped them - ONE
+        // root cause behind both the early disappearance and the
+        // phantom-player behavior).
+        ground.roleId = static_cast<int>(pe::ArcadeRole::Sandbox);
         ground.restitution = 0.0f;
         const std::size_t gIdx = activeScene->queueSpawn(ground);
         pe::Entity box;
@@ -1126,6 +1138,7 @@ if (clip != animations.end()) {
         box.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
         box.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
         box.meshId = 1;
+        box.roleId = static_cast<int>(pe::ArcadeRole::Sandbox);  // Step 232
         box.restitution = 1.0f;   // bouncy: the fall flips to the entry height
         box.gravityScale = 1.0f;  // the box actually falls
         const std::size_t bIdx = activeScene->queueSpawn(box);

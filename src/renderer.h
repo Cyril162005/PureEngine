@@ -509,6 +509,10 @@ private:
         for (size_t k = 0; k < drawOrder.size(); ++k) {
             const Entity& entity = entities[drawOrder[k]];
             if (!entity.alive) continue;  // Step 113: dead entities draw nothing
+            // Step 232 (THE SINGLE CLEAR RULE): meshId>0 entities draw
+            // ONLY in the 3D path (drawEntity3D) - skipped entirely in
+            // the 2D pass (no 2D/3D double-draw of the same entity).
+            if (entity.meshId != 0) continue;
             const int slot = entity.textureId;
             if (groups.empty() || groups.back().textureId != slot) {
                 // Invalid-slot rule: OOB AND released slots (a runtime

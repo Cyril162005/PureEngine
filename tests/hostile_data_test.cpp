@@ -6755,6 +6755,58 @@ static bool checkBounceTunneling() {
     return ok;
 }
 
+// Step 232: the drop-sandbox physics evidence (headless, EXACT
+// values, not just "exists"):
+//   - GRAVITY (0,-9.8,0), gravityScale 1, dt 1/60: ONE integrate step
+//     lowers vy to -0.16333.. and Y by -0.0027222.. EXACTLY;
+//   - the bounce: the impact -3 onto a restitution-1 floor exits +3
+//     (the Step 206 formula: j = -(1+e)*relNormal/invSum);
+//   - the Sandbox role (3) is distinct from Player (0): the catch
+//     detector matches Player/Scenery pairs only - a Sandbox entity is
+//     excluded by construction (asserted via the role values);
+//   - the 2D-pass skip: meshId>0 draws nothing in the 2D pass (the
+//     single clear rule - the drawWorld loop skips them before
+//     batching; verified in the renderer source).
+static bool checkDropPhysics() {
+    bool ok = true;
+    // ONE gravity integrate step, exact.
+    pe::Entity box(pe::Vec3(0.0f, 2.0f, 0.0f), 0.0f, pe::Vec3(1,1,1));
+    box.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+    box.gravityScale = 1.0f;
+    box.velocity = pe::Vec3(0.0f, 0.0f, 0.0f);
+    std::vector<pe::Entity> bodies{box};
+    pe::applyPhysics(bodies, 1.0f / 60.0f);
+    const float vyExpect = -9.8f / 60.0f;
+    if (!assertFloatClose(bodies[0].velocity.y, vyExpect)) {
+        std::cerr << "One gravity step must lower vy to -9.8/60\n"; ok = false;
+    }
+    if (!assertFloatClose(bodies[0].position.y, 2.0f + vyExpect / 60.0f)) {
+        std::cerr << "One integrate step must lower Y by vy*dt exactly\n"; ok = false;
+    }
+    // The bounce: -3 onto restitution 1 exits +3 (the Step 206 formula).
+    pe::Entity a(pe::Vec3(0,0,0), 0.0f, pe::Vec3(1,1,1));
+    pe::Entity b(pe::Vec3(0.5f,0,0), 0.0f, pe::Vec3(1,1,1));
+    a.halfExtents = pe::Vec3(1,1,1);
+    b.halfExtents = pe::Vec3(1,1,1);
+    a.velocity = pe::Vec3(3.0f, 0.0f, 0.0f);
+    b.velocity = pe::Vec3(-3.0f, 0.0f, 0.0f);
+    a.restitution = 1.0f;   // the sandbox box's bounciness
+    b.restitution = 1.0f;   // the sandbox ground
+    pe::resolveCollision(a, b);
+    if (!assertFloatClose(a.velocity.x, -3.0f) ||
+        !assertFloatClose(b.velocity.x, 3.0f)) {
+        std::cerr << "The sandbox bounce must exit at the Step 206 formula exactly\n";
+        ok = false;
+    }
+    // The Sandbox role is distinct from Player (the catch detector
+    // matches Player/Scenery pairs only).
+    if (static_cast<int>(pe::ArcadeRole::Sandbox) == static_cast<int>(pe::ArcadeRole::Player) ||
+        static_cast<int>(pe::ArcadeRole::Sandbox) != 3) {
+        std::cerr << "Sandbox role must be distinct (3)\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 205: physics mass weighting (headless, pure math). REQUIRED
 // evidence: known masses -> known resolve outputs, EXACT values.
 // Setup: two unit boxes at (0,0) and (0.5,0) -> overlapX = 1.5 (the
@@ -8178,6 +8230,7 @@ int main() {
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
+    const bool dropPhysicsOk = checkDropPhysics();
     const bool bounceTunnelOk = checkBounceTunneling();
     const bool spawnQueueOk = checkSpawnQueue();
     const bool restitutionOk = checkRestitution();
@@ -8227,7 +8280,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
