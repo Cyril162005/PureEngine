@@ -2559,6 +2559,19 @@
     228,
     206
    ]
+  },
+  {
+   "id": 233,
+   "name": "Physics: sandbox-scoped resolve pass (the pass-through structural fix)",
+   "status": "completed",
+   "definition_of_done": "THE STRUCTURAL FINDING (disclosed plainly): the PLAYING loop collision structure is HUB-AND-SPOKE - the only pair tests are the Player-vs-Hostile and Player-vs-Scenery CATCH DETECTORS (main.cpp:1880-1899/1812-1813, feeding GAME_OVER); there was NO physics resolution and NO resolveCollision call in the loop at all - dynamic Sandbox entities fell through statics. Sandbox-Sandbox pairs were skipped BY THE STRUCTURE ITSELF (not just by role). SCOPE (honest middle): a full engine-wide all-pairs resolver would BREAK the catch mechanic (resolving Player-hostile overlaps prevents the touch that ends the run) - so the pass resolves ONLY the Sandbox-role pairs via the SAME resolveCollision path (no bespoke resolve math). resolveSandboxPairs (physics.h, the O(n^2) scan) + the PLAYING loop calls it after applyPhysics.",
+   "notes": "checkSandboxResolve (headless, exact): the box above the ground, 300 steps -> rests at the ground-top rest height (-2.0), NO pass-through; the bounce flips -3 -> +3 ONCE on contact (the exact Step 206 formula, the static branch, paddle-first order). Test bugs owned: the box geometry was on the WRONG SIDE (separating, correctly no impulse - found by the value diagnostics); a dead wrong-order block removed. The visual mesh center == the entity position == the AABB center (confirmed). CONFIRMED only after Cyril retests. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "e37c5ee",
+   "depends_on": [
+    232,
+    233,
+    206
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
