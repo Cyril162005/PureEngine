@@ -2534,6 +2534,18 @@
     230,
     211
    ]
+  },
+  {
+   "id": 231,
+   "name": "Cyril SMOKE playtest of debug3d drop: VERDICT PARTIAL/FAIL + routing fix",
+   "status": "completed",
+   "definition_of_done": "CYRIL VERDICT: PARTIAL/FAIL (playtest photos) - USAGE for debug3d listed ON/OFF/CAM/FOV only (DROP absent); no clear drop: ground@... box@... success line; earlier frames showed some 3D geometry but the fall+bounce NOT confirmed. ROOT CAUSE (inspection, not a guess): the drop command was registered as a STANDALONE drop - the documented debug3d drop SYNTAX was never routed (typing it hit the usage line). STALE-BINARY QUESTION: cannot be verified remotely - CYRIL MUST REBUILD (cmake --build build --config Release) and retest; his first run may also have predated 228. FIX (f0420d5): the debug3d drop SUBCOMMAND now routes to the SHARED dropSandbox lambda (both routes, one implementation, no duplication) + the usage line includes drop + SMOKE 7.11 documents the EXACT success reply text (drop: ground@<N> box@<N> (session-transient, never saved)) + the rebuild warning.",
+   "notes": "NOT LANDED - the verdict is PARTIAL/FAIL with a routing fix awaiting Cyril retest. Headless: the parse/register side is CI-proven (checkSpawnQueue for the queue logic; the routing itself is main.cpp game-side - SMOKE). No new meshes, FPS, font atlas redesign, Platformer changes. 2D non-regression: ctest 2/2, alive x3 True. FIXES OWNED: two failed attempts to relocate the drop lambda (marker/indentation mismatches, a stray }) before the clean move; the capture list needed &dropSandbox added explicitly.",
+   "commit": "f0420d5",
+   "depends_on": [
+    228,
+    231
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
