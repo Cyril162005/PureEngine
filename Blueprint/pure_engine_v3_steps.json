@@ -2546,6 +2546,19 @@
     228,
     231
    ]
+  },
+  {
+   "id": 232,
+   "name": "Fix: drop entities Sandbox role (the mistaken-catch root cause) + 2D skip",
+   "status": "completed",
+   "definition_of_done": "INSPECTED FIRST - ONE ROOT CAUSE: ArcadeRole::Player = 0 and Entity::roleId = 0 is the DEFAULT - the drop-spawned ground/box carried roleId 0 = Player, so the Player/Scenery CATCH DETECTOR (main.cpp:1812) fired when the falling box collided with Scenery-role entities -> GAME_OVER wiped them. Another player and wiped-after-catch = ONE cause, not two (chasePlayer was SAFE: the first roleId==Player match is the real player at index 0). FIX: ArcadeRole::Sandbox = 3 (additive) + the drop entities carry it (excluded from the catch + the chase by construction). 2D DRAW: the SINGLE CLEAR RULE - drawWorld SKIPS meshId>0 entities entirely (no 2D/3D double-draw). drop STATES (DECISION, stated): PLAYING-ONLY (applyPhysics ticks only in PLAYING; MENU/PAUSED replies drop: physics only runs in PLAYING - not silent). GAME_OVER reset: the early disappearance WAS the mistaken-catch bug (after the fix, the sandbox entities persist until a scene switch - the designed session-transient reset).",
+   "notes": "checkDropPhysics (headless, EXACT values): one gravity step lowers vy to -9.8/60 = -0.16333 and Y by vy*dt = -0.0027222 exactly; the bounce -3 -> +3 (the Step 206 formula); the Sandbox role distinct (3 != 0). CONFIRMED only after Cyril retests. Test fixes owned: applyPhysics mutates the COPY in the vector - the asserts read bodies[0]; applyPhysics takes a vector& not an initializer list. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "802d474",
+   "depends_on": [
+    231,
+    228,
+    206
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
