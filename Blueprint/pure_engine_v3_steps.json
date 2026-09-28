@@ -2585,6 +2585,19 @@
     228,
     202
    ]
+  },
+  {
+   "id": 235,
+   "name": "Physics: resting-contact threshold + inverted-approach fix (the drop box) + resolve-before-draw",
+   "status": "completed",
+   "definition_of_done": "INSPECTED (file:line): resolveSandboxPairs ran at main.cpp:2184 AFTER flushSpawns/draw (the rendered pose was PRE-resolve: one-frame lag); resolveSandboxPairs (physics.h:261) calls resolveCollision with NO explicit param -> the default-call max rule -> max(box 1.0, ground 0.0) = 1.0 - but the else branch (dynamic a vs static b) approach test was INVERTED: n points from a TOWARD b, so a.v along n > 0 means approaching, and the old rel < 0 test fired on SEPARATING - the impulse NEVER fired (restitution 1.0 dead), vy accumulated unboundedly under gravity. VISUAL SCALE (inspection answer, NOT fixed - flagged for Cyril): drawEntity3D (renderer.h:733) scales by e.scale ONLY (drawn size 2*scale), NOT 2*halfExtents*scale - the drawn ground/box size does NOT match the collision extents (only the center matches); the 2D path skips meshId>0 (Step 232). REPRODUCED HEADLESS (real drop config, 1 applyPhysics + 1 resolveSandboxPairs per frame, dt 1/60, 1800 frames): DIAG e=1 contactY -2 peakY -2 minY -7100.67 peakRise 0; DIAG e=0.8 bounces 0 maxVyLast300 402.188 - the failure shown: CATASTROPHIC SINKING + dead bounce (the committed 300-step test only passed because at frame 300 the unbounded-vy sink was still inside the overlap window; past it the pair separates and the box free-falls). FIX (mechanism, not symptom): RESTING_VEL = 0.5 (function-local constexpr, EXCEEDS the per-frame gravity delta 9.8/60 = 0.163 so a resting contact holds; manual |.|, NO std::fabs) in BOTH static-dynamic branches (below the threshold no bounce impulse fires, the normal velocity zeroes - the body rests); the else branch approach test corrected (rel > RESTING_VEL = approaching, reversal new a.v.n = -e*rel); the aStatic branch threshold (rel < -RESTING_VEL, impulse unchanged formula); positional correction already fully separates (pen = full min-axis overlap) - verified minY == rest height exactly; resolve moved AFTER applyPhysics, BEFORE draw (main.cpp).",
+   "notes": "checkBounceRestHeights (headless, REAL drop config, 1800 frames, the required assertions): e=1 first rebound peak 1.8955 from contact -2.0 (peakRise 3.8955, visibly large) + minY -2 (NO sinking); e=0.8 11 clear bounces, successive peaks decrease, settles with maxVyLast300 = 0 (no perpetual jitter). checkSandboxResolve's 300-step rest assert UPDATED to the new contract (it encoded the inverted-approach bug): no pass-through + rebound peak above rest height. Non-regression VERIFIED BY ANALYSIS + EXECUTION: checkRestitution static-vs-dynamic (impact 2.0, aStatic branch, unchanged), checkMassWeighting static-infinite (zero velocity, threshold no-op), checkDropPhysics (gravity part has no resolve; bounce part both-dynamic), pong paddles isKinematic (aStatic branch, ball speeds ~3+). FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril retests the drop.",
+   "commit": "63b1943",
+   "depends_on": [
+    233,
+    232,
+    206
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
