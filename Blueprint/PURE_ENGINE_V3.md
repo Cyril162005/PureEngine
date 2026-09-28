@@ -154,7 +154,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 188: ANIMATION slice verify pass (Steps 61-70) — already holds; multi-track/blend later-not-started — recorded (154 entries)
 - . Step 189: AUDIO slice verify pass (Steps 71-80) — already holds — recorded (155 entries). 80-step run COMPLETE: full ctest 2/2 + alive x3, all departments verified.
 - . Steps 214-218: the 3D arc chain - drawEntity3D yaw from rotationAngle (214), debug3d fov (215), cam reset + the per-frame setEyeTargetUp clobber fix (216 - the Step 213 cam command was broken until this), Entity::tint on the 3D debug draw via drawEntityMesh3D (217), and the 3D arc checkpoint with an integration glue test (218) - recorded (183 entries). 2D non-regression held every step.
-- . Steps 220-224: the physics-in-games chain - Platformer ice (cell 2, friction 0) + bouncy (cell 3, restitution 1) tiles through the controller resolve (220; the tile contract: bounciness = restitution above the 0.5 baseline; the default ground stop = a quick ~3-substep decay - the intentional delta documented), the Pong wire verify-only (221 - Step 209 had already landed it), the Cyril playtest invitation (222 - verdict pending, his call is the completion criterion), the spawn mid-update safety verify-only (223 - already safe, no spawn inside a range-for), and the checkpoint (224 - the 208 finding closed, deferrals explicit: orbit controls, meshId==2, debug3d drop, the physics->3D bridge) - recorded (189 entries).
+- . Steps 220-224: the physics-in-games chain - Platformer ice (cell 2, friction 0) + bouncy (cell 3, restitution 1) tiles through the controller resolve (220; the tile contract: bounciness = restitution above the 0.5 baseline; the default ground stop = a quick ~3-substep decay - the intentional delta documented), the Pong wire verify-only (221 - Step 209 had already landed it), the Cyril playtest invitation (222 - verdict pending, his call is the completion criterion), the spawn mid-update safety verify-only (223 - already safe, no spawn inside a range-for), and the checkpoint (224 - Step 236 RECONCILIATION: the "208 finding closed" here was PREMATURE - the real completion evidence is Step 226 (Cyril's verdict on the tile playtest) plus Step 235 (Cyril PASS on the resting-contact fix); deferrals as stated: orbit controls, meshId==2, debug3d drop (since LANDED, Steps 228/231/235), the physics->3D bridge) - recorded (189 entries).
 - . Step 176: Audio simultaneous SFX+music volume matrix (headless) — recorded (142 entries); chain-reference sweep into 175 disclosed
 - . Step 177: Input Input(vector) adoption ctor + union-order contract test — recorded (143 entries)
 - . Step 178: Scene prefab-scene failure matrix headless contract — recorded (144 entries)
@@ -277,6 +277,75 @@ recommended stop under the freeze:
 
 This note exists so a future session reading the tracker sees an
 explicit, sanctioned stopping point instead of inferring one.
+
+## 3D debug sandbox contract (Step 236, docs-only — recorded from source)
+
+The debug sandbox is the opt-in diagnostic path for physics/3D testing
+in Arcade. Commands (all console, default OFF unless typed):
+
+- `debug3d on|off` — the 3D debug view toggle (Step 202; the ortho mode
+  is restored exactly on off, the Step 193/196 round-trip).
+- `debug3d cam <ex> <ey> <ez> <tx> <ty> <tz>` — setEyeTargetUp (Step 213;
+  the `cam reset` subcommand restores the documented defaults, Step 216).
+- `debug3d fov <degrees 0-180>` (Step 215), `debug3d orbit <degrees>`
+  (Step 229 — the only camera motion added; no free-fly controller).
+- `debug3d drop` / `drop` — spawns a STATIC ground plane + a DYNAMIC box
+  via the deferred spawn queue (Steps 227/228; both routes share the
+  dropSandbox lambda, Step 231). PLAYING-ONLY: physics ticks only in
+  PLAYING, so a drop in MENU/PAUSED replies
+  "drop: physics only runs in PLAYING" (stated, not silent).
+- `meshid <index> <id>` — binds a live entity to the 3D debug draw
+  (Steps 212/219; the cube follows the entity as it moves).
+- `nohostiles on|off` — the debug hostile toggle (Step 234): on clears
+  every ACTIVE Hostile-role entity AND pauses future spawning
+  (activateScene builds no hostiles while on); off resumes normal
+  spawning, no retroactive respawn. Player/Scenery/Sandbox untouched.
+
+Mechanics (engine-pure, CI-proven unless noted):
+- `ArcadeRole::Sandbox = 3` (lifecycle.h, Step 232): the drop entities'
+  distinct role — excluded from the Player/Scenery catch detector and
+  the hostile chase by construction.
+- `pe::resolveSandboxPairs` (physics.h, Step 233): the SANDBOX-SCOPED
+  all-pairs resolve (Sandbox-vs-Sandbox, Sandbox-vs-static) via the same
+  resolveCollision path. The engine-wide all-pairs resolver was
+  DELIBERATELY REJECTED: resolving Player-hostile overlaps would prevent
+  the touch that ends the run (Step 233).
+- `RESTING_VEL = 0.5` (physics.h, Step 235): the resting-contact
+  threshold — exceeds the per-frame gravity delta at 60 fps (9.8/60 =
+  0.163) so a resting contact holds; below the threshold no bounce
+  impulse fires and the normal velocity zeroes. Manual |.| throughout
+  (no std::fabs — the collision.h constexpr-safe rule).
+- Resolve BEFORE draw (main.cpp, Step 235): the sandbox resolve runs
+  immediately after applyPhysics, so the rendered pose is the
+  post-resolve one (the end-of-frame placement was a one-frame lag).
+
+Honest limits (disclosed, unfixed unless stated):
+- Session-transient entities: the sandbox drop entities are bound to the
+  live session's queue/lifecycle — never saved into a scene file
+  (saveSceneToFile snapshots activeScene->entities; a fresh session
+  starts clean).
+- Drawn mesh size != collision extents: drawEntity3D (renderer.h) scales
+  the debug cube by e.scale ONLY (drawn size 2*scale), NOT
+  2*halfExtents*scale — the drawn ground/box size does not match the
+  collision extents (only the center matches). Flagged Step 235, unfixed
+  (drawAABBs/F1 shows the true collision boxes for comparison).
+- Shared threshold affects Pong: RESTING_VEL lives in resolveCollision's
+  static-dynamic branches, so EVERY static-dynamic caller shares it — a
+  Pong paddle contact with ball normal speed <= 0.5 would land dead
+  instead of micro-bouncing. Pong ball speeds are ~3+, so behavior is
+  unchanged in practice (verified by ctest).
+
+## Not started / pending engine debts (Step 236, docs-only)
+
+NOT STARTED (the freeze OUT list stands — do not plan):
+- Materials system, glTF, animation blend (multi-track clips /
+  cross-clip blending), editor UI, ECS, networking, 3D game content.
+
+PENDING engine debts (inspect/adopt only on evidence):
+- Broadphase-under-load: inspect/adopt ONLY on a measured superlinear
+  frame-time breach below 2000 entities (Step 52 verdict; fine <=2000).
+- Multi-track animation scoping: inspect-only — no blend work without an
+  explicitly requested step citing a concrete engine-validation reason.
 
 ## PureEditor-lite v0 — TOOLING CONTRACT (docs foundation; explicit user-requested scope expansion)
 

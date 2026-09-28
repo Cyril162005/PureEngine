@@ -3,7 +3,7 @@
 Per-session rows; update your row when you start/stop. Claims need real
 command output behind them (see AGENTS.md reporting expectations).
 Feature history stays in pure_engine_v3_steps.json + PURE_ENGINE_V3.md —
-this board never replaces it. Highest step id: 180 (146 entries, 35–180,
+this board never replaces it. Highest step id: 236 (201 entries, 35–236,
 no dups).
 
 ## Focus (binding for all sessions)
@@ -19,7 +19,7 @@ no dups).
 
 | Session | Owns | Status | Last update | Notes |
 |---------|------|--------|-------------|-------|
-| PureEngine_main | board, trackers, packaging/docs, catch-up counts, ONLY committer + CONSOLE contract (assigned) | active | 2026-09-21 | Steps 164–167 processed (animation 2e11c78, followLerp feb7db3, resources 4df2842, events e4b9bbf); split-stages disclosed; followLerpOk chain gate fixed in 167. Now: CONSOLE contract (Step 168) assigned to main. |
+| PureEngine_main | board, trackers, packaging/docs, catch-up counts, ONLY committer + CONSOLE contract (assigned) | active | 2026-09-28 | Steps 233–236 processed: sandbox resolve pass (e37c5ee), nohostiles debug toggle (aa161e0), resting-contact + inverted-approach fix + resolve-before-draw (63b1943, honest repro: sink -7100/dead bounce → fixed), drop display tuning (a0f3240), docs freeze + tracker reconciliation (236). ctest 2/2 + alive x3 each step. Flagged unfixed: drawn mesh size != collision extents (renderer.h scale-only). |
 | PureEngine_physics | physics.h, collision.h, simulation.h | parked | 2026-09-24 | P1–P6 + kinematic platform + SWEPT AABB PACKAGE COMPLETE (Step 173: SweepHit/sweptAABB slabs + chain gate, commit e24f2dc). API-only — no game wire yet. Disclosure: Step 172 commit 244c9b1 swept the physics test function+registration (concurrent-write race); completed honestly in 173. |
 | PureEngine_input | input.h, gamepad.h | parked | 2026-09-21 | Campaign complete + union fix landed: `keysForAllActions()` includes Action::Console (default 12→13, remap test 13→14) — `2cacf5f`. Steps 154–159 recorded (`32125e9`…`54a7918`); Step 160 adoption + union recorded. Action::Console rebindable — campaign closed/parked. |
 | PureEngine_resources | resources.h, resources_test.cpp, CMake test target | parked | 2026-09-22 | Campaign COMPLETE: Step 163 (hostile_data_test contract), Step 166 (CONTRACT block in resources.h + dedicated headless resources_test target, 41 assertions) — commit 4df2842. |
@@ -37,8 +37,11 @@ no dups).
 - DONE: Pong ball-paddle through resolveCollision (kinematic paddles,
   ball e=1.0).
 - DONE: Platformer ice (cell 2, friction 0) + bouncy (cell 3,
-  restitution 1) tiles through the controller resolve path (220) -
-  Cyril's playtest verdict pending (Step 222).
+  restitution 1) tiles through the controller resolve path (220).
+- COMPLETION EVIDENCE (Step 236 reconciliation — 224's "208 CLOSED" was
+  premature): Step 226 (Cyril's playtest verdict on the tiles) plus
+  Step 235 (Cyril PASS on the drop resting-contact fix). The sandbox
+  drop now bounces and settles (RESTING_VEL 0.5, resolve before draw).
 
 ## Input residual (Step 59 of the 80-step run)
 - A runtime rebind (loadInputBindings AFTER Input construction) does NOT
