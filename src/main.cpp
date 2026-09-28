@@ -858,6 +858,12 @@ if (clip != animations.end()) {
     float maxDifficultyScale = activeHostileDefaults->maxDifficultyScale;
     float winTime = activeHostileDefaults->winTime;
 
+    // --- Step 234: the nohostiles debug toggle (default OFF) ---
+    // Session-persistent debug state, declared BEFORE activateScene so
+    // the activation lambda can consult it (the pause gate). OFF until
+    // the command is typed — normal Arcade play is byte-identical.
+    bool noHostiles = false;
+
     // Integration sprint: scene switching goes through the SceneManager.
     // Rebuilds the named scene's entity list from its profile, refreshes
     // the snapshot (so it always matches the active scene), resizes the
@@ -870,6 +876,14 @@ if (clip != animations.end()) {
         activeHostileDefaults = &scene;
         pe::Scene& target = pe::loadScene(sceneManager, sceneName);  // find-or-create (both exist since setup)
         target.entities = pe::buildInitialEntities(*activeHostileDefaults);
+        // Step 234: nohostiles pause — while the debug flag is ON, scene
+        // activation builds NO hostiles (killRole, alive=false): the
+        // filtered snapshot below is what every resetGame restores, so
+        // the pause covers future spawning for the whole session. OFF:
+        // the build is byte-identical to pre-step behavior.
+        if (noHostiles) {
+            pe::killRole(target, static_cast<int>(pe::ArcadeRole::Hostile));
+        }
         // Step 106: keep anim clips via stored name — generic, not hard-coded walk_left
         for (pe::Entity& e : target.entities) {
             if (!e.currentClipName.empty()) {
@@ -1220,6 +1234,31 @@ if (clip != animations.end()) {
             return std::string(debug3d ? "debug3d on" : "debug3d off");
         }
         return std::string("usage: debug3d on|off|cam <6 floats>|fov <degrees>|drop");
+    });
+    // --- Step 234: nohostiles — the debug hostile toggle (default OFF) ---
+    // on: clears every ACTIVE Hostile-role entity (killRole, alive=false,
+    // logically removed) AND pauses future spawning (activateScene builds
+    // no hostiles while the flag is on). off: resumes normal spawning —
+    // already-cleared hostiles are NOT retroactively respawned. The parse
+    // is engine-pure (parseOnOff, CI-tested); the clear is role-scoped
+    // (killRole, CI-tested: Player/Scenery/Sandbox untouched). Normal
+    // Arcade play never types this — default OFF is byte-identical.
+    pe::registerCommand(console, "nohostiles", [&noHostiles, &activeScene](const std::vector<std::string>& args) {
+        bool newState = noHostiles;
+        if (!pe::parseOnOff(args, newState)) {
+            return std::string("usage: nohostiles on|off");
+        }
+        noHostiles = newState;
+        std::size_t killed = 0;
+        if (noHostiles && activeScene) {
+            killed = pe::killRole(*activeScene, static_cast<int>(pe::ArcadeRole::Hostile));
+        }
+        std::ostringstream echo;
+        echo << "nohostiles " << (noHostiles ? "on" : "off");
+        if (noHostiles) {
+            echo << " - cleared " << killed << " hostile(s), spawning paused";
+        }
+        return echo.str();
     });
     // --- Step 212: meshid console command (the live meshId consumer) ---
     // Sets meshId on an existing scene entity; with debug3d on, a cube

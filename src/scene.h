@@ -241,6 +241,25 @@ inline void killEntity(Scene& scene, std::size_t index) {
     }
 }
 
+// --- Step 234: role-filtered kill — the nohostiles debug toggle's
+// clear action. Marks every LIVE entity whose roleId matches dead
+// (alive = false, the same logically-removed semantics as killEntity)
+// WITHOUT erasing, so index-addressed structures stay valid. The
+// roleId is passed EXPLICITLY (game-side meaning — the engine never
+// names roles, the same pattern as chasePlayer/scanSceneryCollisions);
+// every other role is untouched by construction. Returns the number
+// of slots killed.
+inline std::size_t killRole(Scene& scene, int roleId) {
+    std::size_t killed = 0;
+    for (Entity& e : scene.entities) {
+        if (e.alive && e.roleId == roleId) {
+            e.alive = false;
+            ++killed;
+        }
+    }
+    return killed;
+}
+
 // Load tilemap DATA into the scene. Data only — does NOT call
 // tilemapToEntities (the game decides if/when tiles become entities).
 // Missing/malformed file: returns false and leaves scene.tilemap

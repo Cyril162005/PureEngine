@@ -5933,6 +5933,74 @@ static bool checkDebug3dParse() {
     return ok;
 }
 
+// Step 234: nohostiles debug toggle - the parse contract (headless,
+// the checkDebug3dParse pattern). The command's parse IS parseOnOff:
+// "on" (any case) -> true, "off" -> false; empty args, garbage, extra
+// tokens -> safe no-op (out unchanged, false returned). Default OFF:
+// the toggle starts false and normal play never types the command.
+static bool checkNohostilesParse() {
+    bool ok = true;
+    bool state = false;
+    if (!pe::parseOnOff({"on"}, state) || !state) { std::cerr << "nohostiles on must set true\n"; ok = false; }
+    if (!pe::parseOnOff({"ON"}, state) || !state) { std::cerr << "nohostiles ON must set true (case-insensitive)\n"; ok = false; }
+    if (!pe::parseOnOff({"off"}, state) || state) { std::cerr << "nohostiles off must set false\n"; ok = false; }
+    if (!pe::parseOnOff({"OFF"}, state) || state) { std::cerr << "nohostiles OFF must set false\n"; ok = false; }
+    // Garbage / empty / multi-arg: safe no-op - the toggle is untouched.
+    state = true;
+    if (pe::parseOnOff({}, state)) { std::cerr << "nohostiles empty args must fail\n"; ok = false; }
+    if (!state) { std::cerr << "nohostiles empty args must not touch the toggle\n"; ok = false; }
+    if (pe::parseOnOff({"yes"}, state)) { std::cerr << "nohostiles garbage must fail\n"; ok = false; }
+    if (!state) { std::cerr << "nohostiles garbage must not touch the toggle\n"; ok = false; }
+    if (pe::parseOnOff({"on", "extra"}, state)) { std::cerr << "nohostiles multi-arg must fail\n"; ok = false; }
+    if (!state) { std::cerr << "nohostiles multi-arg must not touch the toggle\n"; ok = false; }
+    return ok;
+}
+
+// Step 234: nohostiles clear - the killRole role scoping (headless).
+// REQUIRED evidence: killRole(scene, Hostile) kills ONLY Hostile-role
+// entities - Player, Scenery, and Sandbox (the debug3d drop role) are
+// untouched by construction; the reverse call (killRole with Sandbox)
+// leaves hostiles alone. Returns the killed count.
+static bool checkNohostilesKill() {
+    bool ok = true;
+    pe::Scene scene;
+    const int playerRole = static_cast<int>(pe::ArcadeRole::Player);
+    const int sceneryRole = static_cast<int>(pe::ArcadeRole::Scenery);
+    const int hostileRole = static_cast<int>(pe::ArcadeRole::Hostile);
+    const int sandboxRole = static_cast<int>(pe::ArcadeRole::Sandbox);
+    auto add = [&scene](int roleId) {
+        pe::Entity e;
+        e.alive = true;
+        e.roleId = roleId;
+        scene.entities.push_back(e);
+    };
+    add(playerRole);   // 0: player
+    add(sceneryRole);  // 1: scenery
+    add(hostileRole);  // 2: hostile A
+    add(sandboxRole);  // 3: sandbox (debug3d drop)
+    add(hostileRole);  // 4: hostile B
+    const std::size_t killed = pe::killRole(scene, hostileRole);
+    if (killed != 2) { std::cerr << "killRole(Hostile) must kill exactly 2\n"; ok = false; }
+    if (scene.entities[2].alive || scene.entities[4].alive) {
+        std::cerr << "both hostiles must be dead after killRole(Hostile)\n"; ok = false;
+    }
+    if (!scene.entities[0].alive || !scene.entities[1].alive || !scene.entities[3].alive) {
+        std::cerr << "Player/Scenery/Sandbox must survive killRole(Hostile)\n"; ok = false;
+    }
+    // The reverse scoping: killing Sandbox leaves the (dead) hostiles
+    // and the Player/Scenery pair alone.
+    const std::size_t killedSandbox = pe::killRole(scene, sandboxRole);
+    if (killedSandbox != 1) { std::cerr << "killRole(Sandbox) must kill exactly 1\n"; ok = false; }
+    if (scene.entities[3].alive) { std::cerr << "sandbox must be dead after killRole(Sandbox)\n"; ok = false; }
+    if (!scene.entities[0].alive || !scene.entities[1].alive) {
+        std::cerr << "Player/Scenery must survive killRole(Sandbox)\n"; ok = false;
+    }
+    if (scene.entities[2].alive || scene.entities[4].alive) {
+        std::cerr << "killRole(Sandbox) must not respawn hostiles\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 206: per-body restitution (headless, pure math). REQUIRED
 // evidence:
 //   - mass 1:1, explicit e=0: perfectly inelastic - BOTH normal
@@ -8294,6 +8362,8 @@ int main() {
     const bool editorSpawnOk = checkEditorLiteSpawn();
     const bool debugFrameOk = checkDebugFrameDepth();
     const bool debug3dParseOk = checkDebug3dParse();
+    const bool nohostilesParseOk = checkNohostilesParse();
+    const bool nohostilesKillOk = checkNohostilesKill();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -8348,7 +8418,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
