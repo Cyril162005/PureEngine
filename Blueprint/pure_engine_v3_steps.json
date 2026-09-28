@@ -2598,6 +2598,19 @@
     232,
     206
    ]
+  },
+  {
+   "id": 236,
+   "name": "Docs freeze + tracker reconciliation (docs-only)",
+   "status": "completed",
+   "definition_of_done": "DOCS-ONLY, zero code beyond tracker/doc edits. PURE_ENGINE_V3.md: the 3D debug sandbox contract recorded from source (commands debug3d on|off|cam|fov|orbit|drop + meshid + nohostiles on|off; drop is PLAYING-ONLY; ArcadeRole::Sandbox = 3; resolveSandboxPairs is SANDBOX-SCOPED with the engine-wide all-pairs resolver DELIBERATELY REJECTED - resolving Player-hostile overlaps would prevent the catch; RESTING_VEL 0.5 exceeds the per-frame gravity delta 9.8/60 = 0.163, manual |.| no std::fabs; resolve BEFORE draw). Honest limits: session-transient sandbox entities (never saved), drawn mesh size != collision extents (drawEntity3D scales by e.scale ONLY, NOT 2*halfExtents*scale - flagged Step 235, unfixed), the shared resolveCollision threshold affects Pong (ball speeds ~3+ so unchanged in practice). Step 224's premature '208 CLOSED' RECONCILED: the real completion evidence is Step 226 (Cyril's verdict) plus Step 235 (Cyril PASS). NOT STARTED listed: materials, glTF, animation blend, editor UI, ECS, networking. PENDING engine debts: broadphase-under-load inspect/adopt (only on a measured superlinear breach below 2000), multi-track animation scoping (inspect-only). Board updated (highest step 236/201 entries, physics-wiring completion evidence, main row); README step range 25-236.",
+   "notes": "No src changes at all (docs-only). steps.json 200 -> 201 entries (35-236). Full-solution build per the standing rule: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "4f7e226",
+   "depends_on": [
+    235,
+    234,
+    233
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
