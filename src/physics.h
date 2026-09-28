@@ -91,6 +91,13 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
         restitution = 1.0f;
     }
 
+    // Step 235: the resting-contact threshold. Must EXCEED the per-frame
+    // gravity delta at 60 fps (GRAVITY.y * dt = 9.8/60 = 0.163) so a
+    // resting contact holds: below the threshold no bounce impulse
+    // fires and the normal velocity zeroes instead — the body rests
+    // instead of jittering or accumulating vy frame over frame.
+    constexpr float RESTING_VEL = 0.5f;
+
     const float ahx = a.halfExtents.x * a.scale.x;
     const float ahy = a.halfExtents.y * a.scale.y;
     const float bhx = b.halfExtents.x * b.scale.x;
@@ -177,22 +184,44 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
             // Only dynamic body gets impulse
             const float relNx = (b.velocity.x) * nx;
             const float relNy = (b.velocity.y) * ny;
-            if (relNx + relNy < 0.0f) {
-                const float impulse = -(1.0f + restitution) * (relNx + relNy);
-                                b.velocity.x += nx * impulse;
+            const float rel = relNx + relNy;
+            if (rel < -RESTING_VEL) {
+                const float impulse = -(1.0f + restitution) * rel;
+                b.velocity.x += nx * impulse;
                 b.velocity.y += ny * impulse;
                 applyFriction(impulse);
+            } else if (rel <= 0.0f) {
+                // Step 235: resting contact (slow approach, below the
+                // threshold) - no bounce impulse; zero the normal
+                // velocity so the body rests instead of jittering.
+                b.velocity.x -= nx * rel;
+                b.velocity.y -= ny * rel;
             }
         } else {
             a.position.x -= nx * pen;
             a.position.y -= ny * pen;
+            // Step 235 FIX: the approach test was INVERTED for the
+            // dynamic-first ordering. n points from a TOWARD b, so
+            // a.v along n > 0 means a moves TOWARD b (approaching) -
+            // the old rel < 0 test fired on SEPARATING, the impulse
+            // never fired for the box/ground pair (restitution dead),
+            // and vy accumulated unboundedly (the sink-through).
             const float relNx = (a.velocity.x) * nx;
             const float relNy = (a.velocity.y) * ny;
-            if (relNx + relNy < 0.0f) {
-                const float impulse = -(1.0f + restitution) * (relNx + relNy);
+            const float rel = relNx + relNy;
+            if (rel > RESTING_VEL) {
+                // Approaching: reverse a's normal velocity -
+                // new a.v.n = -e * rel.
+                const float impulse = (1.0f + restitution) * rel;
                 a.velocity.x -= nx * impulse;
                 a.velocity.y -= ny * impulse;
                 applyFriction(impulse);
+            } else if (rel >= 0.0f) {
+                // Step 235: resting contact (slow approach, below the
+                // threshold) - no bounce impulse; zero the normal
+                // velocity so the body rests instead of jittering.
+                a.velocity.x -= nx * rel;
+                a.velocity.y -= ny * rel;
             }
         }
         return;

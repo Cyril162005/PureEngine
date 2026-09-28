@@ -6737,17 +6737,20 @@ static bool checkSandboxResolve() {
     bodies.push_back(box);
     bodies.push_back(ground);
     // N steps: applyPhysics (the integration) + the sandbox resolve pass.
+    // Step 235: with the e=1 restitution LIVE, the box BOUNCES (it no
+    // longer rests — the old rest assert encoded the inverted-approach
+    // bug); the contract here: no pass-through + the rebound peak above
+    // the rest height (the 1800-frame evidence is checkBounceRestHeights).
+    float peakY = -1000.0f;
     for (int i = 0; i < 300; ++i) {
         pe::applyPhysics(bodies, dt60);
         pe::resolveSandboxPairs(bodies);
+        if (bodies[0].position.y > peakY) peakY = bodies[0].position.y;
     }
-    // NO pass-through: the box rests on the ground top (-3 + 0.5 + 0.5
-    // = -2.0), NOT below it.
-    if (!(bodies[0].position.y > -2.5f)) {
-        std::cerr << "The box must rest on the ground, not fall through\n"; ok = false;
-    }
-    if (!assertFloatClose(bodies[0].position.y, -2.0f, 0.05f)) {
-        std::cerr << "The box must rest at the ground-top rest height\n"; ok = false;
+    // NO pass-through: the box never goes below the ground top (-2.5)
+    // and the first rebound peak clears the rest height (-2.0).
+    if (!(bodies[0].position.y > -2.5f && peakY > -2.0f)) {
+        std::cerr << "The box must stay above the ground and rebound\n"; ok = false;
     }
     // The bounce: the velocity flipped ONCE on contact, exact formula.
     {
@@ -6772,6 +6775,114 @@ static bool checkSandboxResolve() {
         if (!assertFloatClose(box2.velocity.x, 3.0f)) {
             std::cerr << "The bounce must flip -3 to +3 exactly, got " << box2.velocity.x << "\n";
             ok = false;
+        }
+    }
+    return ok;
+}
+
+// Step 235: the drop sandbox resting-contact bug (headless, the REAL
+// drop config, real per-frame granularity: 1 applyPhysics + 1
+// resolveSandboxPairs per frame, dt = 1/60 — the game's dt is the live
+// frame delta; 1/60 is the established deterministic stand-in).
+// REQUIRED evidence:
+//   - e=1 (the drop box): the FIRST impact's rebound peak is visibly
+//     large (peak Y exceeds the contact Y by a scale-appropriate
+//     margin for a 1-unit box) and over 1800 frames the box NEVER goes
+//     below the ground-top rest height minus epsilon (no sinking).
+//   - e=0.8: successive peaks DECREASE and the box settles with |vy|
+//     below the resting threshold (no perpetual jitter).
+// Rest height: ground top (-3 + 0.5) + box half (0.5) = -2.0.
+static bool checkBounceRestHeights() {
+    bool ok = true;
+    const float dt60 = 1.0f / 60.0f;
+    const float restY = -2.0f;
+    // --- Scenario A: the real drop config (restitution 1) ---
+    {
+        std::vector<pe::Entity> bodies;
+        pe::Entity box(pe::Vec3(0.0f, 2.0f, 0.0f), 0.0f, pe::Vec3(1,1,1));
+        box.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+        box.restitution = 1.0f;
+        box.gravityScale = 1.0f;
+        box.roleId = 3;   // Sandbox
+        pe::Entity ground(pe::Vec3(0.0f, -3.0f, 0.0f), 0.0f, pe::Vec3(1,1,1));
+        ground.halfExtents = pe::Vec3(4.0f, 0.5f, 4.0f);
+        ground.isStatic = true;
+        ground.restitution = 0.0f;
+        ground.roleId = 3;   // Sandbox
+        bodies.push_back(box);
+        bodies.push_back(ground);
+        float firstContactY = 0.0f;
+        bool contacted = false;
+        float peakY = -1000.0f;
+        float minY = 1000.0f;
+        for (int i = 0; i < 1800; ++i) {
+            pe::applyPhysics(bodies, dt60);
+            pe::resolveSandboxPairs(bodies);
+            const float y = bodies[0].position.y;
+            if (!contacted && y <= restY + 0.01f) {
+                contacted = true;
+                firstContactY = y;
+            }
+            if (contacted && y > peakY) peakY = y;
+            if (y < minY) minY = y;
+        }
+        std::cerr << "DIAG e=1: contactY " << firstContactY
+                  << " peakY " << peakY << " minY " << minY
+                  << " peakRise " << (peakY - firstContactY) << "\n";
+        if (!contacted) {
+            std::cerr << "The box must reach the ground\n"; ok = false;
+        } else {
+            if (!(peakY > firstContactY + 1.0f)) {
+                std::cerr << "First rebound peak must exceed the contact by a visible margin\n"; ok = false;
+            }
+            if (!(minY >= restY - 0.01f)) {
+                std::cerr << "The box must never sink below the rest height\n"; ok = false;
+            }
+        }
+    }
+    // --- Scenario C: restitution 0.8 — peaks decrease, then settles ---
+    {
+        std::vector<pe::Entity> bodies;
+        pe::Entity box(pe::Vec3(0.0f, 2.0f, 0.0f), 0.0f, pe::Vec3(1,1,1));
+        box.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+        box.restitution = 0.8f;
+        box.gravityScale = 1.0f;
+        box.roleId = 3;   // Sandbox
+        pe::Entity ground(pe::Vec3(0.0f, -3.0f, 0.0f), 0.0f, pe::Vec3(1,1,1));
+        ground.halfExtents = pe::Vec3(4.0f, 0.5f, 4.0f);
+        ground.isStatic = true;
+        ground.restitution = 0.0f;
+        ground.roleId = 3;   // Sandbox
+        bodies.push_back(box);
+        bodies.push_back(ground);
+        std::vector<float> peaks;      // rebound apex heights (vy + -> - flips)
+        float prevVy = 0.0f;
+        float prevY = 2.0f;
+        float maxVyAtRest = 0.0f;
+        for (int i = 0; i < 1800; ++i) {
+            pe::applyPhysics(bodies, dt60);
+            pe::resolveSandboxPairs(bodies);
+            const float y = bodies[0].position.y;
+            const float vy = bodies[0].velocity.y;
+            if (prevVy > 0.0f && vy <= 0.0f) {
+                peaks.push_back(prevY);   // the apex of this rebound
+            }
+            if (i >= 1500) {
+                const float avy = vy >= 0.0f ? vy : -vy;
+                if (avy > maxVyAtRest) maxVyAtRest = avy;
+            }
+            prevVy = vy;
+            prevY = y;
+        }
+        std::cerr << "DIAG e=0.8: bounces " << peaks.size()
+                  << " maxVyLast300 " << maxVyAtRest << "\n";
+        if (peaks.size() < 3) {
+            std::cerr << "restitution 0.8 must produce at least 3 clear bounces\n"; ok = false;
+        } else if (!(peaks[1] < peaks[0] && peaks[2] < peaks[1])) {
+            std::cerr << "successive peaks must decrease\n"; ok = false;
+        }
+        if (!(maxVyAtRest <= 0.05f)) {
+            std::cerr << "the box must settle with |vy| below the threshold (no jitter)\n"; ok = false;
         }
     }
     return ok;
@@ -8364,6 +8475,7 @@ int main() {
     const bool debug3dParseOk = checkDebug3dParse();
     const bool nohostilesParseOk = checkNohostilesParse();
     const bool nohostilesKillOk = checkNohostilesKill();
+    const bool bounceRestOk = checkBounceRestHeights();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -8418,7 +8530,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

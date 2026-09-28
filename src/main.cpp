@@ -1819,6 +1819,11 @@ if (clip != animations.end()) {
             // gravityScale=0 default preserves pre-Step-108 behavior;
             // call is opt-in for entities with gravityScale > 0.
             pe::applyPhysics(activeScene->entities, dt);
+            // Step 235: resolve BEFORE draw — the rendered pose is the
+            // post-resolve one (the end-of-frame placement below the
+            // draw block rendered the pre-resolve pose: a one-frame
+            // visual lag).
+            pe::resolveSandboxPairs(activeScene->entities);
 
             // --- Phase 2: this frame's difficulty scale ---
             // Computed ONCE per frame (all hostiles share the same clock):
@@ -2178,10 +2183,6 @@ if (clip != animations.end()) {
         // Step 227/228: the deferred spawn queue flushes at
         // end-of-frame, OUTSIDE any entity iteration.
         activeScene->flushSpawns();
-        // Step 233: the sandbox-scoped physics resolve pass - the box
-        // no longer falls through the ground (the structural finding:
-        // the PLAYING loop had no physics resolution at all).
-        pe::resolveSandboxPairs(activeScene->entities);
 
         // C. Swap buffers
         // GLFW uses double buffering. This swaps the front buffer (what we see)
