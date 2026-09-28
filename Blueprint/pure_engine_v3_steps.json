@@ -2611,6 +2611,19 @@
     234,
     233
    ]
+  },
+  {
+   "id": 237,
+   "name": "Mesh: first real 3D mesh load (OBJ triangle-soup loader + loaded-mesh slot)",
+   "status": "completed",
+   "definition_of_done": "INSPECTED: drawEntity3D (renderer.h) hardcoded (meshId==2 ? pyramid : cube) - Step 230 slots 1=cube/2=pyramid, else fallback; mesh3d.h was pure vertex data (its 'no loader' note AMENDED for this step). ADD (minimal, NOT glTF): pe::loadMeshFromObj in mesh3d.h - OBJ triangle soup (v + f lines ONLY, no vn/vt/quads/index buffers), the SAME 3-candidate CWD probe every asset uses, malformed v/f lines SKIPPED with stderr warnings (the animation loader pattern), missing file or zero triangles -> false, out UNTOUCHED on failure (built locally, moved on success - STRICTER than loadBinaryBlob which clears first; the test caught my first implementation clearing before the probe). One sample asset: assets/mesh_tetrahedron.obj (hand-written 4 verts / 4 faces). meshId references the loaded mesh via ONE renderer slot: setLoadedMesh(id, vertices) (id + vertex copy; NO registry/map/handles) - meshId == loadedMeshId_ draws the loaded mesh; drop KEEPS the cube (meshId 1, the sandbox look unchanged - the loaded mesh is reachable opt-in via meshid <index> 3). Packaged: package.ps1 runtimeAssets + CMakeLists.txt mirror (F-08 single source); .gitignore *.obj negation for the asset (one line).",
+   "notes": "checkMeshLoad (headless + real-context): clean fixture -> 60 floats (4 faces x 15), uv (0,0), bounds ~unit; missing file -> false + out untouched; malformed lines skipped with warnings, the good triangle loads (15 floats); REAL hidden-window GL: meshId 3 without a slot falls back to the cube, with setLoadedMesh draws the LOADED vertices (depth written, no crash), meshId 1 (the cube) still draws after the slot is set. Honest limits (disclosed): loaded meshes are FLAT-COLORED (uv-less -> one texel * tint), no normals, no index buffers, ONE slot only (no registry/map), OBJ triangle soup only, malformed faces skip silently (holes possible in hand-written bad files - the sample asset is clean). Non-regression: meshId 1/2 unchanged, meshId > 3 still falls back, Pong/Platformer never call drawEntity3D. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes; asset shipped to build/Release/assets (Test-Path True). 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril retests the on-screen tetra (meshid <index> 3 with debug3d on).",
+   "commit": "fd4949b",
+   "depends_on": [
+    236,
+    212,
+    219
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
