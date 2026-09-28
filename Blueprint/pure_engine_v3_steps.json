@@ -2572,6 +2572,19 @@
     233,
     206
    ]
+  },
+  {
+   "id": 234,
+   "name": "Console: nohostiles debug toggle (role-scoped clear + activation spawn-pause)",
+   "status": "completed",
+   "definition_of_done": "INSPECTED FIRST - NO PRIOR EDIT EXISTS: grep over the whole repo finds zero nohostiles matches - the earlier ad hoc edit died with the reverted main.cpp working copy; hostiles come only from buildInitialEntities at scene activation (main.cpp:872) and the only runtime spawner is the Sandbox-role dropSandbox lambda (main.cpp:1112). CONTRACT (picked, not ambiguous): nohostiles on -> clears every ACTIVE Hostile-role entity (alive=false, logically removed) AND pauses future spawning; nohostiles off -> resumes normal spawning, does NOT retroactively respawn cleared ones; default OFF, normal Arcade play byte-identical unless typed. THE PAUSE IS REAL (not dead code): activateScene gates the flag AFTER buildInitialEntities and BEFORE the snapshot assignment - while on, scene activations AND every resetGame restore build NO hostiles for the whole session. ENGINE-PURE: pe::killRole(Scene&, int roleId) next to killEntity (scene.h) - role passed explicitly (engine never names roles), returns the killed count, index-stable (no erase).",
+   "notes": "checkNohostilesParse (the checkDebug3dParse pattern): on/ON/off/OFF exact, empty/garbage/multi-arg safe no-ops. checkNohostilesKill: killRole(Hostile) kills exactly 2 (both hostiles dead, Player/Scenery/Sandbox alive); killRole(Sandbox) kills exactly 1 and does not respawn hostiles (the reverse scoping both ways). Non-regression: Pong/Platformer never call it (grep: nohostiles only in main.cpp + the test); default OFF path byte-identical. FULL SOLUTION build per the main.cpp incident standing rule: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True. SMOKE_TEST 7.12 documents the exact command. CONFIRMED only after Cyril retests the on-screen disappearance.",
+   "commit": "aa161e0",
+   "depends_on": [
+    233,
+    228,
+    202
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
