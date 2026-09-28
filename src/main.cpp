@@ -1148,12 +1148,15 @@ if (clip != animations.end()) {
         ground.restitution = 0.0f;
         const std::size_t gIdx = activeScene->queueSpawn(ground);
         pe::Entity box;
-        box.position = pe::Vec3(0.0f, 2.0f, 0.0f);
+        box.position = pe::Vec3(0.0f, 6.0f, 0.0f);
         box.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
         box.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
         box.meshId = 1;
         box.roleId = static_cast<int>(pe::ArcadeRole::Sandbox);  // Step 232
-        box.restitution = 1.0f;   // bouncy: the fall flips to the entry height
+        // Step 235 display tuning: restitution 0.85 (was 1.0 — perfectly
+        // elastic bounced forever) + spawn Y 6 so 2-3 clear bounces are
+        // visible before the box settles dead-still on the ground plane.
+        box.restitution = 0.85f;  // 2-3 clear bounces, then settles
         box.gravityScale = 1.0f;  // the box actually falls
         const std::size_t bIdx = activeScene->queueSpawn(box);
         return std::string("drop: ground@" + std::to_string(gIdx) + " box@" +
