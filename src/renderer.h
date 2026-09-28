@@ -726,6 +726,19 @@ public:
     // the caller's camera (perspective when the caller enables it).
     // NOT called from any game render pass (Pong/Platformer never) —
     // the opt-in diagnostic path only (main's debug3d block).
+    // --- Step 237: the loaded-mesh slot (the first real 3D mesh load) ---
+    // ONE override slot (id + vertex copy; no registry, no map, no
+    // handles — the texture-registry pattern scaled to ONE loaded
+    // mesh, nothing more). meshId == loadedMeshId_ draws the loaded
+    // mesh; every other meshId keeps the Step 230 behavior
+    // (1 = cube, 2 = pyramid, other > 2 falls back to the cube).
+    int loadedMeshId_ = 0;
+    std::vector<float> loadedMeshVertices_;
+    void setLoadedMesh(int meshId, std::vector<float> vertices) {
+        loadedMeshId_ = meshId;
+        loadedMeshVertices_ = std::move(vertices);
+    }
+
     void drawEntity3D(const Entity& e, const Mat4& view, const Mat4& projection) {
         if (e.meshId == 0) {
             return;   // 2D-only entity: no 3D draw, no matrix work
@@ -738,8 +751,13 @@ public:
         // tint is the no-entity default). White default = the
         // texel.rgb * white pass-through. Step 230: meshId 1 = cube,
         // meshId 2 = pyramid, meshId > 2 FALLS BACK to the cube.
+        // Step 237: meshId == loadedMeshId_ (setLoadedMesh) draws the
+        // LOADED mesh; other meshId > 2 still falls back to the cube.
         const std::vector<float>& mesh =
-            (e.meshId == 2) ? pyramidVertices() : unitCubeVertices();
+            (e.meshId == 2) ? pyramidVertices() :
+            (e.meshId == loadedMeshId_ && !loadedMeshVertices_.empty())
+                ? loadedMeshVertices_ :
+                unitCubeVertices();
         drawEntityMesh3D(mesh, model, view, projection,
                          e.tint.x, e.tint.y, e.tint.z);
     }

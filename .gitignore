@@ -8,6 +8,7 @@ savedata/
 package/
 *.exe
 *.obj
+!assets/mesh_tetrahedron.obj
 *.pdb
 .vs/
 CMakeCache.txt

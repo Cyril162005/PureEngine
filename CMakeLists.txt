@@ -160,6 +160,9 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/assets/input_bindings.txt"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/input_bindings.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/mesh_tetrahedron.obj"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/mesh_tetrahedron.obj"
     # Step 77: the renderer loads GLSL from files now — every game bundle
     # must carry assets/shaders/ (missing files are fatal in init).
     COMMAND ${CMAKE_COMMAND} -E copy_directory

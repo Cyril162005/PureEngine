@@ -695,6 +695,28 @@ int main() {
         return -1;
     }
 
+    // --- Step 237: the first real 3D mesh load (opt-in debug slot) ---
+    // OBJ triangle soup from assets/ (the sample tetrahedron), loaded
+    // ONCE at startup through the same 3-candidate probe every asset
+    // uses. meshId 3 references it (meshid <index> 3 binds a live
+    // entity); the debug3d drop KEEPS the cube (meshId 1) - the loaded
+    // mesh is reachable opt-in via meshid, the sandbox look unchanged.
+    // Missing file: a console note, the slot stays unset (meshId 3
+    // falls back to the cube - never fatal).
+    {
+        std::vector<float> loadedMesh;
+        const std::size_t meshFloats =
+            pe::loadMeshFromObj("mesh_tetrahedron.obj", loadedMesh)
+                ? loadedMesh.size() : 0;
+        if (meshFloats > 0) {
+            renderer.setLoadedMesh(3, std::move(loadedMesh));
+            std::cout << "[MESH] mesh_tetrahedron.obj loaded ("
+                      << (meshFloats / 15) << " triangles) - meshid 3 draws it" << std::endl;
+        } else {
+            std::cout << "[MESH] mesh_tetrahedron.obj not found - meshid 3 falls back to the cube" << std::endl;
+        }
+    }
+
     // --- Step 58: animation clip library (game-owned, outlives entities) ---
     // Bare filename: loadAnimations() probes assets/ itself (hostile_data
     // pattern). The map lives in main scope so clip pointers stay valid

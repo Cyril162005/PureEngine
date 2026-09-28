@@ -1,0 +1,12 @@
+# PureEngine Step 237: the first loaded 3D debug mesh (sample asset).
+# OBJ triangle soup - v (position) + f (triangular face, 1-based) only.
+# The loader expands to the engine's 5-float layout (pos xyz + uv (0,0)).
+# A tetrahedron: 4 vertices, 4 faces, unit-ish bounds (corners ~+-0.5).
+v -0.5 -0.5 -0.288675
+v  0.5 -0.5 -0.288675
+v  0.0 -0.5  0.57735
+v  0.0  0.5  0.0
+f 1 3 2
+f 1 2 4
+f 2 3 4
+f 3 1 4

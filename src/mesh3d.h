@@ -20,7 +20,9 @@
  *   - no draw call here: the GL path lives in renderer.h's opt-in
  *     drawDebugMesh3D (SMOKE-only — see SMOKE_TEST section 7.9); the
  *     games never call it, so the 2D pipeline is unchanged;
- *   - no loader: vertices are built by hand here, not parsed.
+ *   - no loader (Step 194 constraint) — EXCEPT Step 237's minimal
+ *     OBJ triangle-soup loader (loadMeshFromObj): the first loaded
+ *     mesh, v + f lines only, the same 5-float layout.
  *
  * Header-only, like every project module: no mesh3d.cpp, no
  * CMakeLists.txt change.
@@ -29,6 +31,12 @@
 #define PUREENGINE_MESH3D_H
 
 #include <vector>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+
+#include "math/vec3.h"  // the loader's position type
 
 namespace pe {
 
@@ -73,6 +81,77 @@ inline std::vector<float> pyramidVertices() {
          0.5f,-0.5f, 0.5f,  0,0,  -0.5f,-0.5f, 0.5f,  0,0,   0.0f, 0.5f, 0.0f,  0,0,
         -0.5f,-0.5f, 0.5f,  0,0,  -0.5f,-0.5f,-0.5f,  0,0,   0.0f, 0.5f, 0.0f,  0,0
     };
+}
+
+// --- Step 237: the OBJ triangle-soup loader (the first loaded mesh,
+// minimal - NOT a glTF full stack) ---
+// Loads ONE simple mesh from assets: v (position) + f (triangular
+// face, 1-based) lines only — no vn/vt, no quads, no index buffers
+// (the debug proof draws flat-colored triangles; uv stays (0,0), the
+// same 5-float layout the world shaders already expect). The SAME
+// 3-candidate CWD probe every asset uses (the resources.h pattern).
+// Malformed v/f lines are SKIPPED with a stderr warning (the
+// animation loader pattern); a missing file or zero parsed triangles
+// returns false and leaves out UNTOUCHED (the failure-not-cached
+// contract). One call = one load; the CALLER owns the vertex data.
+// Honest limits: flat-colored output (uv-less meshes sample one
+// texel * tint), no normals, no index buffers.
+inline bool loadMeshFromObj(const std::string& fileName,
+                            std::vector<float>& out) {
+    std::vector<float> parsed;   // built locally; out is UNTOUCHED on failure
+    const std::string candidates[3] = {
+        std::string("assets/") + fileName,
+        std::string("../assets/") + fileName,
+        std::string("../../assets/") + fileName};
+    std::ifstream in;
+    for (int k = 0; k < 3; ++k) {
+        in.open(candidates[k]);
+        if (in) break;
+        in.clear();
+    }
+    if (!in) return false;
+    std::vector<Vec3> positions;   // 1-based OBJ indexing: slot 0 unused
+    positions.push_back(Vec3(0.0f, 0.0f, 0.0f));
+    std::size_t triangles = 0;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::istringstream ls(line);
+        std::string tag;
+        ls >> tag;
+        if (tag == "v") {
+            float x = 0.0f, y = 0.0f, z = 0.0f;
+            if (ls >> x >> y >> z) {
+                positions.push_back(Vec3(x, y, z));
+            } else {
+                std::cerr << "[mesh] Malformed vertex line skipped\n";
+            }
+        } else if (tag == "f") {
+            int i = 0, j = 0, k2 = 0;
+            if (ls >> i >> j >> k2 &&
+                i > 0 && j > 0 && k2 > 0 &&
+                i < static_cast<int>(positions.size()) &&
+                j < static_cast<int>(positions.size()) &&
+                k2 < static_cast<int>(positions.size())) {
+                const Vec3& a = positions[i];
+                const Vec3& b = positions[j];
+                const Vec3& c = positions[k2];
+                parsed.push_back(a.x); parsed.push_back(a.y); parsed.push_back(a.z); parsed.push_back(0.0f); parsed.push_back(0.0f);
+                parsed.push_back(b.x); parsed.push_back(b.y); parsed.push_back(b.z); parsed.push_back(0.0f); parsed.push_back(0.0f);
+                parsed.push_back(c.x); parsed.push_back(c.y); parsed.push_back(c.z); parsed.push_back(0.0f); parsed.push_back(0.0f);
+                ++triangles;
+            } else {
+                std::cerr << "[mesh] Malformed/unknown face line skipped\n";
+            }
+        }
+        // Any other tag (vn/vt/o/g/s/...): skipped silently - the
+        // debug sample uses none of them.
+    }
+    if (triangles == 0) {
+        return false;
+    }
+    out = std::move(parsed);   // success only: out replaced, failure untouched
+    return true;
 }
 
 } // namespace pe

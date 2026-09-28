@@ -6340,6 +6340,143 @@ static bool checkEntity3D() {
     return ok;
 }
 
+// Step 237: the first real 3D mesh load (headless + real-context draw).
+// REQUIRED evidence:
+//   - loadMeshFromObj on a hand-written tetra fixture: succeeds, the
+//     5-float layout (4 faces x 3 verts x 5 = 60 floats), uv (0,0),
+//     bounds ~unit;
+//   - a missing file: false, out UNTOUCHED (failure-not-cached);
+//   - malformed v/f lines: skipped with warnings, the good triangle
+//     still loads;
+//   - the draw path under a REAL hidden-window GL context: meshId 3
+//     (setLoadedMesh) draws the LOADED vertices (depth written, no
+//     crash), meshId 3 without a loaded slot falls back to the cube,
+//     and meshId 1 (the cube) still draws after the slot is set.
+// SMOKE-only: the on-screen tetra via meshid <index> 3; CI does not
+// claim pixels.
+static bool checkMeshLoad() {
+    bool ok = true;
+    // Fixture: a tetrahedron in the ctest CWD's assets/ (the copied
+    // bundle - build output, not the repo source assets).
+    const std::string fname = "mesh_load_test.obj";
+    {
+        std::ofstream out("assets/" + fname);
+        out << "# test fixture\n";
+        out << "v -0.5 -0.5 -0.288675\n";
+        out << "v  0.5 -0.5 -0.288675\n";
+        out << "v  0.0 -0.5  0.57735\n";
+        out << "v  0.0  0.5  0.0\n";
+        out << "f 1 3 2\n";
+        out << "f 1 2 4\n";
+        out << "f 2 3 4\n";
+        out << "f 3 1 4\n";
+    }
+    std::vector<float> mesh;
+    if (!pe::loadMeshFromObj(fname, mesh)) {
+        std::cerr << "mesh load must succeed on a clean fixture\n"; ok = false;
+    }
+    if (mesh.size() != 60) {
+        std::cerr << "4 faces must expand to 60 floats, got " << mesh.size() << "\n"; ok = false;
+    } else {
+        for (std::size_t v = 0; v < mesh.size(); v += 5) {
+            if (mesh[v + 3] != 0.0f || mesh[v + 4] != 0.0f) {
+                std::cerr << "loaded-mesh uv must stay (0,0)\n"; ok = false; break;
+            }
+            if (mesh[v] < -0.6f || mesh[v] > 0.6f || mesh[v + 1] < -0.6f ||
+                mesh[v + 1] > 0.6f || mesh[v + 2] < -0.6f || mesh[v + 2] > 0.6f) {
+                std::cerr << "loaded-mesh bounds must stay ~unit\n"; ok = false; break;
+            }
+        }
+    }
+    std::remove(("assets/" + fname).c_str());
+    // Missing file: false, out untouched (failure-not-cached).
+    std::vector<float> untouched(3, 1.0f);
+    if (pe::loadMeshFromObj("mesh_load_missing.obj", untouched) || untouched.size() != 3) {
+        std::cerr << "missing file must fail and leave out untouched\n"; ok = false;
+    }
+    // Malformed lines: skipped with warnings, the good triangle loads.
+    {
+        std::ofstream out("assets/" + fname);
+        out << "v 0 0 0\n";
+        out << "v 1 0 0\n";
+        out << "v 0 1 0\n";
+        out << "v 999 0 0\n";
+        out << "f 1 2 3\n";
+        out << "f 1 2 99\n";
+        out << "f 1 2\n";
+        out << "this is not a face\n";
+    }
+    std::vector<float> partial;
+    if (!pe::loadMeshFromObj(fname, partial)) {
+        std::cerr << "a fixture with one good triangle must load\n"; ok = false;
+    }
+    if (partial.size() != 15) {
+        std::cerr << "one good face must expand to 15 floats, got " << partial.size() << "\n"; ok = false;
+    }
+    std::remove(("assets/" + fname).c_str());
+    // The draw path under a REAL hidden-window GL context.
+    if (!glfwInit()) { std::cerr << "mesh load test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "meshload", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "mesh load test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "mesh load test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        pe::Entity e;
+        e.meshId = 3;   // the loaded-mesh slot
+        e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            // WITHOUT a loaded mesh: meshId 3 falls back to the cube
+            // (the Step 230 fallback, in-context).
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float depth = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+            if (!(depth < 1.0f)) {
+                std::cerr << "meshId 3 without a loaded mesh must fall back to the cube\n"; ok = false;
+            }
+            // WITH the loaded mesh: meshId 3 draws the LOADED vertices
+            // (depth written at the center region, no crash).
+            r.setLoadedMesh(3, mesh);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float depth2 = 1.0f;
+            const int samples[4][2] = {{160,120},{161,121},{159,119},{161,119}};
+            for (int s = 0; s < 4; ++s) {
+                glReadPixels(samples[s][0], samples[s][1], 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth2);
+                if (depth2 < 1.0f) break;
+            }
+            if (!(depth2 < 1.0f)) {
+                std::cerr << "meshId 3 must draw the loaded mesh\n"; ok = false;
+            }
+            // Non-regression in-context: meshId 1 (the cube) still draws.
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            e.meshId = 1;
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float depth3 = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth3);
+            if (!(depth3 < 1.0f)) {
+                std::cerr << "meshId 1 (the cube) must still draw after setLoadedMesh\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
 // Step 215: debug3d fov <degrees> - parse + camera contract (headless).
 // parseFloat1: valid -> true + value out; garbage/wrong-count -> false
 // + out UNCHANGED. Camera: setFov updates the projection ONLY in
@@ -8476,6 +8613,7 @@ int main() {
     const bool nohostilesParseOk = checkNohostilesParse();
     const bool nohostilesKillOk = checkNohostilesKill();
     const bool bounceRestOk = checkBounceRestHeights();
+    const bool meshLoadOk = checkMeshLoad();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -8530,7 +8668,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !meshLoadOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
