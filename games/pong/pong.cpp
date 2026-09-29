@@ -217,11 +217,28 @@ int main() {
         // (byte-identical); the overlap clear is now the EXACT
         // positional correction (not a fixed 0.6). Walls keep the
         // existing position-threshold flip (they are not entities).
+        // --- Step 239: the resolve sees the REAL ball velocity ---
+        // The ball's motion state lives in the game-side ballVelocity
+        // (line 208) - the ENTITY's velocity field is the (0,0,0)
+        // default pong never writes. Without this mirror, resolveCollision's
+        // impulse path reads an all-zero velocity (rel = 0: NO impulse
+        // ever fires) - the paddle bounce has been positional-only
+        // since Step 209 (the grind). The mirror + the X-only read-back
+        // below make the resolve the single response path.
+        entities[2].velocity = ballVelocity;
         if (pe::aabbOverlap(entities[2], entities[0]) && ballVelocity.x < 0.0f) {
             pe::resolveCollision(entities[0], entities[2]);
+            // Step 239: READ THE FLIP BACK, X-ONLY - the impulse lands
+            // in the ENTITY's velocity; the ball MOVES via ballVelocity.
+            // X-ONLY: the resolve's normal is X and friction is 0, so
+            // velocity.y is untouched - a whole-vector copy would be
+            // redundant with the mirror above, not harmful, but X-only
+            // states the intent: only the bounce flips back.
+            ballVelocity.x = entities[2].velocity.x;
         }
         if (pe::aabbOverlap(entities[2], entities[1]) && ballVelocity.x > 0.0f) {
             pe::resolveCollision(entities[1], entities[2]);
+            ballVelocity.x = entities[2].velocity.x;   // Step 239: read the flip back
         }
         // Score: ball past side edge → point for opposite side, reset ball, win check
         if (entities[2].position.x < -7.0f) {

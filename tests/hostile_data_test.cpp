@@ -7025,15 +7025,12 @@ static bool checkBounceRestHeights() {
     return ok;
 }
 
-// Step 238: the Pong ball-sticks-on-paddle regression (Step 235's
-// shared RESTING_VEL threshold). REPRODUCTION of the real sustained
-// contact: a KINEMATIC paddle (pong.cpp:105 - isKinematic, moved by
-// direct position sets) in repeated contact with the e=1.0 ball whose
-// NORMAL approach speed is below 0.5 (a glancing hit). The threshold
-// zeroed the ball's normal velocity instead of bouncing it - the ball
-// hung on the paddle face (vx == 0). Assert: the ball leaves with a
-// REAL velocity, not stuck/zeroed, and the kinematic paddle is never
-// pushed.
+// Step 239 UPDATE: the test now mirrors Pong's REAL motion - the ball
+// MOVES via the game-side velocity (pong.cpp:208) while resolveCollision
+// mutates the ENTITY's velocity (pong.cpp:221) - a DIFFERENT vector
+// pong never reads (the grind root cause). Assert: the ball leaves
+// with a REAL bounced-away velocity, the gap is closed (a clean leave,
+// not grind-forever), and the kinematic paddle is never pushed.
 static bool checkPongSustainedContact() {
     bool ok = true;
     const float dt60 = 1.0f / 60.0f;
@@ -7048,21 +7045,27 @@ static bool checkPongSustainedContact() {
     ball.position = pe::Vec3(-4.6f, 0.0f, 0.0f);   // overlapping the paddle face
     ball.scale = pe::Vec3(0.3f, 0.3f, 1.0f);
     ball.restitution = 1.0f;
-    ball.velocity = pe::Vec3(-0.4f, 2.0f, 0.0f);   // the glancing hit: LOW normal speed
-    // 30 frames: the paddle moves (pong's direct position sets) and the
-    // resolve runs paddle-first (pong.cpp:221) every frame.
+    pe::Vec3 ballVelocity(-0.4f, 2.0f, 0.0f);   // game-side (pong.cpp:136 pattern)
+    // 30 frames: the paddle moves, the ball moves via the GAME-SIDE
+    // velocity, the resolve runs paddle-first (pong.cpp:221).
     for (int i = 0; i < 30; ++i) {
         paddle.position.y += 3.0f * dt60;   // the moving paddle
-        pe::resolveCollision(paddle, ball);
-        ball.position = ball.position + (ball.velocity * dt60);  // the ball coasts
+        ball.position = ball.position + (ballVelocity * dt60);   // pong.cpp:208
+        if (pe::aabbOverlap(ball, paddle) && ballVelocity.x < 0.0f) {   // pong.cpp:220
+            ball.velocity = ballVelocity;   // pong.cpp:239: the resolve sees the REAL velocity
+            pe::resolveCollision(paddle, ball);                          // pong.cpp:221
+            ballVelocity.x = ball.velocity.x;   // Step 239: the X-only read-back
+        }
     }
-    std::cerr << "DIAG pong: ball vx " << ball.velocity.x
-              << " overlapping " << (pe::aabbOverlap(paddle, ball) ? 1 : 0) << "\n";
-    // The ball must leave with a REAL velocity (not zeroed/stuck).
-    if (!(ball.velocity.x > 0.05f)) {
-        std::cerr << "The ball must bounce off the paddle, not stick (vx zeroed)\n"; ok = false;
+    std::cerr << "DIAG pong: ballVx " << ballVelocity.x
+              << " overlapping " << (pe::aabbOverlap(ball, paddle) ? 1 : 0) << "\n";
+    // The ball must leave with a REAL bounced-away velocity (the flip
+    // propagated - not still-approaching, not zeroed/stuck).
+    if (!(ballVelocity.x > 0.05f)) {
+        std::cerr << "The ball must bounce off the paddle (the flip must propagate)\n"; ok = false;
     }
-    if (pe::aabbOverlap(paddle, ball)) {
+    // The gap must be CLOSED: a clean leave, not grinding on the face.
+    if (pe::aabbOverlap(ball, paddle)) {
         std::cerr << "The ball must leave the paddle face\n"; ok = false;
     }
     // The kinematic paddle is never pushed by the resolve.
