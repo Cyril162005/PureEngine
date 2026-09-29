@@ -2686,6 +2686,18 @@
     241,
     239
    ]
+  },
+  {
+   "id": 243,
+   "name": "Font: digit UV divisor 11 -> 37 (the HUD digits were 3.4-cell mashes since Step 66) + Pong log before reset",
+   "status": "completed",
+   "definition_of_done": "INSPECTED BEFORE EDIT: (1) drawDigitString's layout (renderer.h:645): glyphSize 0.7 (~47px, readable), advance 0.52 (SMALLER than the glyph - multi-digit quads overlap; a shared renderer constant, NOT touched this step - disclosed), white tint forced, blending ON, depth OFF, model = translate(originX + c*0.52, originY)*0.7 - Pong's digits at y=4.0 span [3.65, 4.35], INSIDE the +/-4.5 view, correct sides, NOT clipped - position/scale/color/blending ALL FINE. (2) THE ROOT CAUSE OF 'HUD score values not properly visible': font_digits.png on disk is 592x16 = 37 cells (verified by the PNG IHDR parse, 1006 bytes; matching make_font.ps1 and FONT_TEXT_CELL_COUNT = 37) - BUT the DIGIT path divided by the STALE FONT_CELL_COUNT = 11 (the Phase-3 176px atlas geometry; the Phase-3 font commit 8e795a0 was 686 bytes = 176x16): Step 66 (09bc6a0) extended the atlas 11 -> 37 cells but FROZE the digit divisor at 11 -> digit '0' spanned UV [0, 1/11] = pixels [0, 53.8] = ~3.4 atlas cells SQUISHED into one glyph - EVERY score digit (Pong AND the Arcade HUD) rendered as a mashed blob since Step 66 - the 'pixel-identical' frozen contract preserved BROKEN rendering; its INTENT (correct glyphs) was broken by the Step-66 extension. FIX: the digit divisor -> FONT_TEXT_CELL_COUNT (37) - one exact 16px cell per digit, both paths consistent, the stale FONT_CELL_COUNT constant GONE; the intent restored (disclosed: the arcade's digits were equally garbage - a FIX, not a break). (3) The score log moved BEFORE any reset with the REAL exit pos.x, the live goal bound, AND the frame number (SCORE L/R now=N exitX=... bound=... frame=...) + a frame counter incremented at the top of pong's loop - two SCORE lines on the SAME frame proves a double-fire bug; different frames = two real misses. SCORE CONDITIONS UNCHANGED (item 3: no change unless the frame number proves a double-fire on one exit).",
+   "notes": "The HUD finding STATED before changing (item 2): the glyphs were the problem (the divisor), NOT the position/scale/color - no position change made. The multi-digit advance overlap (0.52 < 0.7) disclosed as a shared renderer constant, unfixed. On-screen digits SMOKE-only (the pixels are human-verified). Kept: the both-axis paddle flip (242), the three-way reset, the live camera bound (241), default restingVel 0 for non-Sandbox. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril retests: one miss -> one log line with non-zero exitX and a frame number; HUD shows 0,1,2... clearly (Pong AND Arcade).",
+   "commit": "9167e14",
+   "depends_on": [
+    242,
+    66
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
