@@ -228,17 +228,17 @@ int main() {
         entities[2].velocity = ballVelocity;
         if (pe::aabbOverlap(entities[2], entities[0]) && ballVelocity.x < 0.0f) {
             pe::resolveCollision(entities[0], entities[2]);
-            // Step 239: READ THE FLIP BACK, X-ONLY - the impulse lands
-            // in the ENTITY's velocity; the ball MOVES via ballVelocity.
-            // X-ONLY: the resolve's normal is X and friction is 0, so
-            // velocity.y is untouched - a whole-vector copy would be
-            // redundant with the mirror above, not harmful, but X-only
-            // states the intent: only the bounce flips back.
+            // Step 242: read BOTH flips back - the min-axis CAN be Y on
+            // the tall paddle's EDGE contacts (a corner graze), and the
+            // X-only read-back let the ball pass THROUGH the paddle's
+            // edge (the vy flip landed in the unread entity velocity).
             ballVelocity.x = entities[2].velocity.x;
+            ballVelocity.y = entities[2].velocity.y;
         }
         if (pe::aabbOverlap(entities[2], entities[1]) && ballVelocity.x > 0.0f) {
             pe::resolveCollision(entities[1], entities[2]);
             ballVelocity.x = entities[2].velocity.x;   // Step 239: read the flip back
+            ballVelocity.y = entities[2].velocity.y;   // Step 242: the edge-contact vy flip
         }
         // Score: ball fully exits the VISIBLE play area -> point for the
         // opposite side, reset ball, win check. Step 241 FIX: the goal
@@ -256,14 +256,20 @@ int main() {
         if (entities[2].position.x < -goalX) {
             ++rightScore;
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
-            entities[2].velocity = pe::Vec3(0.0f, 0.0f, 0.0f);   // all three reset together
             ballVelocity.x = 3.0f; ballVelocity.y = 2.0f;
+            entities[2].velocity = ballVelocity;   // Step 242: the reset MIRRORS the new serve velocity (the session's guarantee #2, literal)
+            // Step 242: the dev-only score log - the runtime diagnostic
+            // for the score-jump retest (SMOKE-only, strippable later).
+            std::cout << "SCORE R now=" << rightScore
+                      << " pos.x=" << entities[2].position.x << std::endl;
             if (rightScore >= winScore) { win = true; winner = 2; }
         } else if (entities[2].position.x > goalX) {
             ++leftScore;
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
-            entities[2].velocity = pe::Vec3(0.0f, 0.0f, 0.0f);   // all three reset together
             ballVelocity.x = -3.0f; ballVelocity.y = 2.0f;
+            entities[2].velocity = ballVelocity;   // Step 242: the reset MIRRORS the new serve velocity
+            std::cout << "SCORE L now=" << leftScore
+                      << " pos.x=" << entities[2].position.x << std::endl;
             if (leftScore >= winScore) { win = true; winner = 1; }
         }
         } // end !win
