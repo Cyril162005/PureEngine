@@ -2624,6 +2624,19 @@
     212,
     219
    ]
+  },
+  {
+   "id": 238,
+   "name": "Physics: scope RESTING_VEL to the Sandbox resolve path (the Pong ball-stick regression)",
+   "status": "completed",
+   "definition_of_done": "INSPECTED FIRST: Step 235 made TWO SEPARABLE changes to the static-dynamic branches - (a) the corrected approach test (was inverted; a genuine correctness fix, NOT reverted for anyone) and (b) the new RESTING_VEL = 0.5 threshold + zeroing (new behavior, THE SUSPECT). Pong's paddles are isKinematic (pong.cpp:105/117) moved by DIRECT position sets (motion is not velocity), the resolve runs paddle-first (pong.cpp:221) and reads the BALL's ABSOLUTE normal velocity only - a ball approaching at a low normal speed (<= 0.5, a glancing hit or a paddle slammed into a coasting ball) got its normal velocity ZEROED instead of bounced -> it hung on the paddle face. A SUSTAINED/repeated-contact scenario - why 235's single-contact tests (impact speeds 1.0-3.0) passed while real play failed. FIX (Option A - simplest AND correct; Option B rejected: it would need the paddle's velocity plumbed into a branch that only reads the ball's absolute velocity): the threshold became resolveCollision's 4th parameter restingVel (default 0.0 = NO threshold = the pre-235 behavior for every existing caller); RESTING_VEL moved to namespace scope; the zeroing is gated on restingVel > 0 (the 0.0 default never zeroes); resolveSandboxPairs passes (0.5f, RESTING_VEL) explicitly - the explicit 0.5 keeps the default-call detection (== 0.5f) intact so the max-rule restitution still applies, and the threshold flows ONLY through the Sandbox path. Pong's default call gets restingVel 0.0: ANY approaching speed bounces (byte-identical to pre-235).",
+   "notes": "checkPongSustainedContact (headless, the REAL sustained-contact scenario): kinematic paddle + e=1.0 ball at a LOW normal approach (-0.4, the glancing hit), 30 frames of repeated contact - BEFORE the fix: DIAG ball vx 0 (zeroed, stuck; the test FAILED); AFTER: DIAG ball vx 0.4 overlapping 0 (the ball leaves with a REAL velocity, the kinematic paddle never pushed). Non-regression RERUN UNCHANGED: checkSandboxResolve + checkBounceRestHeights (the 1800-frame multi-bounce, Step 235's fix) both PASS - the Sandbox path still passes RESTING_VEL; the exact-value tests (205-207) get restingVel 0.0 (byte-identical). FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril plays Pong again.",
+   "commit": "97faa9a",
+   "depends_on": [
+    235,
+    209,
+    206
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
