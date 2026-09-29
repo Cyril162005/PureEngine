@@ -63,6 +63,7 @@
 #include <iostream>      // the same stderr diagnostics main.cpp always used
 #include <set>           // Step 109: track warned OOB textureIds
 #include <string>        // drawDigitString takes formatted game text
+#include <unordered_map> // Step 244: the mesh registry (meshId -> vertex data)
 #include <vector>        // entity list + collision flags arrive by reference
 
 #include "resources.h"   // Step 14: texture LOADING lives in the resource
@@ -734,16 +735,24 @@ public:
     // NOT called from any game render pass (Pong/Platformer never) —
     // the opt-in diagnostic path only (main's debug3d block).
     // --- Step 237: the loaded-mesh slot (the first real 3D mesh load) ---
-    // ONE override slot (id + vertex copy; no registry, no map, no
-    // handles — the texture-registry pattern scaled to ONE loaded
-    // mesh, nothing more). meshId == loadedMeshId_ draws the loaded
-    // mesh; every other meshId keeps the Step 230 behavior
-    // (1 = cube, 2 = pyramid, other > 2 falls back to the cube).
-    int loadedMeshId_ = 0;
-    std::vector<float> loadedMeshVertices_;
-    void setLoadedMesh(int meshId, std::vector<float> vertices) {
-        loadedMeshId_ = meshId;
-        loadedMeshVertices_ = std::move(vertices);
+    // --- Step 244: the mesh REGISTRY (multiple loaded OBJs) ---
+    // The texture-registry precedent (Step 89: growable slots; Step 94:
+    // non-core unload) scaled to meshes: a meshId -> vertex-data map
+    // for LOADED meshes. meshId 1 (the cube) and 2 (the pyramid) stay
+    // the HARDCODED Step 230 paths - the registry serves ONLY meshIds
+    // registered here (3+; a re-register REPLACES the slot's data, the
+    // Step 89 growable-slot rule). One member + two calls:
+    // registerMesh (loadMeshFromObj -> register) and
+    // clearRegisteredMeshes (the optional non-core clear - the
+    // registered slots only; the hardcoded 1/2 are untouchable).
+    std::unordered_map<int, std::vector<float>> meshRegistry_;
+    void registerMesh(int meshId, std::vector<float> vertices) {
+        meshRegistry_[meshId] = std::move(vertices);
+    }
+    std::size_t clearRegisteredMeshes() {
+        const std::size_t n = meshRegistry_.size();
+        meshRegistry_.clear();
+        return n;
     }
 
     void drawEntity3D(const Entity& e, const Mat4& view, const Mat4& projection) {
@@ -758,12 +767,19 @@ public:
         // tint is the no-entity default). White default = the
         // texel.rgb * white pass-through. Step 230: meshId 1 = cube,
         // meshId 2 = pyramid, meshId > 2 FALLS BACK to the cube.
-        // Step 237: meshId == loadedMeshId_ (setLoadedMesh) draws the
-        // LOADED mesh; other meshId > 2 still falls back to the cube.
+        // Step 244: the REGISTRY lookup — a registered meshId draws its
+        // loaded vertex data; every unregistered meshId > 2 still falls
+        // back to the cube (1/2 untouched by the registry).
+        const std::vector<float>* registered = nullptr;
+        {
+            const auto it = meshRegistry_.find(e.meshId);
+            if (it != meshRegistry_.end() && !it->second.empty()) {
+                registered = &it->second;
+            }
+        }
         const std::vector<float>& mesh =
             (e.meshId == 2) ? pyramidVertices() :
-            (e.meshId == loadedMeshId_ && !loadedMeshVertices_.empty())
-                ? loadedMeshVertices_ :
+            (registered != nullptr) ? *registered :
                 unitCubeVertices();
         drawEntityMesh3D(mesh, model, view, projection,
                          e.tint.x, e.tint.y, e.tint.z);

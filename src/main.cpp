@@ -709,7 +709,7 @@ int main() {
             pe::loadMeshFromObj("mesh_tetrahedron.obj", loadedMesh)
                 ? loadedMesh.size() : 0;
         if (meshFloats > 0) {
-            renderer.setLoadedMesh(3, std::move(loadedMesh));
+            renderer.registerMesh(3, std::move(loadedMesh));   // Step 244: the registry
             std::cout << "[MESH] mesh_tetrahedron.obj loaded ("
                       << (meshFloats / 15) << " triangles) - meshid 3 draws it" << std::endl;
         } else {

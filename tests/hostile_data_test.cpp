@@ -6449,7 +6449,8 @@ static bool checkMeshLoad() {
             }
             // WITH the loaded mesh: meshId 3 draws the LOADED vertices
             // (depth written at the center region, no crash).
-            r.setLoadedMesh(3, mesh);
+            // Step 244: the registry register call.
+            r.registerMesh(3, mesh);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             r.drawEntity3D(e, cam.view(), cam.projection());
             float depth2 = 1.0f;
@@ -6468,8 +6469,125 @@ static bool checkMeshLoad() {
             float depth3 = 1.0f;
             glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth3);
             if (!(depth3 < 1.0f)) {
-                std::cerr << "meshId 1 (the cube) must still draw after setLoadedMesh\n"; ok = false;
+                std::cerr << "meshId 1 (the cube) must still draw after registerMesh\n"; ok = false;
             }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
+// Step 244: the mesh REGISTRY (headless + real-context draw). REQUIRED
+// evidence:
+//   - two loaded ids: the tetra registered under meshId 3 AND 4 - both
+//     draw the LOADED vertex data (the center pixel depth written AND
+//     the off-center strip x=200..209 stays background: the tetra's
+//     tapered silhouette at y=0 spans ~+-0.25 world units, the cube's
+//     +-0.5 - the strip distinguishes the LOADED mesh from the cube
+//     fallback at the default perspective);
+//   - the clear: clearRegisteredMeshes() returns 2 and empties the
+//     registry - meshId 3 then falls back to the CUBE (the strip now
+//     has depth written);
+//   - meshId 1 (the cube) and 2 (the pyramid) still draw after
+//     everything (the hardcoded paths untouched by the registry).
+static bool checkMeshRegistry() {
+    bool ok = true;
+    const std::string fname = "mesh_registry_test.obj";
+    {
+        std::ofstream out("assets/" + fname);
+        out << "v -0.5 -0.5 -0.288675\n";
+        out << "v  0.5 -0.5 -0.288675\n";
+        out << "v  0.0 -0.5  0.57735\n";
+        out << "v  0.0  0.5  0.0\n";
+        out << "f 1 3 2\n";
+        out << "f 1 2 4\n";
+        out << "f 2 3 4\n";
+        out << "f 3 1 4\n";
+    }
+    std::vector<float> tetra;
+    if (!pe::loadMeshFromObj(fname, tetra)) {
+        std::cerr << "registry test fixture must load\n"; ok = false;
+    }
+    std::remove(("assets/" + fname).c_str());
+    if (!glfwInit()) { std::cerr << "mesh registry test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "meshreg", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "mesh registry test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "mesh registry test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Entity e;
+        e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            // MEASURED geometry (the DIAG rows, this context): the cube
+            // fallback covers x=150 and x=170 at y=120 (depth ~0.920);
+            // the tetra does NOT (its tapered silhouette at y=0 spans
+            // ~(150,170) - both pixels background). The strip reads the
+            // two PROVEN pixels: the min depth distinguishes the LOADED
+            // mesh from the cube fallback.
+            auto readStrip = [&]() {
+                float minDepth = 1.0f;
+                for (const int x : {150, 170}) {
+                    float d = 1.0f;
+                    glReadPixels(x, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+                    if (d < minDepth) minDepth = d;
+                }
+                return minDepth;
+            };
+            // Two loaded ids: the tetra under 3 AND 4 - both draw the
+            // LOADED mesh (the center hit + the strip background: the
+            // tapered silhouette, not the cube).
+            r.registerMesh(3, tetra);
+            r.registerMesh(4, tetra);
+            for (const int id : {3, 4}) {
+                e.meshId = id;
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(e, cam.view(), cam.projection());
+                float center = 1.0f;
+                glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &center);
+                if (!(center < 1.0f)) {
+                    std::cerr << "registered meshId " << id << " must draw\n"; ok = false;
+                }
+                if (!(readStrip() >= 0.999f)) {
+                    std::cerr << "registered meshId " << id << " must draw the TETRA (the tapered silhouette), not the cube\n"; ok = false;
+                }
+            }
+            // The clear: the registry empties; meshId 3 falls back to
+            // the CUBE (the strip's proven pixels now have depth).
+            const std::size_t cleared = r.clearRegisteredMeshes();
+            if (cleared != 2) { std::cerr << "the clear must return 2\n"; ok = false; }
+            e.meshId = 3;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            if (!(readStrip() < 0.999f)) {
+                std::cerr << "after the clear, meshId 3 must fall back to the cube\n"; ok = false;
+            }
+            // meshId 1/2 unchanged after everything.
+            e.meshId = 1;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float d1 = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d1);
+            if (!(d1 < 1.0f)) { std::cerr << "meshId 1 (the cube) must still draw\n"; ok = false; }
+            e.meshId = 2;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float d2 = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d2);
+            if (!(d2 < 1.0f)) { std::cerr << "meshId 2 (the pyramid) must still draw\n"; ok = false; }
         }
     }
     glfwDestroyWindow(w);
@@ -8699,6 +8817,7 @@ int main() {
     const bool pongStuckOk = checkPongSustainedContact();
     const bool cameraHalfOk = checkCameraHalfExtent();
     const bool meshLoadOk = checkMeshLoad();
+    const bool meshRegistryOk = checkMeshRegistry();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -8753,7 +8872,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
