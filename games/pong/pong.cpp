@@ -240,15 +240,24 @@ int main() {
             pe::resolveCollision(entities[1], entities[2]);
             ballVelocity.x = entities[2].velocity.x;   // Step 239: read the flip back
         }
-        // Score: ball past side edge → point for opposite side, reset ball, win check
-        if (entities[2].position.x < -7.0f) {
+        // Score: ball fully exits the VISIBLE play area -> point for the
+        // opposite side, reset ball, win check. Step 240 FIX: the goal
+        // bound was +-7 - ONE UNIT OUTSIDE the visible view (+-6,
+        // camera.h:327): the ball was invisible for ~0.33s before every
+        // score, so points fired off-screen with no visible cause (the
+        // "random" feel). The bound is now the view edge + the ball's
+        // collision half (0.212) - the ball must FULLY leave the screen
+        // before the point fires: visible, deterministic, fair.
+        if (entities[2].position.x < -6.3f) {
             ++rightScore;
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
+            entities[2].velocity = pe::Vec3(0.0f, 0.0f, 0.0f);   // Step 240: all three reset together
             ballVelocity.x = 3.0f; ballVelocity.y = 2.0f;
             if (rightScore >= winScore) { win = true; winner = 2; }
-        } else if (entities[2].position.x > 7.0f) {
+        } else if (entities[2].position.x > 6.3f) {
             ++leftScore;
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
+            entities[2].velocity = pe::Vec3(0.0f, 0.0f, 0.0f);   // Step 240: all three reset together
             ballVelocity.x = -3.0f; ballVelocity.y = 2.0f;
             if (leftScore >= winScore) { win = true; winner = 1; }
         }
