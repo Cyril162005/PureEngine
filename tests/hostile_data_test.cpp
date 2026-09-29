@@ -7025,6 +7025,53 @@ static bool checkBounceRestHeights() {
     return ok;
 }
 
+// Step 238: the Pong ball-sticks-on-paddle regression (Step 235's
+// shared RESTING_VEL threshold). REPRODUCTION of the real sustained
+// contact: a KINEMATIC paddle (pong.cpp:105 - isKinematic, moved by
+// direct position sets) in repeated contact with the e=1.0 ball whose
+// NORMAL approach speed is below 0.5 (a glancing hit). The threshold
+// zeroed the ball's normal velocity instead of bouncing it - the ball
+// hung on the paddle face (vx == 0). Assert: the ball leaves with a
+// REAL velocity, not stuck/zeroed, and the kinematic paddle is never
+// pushed.
+static bool checkPongSustainedContact() {
+    bool ok = true;
+    const float dt60 = 1.0f / 60.0f;
+    // Pong's real config: kinematic paddle, ball e=1.0, halfExtents at
+    // the Entity default (0.7071, 0.7071, 0) scaled - pong sets scale
+    // only (pong.cpp:104/126).
+    pe::Entity paddle;
+    paddle.position = pe::Vec3(-5.0f, 0.0f, 0.0f);
+    paddle.scale = pe::Vec3(0.5f, 2.0f, 1.0f);
+    paddle.isKinematic = true;
+    pe::Entity ball;
+    ball.position = pe::Vec3(-4.6f, 0.0f, 0.0f);   // overlapping the paddle face
+    ball.scale = pe::Vec3(0.3f, 0.3f, 1.0f);
+    ball.restitution = 1.0f;
+    ball.velocity = pe::Vec3(-0.4f, 2.0f, 0.0f);   // the glancing hit: LOW normal speed
+    // 30 frames: the paddle moves (pong's direct position sets) and the
+    // resolve runs paddle-first (pong.cpp:221) every frame.
+    for (int i = 0; i < 30; ++i) {
+        paddle.position.y += 3.0f * dt60;   // the moving paddle
+        pe::resolveCollision(paddle, ball);
+        ball.position = ball.position + (ball.velocity * dt60);  // the ball coasts
+    }
+    std::cerr << "DIAG pong: ball vx " << ball.velocity.x
+              << " overlapping " << (pe::aabbOverlap(paddle, ball) ? 1 : 0) << "\n";
+    // The ball must leave with a REAL velocity (not zeroed/stuck).
+    if (!(ball.velocity.x > 0.05f)) {
+        std::cerr << "The ball must bounce off the paddle, not stick (vx zeroed)\n"; ok = false;
+    }
+    if (pe::aabbOverlap(paddle, ball)) {
+        std::cerr << "The ball must leave the paddle face\n"; ok = false;
+    }
+    // The kinematic paddle is never pushed by the resolve.
+    if (!assertFloatClose(paddle.position.x, -5.0f)) {
+        std::cerr << "The kinematic paddle must never be pushed\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 220: Platformer tiles through the controller resolve path
 // (headless, pure math - no GL). Known player velocity + tile type ->
 // EXACT resolve outputs, matching the formulas (the ground friction is
@@ -8613,6 +8660,7 @@ int main() {
     const bool nohostilesParseOk = checkNohostilesParse();
     const bool nohostilesKillOk = checkNohostilesKill();
     const bool bounceRestOk = checkBounceRestHeights();
+    const bool pongStuckOk = checkPongSustainedContact();
     const bool meshLoadOk = checkMeshLoad();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
@@ -8668,7 +8716,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !meshLoadOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !meshLoadOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

@@ -73,8 +73,21 @@ inline void integrate(Vec3& position, const Vec3& velocity, float dt) {
 //      when approaching (relative normal velocity < 0); separating
 //      pairs keep the positional fix with no velocity change.
 // Static bodies never receive impulse and their velocity is not modified.
+// Step 235: the resting-contact threshold. Must EXCEED the per-frame
+// gravity delta at 60 fps (GRAVITY.y * dt = 9.8/60 = 0.163) so a
+// resting contact holds: below the threshold no bounce impulse fires
+// and the normal velocity zeroes instead — the body rests instead of
+// jittering or accumulating vy frame over frame.
+// Step 238 SCOPE: the threshold applies ONLY where it is PASSED — the
+// Sandbox resolve path. Every other caller (Pong's paddle hits, the
+// exact-value tests) gets the 0.0 default: ANY approaching speed
+// bounces (the pre-235 behavior) — a Pong paddle contact at a low
+// normal speed must bounce, not stick.
+constexpr float RESTING_VEL = 0.5f;
+
 // Manual |.| throughout (collision.h's constexpr-safe rule: no fabs).
-inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
+inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f,
+                             float restingVel = 0.0f) {
     // Step 206: per-body restitution. EFFECTIVE VALUE: an explicit
     // parameter (any value != the 0.5 default) overrides; the default
     // call uses max(a.restitution, b.restitution) - Box2D-style (the
@@ -90,13 +103,6 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
     if (restitution > 1.0f) {
         restitution = 1.0f;
     }
-
-    // Step 235: the resting-contact threshold. Must EXCEED the per-frame
-    // gravity delta at 60 fps (GRAVITY.y * dt = 9.8/60 = 0.163) so a
-    // resting contact holds: below the threshold no bounce impulse
-    // fires and the normal velocity zeroes instead — the body rests
-    // instead of jittering or accumulating vy frame over frame.
-    constexpr float RESTING_VEL = 0.5f;
 
     const float ahx = a.halfExtents.x * a.scale.x;
     const float ahy = a.halfExtents.y * a.scale.y;
@@ -185,15 +191,16 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
             const float relNx = (b.velocity.x) * nx;
             const float relNy = (b.velocity.y) * ny;
             const float rel = relNx + relNy;
-            if (rel < -RESTING_VEL) {
+            if (rel < -restingVel) {
                 const float impulse = -(1.0f + restitution) * rel;
                 b.velocity.x += nx * impulse;
                 b.velocity.y += ny * impulse;
                 applyFriction(impulse);
-            } else if (rel <= 0.0f) {
-                // Step 235: resting contact (slow approach, below the
-                // threshold) - no bounce impulse; zero the normal
-                // velocity so the body rests instead of jittering.
+            } else if (restingVel > 0.0f && rel <= 0.0f) {
+                // Step 235: resting contact (slow approach, below a
+                // PASSED threshold) - no bounce impulse; zero the
+                // normal velocity so the body rests instead of
+                // jittering. The 0.0 default never zeroes (Step 238).
                 b.velocity.x -= nx * rel;
                 b.velocity.y -= ny * rel;
             }
@@ -209,17 +216,18 @@ inline void resolveCollision(Entity& a, Entity& b, float restitution = 0.5f) {
             const float relNx = (a.velocity.x) * nx;
             const float relNy = (a.velocity.y) * ny;
             const float rel = relNx + relNy;
-            if (rel > RESTING_VEL) {
+            if (rel > restingVel) {
                 // Approaching: reverse a's normal velocity -
                 // new a.v.n = -e * rel.
                 const float impulse = (1.0f + restitution) * rel;
                 a.velocity.x -= nx * impulse;
                 a.velocity.y -= ny * impulse;
                 applyFriction(impulse);
-            } else if (rel >= 0.0f) {
-                // Step 235: resting contact (slow approach, below the
-                // threshold) - no bounce impulse; zero the normal
-                // velocity so the body rests instead of jittering.
+            } else if (restingVel > 0.0f && rel >= 0.0f) {
+                // Step 235: resting contact (slow approach, below a
+                // PASSED threshold) - no bounce impulse; zero the
+                // normal velocity so the body rests instead of
+                // jittering. The 0.0 default never zeroes (Step 238).
                 a.velocity.x -= nx * rel;
                 a.velocity.y -= ny * rel;
             }
@@ -287,7 +295,13 @@ inline void resolveSandboxPairs(std::vector<Entity>& entities) {
             Entity& b = entities[j];
             if (!b.alive) continue;
             if (b.roleId != static_cast<int>(ArcadeRole::Sandbox)) continue;
-            resolveCollision(a, b);
+            // Step 238: the Sandbox path is where the resting threshold
+            // LIVES — explicit 0.5f keeps the default-call detection
+            // (== 0.5f) intact, so the max-rule restitution still
+            // applies, and RESTING_VEL flows only through this path.
+            // Pong's default call gets restingVel 0.0: any approaching
+            // speed bounces (no stick).
+            resolveCollision(a, b, 0.5f, RESTING_VEL);
         }
     }
 }
