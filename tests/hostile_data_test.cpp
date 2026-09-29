@@ -7075,6 +7075,39 @@ static bool checkPongSustainedContact() {
     return ok;
 }
 
+// Step 241: the camera half-extent getters (headless, pure math). The
+// Pong goal bound reads the LIVE half-width through the boundary
+// (halfExtentX) instead of a stale hard-coded assumption: the default
+// is the 12x9 launch box (6.0/4.5), and onResize scales halfWidth with
+// the aspect (halfHeight locked at 4.5) - the getter follows the live
+// view. The score conditions themselves are pong.cpp-local inline (no
+// pure function); replicating them headlessly would exercise a copy,
+// not the code - skipped honestly.
+static bool checkCameraHalfExtent() {
+    bool ok = true;
+    pe::Camera cam;
+    if (!assertFloatClose(cam.halfExtentX(), 6.0f) ||
+        !assertFloatClose(cam.halfExtentY(), 4.5f)) {
+        std::cerr << "the default view box must be the 12x9 launch box\n"; ok = false;
+    }
+    // A resize: halfWidth scales with the aspect, halfHeight locked.
+    cam.onResize(1600, 600);
+    if (!assertFloatClose(cam.halfExtentX(), 12.0f) ||
+        !assertFloatClose(cam.halfExtentY(), 4.5f)) {
+        std::cerr << "onResize must scale halfWidth with the aspect\n"; ok = false;
+    }
+    // The Pong goal bound derivation: the live view edge + the ball's
+    // collision half (0.7071 * 0.3) - the ball must FULLY leave the
+    // live view before the point fires.
+    cam.onResize(800, 600);
+    const float ballHalf = 0.7071f * 0.3f;
+    const float goalX = cam.halfExtentX() + ballHalf;
+    if (!assertFloatClose(goalX, 6.21213f, 0.001f)) {
+        std::cerr << "the goal bound must be the live view edge + the ball half\n"; ok = false;
+    }
+    return ok;
+}
+
 // Step 220: Platformer tiles through the controller resolve path
 // (headless, pure math - no GL). Known player velocity + tile type ->
 // EXACT resolve outputs, matching the formulas (the ground friction is
@@ -8664,6 +8697,7 @@ int main() {
     const bool nohostilesKillOk = checkNohostilesKill();
     const bool bounceRestOk = checkBounceRestHeights();
     const bool pongStuckOk = checkPongSustainedContact();
+    const bool cameraHalfOk = checkCameraHalfExtent();
     const bool meshLoadOk = checkMeshLoad();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
@@ -8719,7 +8753,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !meshLoadOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

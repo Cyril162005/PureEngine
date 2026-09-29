@@ -161,6 +161,15 @@ public:
         return proj;
     }
 
+    // --- Step 241: the live view half-extent getter (the boundary
+    // answers QUESTIONS about its own state) ---
+    // onResize scales halfWidth with the window aspect, so any
+    // hard-coded view assumption goes stale the moment the window is
+    // resized. Callers ask through the boundary instead of assuming
+    // the launch box.
+    float halfExtentX() const { return halfWidth; }
+    float halfExtentY() const { return halfHeight; }
+
     // --- Camera follow (snap-to, no lerp) ---
     // Sets camera position to match a target's world position.
     // Kept separate from move() so WASD free-pan can coexist if desired.

@@ -241,23 +241,28 @@ int main() {
             ballVelocity.x = entities[2].velocity.x;   // Step 239: read the flip back
         }
         // Score: ball fully exits the VISIBLE play area -> point for the
-        // opposite side, reset ball, win check. Step 240 FIX: the goal
-        // bound was +-7 - ONE UNIT OUTSIDE the visible view (+-6,
-        // camera.h:327): the ball was invisible for ~0.33s before every
-        // score, so points fired off-screen with no visible cause (the
-        // "random" feel). The bound is now the view edge + the ball's
-        // collision half (0.212) - the ball must FULLY leave the screen
-        // before the point fires: visible, deterministic, fair.
-        if (entities[2].position.x < -6.3f) {
+        // opposite side, reset ball, win check. Step 241 FIX: the goal
+        // bound is computed from the camera's LIVE half-width (the
+        // Step 241 getters) + the ball's collision half - the hard-coded
+        // 6.3 assumed the +-6 launch view and went STALE the moment the
+        // window was resized (onResize scales halfWidth with the
+        // aspect): a wider window scored while the ball was visibly
+        // mid-screen, a narrower one grew the invisible gap. ONE point
+        // per exit: the reset below is inside this branch, so the ball
+        // must come back before the next score (the latch is the reset
+        // itself - never +2 in one miss).
+        const float ballHalf = entities[2].halfExtents.x * entities[2].scale.x;
+        const float goalX = camera.halfExtentX() + ballHalf;
+        if (entities[2].position.x < -goalX) {
             ++rightScore;
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
-            entities[2].velocity = pe::Vec3(0.0f, 0.0f, 0.0f);   // Step 240: all three reset together
+            entities[2].velocity = pe::Vec3(0.0f, 0.0f, 0.0f);   // all three reset together
             ballVelocity.x = 3.0f; ballVelocity.y = 2.0f;
             if (rightScore >= winScore) { win = true; winner = 2; }
-        } else if (entities[2].position.x > 6.3f) {
+        } else if (entities[2].position.x > goalX) {
             ++leftScore;
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
-            entities[2].velocity = pe::Vec3(0.0f, 0.0f, 0.0f);   // Step 240: all three reset together
+            entities[2].velocity = pe::Vec3(0.0f, 0.0f, 0.0f);   // all three reset together
             ballVelocity.x = -3.0f; ballVelocity.y = 2.0f;
             if (leftScore >= winScore) { win = true; winner = 1; }
         }
