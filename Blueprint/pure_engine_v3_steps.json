@@ -2650,6 +2650,18 @@
     209,
     206
    ]
+  },
+  {
+   "id": 240,
+   "name": "Pong: goal bound at the visible view edge (the invisible-exit random score) + three-way reset",
+   "status": "completed",
+   "definition_of_done": "INSPECTED (file:line): the score conditions (pong.cpp:244-254) were structurally CORRECT - ++rightScore on x < -7 (the left player's miss), ++leftScore on x > 7, ONE point per exit (the same branch resets), NO scoring-on-paddle-contact path (grep-verified: the score reads position.x only); the HUD (pong.cpp:266-271) draws std::to_string(leftScore/rightScore) - REAL values, correct sides - NO garbage found. THE DEFECT: the goal bounds (+-7) sat ONE UNIT OUTSIDE the visible view (+-6, camera.h:327 - the fixed 800x600 4:3 window, halfWidth 6.0): the ball was INVISIBLE for ~0.33s before every score, so points fired OFF-SCREEN with no visible cause - the score appeared to jump randomly (the 'random numbers' feel = wrong TIMING, not wrong values). Secondary: the reset (pong.cpp:246-247/251-252) missed entities[2].velocity (the mirror at 228 refreshed it next frame - harmless, but incomplete). FIX (minimal, Pong-local): the goal bound is now the VISIBLE view edge + the ball's collision half (6.3 = 6.0 + 0.212 + margin) - the ball must FULLY leave the screen before the point fires: visible, deterministic, fair; both score branches now reset position + ballVelocity + entities[2].velocity TOGETHER (explicit). Kept: the clean paddle bounce from 239 (untouched), the Sandbox drop (untouched).",
+   "notes": "Honest disclosure: no LITERAL random-number mechanism exists in the score logic (the conditions and the HUD are correct) - the reported 'random' is the invisible-exit timing; the fix makes every score visible at the screen edge. Headless score test SKIPPED honestly: the score conditions are pong.cpp-local inline in its main loop (no pure function to test) - a headless test would exercise a copy, not the code (the session's 'optional if easy' - it is not, honestly). The 239 low-speed-bounce note stands for synthetic glancing hits; real Pong's vx is always +-3 (the flips preserve it), so the bounce is always a clean full reversal. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril retests Pong bounce + fair scoring (a point only on a miss past the paddle).",
+   "commit": "c7e1ef1",
+   "depends_on": [
+    239,
+    238
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
