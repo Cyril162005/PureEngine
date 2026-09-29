@@ -2698,6 +2698,18 @@
     242,
     66
    ]
+  },
+  {
+   "id": 244,
+   "name": "Mesh: registry (multiple loaded OBJs) + clearRegisteredMeshes",
+   "status": "completed",
+   "definition_of_done": "INSPECTED: the single-slot setLoadedMesh (Step 237: loadedMeshId_ + loadedMeshVertices_, ONE override) replaced by the REGISTRY (the texture-registry precedent, Steps 89/94: growable slots + non-core unload): std::unordered_map<int, std::vector<float>> meshRegistry_ + registerMesh(meshId, vertices) (a re-register REPLACES the slot's data, the Step 89 growable-slot rule) + clearRegisteredMeshes() (returns the cleared count; the OPTIONAL non-core clear - the registered slots only; the hardcoded 1=cube/2=pyramid are UNTOUCHABLE by the registry). drawEntity3D's lookup: the registry find() -> a registered meshId draws its loaded data; every unregistered meshId > 2 still falls back to the cube (1/2 unchanged). main.cpp: setLoadedMesh(3, ...) -> registerMesh(3, ...). The tetra under TWO ids (3 AND 4, one asset - the multiple-registry-entries proof). No glTF/materials/ECS/editor/net. TEST FIX OWNED: checkMeshLoad's setLoadedMesh call site (the Step 237 test) - the C2039 build failure caught it; registerMesh now.",
+   "notes": "checkMeshRegistry (headless + REAL hidden-window GL context): the tetra registered under 3 AND 4 - both draw the LOADED vertex data; the strip test reads the two MEASURED pixels (x=150 and x=170 at y=120 - the DIAG row scan measured: the cube fallback covers both at depth ~0.920, the tetra covers NEITHER - its tapered silhouette at y=0 spans ~(150,170)) - with the registry BOTH ids' strip stays background (the TAPERED silhouette, not the cube - the LOADED-mesh proof, not just depth<1); the clear returns 2 and meshId 3 then falls back to the CUBE (the strip's proven pixels now have depth); meshId 1/2 still draw after everything. Missing-file-fails-clean already covered (checkMeshLoad). TEST PROCESS OWNED: the strip's first range (200-209) was a GUESS that was VACUOUS for both meshes (both outside the real spans - the cube test failed spuriously); MEASURED instead of guessed (the DIAG row scans x100-250 + x140-190), then the strip set from the measurements. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril retests (meshid <index> 3/4 with debug3d on shows the tetra).",
+   "commit": "82234d5",
+   "depends_on": [
+    243,
+    237
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
