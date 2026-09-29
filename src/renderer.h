@@ -682,8 +682,15 @@ public:
             // v = 0, so v = 0 addresses the image's TOP edge — the
             // bottom corners of the quad take v = 1, or the glyphs
             // would render upside down.
-            const float u0 = static_cast<float>(cell) / FONT_CELL_COUNT;
-            const float u1 = static_cast<float>(cell + 1) / FONT_CELL_COUNT;
+            // Step 243 FIX: the divisor is the atlas's REAL cell count
+            // (37) - the frozen Phase-3 cell/11 divisor predates the
+            // Step-66 atlas extension (11 -> 37 cells) and made every
+            // digit sample ~3.4 atlas cells squished into one glyph
+            // (the HUD digits rendered as mashed blobs since Step 66).
+            // cell/37 = one exact 16px cell per digit - the intent the
+            // frozen contract was preserving, restored.
+            const float u0 = static_cast<float>(cell) / FONT_TEXT_CELL_COUNT;
+            const float u1 = static_cast<float>(cell + 1) / FONT_TEXT_CELL_COUNT;
             // Six vertices: unit quad as two triangles, UVs set for THIS
             // cell. Re-uploaded per glyph — six vertices, and clarity
             // beats a cleverer mechanism at this scale.
@@ -1109,11 +1116,12 @@ private:
     GLuint fontTexture = 0;          // Phase 3: the RGBA digit atlas
 
     // The atlas's geometry, known FROM THE GENERATOR (not queried):
-    // eleven equal cells across the atlas width (digits 0-9 plus '.').
-    static const int FONT_CELL_COUNT = 11;
-    // Step 66: the EXTENDED atlas row (digits + '.' + A-Z). The digit
-    // path above keeps using FONT_CELL_COUNT — its UVs (cell / 11) are
-    // frozen, so existing games render pixel-identically.
+    // 37 equal cells across the atlas width (digits 0-9, '.', A-Z).
+    // Step 243: the STALE Phase-3 FONT_CELL_COUNT (11) is GONE - the
+    // Step-66 atlas extension (11 -> 37 cells) left the digit path
+    // dividing by 11 over a 37-cell atlas: every digit sampled ~3.4
+    // atlas cells squished into one glyph (the HUD digits rendered as
+    // mashed blobs since Step 66). One count, used by both paths.
     static const int FONT_TEXT_CELL_COUNT = 37;
 };
 

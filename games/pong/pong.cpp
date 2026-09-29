@@ -138,6 +138,7 @@ int main() {
     const float paddleLimitY = 3.0f;           // keeps paddles on screen
     int leftScore = 0, rightScore = 0;
     const int winScore = 5;
+    int frameCount = 0;   // Step 243: the score log's frame number
     bool win = false;
     int winner = 0; // 0 none, 1 left, 2 right
 
@@ -151,6 +152,7 @@ int main() {
         // (events, simulation, swap); the old position silently
         // excluded the event-poll slice from every delta.
         const float dt = frameTime.tick();
+        ++frameCount;   // Step 243: the score log's frame number
         glfwPollEvents();
         if (pe::Input::isDown(window, GLFW_KEY_ESCAPE)) {
             glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -255,21 +257,27 @@ int main() {
         const float goalX = camera.halfExtentX() + ballHalf;
         if (entities[2].position.x < -goalX) {
             ++rightScore;
+            // Step 243: the log BEFORE any reset - the REAL exit pos.x,
+            // the live goal bound used, AND the frame number. Two SCORE
+            // lines on the SAME frame proves a double-fire bug;
+            // different frames = two real misses, not a bug.
+            std::cout << "SCORE R now=" << rightScore
+                      << " exitX=" << entities[2].position.x
+                      << " bound=" << goalX
+                      << " frame=" << frameCount << std::endl;
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
             ballVelocity.x = 3.0f; ballVelocity.y = 2.0f;
-            entities[2].velocity = ballVelocity;   // Step 242: the reset MIRRORS the new serve velocity (the session's guarantee #2, literal)
-            // Step 242: the dev-only score log - the runtime diagnostic
-            // for the score-jump retest (SMOKE-only, strippable later).
-            std::cout << "SCORE R now=" << rightScore
-                      << " pos.x=" << entities[2].position.x << std::endl;
+            entities[2].velocity = ballVelocity;   // Step 242: the reset MIRRORS the new serve velocity
             if (rightScore >= winScore) { win = true; winner = 2; }
         } else if (entities[2].position.x > goalX) {
             ++leftScore;
+            std::cout << "SCORE L now=" << leftScore
+                      << " exitX=" << entities[2].position.x
+                      << " bound=" << goalX
+                      << " frame=" << frameCount << std::endl;
             entities[2].position = pe::Vec3(0.0f, 0.0f, 0.0f);
             ballVelocity.x = -3.0f; ballVelocity.y = 2.0f;
             entities[2].velocity = ballVelocity;   // Step 242: the reset MIRRORS the new serve velocity
-            std::cout << "SCORE L now=" << leftScore
-                      << " pos.x=" << entities[2].position.x << std::endl;
             if (leftScore >= winScore) { win = true; winner = 1; }
         }
         } // end !win
