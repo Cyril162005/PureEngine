@@ -2662,6 +2662,18 @@
     239,
     238
    ]
+  },
+  {
+   "id": 241,
+   "name": "Pong: live goal bound from the camera half-extent getters (the stale 6.3 on resize)",
+   "status": "completed",
+   "definition_of_done": "INSPECTED (file:line, BEFORE edit): (1) the score branches (pong.cpp:244-254) CANNOT fire more than once per exit - the reset is inside the same branch (sequential): one point, then the ball is back at center the next frame; '+2/+5 in one miss' is impossible from this structure - the latch ALREADY EXISTS implicitly (the reset IS the latch; no redundant flag added - the freeze guardrails). (2) The actual ortho half-width: camera.h:327-328 + onResize (camera.h:204-210) - halfHeight LOCKED at 4.5, halfWidth = halfHeight * aspect - 6.0 for the fixed 800x600 window, BUT onResize scales halfWidth with the aspect: any non-4:3 window (a resize) made the hard-coded 6.3 STALE - a wider window scored while the ball was visibly mid-screen (the ball vanished mid-play = 'jumps'), a narrower one grew the invisible gap - THE REAL DEFECT. (3) Score-without-reset paths: NONE (grep-verified: the score reads position.x only; the reset is unconditional in the same branch). (4) Ball collision shape: AABB halfExtents default (0.7071,0.7071,0) x scale 0.3 = half 0.212; the drawn quad = 2*halfExtents*scale = 0.424 - the drawn shape matches the collision box exactly (a SQUARE, not a circle). FIX (B - chosen): pe::Camera::halfExtentX()/halfExtentY() getters (camera.h - the boundary ANSWERS QUESTIONS about its own state; pong asks through the boundary instead of assuming the launch box) + the goal bound computed from the LIVE half-width + the ball's collision half (halfExtentX() + ballHalf) each score check - correct-by-construction at any aspect. (D) the three-way reset: done in 240, verified present. (C) round ball collision: SKIPPED this step (optional; a collision-shape change deserves its own step with its own headless verification) - noted as still-optional.",
+   "notes": "checkCameraHalfExtent (headless, pure math - onResize takes sizes as data, no window): the default box 6.0/4.5 exact; onResize(1600,600) -> halfWidth 12.0 (the aspect scaling, halfHeight locked); the goal bound derivation halfExtentX() + 0.7071*0.3 = 6.21213 exact. The score-loop replication headlessly SKIPPED honestly: the conditions are pong.cpp-local inline in its main loop (no pure function) - a copy proves nothing about the real code. Kept: the clean paddle leave (239 untouched), the Sandbox drop (untouched), default restingVel 0 for non-Sandbox. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril retests: every miss = exactly +1 when the ball leaves the screen, no random large jumps.",
+   "commit": "f70066c",
+   "depends_on": [
+    240,
+    239
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
