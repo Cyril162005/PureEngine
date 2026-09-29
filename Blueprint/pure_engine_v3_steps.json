@@ -2674,6 +2674,18 @@
     240,
     239
    ]
+  },
+  {
+   "id": 242,
+   "name": "Pong: both-axes flip read-back + mirrored score reset + dev-only score log (the 241 Cyril FAIL diagnosis)",
+   "status": "completed",
+   "definition_of_done": "PHASE 1 INSPECTED (file:line, BEFORE any fix): (1) the FULL score path: ++rightScore (pong.cpp:257) and ++leftScore (263) are the ONLY increments; winScore = 5 (140, const); win/winner set at 261/267, reset at 160 - NO other path. (2) Ball identity: entities[2] = the ball (pushed at 133); ALL ball logic (move 208, wall 209-211, paddle 229-242, score 256-268) touches entities[2] only - no other entity uses ball logic. (3) The reset block (258-260/264-266): position (0,0,0), entities[2].velocity (0,0,0), ballVelocity.x = +/-3 y = 2.0 - equivalent to mirrored via the 228 mirror next frame, but NOT the literal mirror the guarantee asked. (4) The HUD (284-285): drawDigitString(ls, -2.0f, 4.0f, projection) / (rs, 1.5f, 4.0f, projection), ls/rs = std::to_string(leftScore/rightScore) - the signature (renderer.h:645) matches EXACTLY, real ints, correct sides - NOT the wrong variable. (5) The score branch CANNOT run on a same-frame-reset position (the reset is inside the same branch, sequential; next frame the ball is at (0,0) -> the condition false) - one ++ per exit, STRUCTURALLY GUARANTEED. (6) NO second copy of score logic (grep-verified: no score symbols in src/*.h - events/UI/gamestate clean). CONCLUSION: the score logic is CORRECT-BY-CONSTRUCTION - no logic bug in the score path, HUD, or copies. TWO REAL NUANCES FOUND: (a) the reset's entities[2].velocity = (0,0,0) was not the literal mirror; (b) the X-ONLY flip read-back (237/241) was INCOMPLETE for the tall paddle's EDGE contacts - the min-axis CAN be Y on a corner graze, so the resolve's vy flip landed in the UNREAD entities[2].velocity.y - the ball PASSED THROUGH the paddle's edge instead of bouncing (a visible anomaly plausibly part of the perceived randomness). PHASE 2 FIX (minimal, Pong-local): the flip read-back is now BOTH AXES (the edge contact bounces properly - the pass-through gone); the score reset MIRRORS the new serve velocity literally (entities[2].velocity = ballVelocity after the ballVelocity assignment); the DEV-ONLY score log added (SCORE L/R now=N pos.x=... - the runtime diagnostic for the retest, strippable later). GUARANTEES: one ++ per exit = STRUCTURAL (stated, no redundant latch flag); scores structurally clamped (increment-only + the win flip at winScore stops the sim gate) - never decrease, never skip; the HUD draws real values (verified).",
+   "notes": "Honest disclosure: NO literal random/large-jump mechanism was found in the score logic after three inspection passes (the conditions, the HUD, and the copies are all correct) - the delivered fix is the two REAL nuances (the incomplete read-back pass-through + the non-literal mirror) plus the DEV-ONLY LOG, which is the runtime diagnostic: Cyril's retest WITH the log shows every score event with its side, count, and position - if the jumps persist, the log output is the evidence for the next step. Headless score test SKIPPED honestly (the score conditions are pong.cpp-local inline; a copy proves nothing). FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril retests WITH the score log visible.",
+   "commit": "3896ee2",
+   "depends_on": [
+    241,
+    239
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
