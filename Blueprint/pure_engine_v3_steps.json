@@ -2637,6 +2637,19 @@
     209,
     206
    ]
+  },
+  {
+   "id": 239,
+   "name": "Pong: the resolve never saw the ball's velocity (the grind since Step 209)",
+   "status": "completed",
+   "definition_of_done": "INSPECTED (file:line): resolveCollision's aStatic branch pushes the dynamic body out by the FULL min-axis overlap (b.position += n * pen) - exact contact, NO skin/gap constant, NO separation bias (kinematic never moves, dynamic takes the full correction); pong.cpp:220-225 resolves paddle-first once per frame per paddle, gated by aabbOverlap && ballVelocity.x < 0/> 0; the ball's collision half (0.7071 default x scale 0.3) = visual half (renderer.h 2D path scales halfExtents*scale doubled) - no skin/gap. THE REAL ROOT CAUSE (deeper than the 238 framing): pong.cpp:208 moves the ball via the GAME-SIDE ballVelocity while pong.cpp:221/224's resolveCollision mutates entities[2].velocity - a DIFFERENT vector pong NEVER READS (grep-verified: entities[2].velocity appears only as the mutation target) - AND pong never SETS the entity's velocity either (the (0,0,0) default), so the impulse path read an all-zero velocity (rel = 0: NO impulse ever fired) - the paddle bounce has been POSITIONAL-ONLY since Step 209's adoption: the ball re-entered every frame (ballVelocity.x unchanged), the push-out pinned it at the face = the grind/hang. The 238 zeroing was equally unread (innocent for the grind). FIX (Option C - Pong-local, the ONLY correct option; A/B engine-wide would NOT fix it - the flip still would not propagate): entities[2].velocity = ballVelocity BEFORE the paddle contacts (the resolve then sees the REAL relative velocity -> the impulse fires) + the X-ONLY flip read-back after each resolve (ballVelocity.x = entities[2].velocity.x; the entity's velocity.y is untouched - friction 0, normal X). The resolve stays the single response path (Step 209's intent kept).",
+   "notes": "checkPongSustainedContact UPDATED to Pong's REAL motion (the game-side velocity + the resolve + the read-back): kinematic paddle + e=1.0 ball, low normal approach (-0.4), 30 frames - BEFORE the fix: DIAG ballVx -0.4 (still approaching, the flip never propagated; the test FAILED) and the read-back-alone attempt DIAG ballVx 0 (the impulse never fired - the deeper root cause exposed); AFTER: DIAG ballVx 0.4 overlapping 0 (a real bounced-away velocity, the gap closed, the kinematic paddle never pushed). Non-regression: checkSandboxResolve + checkBounceRestHeights (the Sandbox multi-bounce, Step 235's fix) PASS UNCHANGED - the fix is pong.cpp-local, the engine untouched; default restingVel 0 for non-Sandbox holds. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes. 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril retests Pong feel + drop.",
+   "commit": "595af60",
+   "depends_on": [
+    238,
+    209,
+    206
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
