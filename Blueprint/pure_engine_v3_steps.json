@@ -2710,6 +2710,17 @@
     243,
     237
    ]
+  },
+  {
+   "id": 245,
+   "name": "Mesh: per-face planar UVs on loaded OBJs (the registered meshes sample the diffuse checker)",
+   "status": "completed",
+   "definition_of_done": "PROJECT TRUTH RELOADED FIRST: HEAD 0e9fa13; highest completed id 244 (82234d5, recorded) - no invented API. INSPECTED (file:line): drawEntity3D (renderer.h:749-790) - the registry find -> *registered else cube/pyramid; registerMesh/meshRegistry_ (renderer.h:747-757) - data only, no texture; the vertex layout 5-float stride (pos xyz + uv st) confirmed from mesh3d.h (Step 194); the tetra/registered meshes filled UVs (0,0) TODAY (the loader's 'uv stays (0,0)') -> the checker sampled ONE texel = a flat color; the texture binding: drawEntityMesh3D (renderer.h:800) ALREADY binds checkerTexture for ALL mesh draws (meshId >= 3 included) - NO binding change needed (state it; renderer.h UNTOUCHED this step). CONTRACT (1) DOCUMENTED UV SCHEME - PER-FACE PLANAR (the choice, stated): for each f-line's 3 vertices, project onto the face's dominant 2D plane (drop the axis of the largest |normal| component; manual |.|, the collision.h constexpr-safe rule; Vec3::cross, vec3.h:62) and normalize into [0,1]^2 across the face's bounding box - WHY: every face gets even texture density (the diffuse repeats evenly per face, no global shear - a global XY map would stretch the tetra's side faces); the OBJ's f-lines provide the faces naturally. (2) meshId >= 3 binds the existing checker (already true, stated). (3) meshId 1 (cube)/2 (pyramid) keep their hardcoded (0,0) UVs - UNCHANGED; the full 2D path untouched. (5) No glTF/PBR/ECS/editor/net/Pong edits.",
+   "notes": "checkTexturedMesh (headless + REAL hidden-window GL, the checkMeshRegistry rigor + MEASURED spans): the loader's UVs are per-face planar (NOT all (0,0), every UV in [0,1] - headless UV-scheme assertion); the pixel proof: meshId 3's face strip [155, 165] (the 244-MEASURED proven-inside span) shows the checker's two-tone variance R max-min = 235 (the texture is SAMPLED, not flat tint); the FLAT contrast: meshId 1 (the cube, UVs (0,0)) strip [150, 170] shows variance 0 (one texel, flat); meshId 2 (the pyramid) still draws (depth written); meshId 3 draws with the UVs. TEST FIX OWNED: checkMeshLoad's 'uv must stay (0,0)' assert (the Step 237 (0,0)-era contract) updated to the new contract (in [0,1]) - the (0,0) era is gone. Honest: the on-screen textured tetra is SMOKE-only (the pixels are human-verified); the checker is the diffuse (no per-mesh texture choice, no new texture member - ONE texture, the session's 'one diffuse'); the multi-digit advance overlap (0.52 < 0.7) still disclosed-unfixed. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes, zero errors. 2D non-regression: ctest 2/2, alive x3 True. CONFIRMED only after Cyril retests (meshid <index> 3 with debug3d on shows the CHECKERED tetra).",
+   "commit": "2dbde7e",
+   "depends_on": [
+    244
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
