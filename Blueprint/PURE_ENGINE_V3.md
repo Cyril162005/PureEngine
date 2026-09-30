@@ -360,7 +360,7 @@ HUMAN-ONLY (SMOKE) everywhere.
 | CPU per-face directional lighting | VERIFIED | src/renderer.h:855-895 | checkMeshLighting (:7058) | flat per-face normals (no smooth shading); the fixed light (not adjustable); LOCAL-space lighting — a rotating mesh's lighting is mesh-fixed (open finding (a)); the texture confounds slightly (disclosed 247) |
 | Depth: entity mesh path | VERIFIED | src/renderer.h (drawEntityMesh3D 824-828/883-885; drawEntity3D clearDepth) | checkMeshOcclusion (:7154), checkMeshDepthState (:5845) | the clear is opt-in (clearDepth, default false — the caller issues the one clear); the color never touched |
 | Depth: debug path invariants | VERIFIED | src/renderer.h (drawDebugMesh3D) | checkDepthState (:5789), checkDebugFrameDepth (:5942) | the entity path's color-leak invariant has its dedicated twin since 255 (the row below) |
-| GL state-leak invariant (entity mesh path) | VERIFIED | src/renderer.h (drawEntityMesh3D) | checkMeshStateLeak (:6033) | the clear is opt-in (clearDepth, default false); the color never touched; the program/blend/VAO states deterministic |
+| GL state-leak invariant (entity mesh path) | VERIFIED | src/renderer.h (drawEntityMesh3D) | checkMeshStateLeak (:6033) | the clear is opt-in (clearDepth, default false); the color never touched; the program and the unit-0 texture bind are LEFT SET (deterministic — every consumer sets its own bind); the blend/VAO states round-trip |
 | debug3d cam/fov/orbit | VERIFIED | src/main.cpp handlers + src/camera.h | checkCamParse (:7362), checkFovParse (:7241), checkOrbitEye (:7320) | no free-fly; the orbit is the only camera motion |
 | Console: meshid/texid | VERIFIED (parse) | src/main.cpp + src/console.h (parseIndexId) | checkMeshIdParse (:7404), checkTexIdParse (:7435) | the runtime behavior (the reply + the binding) is SMOKE-only (main.cpp-local) |
 | debug3d toggle/drop (sandbox) | VERIFIED (parse + physics) | src/main.cpp + src/physics.h | checkDebug3dParse, checkDropPhysics (:8022), checkSandboxResolve (:7644) | the on-screen pixels SMOKE-only (SMOKE_TEST 7.9-7.12) |
@@ -422,6 +422,37 @@ The 3D version is COMPLETE/FROZEN only when:
 - the tracker records capabilities, dependencies, verification,
   limitations, and open findings;
 - the implementation is committed and pushed.
+
+**3D engine version COMPLETE / FROZEN (Step 256 — the audit table above:
+all six criteria VERIFIED with fresh execution evidence: build exit 0,
+ctest exit 0 (100% 2/2, 15.69s/1.55s), alive x3 exit 0).**
+
+FROZEN CONTRACT LIST (what the 3D version delivers):
+- The OBJ triangle-soup loader (v/f lines only, the per-face planar
+  UVs, failure-not-cached).
+- The mesh registry (meshId -> loaded OBJ map; meshId 1/2 the
+  hardcoded cube/pyramid; meshId 3 the tetra and meshId 5 the wedge
+  loaded at init from assets/).
+- The textureId sampling on registered meshes (the 2D path's
+  OOB/released validation rule; meshId 1/2 never read textureId).
+- The CPU per-face directional lighting (a fixed light + ambient,
+  outward normals via the centroid, one draw per face).
+- The depth contract (the save/enable/restore; the single opt-in
+  clear per 3D pass; the order-independent inter-entity occlusion;
+  the enable-state round-trip; the color never touched by the
+  depth-only clear).
+- The 3D debug harness (debug3d on/off/cam/fov/orbit/drop; meshid;
+  texid; the sandbox drop).
+
+DEFERRED to the NEXT engine version (the recorded candidates):
+- (a) World-space lighting: the 247 CPU lighting computes the per-face
+  normal in LOCAL space — a rotating mesh's lighting is mesh-fixed;
+  the next version's candidate is a world-space lighting path.
+- (b) 3D sizing source of truth: drawEntity3D scales by e.scale ONLY
+  while collision uses halfExtents*scale — the next version's
+  candidate is the 3D draw adopting the collision extents (a
+  controlled convention change with the checkEntity3D amend +
+  re-measured strips + a drawn-footprint regression test).
 
 ## Not started / pending engine debts (Step 236, docs-only)
 
