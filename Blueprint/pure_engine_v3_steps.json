@@ -2732,6 +2732,18 @@
    "depends_on": [
     245
    ]
+  },
+  {
+   "id": 247,
+   "name": "Mesh: per-face directional lighting (outward normals + fixed light + ambient, CPU per-face)",
+   "status": "completed",
+   "definition_of_done": "PROJECT TRUTH RELOADED FIRST: HEAD 1c3002b; highest completed id 246 (edd335c) as expected. INSPECTED (file:line): the EXISTING lit shader path (renderer.h:313-441, Step 79) is the 2D POINT-light model (lit.vert/lit.frag: the ambient + up to MAX_LIGHTS point lights in world space via u_entityWorldPos) - a DIFFERENT model from directional+normals; reusing it would couple the 3D mesh to the 2D point-light uniforms - NOT reused (stated). The mesh draw (renderer.h drawEntityMesh3D): the whole-mesh draw with ONE color uniform; the 5-float stride. DESIGN - minimal, NO shader change (the world shader is the 2D path's too): CPU per-face lighting IN drawEntityMesh3D - per-face normal computed from the vertices ((p1-p0).cross(p2-p0), vec3.h:62) oriented OUTWARD via the mesh's centroid (nrm.dot(toFace) < 0 -> flip - robust to ANY winding); one FIXED directional light (0.32,0.74,0.42 normalized - from above-right-front) + ambient 0.35; the per-face lit factor = ambient + (1-ambient)*max(0, n.L) modulating the EXISTING tint (u_color = tint * factor - 'modulate existing diffuse texture/tint'); one draw call per face with the face's 15 floats re-uploaded (the digit path's per-glyph re-upload pattern; the registered meshes' face counts are small, Step 150). The redundant whole-mesh upload REMOVED (the per-face loop re-uploads). ALL meshes lit: the cube (12 faces), the pyramid (6), the registered (cheap - the session's 'and/or cube/pyramid if cheap' = YES). The 2D path (drawWorld + the lit program) and Pong UNTOUCHED; no glTF/PBR/ECS/editor/net.",
+   "notes": "checkMeshLighting (headless + REAL GL, MEASURED): DIAG lighting: +X face R 135, -X face R 91 - the directional works (135 > 91 + 20: the different normals -> the different n.L diffuse; the lit factors 0.83 vs 0.45 on the ~137 texel); the modulation holds (135 < full-bright 137 - the tint scaled by the ambient+diffuse factor); the ambient floor keeps the dark face visible (91 > 60). Honest limits: the per-face lighting is CPU-side (no per-vertex varying, no shader normals - the 5-float stride unchanged); the face normals are FLAT per face (no smooth shading); the pixel proof's two faces also sample different texels (the texture confounds slightly - the directional factor dominates, disclosed); the on-screen lit mesh is SMOKE-only (human-verified). FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes, zero errors. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "ede9dda",
+   "depends_on": [
+    246,
+    245
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
