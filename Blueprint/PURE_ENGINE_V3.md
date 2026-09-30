@@ -162,6 +162,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 249: the single depth clear per 3D pass - the Step 201 opt-in param (the same mechanism as drawDebugMesh3D), not the per-entity always-clear; the inter-entity occlusion proven order-independent (near 0.9235 / far 0.9394 -> all 0.9235).
 - . Step 250: the entity mesh path's depth enable-state round-trip CI (checkMeshDepthState, the checkDepthState pattern) - the 248 disclosure closed; the occlusion half was already checkMeshOcclusion (249).
 - . Step 251: the second real OBJ (a wedge, mesh_wedge.obj) loaded at init into the registry at meshId 5 - a DISTINCT second mesh (the multi-mesh registry evidence); the 245/246 behavior on the path by construction.
+- . Step 255: finding (c) RESOLVED - the entity mesh path's GL state-leak CI (checkMeshStateLeak:6033, the checkDebugFrameDepth twin): the color corner survives the depth-only clear; the depth enable, blending, program, and VAO states deterministic - all five items green.
 - . Step 176: Audio simultaneous SFX+music volume matrix (headless) — recorded (142 entries); chain-reference sweep into 175 disclosed
 - . Step 177: Input Input(vector) adoption ctor + union-order contract test — recorded (143 entries)
 - . Step 178: Scene prefab-scene failure matrix headless contract — recorded (144 entries)
@@ -358,7 +359,8 @@ HUMAN-ONLY (SMOKE) everywhere.
 | textureId sampling (registered meshes) | VERIFIED | src/renderer.h (drawEntity3D resolve) | checkMeshTextureId (:6926) | textureId 0 (valid) binds tex_player on a mesh — the 2D rule, disclosed |
 | CPU per-face directional lighting | VERIFIED | src/renderer.h:855-895 | checkMeshLighting (:7058) | flat per-face normals (no smooth shading); the fixed light (not adjustable); LOCAL-space lighting — a rotating mesh's lighting is mesh-fixed (open finding (a)); the texture confounds slightly (disclosed 247) |
 | Depth: entity mesh path | VERIFIED | src/renderer.h (drawEntityMesh3D 824-828/883-885; drawEntity3D clearDepth) | checkMeshOcclusion (:7154), checkMeshDepthState (:5845) | the clear is opt-in (clearDepth, default false — the caller issues the one clear); the color never touched |
-| Depth: debug path invariants | VERIFIED | src/renderer.h (drawDebugMesh3D) | checkDepthState (:5789), checkDebugFrameDepth (:5942) | the entity path's color-leak invariant has no dedicated twin (open finding (c)) |
+| Depth: debug path invariants | VERIFIED | src/renderer.h (drawDebugMesh3D) | checkDepthState (:5789), checkDebugFrameDepth (:5942) | the entity path's color-leak invariant has its dedicated twin since 255 (the row below) |
+| GL state-leak invariant (entity mesh path) | VERIFIED | src/renderer.h (drawEntityMesh3D) | checkMeshStateLeak (:6033) | the clear is opt-in (clearDepth, default false); the color never touched; the program/blend/VAO states deterministic |
 | debug3d cam/fov/orbit | VERIFIED | src/main.cpp handlers + src/camera.h | checkCamParse (:7362), checkFovParse (:7241), checkOrbitEye (:7320) | no free-fly; the orbit is the only camera motion |
 | Console: meshid/texid | VERIFIED (parse) | src/main.cpp + src/console.h (parseIndexId) | checkMeshIdParse (:7404), checkTexIdParse (:7435) | the runtime behavior (the reply + the binding) is SMOKE-only (main.cpp-local) |
 | debug3d toggle/drop (sandbox) | VERIFIED (parse + physics) | src/main.cpp + src/physics.h | checkDebug3dParse, checkDropPhysics (:8022), checkSandboxResolve (:7644) | the on-screen pixels SMOKE-only (SMOKE_TEST 7.9-7.12) |
@@ -394,15 +396,17 @@ HUMAN-ONLY (SMOKE) everywhere.
   with the checkEntity3D amend + re-measured strips + a drawn-footprint
   regression test, or an explicit per-path sizing convention documented
   as the engine's contract). Not fixed here.
-- **(c) drawEntityMesh3D GL state-leak audit — missing capability (a
-  CI invariant candidate).** BY INSPECTION: no state leak found (the
-  texture bind targets unit 0 explicitly, the program is set
-  explicitly, the depth is saved/restored (250), the temp VAO/VBO are
-  deleted per call, the color uniform is set per face). UNVERIFIED as
-  a dedicated CI invariant: checkDebugFrameDepth (the color-leak
-  proof) covers drawDebugMesh3D only — the entity path's
-  `glClear(GL_DEPTH_BUFFER_BIT)` color-only guarantee has no dedicated
-  test. Candidate: the checkDebugFrameDepth twin for the entity path.
+- **(c) drawEntityMesh3D GL state-leak audit — RESOLVED (Step 255: the
+  dedicated CI test landed, all five state items green).** The
+  checkDebugFrameDepth twin for the entity path is `checkMeshStateLeak`
+  (tests/hostile_data_test.cpp:6033): THE INVARIANT — after
+  drawEntityMesh3D, the GL color framebuffer's content OUTSIDE the
+  drawn mesh equals its pre-call value (the depth-only clear never
+  touches color), and each state item is deterministic: the
+  depth-test ENABLE state equals its pre-call value (both OFF and ON
+  callers), the blending enable is untouched, the program is set
+  explicitly (non-zero, identical across calls), and the VAO binding
+  returns to 0. Hard pass/fail, no timing, no visual inspection.
 
 ## Version 3D done-criteria (Step 253, docs-only — no new scope)
 
