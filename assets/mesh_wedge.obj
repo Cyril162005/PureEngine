@@ -1,0 +1,19 @@
+# PureEngine Step 251: the second loaded 3D debug mesh (a wedge).
+# OBJ triangle soup - v (position) + f (triangular face, 1-based) only.
+# A triangular prism (cross-section triangle extruded along Z): 6
+# vertices, 8 triangle faces (2 end caps + bottom + two slopes), unit
+# bounds (~+-0.5). CCW from outside per face.
+v -0.5 -0.5 -0.5
+v  0.5 -0.5 -0.5
+v  0.5 -0.5  0.5
+v -0.5 -0.5  0.5
+v  0.0  0.5 -0.5
+v  0.0  0.5  0.5
+f 1 5 2
+f 3 6 4
+f 1 2 3
+f 1 3 4
+f 1 6 5
+f 1 4 6
+f 2 5 6
+f 2 6 3

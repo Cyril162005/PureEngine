@@ -9,6 +9,7 @@ package/
 *.exe
 *.obj
 !assets/mesh_tetrahedron.obj
+!assets/mesh_wedge.obj
 *.pdb
 .vs/
 CMakeCache.txt

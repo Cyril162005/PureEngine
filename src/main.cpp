@@ -716,6 +716,23 @@ int main() {
             std::cout << "[MESH] mesh_tetrahedron.obj not found - meshid 3 falls back to the cube" << std::endl;
         }
     }
+    // --- Step 251: the second loaded mesh (a distinct real OBJ, id >= 5) ---
+    // A triangular prism from assets/ (the 3-candidate probe), loaded
+    // ONCE at init into the registry at meshId 5 (the non-core zone,
+    // the texture-slot convention; meshId 4 stays the tests' second
+    // tetra id). Missing file: a console note, the slot stays unset
+    // (meshid 5 falls back to the cube - never fatal). The per-face
+    // planar UVs (245) and the textureId sampling (246) apply on this
+    // path by construction (the registered path).
+    {
+        std::vector<float> wedgeMesh;
+        if (pe::loadMeshFromObj("mesh_wedge.obj", wedgeMesh)) {
+            renderer.registerMesh(5, std::move(wedgeMesh));
+            std::cout << "[MESH] mesh_wedge.obj loaded - meshid 5 draws it" << std::endl;
+        } else {
+            std::cout << "[MESH] mesh_wedge.obj not found - meshid 5 falls back to the cube" << std::endl;
+        }
+    }
 
     // --- Step 58: animation clip library (game-owned, outlives entities) ---
     // Bare filename: loadAnimations() probes assets/ itself (hostile_data
