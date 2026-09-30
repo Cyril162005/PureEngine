@@ -342,6 +342,69 @@ Honest limits (disclosed, unfixed unless stated):
   instead of micro-bouncing. Pong ball speeds are ~3+, so behavior is
   unchanged in practice (verified by ctest).
 
+## 3D capability map (Step 253, docs-only — every status cites a real test or is UNVERIFIED)
+
+Tests live in tests/hostile_data_test.cpp. On-screen pixels are
+HUMAN-ONLY (SMOKE) everywhere.
+
+| Capability | Status | Owning file | Test | Known limit |
+|---|---|---|---|---|
+| OBJ triangle-soup loader | VERIFIED | src/mesh3d.h:102 (loadMeshFromObj) | checkMeshLoad (:6548), checkWedgeMesh (:5938) | v/f lines only — no vn/vt/quads/index buffers; malformed faces skip silently (holes possible in hand-written bad files) |
+| Per-face planar UVs | VERIFIED | src/mesh3d.h:142 | checkTexturedMesh (:6807), checkMeshLoad (:6548) | the dominant-plane projection — no per-face artist control; even density per face (stated 245) |
+| Mesh registry (multiple loaded OBJs) | VERIFIED | src/renderer.h:748-755 | checkMeshRegistry (:6689) | ONE map — no handles/generations; a re-register replaces the slot's data |
+| meshId 1 (hardcoded cube) / 2 (pyramid) | VERIFIED | src/mesh3d.h:38/:65 | checkEntity3D, checkWedgeMesh (:5938), checkMeshLighting (:7058) | drawn size = 2*scale, NOT 2*halfExtents*scale (open finding (b)); UVs (0,0) — flat one-texel |
+| meshId 3 (tetra, loaded at init) | VERIFIED | src/main.cpp (init load) + src/renderer.h:748 | checkMeshRegistry (:6689), checkTexturedMesh (:6807) | one sample asset; the documented meshid-3 path |
+| meshId 5 (wedge, loaded at init) | VERIFIED | src/main.cpp (init load) | checkWedgeMesh (:5938) | one asset; meshId 4 = the tests' second tetra id (not a real asset) |
+| textureId sampling (registered meshes) | VERIFIED | src/renderer.h (drawEntity3D resolve) | checkMeshTextureId (:6926) | textureId 0 (valid) binds tex_player on a mesh — the 2D rule, disclosed |
+| CPU per-face directional lighting | VERIFIED | src/renderer.h:855-895 | checkMeshLighting (:7058) | flat per-face normals (no smooth shading); the fixed light (not adjustable); LOCAL-space lighting — a rotating mesh's lighting is mesh-fixed (open finding (a)); the texture confounds slightly (disclosed 247) |
+| Depth: entity mesh path | VERIFIED | src/renderer.h (drawEntityMesh3D 824-828/883-885; drawEntity3D clearDepth) | checkMeshOcclusion (:7154), checkMeshDepthState (:5845) | the clear is opt-in (clearDepth, default false — the caller issues the one clear); the color never touched |
+| Depth: debug path invariants | VERIFIED | src/renderer.h (drawDebugMesh3D) | checkDepthState (:5789), checkDebugFrameDepth (:5942) | the entity path's color-leak invariant has no dedicated twin (open finding (c)) |
+| debug3d cam/fov/orbit | VERIFIED | src/main.cpp handlers + src/camera.h | checkCamParse (:7362), checkFovParse (:7241), checkOrbitEye (:7320) | no free-fly; the orbit is the only camera motion |
+| Console: meshid/texid | VERIFIED (parse) | src/main.cpp + src/console.h (parseIndexId) | checkMeshIdParse (:7404), checkTexIdParse (:7435) | the runtime behavior (the reply + the binding) is SMOKE-only (main.cpp-local) |
+| debug3d toggle/drop (sandbox) | VERIFIED (parse + physics) | src/main.cpp + src/physics.h | checkDebug3dParse, checkDropPhysics (:8022), checkSandboxResolve (:7644) | the on-screen pixels SMOKE-only (SMOKE_TEST 7.9-7.12) |
+
+## Open engine findings (Step 253, docs-only — classified, NOT fixed)
+
+- **(a) Lighting vs entity rotation coordinate space — missing
+  capability (next-version candidate).** The 247 CPU lighting computes
+  the per-face normal in LOCAL space and dots it with a world-fixed
+  light: a rotating mesh's lit factors are MESH-FIXED (the lighting
+  spins with the model instead of the light staying world-fixed). The
+  247 contract promised only "one FIXED directional light", so this
+  is not a contract violation — it is a missing world-space lighting
+  path (the 2D lit path, Step 79, IS world-space). Not fixed here.
+- **(b) Drawn size vs collision extents — engine defect (flagged 235,
+  unfixed).** drawEntity3D scales the debug mesh by e.scale ONLY
+  (drawn size 2*scale) while collision/detection use halfExtents*scale
+  (the Step 8 rule): the drawn ground/box size does not match the
+  collision extents (only the center matches) — the sandbox's visible
+  artifact (the box appears sunk into the ground). The 3D draw ignores
+  the entity's collision halfExtents.
+- **(c) drawEntityMesh3D GL state-leak audit — missing capability (a
+  CI invariant candidate).** BY INSPECTION: no state leak found (the
+  texture bind targets unit 0 explicitly, the program is set
+  explicitly, the depth is saved/restored (250), the temp VAO/VBO are
+  deleted per call, the color uniform is set per face). UNVERIFIED as
+  a dedicated CI invariant: checkDebugFrameDepth (the color-leak
+  proof) covers drawDebugMesh3D only — the entity path's
+  `glClear(GL_DEPTH_BUFFER_BIT)` color-only guarantee has no dedicated
+  test. Candidate: the checkDebugFrameDepth twin for the entity path.
+
+## Version 3D done-criteria (Step 253, docs-only — no new scope)
+
+The 3D version is COMPLETE/FROZEN only when:
+- every capability in the map above is VERIFIED with a real test
+  (none PARTIAL/UNVERIFIED in the capability rows);
+- the open findings (a)-(c) are RESOLVED (fixed with tests) or
+  explicitly DEFERRED with a recorded version target;
+- the 2D non-regression is green on every step (ctest 2/2 + the 2D
+  byte-identical guarantees);
+- the full-solution build + ctest + alive x3 have actual execution
+  evidence;
+- the tracker records capabilities, dependencies, verification,
+  limitations, and open findings;
+- the implementation is committed and pushed.
+
 ## Not started / pending engine debts (Step 236, docs-only)
 
 NOT STARTED (the freeze OUT list stands — do not plan):
