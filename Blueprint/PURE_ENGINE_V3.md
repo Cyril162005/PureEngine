@@ -373,13 +373,27 @@ HUMAN-ONLY (SMOKE) everywhere.
   247 contract promised only "one FIXED directional light", so this
   is not a contract violation — it is a missing world-space lighting
   path (the 2D lit path, Step 79, IS world-space). Not fixed here.
-- **(b) Drawn size vs collision extents — engine defect (flagged 235,
-  unfixed).** drawEntity3D scales the debug mesh by e.scale ONLY
-  (drawn size 2*scale) while collision/detection use halfExtents*scale
-  (the Step 8 rule): the drawn ground/box size does not match the
-  collision extents (only the center matches) — the sandbox's visible
-  artifact (the box appears sunk into the ground). The 3D draw ignores
-  the entity's collision halfExtents.
+- **(b) Drawn size vs collision extents — missing capability
+  (RECLASSIFIED from engine defect, Step 254 verification).** Evidence
+  (file:line): NO cross-path contract found — no documented contract
+  states drawn size must equal collision extents for the 3D mesh path
+  (renderer.h:277's "real box size" is scoped to the 2D debug-AABB
+  method; GAME_BUILD.md:43's "visual contact and actual death agree"
+  is the arcade's 2D hitbox balance contract; the Step 8 rule governs
+  collision/detection, not drawing). The 3D scale-only sizing is
+  ITSELF the CI-proven convention: checkEntity3D asserts "Model corner
+  must be position + scale/2" and the Steps 214/237 records document
+  the model = translation*rotationY*scale. A sizing change would
+  invalidate ~7 measured-strip tests (checkMeshRegistry/checkTextured
+  Mesh/checkMeshTextureId/checkWedgeMesh/checkMeshLighting/checkMesh
+  Occlusion/checkMeshDepthState - all measured against the current
+  scale-only sizing). The mismatch is the sandbox's visible artifact
+  (the box appears sunk). PROPOSED PLACEMENT: "3D sizing source of
+  truth" - the NEXT engine version (either the 3D draw adopting
+  halfExtents*scale as the drawn size, a controlled convention change
+  with the checkEntity3D amend + re-measured strips + a drawn-footprint
+  regression test, or an explicit per-path sizing convention documented
+  as the engine's contract). Not fixed here.
 - **(c) drawEntityMesh3D GL state-leak audit — missing capability (a
   CI invariant candidate).** BY INSPECTION: no state leak found (the
   texture bind targets unit 0 explicitly, the program is set
