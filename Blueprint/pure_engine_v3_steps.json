@@ -2721,6 +2721,17 @@
    "depends_on": [
     244
    ]
+  },
+  {
+   "id": 246,
+   "name": "Mesh: registered meshes sample entity.textureId when valid (the 2D validation rule)",
+   "status": "completed",
+   "definition_of_done": "INSPECTED (file:line): the 2D path's REAL texture validation (renderer.h:517-541, Steps 84/109) - entity.textureId addresses the slot array directly; OOB (slot < 0 || slot >= entityTextures.size()) AND released (entityTextures[slot] == 0) slots both fall back to the CHECKER (a stale textureId can never bind GL name 0), the OOB/released warn once (the warned set); valid = (!oob && !released) ? entityTextures[slot] : checkerTexture. NOTE: textureId 0 is a VALID slot (tex_player) per the same rule - a mesh with the default 0 binds tex_player (consistent with 'the SAME validation'); the 'unset' case = a RELEASED slot. FIX (renderer.h only): drawEntityMesh3D gains a GLuint texture = 0 param (0 = the checker - every existing caller and the meshId 1/2 paths unchanged); drawEntity3D resolves: REGISTERED (the registry found data) + the valid textureId -> entityTextures[slot]; invalid or released -> the checker (the SAME validation rule); meshId 1/2 and the unregistered cube fallback NEVER read textureId. Silent fallback (no warned set here - the 2D path owns that diagnostic). meshId 1/2 still checker; the 2D path untouched; no Pong edits.",
+   "notes": "checkMeshTextureId (headless + REAL GL, the 245 variance technique + a color-comparison proof): MEASURED - DIAG texid crimson 23 oob 235 released 235: a VALID textureId (the crimson, slot 2) is SAMPLED on the registered mesh (the strip variance 23, and < oobVariance * 0.6 - the relative threshold distinguishes it from the checker's 235); an OOB textureId (99) still shows the checker (235); a RELEASED textureId (registerNonCoreTexture + unloadNonCoreTextures, the Step 94 rule) still shows the checker (235). meshId 1/2 with a VALID textureId (2!): the face COLOR is IDENTICAL with textureId 2 and textureId 99 (DIAG cube tex2 255,128,51 tex99 255,128,51 - the checker's orange texel) - they never read textureId, no exact-texel knowledge needed. Honest: the on-screen textured mesh is SMOKE-only (human-verified); textureId 0 (valid) binds tex_player on a mesh - consistent with the 2D rule, disclosed. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes, zero errors. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "edd335c",
+   "depends_on": [
+    245
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
