@@ -2782,6 +2782,19 @@
     249,
     248
    ]
+  },
+  {
+   "id": 251,
+   "name": "Mesh: second real OBJ (wedge) loaded at init into the registry at meshId 5",
+   "status": "completed",
+   "definition_of_done": "PROJECT TRUTH RELOADED FIRST: HEAD e56ae40; highest completed id 250 (a1dd308) as expected. INSPECTED (file:line): loadMeshFromObj (mesh3d.h - the 3-candidate CWD probe, v/f lines, the 245 per-face planar UVs, failure-not-cached); registerMesh/meshRegistry_ (renderer.h:747-757 - the unordered_map, a re-register replaces the slot); the packaging (package.ps1 runtimeAssets + the CMake POST_BUILD copy, mesh_tetrahedron.obj since 237); the EXISTING sample tetra is FILE-BACKED (assets/mesh_tetrahedron.obj) and loaded at INIT (main.cpp's mesh block after renderer.init) -> registerMesh(3, ...) - meshId 3, NOT >= 5, and the tests use meshId 3/4 heavily (8 tests) - MOVING 3 would break the documented meshid-3 path (the sandbox contract) + the tests. THE GAP: the session asks registerMesh(id >= 5). DECISION: a NEW DISTINCT real OBJ (assets/mesh_wedge.obj - a triangular prism, 6 verts / 8 triangle faces, CCW per face) loaded at init -> registerMesh(5) (the non-core zone, the texture-slot convention; meshId 4 stays the tests' second tetra id). A DISTINCT second mesh = the strongest multi-mesh registry evidence (244's same-data-two-ids was weaker). The 245 UVs + the 246 textureId sampling apply on that path BY CONSTRUCTION (the registered path). meshId 1/2 hardcoded unchanged; the 2D path unchanged. No console commands (252 deferred), no capability-map docs (253 deferred), no editor/ECS.",
+   "notes": "checkWedgeMesh (headless + REAL hidden-window GL): the REAL wedge asset loads from the assets probe (the copied Release bundle) - 120 floats (8 faces x 15), the UVs in [0,1], the bounds ~unit; a missing file fails clean (out untouched); registerMesh(5) + drawEntity3D writes depth at the center AND the per-face UVs sample the bound texture (DIAG wedge: strip R variance 135 - the 245/246 behavior on this path); meshId 1 (the cube) unchanged. PACKAGED: package.ps1 + CMakeLists + the .gitignore *.obj negation (one line); the asset shipped to build/Release/assets (Test-Path True). On-screen wedge (meshid <index> 5 with debug3d on) SMOKE-only. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes, zero errors. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "1433a6f",
+   "depends_on": [
+    250,
+    244,
+    237
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
