@@ -2744,6 +2744,19 @@
     246,
     245
    ]
+  },
+  {
+   "id": 248,
+   "name": "Confirm depth status for the entity mesh path (verify-only, no code)",
+   "status": "completed",
+   "definition_of_done": "VERIFY-ONLY (the session's item-2 path: the depth EXISTS -> no code). ANSWER (file:line): drawEntity3D/drawEntityMesh3D use the SAME depth save/enable/restore pattern proven in Steps 195/201 - glIsEnabled save (renderer.h:824) -> glEnable (825) -> the per-face draws (862-882) -> glDisable if it was off (883-885) - the same code shape as drawDebugMesh3D's proven path (925/926/948-951); NOT a separate path. ONE DEVIATION (a finding, reported - NO code this step): the depth-only clear is ALWAYS in the entity path (if (true) { glClear(GL_DEPTH_BUFFER_BIT); }, renderer.h:826-828) vs drawDebugMesh3D's OPT-IN (if (clearDepth), default false, renderer.h:928-930); the if (true) has been there since the path's Step 237 creation (15d2c33, verified by git show) - a vestigial conditional (a copy-paste artifact from if (clearDepth) with the condition dropped). EFFECTS: the clear is depth-ONLY (the color never touched - the checkDebugFrameDepth invariant holds); WITHIN one mesh the faces occlude (the depth cleared once, then the per-face draws test/write); ACROSS separate drawEntity3D calls (the debug3d block's per-entity draws) each call wipes the previous depth -> the later entity draws always win -> no inter-entity occlusion among entities. Item 3 N/A (the depth is not missing); checkDepthState/checkDebugFrameDepth still pass. Item 4: no code -> the 2D/UI/Pong/non-3D arcade unchanged by construction.",
+   "notes": "Coverage note (honest): checkDepthState (the enable-state round-trip) tests drawDebugMesh3D only; the entity path's depth-WRITTEN evidence is CI-proven (checkMeshLoad/checkMeshRegistry/checkTexturedMesh/checkMeshLighting all read depth after the entity draws); the entity path's EXACT enable-state round-trip is not a dedicated CI test (disclosed; no code this step per the session's verify-only ruling). Occlusion smoke: HUMAN-ONLY (debug3d on + two overlapping meshid-bound entities, the SMOKE_TEST 7.9/7.10 invocation pattern). The inter-entity occlusion wipe is a future-step candidate, not fixed here. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes, zero errors. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "NO-CODE",
+   "depends_on": [
+    247,
+    195,
+    201
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
