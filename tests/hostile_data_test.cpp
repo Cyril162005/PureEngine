@@ -6720,6 +6720,141 @@ static bool checkTexturedMesh() {
     return ok;
 }
 
+// Step 246: registered meshes sample entity.textureId when valid
+// (headless + real GL context, the 245 variance technique). REQUIRED
+// evidence:
+//   - a VALID textureId (the crimson, slot 2, a core slot) is actually
+//     SAMPLED on the registered mesh: the face strip shows the
+//     crimson's two-tone variance (measured, < 100 distinguishes it
+//     from the checker's ~235);
+//   - an OOB textureId (99) still shows the checker (the variance
+//     ~235); a RELEASED textureId (the Step 94 rule) still shows the
+//     checker;
+//   - meshId 1/2 with a VALID textureId (2!) still show the CHECKER -
+//     they never read textureId: the face COLOR is IDENTICAL with
+//     textureId 2 and textureId 99 (no exact-texel knowledge needed).
+static bool checkMeshTextureId() {
+    bool ok = true;
+    const std::string fname = "mesh_texid_test.obj";
+    {
+        std::ofstream out("assets/" + fname);
+        out << "v -0.5 -0.5 -0.288675\n";
+        out << "v  0.5 -0.5 -0.288675\n";
+        out << "v  0.0 -0.5  0.57735\n";
+        out << "v  0.0  0.5  0.0\n";
+        out << "f 1 3 2\n";
+        out << "f 1 2 4\n";
+        out << "f 2 3 4\n";
+        out << "f 3 1 4\n";
+    }
+    std::vector<float> tetra;
+    if (!pe::loadMeshFromObj(fname, tetra)) {
+        std::cerr << "texid test fixture must load\n"; ok = false;
+    }
+    std::remove(("assets/" + fname).c_str());
+    if (!glfwInit()) { std::cerr << "texid test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "meshtexid", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "texid test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "texid test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Entity e;
+        e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            auto readRVariance = [&](int x0, int x1) {
+                float minR = 1e30f, maxR = -1e30f;
+                for (int x = x0; x <= x1; ++x) {
+                    unsigned char px[3];
+                    glReadPixels(x, 120, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px);
+                    if (px[0] < minR) minR = px[0];
+                    if (px[0] > maxR) maxR = px[0];
+                }
+                return maxR - minR;
+            };
+            auto readCenter = [&]() {
+                unsigned char px[3] = {0, 0, 0};
+                glReadPixels(160, 120, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px);
+                return std::string(std::to_string(px[0]) + "," + std::to_string(px[1]) + "," + std::to_string(px[2]));
+            };
+            r.registerMesh(3, tetra);
+            e.meshId = 3;
+            // A VALID textureId (the crimson, slot 2): SAMPLED.
+            e.textureId = 2;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float texVariance = readRVariance(155, 165);
+            // An OOB textureId (99): the checker.
+            e.textureId = 99;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float oobVariance = readRVariance(155, 165);
+            // A RELEASED textureId (the Step 94 rule): the checker.
+            const int newSlot = r.registerNonCoreTexture("checker.png");
+            float relVariance = -1.0f;
+            if (newSlot >= 0) {
+                r.unloadNonCoreTextures();
+                e.textureId = newSlot;
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(e, cam.view(), cam.projection());
+                relVariance = readRVariance(155, 165);
+            }
+            std::cerr << "DIAG texid: crimson " << texVariance
+                      << " oob " << oobVariance
+                      << " released " << relVariance << "\n";
+            if (!(texVariance > 10.0f && texVariance < oobVariance * 0.6f)) {
+                std::cerr << "a valid textureId must sample ITS texture (not the checker)\n"; ok = false;
+            }
+            if (!(oobVariance > 10.0f)) {
+                std::cerr << "an OOB textureId must still show the checker (sampled)\n"; ok = false;
+            }
+            if (newSlot >= 0 && !(relVariance > 10.0f)) {
+                std::cerr << "a released textureId must still show the checker (sampled)\n"; ok = false;
+            }
+            // meshId 1/2 with a VALID textureId: STILL the checker
+            // (they never read textureId - identical face colors).
+            e.meshId = 1; e.textureId = 2;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const std::string cubeTex2 = readCenter();
+            e.textureId = 99;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const std::string cubeTex99 = readCenter();
+            std::cerr << "DIAG texid: cube tex2 " << cubeTex2 << " tex99 " << cubeTex99 << "\n";
+            if (cubeTex2 != cubeTex99) {
+                std::cerr << "meshId 1 must NEVER read textureId (identical colors)\n"; ok = false;
+            }
+            e.meshId = 2; e.textureId = 2;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const std::string pyrTex2 = readCenter();
+            e.textureId = 99;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const std::string pyrTex99 = readCenter();
+            if (pyrTex2 != pyrTex99) {
+                std::cerr << "meshId 2 must NEVER read textureId (identical colors)\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
 // Step 215: debug3d fov <degrees> - parse + camera contract (headless).
 // parseFloat1: valid -> true + value out; garbage/wrong-count -> false
 // + out UNCHANGED. Camera: setFov updates the projection ONLY in
@@ -8944,6 +9079,7 @@ int main() {
     const bool meshLoadOk = checkMeshLoad();
     const bool meshRegistryOk = checkMeshRegistry();
     const bool texturedMeshOk = checkTexturedMesh();
+    const bool meshTexIdOk = checkMeshTextureId();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -8998,7 +9134,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

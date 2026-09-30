@@ -781,8 +781,25 @@ public:
             (e.meshId == 2) ? pyramidVertices() :
             (registered != nullptr) ? *registered :
                 unitCubeVertices();
+        // Step 246: REGISTERED meshes sample entity.textureId when
+        // valid - the SAME validation the 2D path uses (above, lines
+        // ~524-540: OOB and released slots fall back to the checker).
+        // A valid textureId's texture binds INSTEAD of the checker;
+        // invalid or released falls back. meshId 1/2 (the hardcoded
+        // primitives) and the unregistered cube fallback NEVER read
+        // textureId - still the checker. Silent fallback (no warned
+        // set here - the 2D path owns that diagnostic).
+        GLuint meshTex = checkerTexture;
+        if (registered != nullptr) {
+            const int slot = e.textureId;
+            const bool oob = (slot < 0 || slot >= static_cast<int>(entityTextures.size()));
+            const bool released = (!oob && entityTextures[slot] == 0);
+            if (!oob && !released) {
+                meshTex = entityTextures[slot];
+            }
+        }
         drawEntityMesh3D(mesh, model, view, projection,
-                         e.tint.x, e.tint.y, e.tint.z);
+                         e.tint.x, e.tint.y, e.tint.z, meshTex);
     }
 
     // Step 217: the tinted 3D entity mesh draw (the unit-cube path's
@@ -792,12 +809,16 @@ public:
     // debug blue. White = texel.rgb * white pass-through.
     void drawEntityMesh3D(const std::vector<float>& vertices, const Mat4& model,
                           const Mat4& view, const Mat4& projection,
-                          float r, float g, float b) {
+                          float r, float g, float b, GLuint texture = 0) {
         if (vertices.empty()) {
             return;
         }
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, checkerTexture);
+        // Step 246: the texture comes from the caller (drawEntity3D
+        // resolves entity.textureId per the 2D path's validation);
+        // 0 (the default) = the checker - every existing caller and
+        // the meshId 1/2 paths unchanged.
+        glBindTexture(GL_TEXTURE_2D, texture != 0 ? texture : checkerTexture);
         glUseProgram(shaderProgram);
         glUniform3f(colorLocation, r, g, b);
         const GLboolean depthWasOn = glIsEnabled(GL_DEPTH_TEST);
