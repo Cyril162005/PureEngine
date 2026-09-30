@@ -2807,6 +2807,18 @@
     251,
     246
    ]
+  },
+  {
+   "id": 253,
+   "name": "Docs: 3D capability map + open findings + version 3D done-criteria",
+   "status": "completed",
+   "definition_of_done": "DOCS-ONLY, zero src/test changes. PURE_ENGINE_V3.md: the '3D capability map' section (every status cites a real test in hostile_data_test.cpp or is UNVERIFIED): the OBJ triangle-soup loader (mesh3d.h:102, checkMeshLoad/checkWedgeMesh), the per-face planar UVs (mesh3d.h:142, checkTexturedMesh), the mesh registry (renderer.h:748-755, checkMeshRegistry), meshId 1-5 (1/2 hardcoded cube/pyramid, 3 the tetra loaded at init, 4 the tests' second tetra id, 5 the wedge), the textureId sampling (checkMeshTextureId), the CPU per-face directional lighting (checkMeshLighting), the depth contract (checkMeshOcclusion + checkMeshDepthState + the debug-path invariants), the debug3d cam/fov/orbit (the parse tests), the console meshid/texid (the parse tests), the debug3d toggle/drop (the parse + the physics tests) - each row: status/owning file/test/known limit. 'Open engine findings' CLASSIFIED (none fixed): (a) lighting vs entity rotation coordinate space - MISSING CAPABILITY (the 247 lighting computes the normal in LOCAL space vs a world-fixed light: a rotating mesh's lighting is mesh-fixed; the 247 contract promised only a FIXED light - not a contract violation; the world-space lighting path is the next-version candidate); (b) drawn size vs collision extents - ENGINE DEFECT (drawEntity3D scales by e.scale only vs the collision's halfExtents*scale - the Step 8 rule; the sandbox's visible artifact; flagged 235, unfixed); (c) drawEntityMesh3D GL state-leak audit - MISSING CAPABILITY (no leak BY INSPECTION: the unit-0 bind, the explicit program, the depth save/restore, the temp VAO/VBO deleted, the per-face color; UNVERIFIED as a dedicated CI invariant - checkDebugFrameDepth covers drawDebugMesh3D only; candidate: the entity-path twin). 'Version 3D done-criteria': the freeze requires every map row VERIFIED, the findings (a)-(c) resolved or explicitly deferred, the 2D non-regression green, the full build/ctest/alive x3 with execution evidence, the tracker records, committed and pushed. NO new scope.",
+   "notes": "Tracker 253 did not exist before this step (the highest was 252) - created here as the capability map, no discrepancy. The stale lighting-coordinates refs (V3 line 218, the Step 79 follow-up) reported as the tracker drift last step - still noted, not fixed. Gates: git diff --check clean; the diff docs-only (V3 +63, the board row); the build still green (incremental, zero errors). Two commits per the docs-only convention: the doc work (55cc829: V3 + board), the record (this commit). On-screen pixels SMOKE-only everywhere.",
+   "commit": "55cc829",
+   "depends_on": [
+    252,
+    251
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
