@@ -2770,6 +2770,18 @@
     201,
     244
    ]
+  },
+  {
+   "id": 250,
+   "name": "Test: entity mesh path depth enable-state round-trip (the checkDepthState pattern)",
+   "status": "completed",
+   "definition_of_done": "PROJECT TRUTH RELOADED FIRST: HEAD 37651a5; highest completed id 249 (a561448). INSPECTED: checkDepthState (tests/hostile_data_test.cpp:5789-5831) covers drawDebugMesh3D ONLY - the entity mesh path's enable-state round-trip was the 248 disclosure; the clearDepth defaults after 249: drawEntityMesh3D `bool clearDepth = false` (trailing, after the texture param), drawEntity3D forwards it (default false); the 249 DIAG harness (checkMeshOcclusion) ALREADY asserts the inter-entity occlusion order-independence - the occlusion half of the depth contract is CI-covered since 249 (stated plainly, NOT duplicated). WORK (test-only, the existing test file extended, no new framework): checkMeshDepthState - the checkDepthState pattern for drawEntityMesh3D: the OFF caller's state survives BOTH the clearDepth default (false) AND clearDepth=true (the depth-only clear never changes the ENABLE state); the ON caller's state survives; the path WRITES depth under a real registered-mesh draw AND the OFF caller's state survives the real draw. No src changes at all; 2D/UI/Pong/non-3D arcade unchanged.",
+   "notes": "checkMeshDepthState (headless + REAL hidden-window GL): 4 asserts green - OFF+default, OFF+clearDepth=true, ON+default (the state round-trips in every case), the real entity-mesh draw writes depth AND leaves the OFF caller's state OFF. checkDepthState/checkDebugFrameDepth still pass (ctest 2/2). The on-screen occlusion SMOKE-only. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes, zero errors. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "a1dd308",
+   "depends_on": [
+    249,
+    248
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

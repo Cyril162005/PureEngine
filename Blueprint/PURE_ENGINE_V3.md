@@ -160,6 +160,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 247: basic 3D mesh lighting - CPU per-face directional (outward normals via the centroid, one fixed light + ambient modulating the existing tint; one draw per face, no shader change); the lit-vs-ambient pixel difference measured (135 vs 91).
 - . Step 248: the entity mesh path's depth CONFIRMED (verify-only, no code) - the same save/enable/restore pattern as Steps 195/201 (renderer.h:824/825/883-885); ONE disclosed deviation: the always depth-only clear (if (true), renderer.h:826-828, since Step 237) vs drawDebugMesh3D's opt-in - the inter-entity occlusion wipe is a future-step candidate.
 - . Step 249: the single depth clear per 3D pass - the Step 201 opt-in param (the same mechanism as drawDebugMesh3D), not the per-entity always-clear; the inter-entity occlusion proven order-independent (near 0.9235 / far 0.9394 -> all 0.9235).
+- . Step 250: the entity mesh path's depth enable-state round-trip CI (checkMeshDepthState, the checkDepthState pattern) - the 248 disclosure closed; the occlusion half was already checkMeshOcclusion (249).
 - . Step 176: Audio simultaneous SFX+music volume matrix (headless) — recorded (142 entries); chain-reference sweep into 175 disclosed
 - . Step 177: Input Input(vector) adoption ctor + union-order contract test — recorded (143 entries)
 - . Step 178: Scene prefab-scene failure matrix headless contract — recorded (144 entries)
