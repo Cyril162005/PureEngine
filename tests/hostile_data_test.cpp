@@ -6343,7 +6343,8 @@ static bool checkEntity3D() {
 // Step 237: the first real 3D mesh load (headless + real-context draw).
 // REQUIRED evidence:
 //   - loadMeshFromObj on a hand-written tetra fixture: succeeds, the
-//     5-float layout (4 faces x 3 verts x 5 = 60 floats), uv (0,0),
+//     5-float layout (4 faces x 3 verts x 5 = 60 floats), uv per-face
+//     planar in [0,1] (Step 245 - the documented scheme),
 //     bounds ~unit;
 //   - a missing file: false, out UNTOUCHED (failure-not-cached);
 //   - malformed v/f lines: skipped with warnings, the good triangle
@@ -6379,8 +6380,12 @@ static bool checkMeshLoad() {
         std::cerr << "4 faces must expand to 60 floats, got " << mesh.size() << "\n"; ok = false;
     } else {
         for (std::size_t v = 0; v < mesh.size(); v += 5) {
-            if (mesh[v + 3] != 0.0f || mesh[v + 4] != 0.0f) {
-                std::cerr << "loaded-mesh uv must stay (0,0)\n"; ok = false; break;
+            // Step 245: the UVs are now PER-FACE PLANAR (the documented
+            // scheme) - in [0,1], not the (0,0) era this assert once
+            // encoded (the one-texel flat color is gone).
+            if (mesh[v + 3] < -0.001f || mesh[v + 3] > 1.001f ||
+                mesh[v + 4] < -0.001f || mesh[v + 4] > 1.001f) {
+                std::cerr << "loaded-mesh UVs must stay in [0,1]\n"; ok = false; break;
             }
             if (mesh[v] < -0.6f || mesh[v] > 0.6f || mesh[v + 1] < -0.6f ||
                 mesh[v + 1] > 0.6f || mesh[v + 2] < -0.6f || mesh[v + 2] > 0.6f) {
@@ -6584,6 +6589,126 @@ static bool checkMeshRegistry() {
             if (!(d1 < 1.0f)) { std::cerr << "meshId 1 (the cube) must still draw\n"; ok = false; }
             e.meshId = 2;
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float d2 = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d2);
+            if (!(d2 < 1.0f)) { std::cerr << "meshId 2 (the pyramid) must still draw\n"; ok = false; }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
+// Step 245: the textured loaded mesh (headless + real-context pixel
+// proof, the checkMeshRegistry rigor). REQUIRED evidence:
+//   - the loader's DOCUMENTED UV scheme (per-face planar): the loaded
+//     tetra's UVs are NOT all (0,0) (at least one vertex u/v > 0.01)
+//     and every UV stays in [0,1];
+//   - the pixel proof: with the per-face UVs, the registered meshId 3
+//     face strip shows the checker's two-tone variance (R max - min
+//     > 10: the texture is SAMPLED, not the flat one-texel tint); the
+//     flat contrast: meshId 1 (the cube, UVs (0,0)) strip shows NO
+//     variance (one texel, flat);
+//   - meshId 2 (the pyramid, UVs (0,0)) still draws (depth written);
+//     meshId 3 still draws with the UVs.
+// Strips are the MEASURED spans (the 244 DIAG rows): the tetra's
+// proven-inside pixels x155/160/165, the cube's x150/160/170.
+static bool checkTexturedMesh() {
+    bool ok = true;
+    const std::string fname = "mesh_textured_test.obj";
+    {
+        std::ofstream out("assets/" + fname);
+        out << "v -0.5 -0.5 -0.288675\n";
+        out << "v  0.5 -0.5 -0.288675\n";
+        out << "v  0.0 -0.5  0.57735\n";
+        out << "v  0.0  0.5  0.0\n";
+        out << "f 1 3 2\n";
+        out << "f 1 2 4\n";
+        out << "f 2 3 4\n";
+        out << "f 3 1 4\n";
+    }
+    std::vector<float> tetra;
+    if (!pe::loadMeshFromObj(fname, tetra)) {
+        std::cerr << "textured test fixture must load\n"; ok = false;
+    }
+    std::remove(("assets/" + fname).c_str());
+    // The UV scheme: NOT all (0,0); every UV in [0,1].
+    {
+        bool anyNonZero = false;
+        for (std::size_t v = 0; v + 4 < tetra.size(); v += 5) {
+            const float u = tetra[v + 3];
+            const float w = tetra[v + 4];
+            if (u < -0.001f || u > 1.001f || w < -0.001f || w > 1.001f) {
+                std::cerr << "loaded-mesh UVs must stay in [0,1]\n"; ok = false; break;
+            }
+            if (u > 0.01f || w > 0.01f) anyNonZero = true;
+        }
+        if (!anyNonZero) {
+            std::cerr << "the per-face planar UVs must not all be (0,0)\n"; ok = false;
+        }
+    }
+    if (!glfwInit()) { std::cerr << "textured mesh test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "meshtex", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "textured mesh test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "textured mesh test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Entity e;
+        e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            auto readRVariance = [&](int x0, int x1) {
+                float minR = 1e30f, maxR = -1e30f;
+                for (int x = x0; x <= x1; ++x) {
+                    unsigned char px[3];
+                    glReadPixels(x, 120, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px);
+                    if (px[0] < minR) minR = px[0];
+                    if (px[0] > maxR) maxR = px[0];
+                }
+                return maxR - minR;
+            };
+            // The pixel proof: meshId 3 (the tetra, per-face UVs): the
+            // face strip [155, 165] (the measured proven-inside span):
+            // the checker's variance = the texture is SAMPLED.
+            r.registerMesh(3, tetra);
+            e.meshId = 3;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float depth = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+            if (!(depth < 1.0f)) { std::cerr << "meshId 3 must draw with UVs\n"; ok = false; }
+            const float texVariance = readRVariance(155, 165);
+            std::cerr << "DIAG textured: tetra strip R variance " << texVariance << "\n";
+            if (!(texVariance > 10.0f)) {
+                std::cerr << "the registered mesh must SAMPLE the texture (not flat tint)\n"; ok = false;
+            }
+            // The flat contrast: meshId 1 (the cube, UVs (0,0)): the
+            // strip [150, 170] (the measured proven-inside span): NO
+            // variance (one texel, flat).
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            e.meshId = 1;
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float flatVariance = readRVariance(150, 170);
+            std::cerr << "DIAG textured: cube strip R variance " << flatVariance << "\n";
+            if (!(flatVariance <= 10.0f)) {
+                std::cerr << "the cube (UVs (0,0)) must stay flat (one texel)\n"; ok = false;
+            }
+            // meshId 2 (the pyramid, UVs (0,0)) still draws.
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            e.meshId = 2;
             r.drawEntity3D(e, cam.view(), cam.projection());
             float d2 = 1.0f;
             glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d2);
@@ -8818,6 +8943,7 @@ int main() {
     const bool cameraHalfOk = checkCameraHalfExtent();
     const bool meshLoadOk = checkMeshLoad();
     const bool meshRegistryOk = checkMeshRegistry();
+    const bool texturedMeshOk = checkTexturedMesh();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -8872,7 +8998,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
