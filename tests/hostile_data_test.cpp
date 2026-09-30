@@ -6020,6 +6020,117 @@ static bool checkWedgeMesh() {
     return ok;
 }
 
+// Step 255: the entity mesh path's GL state-leak invariant (the (c)
+// finding's dedicated CI test - the checkDebugFrameDepth pattern). THE
+// INVARIANT (one sentence): after drawEntityMesh3D, the GL color
+// framebuffer's content OUTSIDE the drawn mesh equals its pre-call
+// value (the depth-only clear never touches color), and each state
+// item the path touches is deterministic: the depth-test ENABLE state
+// equals its pre-call value (both OFF and ON callers), the blending
+// enable is untouched, the program is set explicitly (non-zero,
+// identical across calls), and the VAO binding returns to 0. Hard
+// pass/fail, no timing, no visual inspection.
+static bool checkMeshStateLeak() {
+    bool ok = true;
+    const std::string fname = "mesh_stateleak_test.obj";
+    {
+        std::ofstream out("assets/" + fname);
+        out << "v -0.5 -0.5 -0.288675\n";
+        out << "v  0.5 -0.5 -0.288675\n";
+        out << "v  0.0 -0.5  0.57735\n";
+        out << "v  0.0  0.5  0.0\n";
+        out << "f 1 3 2\n";
+        out << "f 1 2 4\n";
+        out << "f 2 3 4\n";
+        out << "f 3 1 4\n";
+    }
+    std::vector<float> tetra;
+    if (!pe::loadMeshFromObj(fname, tetra)) {
+        std::cerr << "state-leak test fixture must load\n"; ok = false;
+    }
+    std::remove(("assets/" + fname).c_str());
+    if (!glfwInit()) { std::cerr << "state-leak test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "meshleak", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "state-leak test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "state-leak test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        // The SENTINEL color: a corner pixel outside the mesh must
+        // survive every path call (a color leak would erase it).
+        glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        pe::Entity e;
+        e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+        e.meshId = 3;
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            r.registerMesh(3, tetra);
+            // 1. COLOR: the corner pixel survives the path's OWN
+            // depth-only clear (clearDepth=true) - the (c) invariant.
+            unsigned char before[4] = {0, 0, 0, 0};
+            glReadPixels(2, 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, before);
+            r.drawEntity3D(e, cam.view(), cam.projection(), true);
+            unsigned char after[4] = {0, 0, 0, 0};
+            glReadPixels(2, 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, after);
+            if (before[0] != after[0] || before[1] != after[1] ||
+                before[2] != after[2]) {
+                std::cerr << "the depth-only clear must never touch color (the corner survived)\n"; ok = false;
+            }
+            // 2. DEPTH enable: an OFF caller's state survives.
+            glDisable(GL_DEPTH_TEST);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            if (glIsEnabled(GL_DEPTH_TEST) == GL_TRUE) {
+                std::cerr << "an OFF caller's depth state must survive the entity mesh draw\n"; ok = false;
+            }
+            // An ON caller's state survives.
+            glEnable(GL_DEPTH_TEST);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            if (glIsEnabled(GL_DEPTH_TEST) == GL_FALSE) {
+                std::cerr << "an ON caller's depth state must survive the entity mesh draw\n"; ok = false;
+            }
+            // 3. BLEND: a sentinel ON survives (the path never touches
+            // blending).
+            glEnable(GL_BLEND);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            if (glIsEnabled(GL_BLEND) == GL_FALSE) {
+                std::cerr << "the blending state must survive the entity mesh draw\n"; ok = false;
+            }
+            glDisable(GL_BLEND);
+            // 4. PROGRAM: set explicitly, non-zero, identical across
+            // calls (the path's own deterministic state).
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            GLint prog1 = 0;
+            glGetIntegerv(GL_CURRENT_PROGRAM, &prog1);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            GLint prog2 = 0;
+            glGetIntegerv(GL_CURRENT_PROGRAM, &prog2);
+            if (prog1 != prog2 || prog1 == 0) {
+                std::cerr << "the program must be set explicitly and identically across calls\n"; ok = false;
+            }
+            // 5. VAO binding: restored to 0 (the temp VAO unbound).
+            GLint vao = -1;
+            glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
+            if (vao != 0) {
+                std::cerr << "the VAO binding must return to 0 after the entity mesh draw\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
 // Step 201: opt-in 3D debug-frame depth clear. THE ONE INVARIANT THAT
 // MATTERS, CI-proven under a real hidden-window GL context (same
 // pattern as checkDepthState): a depth clear that leaked into color
@@ -9493,6 +9604,7 @@ int main() {
     const bool meshDepthStateOk = checkMeshDepthState();
     const bool wedgeMeshOk = checkWedgeMesh();
     const bool texIdParseOk = checkTexIdParse();
+    const bool meshStateLeakOk = checkMeshStateLeak();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -9547,7 +9659,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
