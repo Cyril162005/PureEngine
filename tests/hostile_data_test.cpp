@@ -6855,6 +6855,104 @@ static bool checkMeshTextureId() {
     return ok;
 }
 
+// Step 247: the 3D mesh lighting (headless + real GL, the MEASURED
+// technique). REQUIRED evidence (the fixed directional light + ambient
+// modulate the tint; the per-face normals orient outward):
+//   - the directional works: the +X-facing face's lit pixel is
+//     BRIGHTER than the -X-facing face's (different normals -> the
+//     different n.L diffuse);
+//   - the modulation: the lit pixel is NOT full-bright (the tint is
+//     scaled by the ambient+diffuse factor, < 250);
+//   - the ambient floor: the darker face is NOT black (> 60);
+//   - meshId 1/2 still draw (depth written) with the lit path.
+static bool checkMeshLighting() {
+    bool ok = true;
+    const std::string fname = "mesh_light_test.obj";
+    {
+        std::ofstream out("assets/" + fname);
+        out << "v -0.5 -0.5 -0.288675\n";
+        out << "v  0.5 -0.5 -0.288675\n";
+        out << "v  0.0 -0.5  0.57735\n";
+        out << "v  0.0  0.5  0.0\n";
+        out << "f 1 3 2\n";
+        out << "f 1 2 4\n";
+        out << "f 2 3 4\n";
+        out << "f 3 1 4\n";
+    }
+    std::vector<float> tetra;
+    if (!pe::loadMeshFromObj(fname, tetra)) {
+        std::cerr << "light test fixture must load\n"; ok = false;
+    }
+    std::remove(("assets/" + fname).c_str());
+    if (!glfwInit()) { std::cerr << "mesh lighting test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "meshlight", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "mesh lighting test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "mesh lighting test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Entity e;
+        e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            auto readR = [&](int x) {
+                unsigned char px[3] = {0, 0, 0};
+                glReadPixels(x, 120, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px);
+                return static_cast<float>(px[0]);
+            };
+            // The registered mesh (the tetra), lit: the +X-facing face
+            // (x=165, the measured span) vs the -X-facing face (x=155).
+            r.registerMesh(3, tetra);
+            e.meshId = 3;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float depth = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+            if (!(depth < 1.0f)) { std::cerr << "meshId 3 must draw lit\n"; ok = false; }
+            const float bright = readR(165);
+            const float dark = readR(155);
+            std::cerr << "DIAG lighting: +X face R " << bright
+                      << " -X face R " << dark << "\n";
+            if (!(bright > dark + 20.0f)) {
+                std::cerr << "the directional light must light faces differently\n"; ok = false;
+            }
+            if (!(bright < 250.0f)) {
+                std::cerr << "the lit tint must be modulated (not full-bright)\n"; ok = false;
+            }
+            if (!(dark > 60.0f)) {
+                std::cerr << "the ambient floor must keep the dark face visible\n"; ok = false;
+            }
+            // meshId 1/2 still draw (depth written) with the lit path.
+            e.meshId = 1;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float d1 = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d1);
+            if (!(d1 < 1.0f)) { std::cerr << "meshId 1 (the cube) must still draw lit\n"; ok = false; }
+            e.meshId = 2;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            float d2 = 1.0f;
+            glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d2);
+            if (!(d2 < 1.0f)) { std::cerr << "meshId 2 (the pyramid) must still draw lit\n"; ok = false; }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
 // Step 215: debug3d fov <degrees> - parse + camera contract (headless).
 // parseFloat1: valid -> true + value out; garbage/wrong-count -> false
 // + out UNCHANGED. Camera: setFov updates the projection ONLY in
@@ -9080,6 +9178,7 @@ int main() {
     const bool meshRegistryOk = checkMeshRegistry();
     const bool texturedMeshOk = checkTexturedMesh();
     const bool meshTexIdOk = checkMeshTextureId();
+    const bool meshLightOk = checkMeshLighting();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -9134,7 +9233,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

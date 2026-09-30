@@ -831,16 +831,55 @@ public:
         glGenBuffers(1, &vbo);
         glBindVertexArray(vao);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER,
-                     static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
-                     vertices.data(), GL_STATIC_DRAW);
+        // Step 247: no whole-mesh upload - the per-face loop below
+        // re-uploads each face's 15 floats (the digit-path pattern).
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
         const Mat4 mvp = projection * view * model;
         glUniformMatrix4fv(transformLocation, 1, GL_FALSE, &mvp.m[0][0]);
-        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices.size() / 5));
+        // Step 247: CPU per-face lighting - one FIXED directional light
+        // + ambient modulating the existing diffuse texture/tint (the
+        // u_color uniform). NO shader change (the world shader is the
+        // 2D path's too); the lit program (lit.vert/lit.frag, Step 79)
+        // is the 2D POINT-light model - a different model, not reused.
+        // Per-face normal computed from the vertices (oriented outward
+        // via the mesh's centroid - robust to any winding), the
+        // per-face color = tint * (ambient + diffuse * max(0, n.L)),
+        // one draw call per face (the digit path's per-glyph re-upload
+        // pattern - clarity beats a cleverer mechanism at this scale;
+        // the registered meshes' face counts are small, Step 150).
+        const Vec3 lightDir = Vec3(0.32f, 0.74f, 0.42f).normalized();   // from above-right-front
+        const float ambient = 0.35f;
+        const std::size_t vertCount = vertices.size() / 5;
+        Vec3 centroid(0.0f, 0.0f, 0.0f);
+        for (std::size_t v = 0; v < vertCount; ++v) {
+            centroid = centroid + Vec3(vertices[v * 5], vertices[v * 5 + 1], vertices[v * 5 + 2]);
+        }
+        centroid = centroid * (1.0f / static_cast<float>(vertCount));
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        for (std::size_t f = 0; f + 2 < vertCount; f += 3) {
+            const Vec3 p0(vertices[f * 5], vertices[f * 5 + 1], vertices[f * 5 + 2]);
+            const Vec3 p1(vertices[(f + 1) * 5], vertices[(f + 1) * 5 + 1], vertices[(f + 1) * 5 + 2]);
+            const Vec3 p2(vertices[(f + 2) * 5], vertices[(f + 2) * 5 + 1], vertices[(f + 2) * 5 + 2]);
+            Vec3 nrm = (p1 - p0).cross(p2 - p0);
+            const Vec3 toFace = (p0 + p1 + p2) * (1.0f / 3.0f) - centroid;
+            if (nrm.dot(toFace) < 0.0f) {
+                nrm = nrm * (-1.0f);   // outward, robust to any winding
+            }
+            const float ndl = nrm.dot(lightDir);
+            const float diffuse = ndl > 0.0f ? ndl : 0.0f;
+            const float factor = ambient + (1.0f - ambient) * diffuse;
+            glUniform3f(colorLocation, r * factor, g * factor, b * factor);
+            // This face's 15 floats re-uploaded per face (the digit
+            // path's pattern); the attribute pointers above are set
+            // once - the same 5-float layout every face.
+            glBufferData(GL_ARRAY_BUFFER,
+                         15 * sizeof(float),
+                         vertices.data() + f * 5, GL_DYNAMIC_DRAW);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+        }
         if (depthWasOn == GL_FALSE) {
             glDisable(GL_DEPTH_TEST);
         }
