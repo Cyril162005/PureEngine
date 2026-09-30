@@ -1317,6 +1317,26 @@ if (clip != animations.end()) {
         return std::string("meshid: entity " + std::to_string(idx) +
                            " -> mesh " + std::to_string(id));
     });
+    // --- Step 252: texid <index> <n> — the meshid command's twin for
+    // the TEXTURE slot ---
+    // The SAME parseIndexId parse (the CI-tested index+id parse:
+    // missing arg, non-integer, trailing garbage, OOB index -> clean
+    // reject, the state untouched). The textureId is set AS-IS: the
+    // DRAW path validates per the 2D rule (an OOB/released slot safely
+    // falls back to the checker - the behavior the 2D path always
+    // had), so the fallback path stays reachable for testing. meshId
+    // 1/2 and the 2D path unchanged; no globals, no new registry.
+    pe::registerCommand(console, "texid", [&](const std::vector<std::string>& args) {
+        int idx = -1, id = 0;
+        const std::size_t count = activeScene ? activeScene->entities.size() : 0;
+        if (!pe::parseIndexId(args, count, idx, id)) {
+            return std::string("usage: texid <index> <id> (entity count "
+                               + std::to_string(count) + ")");
+        }
+        activeScene->entities[idx].textureId = id;
+        return std::string("texid: entity " + std::to_string(idx) +
+                           " -> texture " + std::to_string(id));
+    });
     // --- Step 130: pick console command (live consumer for Steps 127-129) ---
     // Reads the current mouse snapshot, converts pixels -> world via the
     // Step 128 wrapper (pickEntityAtScreen composes screenToWorld +

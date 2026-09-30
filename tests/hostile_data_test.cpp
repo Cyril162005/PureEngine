@@ -7425,6 +7425,37 @@ static bool checkMeshIdParse() {
     return ok;
 }
 
+// Step 252: the texid command's parse contract (headless, the
+// checkNohostilesParse pattern: the REAL parse function, no duplicated
+// parsing, no GL). The command uses pe::parseIndexId (the meshid
+// command's parse, already CI-tested) with the ENTITY COUNT as the
+// bound - the same five cases re-asserted for the texid shape: valid,
+// missing, malformed, trailing garbage, out-of-range - asserting the
+// STATE (the out values), not the output text.
+static bool checkTexIdParse() {
+    bool ok = true;
+    const std::size_t entityCount = 5;   // the caller's bound (the texid shape)
+    int idx = -1, id = -1;
+    // Valid.
+    if (!pe::parseIndexId({"2", "5"}, entityCount, idx, id) || idx != 2 || id != 5) {
+        std::cerr << "texid: valid index+id must parse\n"; ok = false;
+    }
+    // Missing / empty.
+    if (pe::parseIndexId({"2"}, entityCount, idx, id)) { std::cerr << "texid: missing arg must fail\n"; ok = false; }
+    if (pe::parseIndexId({}, entityCount, idx, id)) { std::cerr << "texid: empty args must fail\n"; ok = false; }
+    // Malformed (non-integer).
+    if (pe::parseIndexId({"abc", "5"}, entityCount, idx, id)) { std::cerr << "texid: non-integer must fail\n"; ok = false; }
+    // Trailing garbage (a third token = the wrong count).
+    if (pe::parseIndexId({"2", "5", "extra"}, entityCount, idx, id)) { std::cerr << "texid: trailing garbage must fail\n"; ok = false; }
+    // Out-of-range index: clean reject, state untouched.
+    idx = -1; id = -1;
+    if (pe::parseIndexId({"9", "5"}, entityCount, idx, id)) { std::cerr << "texid: OOB index must fail\n"; ok = false; }
+    if (idx != -1 || id != -1) { std::cerr << "texid: OOB must leave the state untouched\n"; ok = false; }
+    // The zero-count bound: nothing is in range (an empty scene).
+    if (pe::parseIndexId({"0", "5"}, 0, idx, id)) { std::cerr << "texid: zero-count bound must reject\n"; ok = false; }
+    return ok;
+}
+
 // Step 210: 3D mesh handle on Entity (data only; the 2D entity arc
 // opens here). REQUIRED headless evidence:
 //   - the DEFAULT Entity has no 3D mesh bound (meshId 0 = 2D-only);
@@ -9461,6 +9492,7 @@ int main() {
     const bool meshOcclusionOk = checkMeshOcclusion();
     const bool meshDepthStateOk = checkMeshDepthState();
     const bool wedgeMeshOk = checkWedgeMesh();
+    const bool texIdParseOk = checkTexIdParse();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -9515,7 +9547,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
