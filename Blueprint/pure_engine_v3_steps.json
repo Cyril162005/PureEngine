@@ -2757,6 +2757,19 @@
     195,
     201
    ]
+  },
+  {
+   "id": 249,
+   "name": "Mesh: single depth clear per 3D pass (the Step 201 opt-in, not per-entity)",
+   "status": "completed",
+   "definition_of_done": "INSPECTED (file:line): the call sites - drawEntity3D has ONE game call (main.cpp:2203, the debug3d per-entity loop after drawDebugMesh3D's clearDepth=true at 2194-2195, the frame's FIRST 3D draw); drawEntityMesh3D is renderer-internal + the tests. The unconditional `if (true) glClear(GL_DEPTH_BUFFER_BIT)` (renderer.h:826-828, since Step 237/248's finding) wiped the depth on EVERY per-entity draw - no inter-entity occlusion. FIX (minimal, NO second depth system): the depth-only clear became the Step 201 OPT-IN param (the SAME mechanism as drawDebugMesh3D): drawEntityMesh3D gains `bool clearDepth = false` (after the texture param, trailing defaults) + drawEntity3D forwards it (default false) + `if (clearDepth)` replaces `if (true)`. The debug3d flow needs NO caller change: the debug cube's clearDepth=true IS the frame's one clear; the entity draws default to no-clear -> they test against the debug cube AND each other (the inter-entity occlusion correct). Within-mesh occlusion unchanged (the depth not cleared between faces). The color buffer never touched either way. main.cpp UNTOUCHED. checkDepthState and checkDebugFrameDepth pass UNCHANGED (drawDebugMesh3D untouched).",
+   "notes": "checkMeshOcclusion (headless + REAL GL, the reproduction first): two mesh entities at different depths (near z=-2, far z=-4, both the registered tetra), no clear between the draws - BEFORE the fix: DIAG occlusion nearOnly 0.923483 farThenNear 0.923483 nearThenFar 0.939448 - the far WON when drawn last (the per-entity clear wiped the near's depth; the test FAILED, the broken occlusion reproduced); AFTER: DIAG nearOnly 0.923483 farThenNear 0.923483 nearThenFar 0.923483 - ALL THREE identical (order-independent occlusion; the depth test rejects the far instead of the clear wiping). The existing mesh tests' own glClear before each draw keeps them passing unchanged (verified by ctest). On-screen inter-entity occlusion SMOKE-only (human-verified). FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes, zero errors. 2D non-regression: ctest 2/2, alive x3 True.",
+   "commit": "a561448",
+   "depends_on": [
+    248,
+    201,
+    244
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
