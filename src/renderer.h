@@ -755,7 +755,10 @@ public:
         return n;
     }
 
-    void drawEntity3D(const Entity& e, const Mat4& view, const Mat4& projection) {
+    // Step 249: clearDepth forwarded (the Step 201 opt-in - default
+    // false; the debug3d pass's FIRST 3D draw issues the one clear).
+    void drawEntity3D(const Entity& e, const Mat4& view, const Mat4& projection,
+                      bool clearDepth = false) {
         if (e.meshId == 0) {
             return;   // 2D-only entity: no 3D draw, no matrix work
         }
@@ -799,7 +802,7 @@ public:
             }
         }
         drawEntityMesh3D(mesh, model, view, projection,
-                         e.tint.x, e.tint.y, e.tint.z, meshTex);
+                         e.tint.x, e.tint.y, e.tint.z, meshTex, clearDepth);
     }
 
     // Step 217: the tinted 3D entity mesh draw (the unit-cube path's
@@ -809,7 +812,8 @@ public:
     // debug blue. White = texel.rgb * white pass-through.
     void drawEntityMesh3D(const std::vector<float>& vertices, const Mat4& model,
                           const Mat4& view, const Mat4& projection,
-                          float r, float g, float b, GLuint texture = 0) {
+                          float r, float g, float b, GLuint texture = 0,
+                          bool clearDepth = false) {
         if (vertices.empty()) {
             return;
         }
@@ -823,7 +827,16 @@ public:
         glUniform3f(colorLocation, r, g, b);
         const GLboolean depthWasOn = glIsEnabled(GL_DEPTH_TEST);
         glEnable(GL_DEPTH_TEST);
-        if (true) {
+        // Step 249: the depth-only clear is the Step 201 OPT-IN param
+        // (the SAME mechanism as drawDebugMesh3D) - NOT the per-entity
+        // always-clear the path had since Step 237 (the `if (true)`
+        // vestigial conditional): each per-entity draw wiped the depth,
+        // so entities never occluded each other. The debug3d pass
+        // issues ONE clearDepth=true (the frame's first 3D draw, the
+        // debug cube) and the entity draws default to false - the
+        // inter-entity occlusion is correct with several meshes on
+        // screen. Color buffer never touched either way.
+        if (clearDepth) {
             glClear(GL_DEPTH_BUFFER_BIT);
         }
         GLuint vao = 0, vbo = 0;

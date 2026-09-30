@@ -6953,6 +6953,95 @@ static bool checkMeshLighting() {
     return ok;
 }
 
+// Step 249: the SINGLE depth clear for the 3D entity pass (headless +
+// real GL). REQUIRED evidence: two mesh entities at different depths
+// (near z=-2, far z=-4, both the registered tetra) occlude correctly
+// REGARDLESS of draw order - no clear between the two draws (THE
+// POINT): the center depth must be the NEAR entity's in BOTH orders
+// (order-independent). With the per-entity clear (the broken
+// `if (true)`), the second draw wipes the first's depth -> the center
+// depth is ORDER-DEPENDENT (the far wins when drawn last).
+static bool checkMeshOcclusion() {
+    bool ok = true;
+    const std::string fname = "mesh_occlusion_test.obj";
+    {
+        std::ofstream out("assets/" + fname);
+        out << "v -0.5 -0.5 -0.288675\n";
+        out << "v  0.5 -0.5 -0.288675\n";
+        out << "v  0.0 -0.5  0.57735\n";
+        out << "v  0.0  0.5  0.0\n";
+        out << "f 1 3 2\n";
+        out << "f 1 2 4\n";
+        out << "f 2 3 4\n";
+        out << "f 3 1 4\n";
+    }
+    std::vector<float> tetra;
+    if (!pe::loadMeshFromObj(fname, tetra)) {
+        std::cerr << "occlusion test fixture must load\n"; ok = false;
+    }
+    std::remove(("assets/" + fname).c_str());
+    if (!glfwInit()) { std::cerr << "mesh occlusion test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "meshocc", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "mesh occlusion test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "mesh occlusion test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Entity nearE, farE;
+        nearE.position = pe::Vec3(0.0f, 0.0f, -2.0f);   // near
+        farE.position = pe::Vec3(0.0f, 0.0f, -4.0f);    // far
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            auto readCenter = [&]() {
+                float d = 1.0f;
+                glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+                return d;
+            };
+            r.registerMesh(3, tetra);
+            nearE.meshId = 3;
+            farE.meshId = 3;
+            // The near-only baseline.
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(nearE, cam.view(), cam.projection());
+            const float nearOnly = readCenter();
+            // Order 1: far THEN near, no clear between.
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(farE, cam.view(), cam.projection());
+            r.drawEntity3D(nearE, cam.view(), cam.projection());
+            const float farThenNear = readCenter();
+            // Order 2: near THEN far, no clear between.
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(nearE, cam.view(), cam.projection());
+            r.drawEntity3D(farE, cam.view(), cam.projection());
+            const float nearThenFar = readCenter();
+            std::cerr << "DIAG occlusion: nearOnly " << nearOnly
+                      << " farThenNear " << farThenNear
+                      << " nearThenFar " << nearThenFar << "\n";
+            // BOTH orders must leave the NEAR entity's depth.
+            if (!assertFloatClose(farThenNear, nearOnly, 0.001f)) {
+                std::cerr << "far-then-near must leave the near depth\n"; ok = false;
+            }
+            if (!assertFloatClose(nearThenFar, nearOnly, 0.001f)) {
+                std::cerr << "near-then-far must leave the near depth (the far must be occluded)\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
 // Step 215: debug3d fov <degrees> - parse + camera contract (headless).
 // parseFloat1: valid -> true + value out; garbage/wrong-count -> false
 // + out UNCHANGED. Camera: setFov updates the projection ONLY in
@@ -9179,6 +9268,7 @@ int main() {
     const bool texturedMeshOk = checkTexturedMesh();
     const bool meshTexIdOk = checkMeshTextureId();
     const bool meshLightOk = checkMeshLighting();
+    const bool meshOcclusionOk = checkMeshOcclusion();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -9233,7 +9323,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
