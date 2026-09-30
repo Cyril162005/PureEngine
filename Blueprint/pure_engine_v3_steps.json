@@ -2795,6 +2795,18 @@
     244,
     237
    ]
+  },
+  {
+   "id": 252,
+   "name": "Console: texid <index> <n> (the meshid twin for the texture slot)",
+   "status": "completed",
+   "definition_of_done": "PROJECT TRUTH RELOADED FIRST: HEAD d82a749; highest completed id 251 (1433a6f) as expected. TRACKER DISCREPANCY REPORTED BEFORE EDITING: the V3 Known Follow-ups' 'Lighting visual tuning (Step 79 follow-up)' (line 218) is marked Resolved but its file:line refs (main.cpp:1545 / gamestate.h:111 / renderer.h:364 / lit.vert:5) are STALE (both files grew substantially since 2026-09-12) - the resolution stands, the refs drifted; noted, not fixed this step. INSPECTED (file:line): the console commands - meshid <index> <id> (main.cpp:1316-1319, sets entity.meshId via parseIndexId), debug3d on|off|cam|fov|orbit|drop, textures (Step 133 - the register/unload round-trip, NOT a per-entity texture setter), nohostiles on|off, entities/reset/heal/scene_dump/scene_reload/mute; entity.textureId today: set ONLY at buildInitialEntities (0/1/2) + the drop entities' default 0 - NO command sets it; the debug3d draw loop (main.cpp:2194-2205); the parse-test style (checkMeshIdParse:7404 covers the five cases for the real parseIndexId). THE GAP (one line): no command sets entity.textureId (meshid sets meshId only) - implement texid, the meshid command's twin. IMPLEMENTED: texid <index> <n> (main.cpp, after the meshid block) - the SAME parseIndexId parse (the CI-tested index+id parse: missing arg, non-integer, trailing garbage, OOB index -> clean reject, the state untouched); the textureId is set AS-IS (the DRAW path validates per the 2D rule - an OOB/released slot safely falls back to the checker, the behavior the 2D path always had, so the fallback path stays reachable for testing); meshId 1/2 and the 2D path unchanged; no globals, no new registry/manager; no unbounded loops. INTERPRETATION STATED: the session's `texid <n>` = the command + the id arg; the index follows the meshid twin's two-arg shape (parseIndexId reuse, the checkNohostilesParse precedent for a per-command parse contract of the same real function).",
+   "notes": "checkTexIdParse (headless, the checkNohostilesParse pattern: the REAL parseIndexId, no duplicated parsing, no GL): valid, missing, empty, malformed (non-integer), trailing garbage (the third token = the wrong count), OOB index (clean reject, state untouched), the zero-count bound - 8 asserts green, asserting the STATE (the out values), not the output text. checkMeshIdParse (the same real parse) still passes. The command's runtime behavior (the reply text + the entity binding at runtime) is SMOKE-only (main.cpp-local lambda - like every other console command). FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes, zero errors. ctest 2/2, alive x3 True. git diff --check clean.",
+   "commit": "7506a75",
+   "depends_on": [
+    251,
+    246
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
