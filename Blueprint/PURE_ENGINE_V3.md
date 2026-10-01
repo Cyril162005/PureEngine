@@ -163,6 +163,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - . Step 250: the entity mesh path's depth enable-state round-trip CI (checkMeshDepthState, the checkDepthState pattern) - the 248 disclosure closed; the occlusion half was already checkMeshOcclusion (249).
 - . Step 251: the second real OBJ (a wedge, mesh_wedge.obj) loaded at init into the registry at meshId 5 - a DISTINCT second mesh (the multi-mesh registry evidence); the 245/246 behavior on the path by construction.
 - . Step 255: finding (c) RESOLVED - the entity mesh path's GL state-leak CI (checkMeshStateLeak:6033, the checkDebugFrameDepth twin): the color corner survives the depth-only clear; the depth enable, blending, program, and VAO states deterministic - all five items green.
+- . Step 257: Phase D - the proof consumer of the frozen 3D version (checkFrozen3DConsumer, adversarial composition: the re-register replaces the slot, the texid fallbacks, the clear mid-session, the order-independent occlusion, the directional lighting) - the frozen contract held end-to-end; NO src/ engine edits needed.
 - . Step 176: Audio simultaneous SFX+music volume matrix (headless) — recorded (142 entries); chain-reference sweep into 175 disclosed
 - . Step 177: Input Input(vector) adoption ctor + union-order contract test — recorded (143 entries)
 - . Step 178: Scene prefab-scene failure matrix headless contract — recorded (144 entries)

@@ -2854,6 +2854,18 @@
     255,
     253
    ]
+  },
+  {
+   "id": 257,
+   "name": "Phase D: proof consumer of the frozen 3D version (adversarial composition)",
+   "status": "completed",
+   "definition_of_done": "PROJECT TRUTH RELOADED FIRST: HEAD deca41f; highest completed id 256 (1ad56ec); the 3D version COMPLETE/FROZEN. NO 'Phase D' definition in the tracker (AGENTS.md/V3: zero matches) - the prompt's definition (the proof consumer = the lifecycle's GAME VALIDATION phase, allowed after completion) is operative. Git identity confirmed Cyril162005 <jerrycyrilarthur25@gmail.com> BEFORE committing (the local config fix). INSPECTED: the frozen contract list (the loader, the registry, the textureId sampling, the CPU lighting, the depth contract, the 3D debug harness); THE SMALLEST EXISTING HOST: tests/hostile_data_test.cpp (the CTest harness - no new game/scene/content). THE CONSUMER: checkFrozen3DConsumer - uses ONLY documented frozen APIs (loadMeshFromObj, registerMesh ids 3/5, meshid/texid semantics via the fields, drawEntity3D, the lighting + depth contracts), adversarial composition with hard pass/fail: (1) the REAL assets load from the probe; (2) a DEGENERATE face (collinear verts) still parses (no crash); (3) the RE-REGISTER replaces the slot's data (the wedge under 3 == the wedge under 5's depth 0.920854, NOT the tetra's 0.9235); (4) the texid composition: the valid (2) samples the crimson (135 < checkerVar 166 - 10), the OOB (99) and the RELEASED fall back to the checker; (5) clearRegisteredMeshes mid-session -> the count 2 + the cube fallback draws; (6) the near/far occlusion order-independent (0.923483 both orders); (7) the directional lighting differs per face (+X 135 / -X 91 - matching checkMeshLighting's measured values exactly). NO src/ engine edit was needed (no STOP finding).",
+   "notes": "FINDINGS LOG (every issue, exactly one class; the deferred (a) world-space lighting and (b) 3D sizing source of truth count as already known - no new entries for them): (1) the strip-variance texture proof is LIGHTING-CONFOUNDED on multi-face meshes - the per-face lit factors scale the texel range (the wedge: the crimson 135 / the checker 166 vs the tetra's 23/235 - the lit factors 0.45-0.83 multiply the texels) - CLASS: existing capability (the 247 disclosed confound, now seen from the texture-proof direction; evidence: the DIAG values). (2) the lighting pixel-proof is TEXEL-DEPENDENT with high-contrast textures - the checker's texel range (orange 255 / blue 20) can mask the 44-point directional difference (the consumer's first run: +X 17 (a blue texel x a bright factor) vs -X 116 (an orange texel x a dark factor) - INVERTED by the texels, not the lighting) - CLASS: existing capability (the 247 contract holds: the factors exist and dominate with low-contrast textures - tex_player's values matched checkMeshLighting exactly after the consumer bound textureId 0; the proof TECHNIQUE's limit, not an engine defect). TEST FIXES OWNED: the consumer's two asserts calibrated (the texid margin form instead of the tetra-calibrated 0.6 ratio; the lighting draw binds textureId 0 = the valid tex_player slot per the 246 rule). The on-screen pixels SMOKE-only. FULL SOLUTION build: PureEngine.exe + Platformer.exe + Pong.exe + both test exes, zero errors; ctest 2/2; alive x3 True; git diff --check clean.",
+   "commit": "9ea5457",
+   "depends_on": [
+    256,
+    255
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
