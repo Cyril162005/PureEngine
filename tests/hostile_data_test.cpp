@@ -5906,6 +5906,7 @@ static bool checkMeshDepthState() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         r.registerMesh(4, tetra);
         pe::Entity e;
+        e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);   // Step 261: the (b) contract
         e.meshId = 4;
         e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
         r.drawEntity3D(e, cam.view(), cam.projection());
@@ -5977,6 +5978,7 @@ static bool checkWedgeMesh() {
     {
         glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
         pe::Entity e;
+        e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);   // Step 261: the (b) contract
         e.meshId = 5;
         e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
         pe::Renderer r;
@@ -6070,6 +6072,9 @@ static bool checkFrozen3DConsumer() {
     {
         glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
         pe::Entity a, b;
+        // Step 261: unit halfExtents (the (b) sizing source of truth).
+        a.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+        b.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
         pe::Renderer r;
         if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
         else {
@@ -6160,6 +6165,9 @@ static bool checkFrozen3DConsumer() {
             r.registerMesh(3, tetra);
             r.registerMesh(5, wedge);
             pe::Entity nearE, farE;
+            // Step 261: unit halfExtents (the (b) sizing source of truth).
+            nearE.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+            farE.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
             nearE.meshId = 3;
             nearE.position = pe::Vec3(0.0f, 0.0f, -2.0f);
             farE.meshId = 5;
@@ -6245,6 +6253,7 @@ static bool checkMeshStateLeak() {
         glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         pe::Entity e;
+        e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);   // Step 261: the (b) contract
         e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
         e.meshId = 3;
         pe::Renderer r;
@@ -6342,14 +6351,18 @@ static bool checkMeshWorldLighting() {
     }
     std::remove(("assets/" + fname).c_str());
     // The computed factors (the test's OWN formula replication, the
-    // engine's form: n' = R(yaw) * (n / s), no final normalize).
+    // engine's form: n' = normalize(R(yaw) * (n / s)) - the Step 261
+    // (Decision 2) normalize).
     const pe::Vec3 L = pe::Vec3(0.32f, 0.74f, 0.42f).normalized();
     auto engineFactor = [&](const pe::Vec3& localNormal, float yaw,
                             float sx, float sy, float sz) {
         const float c = std::cos(yaw), s = std::sin(yaw);
         const pe::Vec3 ns(localNormal.x / sx, localNormal.y / sy, localNormal.z / sz);
         const pe::Vec3 wn(ns.x * c + ns.z * s, ns.y, -ns.x * s + ns.z * c);
-        const float ndl = wn.dot(L);
+        // Step 261 (Decision 2): the normalize - the engine's form (the
+        // diffuse SIZE-INVARIANT: the same orientation at any uniform
+        // size computes the same factor).
+        const float ndl = wn.normalized().dot(L);
         const float diffuse = ndl > 0.0f ? ndl : 0.0f;
         return 0.35f + 0.65f * diffuse;
     };
@@ -6371,7 +6384,11 @@ static bool checkMeshWorldLighting() {
     if (!(fPlus0 > fMinus0)) { std::cerr << "F+@0 must exceed F-@0\n"; ok = false; }
     if (!(fPlusPi < fMinusPi)) { std::cerr << "the factors must swap under yaw pi\n"; ok = false; }
     if (!(fPlus90 < fPlus0 && fPlus90 > 0.35f)) { std::cerr << "the 90-degree factor must be predictable\n"; ok = false; }
-    if (!(fPlusNu < fPlus0)) { std::cerr << "the n/s correction must change the factor\n"; ok = false; }
+    // Step 261 (Decision 2): with the normalize, the n/s correction
+    // RE-AMPLIFIES the shrunk components - the x-stretched face's
+    // normal points more toward y/z where L is strong - the factor
+    // RISES (the computed: F+nu 0.907 > F+@0 0.831).
+    if (!(fPlusNu > fPlus0)) { std::cerr << "the n/s+normalize correction must change the factor\n"; ok = false; }
     // The pixel level (real GL).
     if (!glfwInit()) { std::cerr << "worldlight test skipped: glfwInit failed\n"; return false; }
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
@@ -6389,6 +6406,7 @@ static bool checkMeshWorldLighting() {
     {
         glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
         pe::Entity e;
+        e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);   // Step 261: the (b) contract
         e.meshId = 3;
         e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
         e.textureId = 0;   // tex_player: the low-contrast texels
@@ -6463,14 +6481,234 @@ static bool checkMeshWorldLighting() {
             const float meanNu = sumNu / static_cast<float>(countNu);
             std::cerr << "DIAG worldlight: nonuniform mean " << meanNu
                       << " max " << maxNu << "\n";
-            // The n/s correction dims the factor (0.752 vs 0.851, the
-            // computed ratio 0.884): the strip MEAN must be dimmer than
-            // 0.9 of the uniform +X face - a threshold that sits
-            // between the corrected (110.85) and the uncorrected
-            // (the texel-mean x 0.851 ~ 125) means, so the 1/s mutation
-            // is caught.
-            if (!(meanNu < rPlus0 * 0.9f)) {
-                std::cerr << "the non-uniform lit pixels must be dimmer (the n/s effect)\n"; ok = false;
+            // Step 261 (Decision 2): with the normalize, the n/s
+            // correction RAISES the factor (the computed F+nu 0.907 vs
+            // F+@0 0.831): the strip MEAN must EXCEED 0.95 of the
+            // uniform +X face. The threshold sits between the actual
+            // meanNu/rPlus0 ratio (the computed: the strip's texel-mean
+            // ratio 0.9297 x the factor ratio 1.0909 = 1.014) and the
+            // unnormalized ratio (0.9297 x 0.9045 = 0.841), so the
+            // normalize mutation is caught.
+            if (!(meanNu > rPlus0 * 0.95f)) {
+                std::cerr << "the non-uniform lit pixels must respond to the n/s+normalize correction\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
+// Step 261: the (b) capability - ONE sizing source of truth (the real
+// path). REQUIRED evidence: the drawn footprint for meshIds 3 and 5
+// EQUALS the formula (the model scale = halfExtents * scale * 2, the
+// 2D AABB debug draw's exact expression) for a NON-DEFAULT halfExtents
+// (0.6,0.4,0.5) and scale (1.25,1.25,1.0) - the model scale (1.5,1,1)
+// asserted exactly, and the measured row span scales by exactly that
+// factor (the z scale unchanged -> the projection stays linear in the
+// size), tight tolerance, real GL path.
+static bool checkMeshSizing() {
+    bool ok = true;
+    std::vector<float> tetra, wedge;
+    if (!pe::loadMeshFromObj("mesh_tetrahedron.obj", tetra)) {
+        std::cerr << "sizing test: the tetra asset must load\n"; ok = false;
+    }
+    if (!pe::loadMeshFromObj("mesh_wedge.obj", wedge)) {
+        std::cerr << "sizing test: the wedge asset must load\n"; ok = false;
+    }
+    if (!glfwInit()) { std::cerr << "sizing test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "meshsizing", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "sizing test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "sizing test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            // The formula (the source of truth, asserted exactly): the
+            // model scale = halfExtents * scale * 2 per axis.
+            {
+                const pe::Entity cfg(pe::Vec3(0,0,0), 0.0f,
+                                     pe::Vec3(1.25f, 1.25f, 1.0f),
+                                     pe::Vec3(0.6f, 0.4f, 0.5f));
+                const pe::Vec3 ms = pe::Vec3(cfg.halfExtents.x * cfg.scale.x * 2.0f,
+                                             cfg.halfExtents.y * cfg.scale.y * 2.0f,
+                                             cfg.halfExtents.z * cfg.scale.z * 2.0f);
+                if (!assertFloatClose(ms.x, 1.5f) || !assertFloatClose(ms.y, 1.0f) ||
+                    !assertFloatClose(ms.z, 1.0f)) {
+                    std::cerr << "the model scale must be halfExtents*scale*2\n"; ok = false;
+                }
+            }
+            // The row span at y=120: the silhouette's depth-hit extent.
+            auto readSpan = [&]() {
+                int minX = 320, maxX = -1;
+                for (int x = 0; x < 320; ++x) {
+                    float d = 1.0f;
+                    glReadPixels(x, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+                    if (d < 1.0f) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                    }
+                }
+                return (minX <= maxX) ? (maxX - minX + 1) : 0;
+            };
+            // The calibration: unit halfExtents (0.5,0.5,0.5) at scale 1
+            // -> the model scale (1,1,1) -> the full size = the native x
+            // extent (1.0) -> the measured span IS the px-per-unit.
+            pe::Entity e;
+            e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+            e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+            r.registerMesh(3, tetra);
+            r.registerMesh(5, wedge);
+            e.meshId = 3;
+            e.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float pxPerUnit = static_cast<float>(readSpan());
+            if (!(pxPerUnit > 5.0f)) {
+                std::cerr << "sizing: the calibration span must be nonempty\n"; ok = false;
+            }
+            // The non-default config: the model scale (1.5,1,1) - the z
+            // unchanged so the projection stays linear in the size; the
+            // measured x span must be 1.5x the calibration (the native
+            // extent 1.0 x the model scale 1.5).
+            e.halfExtents = pe::Vec3(0.6f, 0.4f, 0.5f);
+            e.scale = pe::Vec3(1.25f, 1.25f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float tetraSpan = static_cast<float>(readSpan());
+            std::cerr << "DIAG sizing: tetra calibration " << pxPerUnit
+                      << " nondefault " << tetraSpan << "\n";
+            if (!assertFloatClose(tetraSpan, 1.5f * pxPerUnit, 2.0f)) {
+                std::cerr << "sizing: meshId 3 footprint must equal halfExtents*scale*2\n"; ok = false;
+            }
+            // meshId 5 (the wedge): the same formula (the native x
+            // extent 1.0), its own calibration.
+            e.meshId = 5;
+            e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+            e.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float wedgeCal = static_cast<float>(readSpan());
+            e.halfExtents = pe::Vec3(0.6f, 0.4f, 0.5f);
+            e.scale = pe::Vec3(1.25f, 1.25f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float wedgeSpan = static_cast<float>(readSpan());
+            std::cerr << "DIAG sizing: wedge calibration " << wedgeCal
+                      << " nondefault " << wedgeSpan << "\n";
+            if (!assertFloatClose(wedgeSpan, 1.5f * wedgeCal, 2.0f)) {
+                std::cerr << "sizing: meshId 5 footprint must equal halfExtents*scale*2\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
+
+// Step 261 (Decision 2): the lit factor is SIZE-INVARIANT for the same
+// orientation (the real path). REQUIRED evidence: the SAME mesh at two
+// sizes (the scale (1,1,1) vs (2,2,2), unit halfExtents -> the model
+// scales (1,1,1) and (2,2,2)) computes the SAME face lit factor (the
+// expected values from the lighting formula: normalize(R*(n/s)) is
+// scale-invariant for uniform s), and the pixel at the same relative
+// position inside the +X face (the span's 75%) is equal at both sizes
+// (tight tolerance). Without the normalize the big size's factor drops
+// (the raw n/s magnitude halves: the computed 0.851 -> 0.601) and the
+// pixels diverge by ~40 - the mutation is caught.
+static bool checkMeshSizeInvariantLighting() {
+    bool ok = true;
+    std::vector<float> tetra;
+    if (!pe::loadMeshFromObj("mesh_tetrahedron.obj", tetra)) {
+        std::cerr << "sizeinv test: the tetra asset must load\n"; ok = false;
+    }
+    // The computed expectation (the test's OWN formula replication).
+    const pe::Vec3 L = pe::Vec3(0.32f, 0.74f, 0.42f).normalized();
+    const pe::Vec3 nPlus(0.8661f, 0.2887f, 0.5f);    // the tetra's +X face
+    const float c = std::cos(0.0f), s = std::sin(0.0f);
+    auto engineFactor = [&](float sx, float sy, float sz) {
+        const pe::Vec3 ns(nPlus.x / sx, nPlus.y / sy, nPlus.z / sz);
+        const pe::Vec3 wn(ns.x * c + ns.z * s, ns.y, -ns.x * s + ns.z * c);
+        const float ndl = wn.normalized().dot(L);
+        const float diffuse = ndl > 0.0f ? ndl : 0.0f;
+        return 0.35f + 0.65f * diffuse;
+    };
+    const float fSmall = engineFactor(1, 1, 1);
+    const float fBig = engineFactor(2, 2, 2);
+    std::cerr << "DIAG sizeinv: F(small) " << fSmall << " F(big) " << fBig << "\n";
+    if (!assertFloatClose(fSmall, fBig)) {
+        std::cerr << "the lit factor must be size-invariant (the normalize)\n"; ok = false;
+    }
+    // The pixel level (real GL).
+    if (!glfwInit()) { std::cerr << "sizeinv test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "meshsizeinv", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "sizeinv test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "sizeinv test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Entity e;
+        e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);   // Step 261: the (b) contract
+        e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+        e.meshId = 3;
+        e.textureId = 0;   // tex_player
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            r.registerMesh(3, tetra);
+            auto readR = [&](int x) {
+                unsigned char px[3] = {0, 0, 0};
+                glReadPixels(x, 120, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px);
+                return static_cast<float>(px[0]);
+            };
+            auto spanProbe = [&]() {
+                int minX = 320, maxX = -1;
+                for (int x = 0; x < 320; ++x) {
+                    float d = 1.0f;
+                    glReadPixels(x, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+                    if (d < 1.0f) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                    }
+                }
+                return (minX <= maxX) ? minX + (maxX - minX + 1) * 3 / 4 : 160;
+            };
+            // The small size: the span's 75% probe (inside the +X face).
+            e.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float pxSmall = readR(spanProbe());
+            // The big size: the SAME relative position inside the face.
+            e.scale = pe::Vec3(2.0f, 2.0f, 2.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float pxBig = readR(spanProbe());
+            std::cerr << "DIAG sizeinv pixels: small " << pxSmall
+                      << " big " << pxBig << "\n";
+            if (!assertFloatClose(pxSmall, pxBig, 3.0f)) {
+                std::cerr << "the lit pixels must be size-invariant (the same face, the same relative position)\n"; ok = false;
             }
         }
     }
@@ -6958,6 +7196,9 @@ static bool checkEntity3D() {
         unsigned char before[4] = {0, 0, 0, 0};
         glReadPixels(2, 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, before);
         pe::Entity flat;          // meshId 0: the skip contract
+        // Step 261: unit halfExtents - the drawn size = halfExtents*scale*2
+        // = scale = the collision extents (the (b) contract).
+        flat.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
         pe::Renderer r;
         if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
         else {
@@ -7179,6 +7420,7 @@ static bool checkMeshRegistry() {
     {
         glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
         pe::Entity e;
+        e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);   // Step 261: the (b) contract
         e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
         pe::Renderer r;
         if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
@@ -7312,6 +7554,7 @@ static bool checkTexturedMesh() {
     {
         glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
         pe::Entity e;
+        e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);   // Step 261: the (b) contract
         e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
         pe::Renderer r;
         if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
@@ -7416,6 +7659,7 @@ static bool checkMeshTextureId() {
     {
         glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
         pe::Entity e;
+        e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);   // Step 261: the (b) contract
         e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
         pe::Renderer r;
         if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
@@ -7548,6 +7792,7 @@ static bool checkMeshLighting() {
     {
         glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
         pe::Entity e;
+        e.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);   // Step 261: the (b) contract
         e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
         pe::Renderer r;
         if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
@@ -7644,6 +7889,9 @@ static bool checkMeshOcclusion() {
     {
         glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
         pe::Entity nearE, farE;
+        // Step 261: unit halfExtents (the (b) sizing source of truth).
+        nearE.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+        farE.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
         nearE.position = pe::Vec3(0.0f, 0.0f, -2.0f);   // near
         farE.position = pe::Vec3(0.0f, 0.0f, -4.0f);    // far
         pe::Renderer r;
@@ -9954,6 +10202,8 @@ int main() {
     const bool meshStateLeakOk = checkMeshStateLeak();
     const bool frozen3DConsumerOk = checkFrozen3DConsumer();
     const bool meshWorldLightOk = checkMeshWorldLighting();
+    const bool meshSizingOk = checkMeshSizing();
+    const bool meshSizeInvariantOk = checkMeshSizeInvariantLighting();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -10008,7 +10258,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !meshWorldLightOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !meshWorldLightOk || !meshSizingOk || !meshSizeInvariantOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

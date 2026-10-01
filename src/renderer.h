@@ -762,9 +762,19 @@ public:
         if (e.meshId == 0) {
             return;   // 2D-only entity: no 3D draw, no matrix work
         }
+        // Step 261 (the (b) capability): ONE sizing source of truth -
+        // the model scale = halfExtents * scale * 2, the EXACT expression
+        // the 2D AABB debug draw uses (below, ~1084-1088: "halfExtents *
+        // scale, doubled" - the collision box collision.h:116 builds).
+        // The drawn footprint now matches the collision extents for every
+        // meshId; with unit halfExtents (0.5,0.5,0.5) this is BIT-IDENTICAL
+        // to the pre-261 e.scale (0.5*1*2 = 1), so every existing 3D
+        // pixel/strip/depth assert holds unchanged.
         const Mat4 model = Mat4::translation(e.position.x, e.position.y, e.position.z) *
                            Mat4::rotationY(e.rotationAngle) *
-                           Mat4::scale(e.scale.x, e.scale.y, e.scale.z);
+                           Mat4::scale(e.halfExtents.x * e.scale.x * 2.0f,
+                                       e.halfExtents.y * e.scale.y * 2.0f,
+                                       e.halfExtents.z * e.scale.z * 2.0f);
         // Step 217: the entity tint drives the debug cube color
         // (drawEntityMesh3D's color param; the unit-cube path's blue
         // tint is the no-entity default). White default = the
@@ -880,12 +890,12 @@ public:
         // truth) cannot break this when it adopts halfExtents*scale.
         // At rotation 0 and uniform scale this is BIT-IDENTICAL to the
         // pre-260 raw normal (R = I, s = 1 -> n' = n).
-        // NOTE: the v4 prompt's stated formula ends with a normalize();
-        // the bit-identical gate forces its omission TODAY (the raw
-        // cross's magnitude is the current behavior - the normalize
-        // would shift the slanted faces' diffuse ~4-12% at rotation 0);
-        // adding it is a documented (b)-step follow-up with test
-        // recalibration.
+        // Step 261 (Decision 2 follow-up): the transformed normal is
+        // NORMALIZED below (the v4 prompt's stated formula) - the
+        // diffuse term is now SIZE-INVARIANT; the tetra's slanted-face
+        // factors shift ~2-3% at rotation 0 (F+@0 0.851 -> 0.831), the
+        // expectations recalibrated in checkMeshWorldLighting (the
+        // computed formula in the test).
         const Vec3 mc0(model.m[0][0], model.m[0][1], model.m[0][2]);
         const Vec3 mc1(model.m[1][0], model.m[1][1], model.m[1][2]);
         const Vec3 mc2(model.m[2][0], model.m[2][1], model.m[2][2]);
@@ -903,12 +913,18 @@ public:
             if (nrm.dot(toFace) < 0.0f) {
                 nrm = nrm * (-1.0f);   // outward, robust to any winding
             }
-            // The world-space normal: n' = R * (n / s), the general
-            // inverse-transpose form (no final normalize - see above).
+            // The world-space normal: n' = normalize(R * (n / s)), the
+            // general inverse-transpose form. Step 261 (Decision 2): the
+            // normalize makes the diffuse SIZE-INVARIANT (without it the
+            // raw n/s magnitude - and so the diffuse - changes with
+            // entity size: the tetra's +X face at the model scales
+            // (1,1,1) vs (3,2,2) computes 0.851 vs 0.567 for the SAME
+            // orientation). vec3.h's normalized() maps the zero vector
+            // to itself, so a fully-flattened entity stays NaN-free.
             const Vec3 ns(nrm.x * (ms0 > 0.0f ? 1.0f / ms0 : 0.0f),
                           nrm.y * (ms1 > 0.0f ? 1.0f / ms1 : 0.0f),
                           nrm.z * (ms2 > 0.0f ? 1.0f / ms2 : 0.0f));
-            const Vec3 wn = mr0 * ns.x + mr1 * ns.y + mr2 * ns.z;
+            const Vec3 wn = (mr0 * ns.x + mr1 * ns.y + mr2 * ns.z).normalized();
             const float ndl = wn.dot(lightDir);
             const float diffuse = ndl > 0.0f ? ndl : 0.0f;
             const float factor = ambient + (1.0f - ambient) * diffuse;
