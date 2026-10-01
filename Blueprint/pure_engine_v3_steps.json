@@ -2914,6 +2914,17 @@
     260,
     245
    ]
+  },
+  {
+   "id": 262,
+   "name": "Test: v4 pre-freeze mutation closure (the tightened passers)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 4e5a8cb, highest 261, v4 OPEN, (a)+(b) resolved - gate TRUE. Listed the new v4 asserts and their assigned mutations; re-ran all FOUR mutations on the committed tree (each an uncommitted edit to src/renderer.h, rebuilt, ctest, restored by pathspec, never committed, git diff --stat -- src/ empty afterward): (i) the sizing reverted - the wedge span FAILED (16 vs 21), the tetra span PASSED (16 vs 18, the diff 2.0 <= 2.0 - the known weak point); (ii) the normalize removed - the mean FAILED (110.8 < 125.4), the sizeinv pixel FAILED (128 vs 89), the prediction PASSED (the diff 7.6 < 32.2); (iii) the 1/s removed - the mean FAILED (122.8 < 125.4, exactly as computed), the sizeinv pixel PASSED (the normalize alone is scale-invariant); (iv) the rotation removed - the prediction FAILED (51 vs 108.4, the diff 57), the rPlusPi<rPlus0 PASSED (51 < 132). THREE passers tightened (test code only, the expectations formula-derived, never re-measured): the tetra span tolerance 2.0 -> 1.0; the prediction tolerance 25%+5 -> 6.0 absolute; the rotation band added (rPlusPi > rPlus0*0.7 - the mutated ratio 0.386 vs the actual 0.856, consistent with the formula's factor ratio 0.653 x the per-face texel calibration). Each tightening's mutation re-proven: (i) BOTH span asserts fire; (ii) the prediction fires (7.6 > 6.0) plus the mean and the sizeinv pixel; (iv) the band fires (51 < 92.4) plus the prediction (57 > 6.0). No assert required relaxing real behavior (the non-mutated run passes with all three tightenings).",
+   "notes": "Gates: FULL build exit 0; ctest 2/2 (5.14s/0.16s) exit 0 100%; alive x3 exit 0; git diff --check clean. Diff: tests only (+10/-2). The mutation table recorded in V3 (the findings log). hostile_default.txt and Testing/ untouched. PROCESS FINDING OWNED: the first record commit (aa1dc2c) silently omitted this steps.json entry (a here-string replace matched nothing because the file is CRLF and the replace string used LF) - caught immediately by the commit's file count, re-added with the edit tool; the V3 findings log was complete in aa1dc2c. The record commit for this entry is the docs-only commit that carries it.",
+   "commit": "da68fa5",
+   "depends_on": [
+    261
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
