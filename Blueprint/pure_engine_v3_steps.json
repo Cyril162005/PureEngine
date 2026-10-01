@@ -2936,6 +2936,17 @@
    "depends_on": [
     262
    ]
+  },
+  {
+   "id": 264,
+   "name": "Test: Phase-D consumer refresh on frozen v4 (the sized+rotated composition)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 5967667, highest 263, v4 FROZEN (V3:474) - gate TRUE. Extended checkFrozen3DConsumer with ONE composition (item 6, the real path): the non-default halfExtents (0.6,0.4,0.5) + scale (1.25,1.25,1.0) on meshIds 3 AND 5, one rotated entity (the tetra at the yaw pi), occlusion between a sized and a rotated entity (the tetra rotated near z=-2 vs the wedge sized far z=-4), textureId set (tex_player). The asserts (the expected values COMPUTED from the formulas): the model scale = halfExtents*scale*2 asserted exactly (1.5,1,1); the lit-factor size-invariance computed (normalize(R*(n/s)) is scale-invariant for uniform s: factorOf(1) == factorOf(2)); the sized wedge's drawn span = 1.5x its own calibration (the z unchanged -> the linear projection, +-2); the world-space lighting responds to rotation (the +X side's pixel dims at pi within the computed-consistent band: < rotPlus0 && > rotPlus0*0.7); the lit factor is size-invariant at the pixel level (the tetra at the scales (1,1,1)/(2,2,2), the same relative probe, +-3); the sized-vs-rotated occlusion is order-independent (0.001). Commit the test FIRST (4da092b), then the mutations against the committed state (each an uncommitted edit to src/renderer.h, restored by pathspec, never committed, git diff --stat -- src/ empty afterward): (i) revert sizing -> the consumer's sized-wedge assert fired (16 vs 21, the diff 5 > 2) plus the checkMeshSizing spans - FAILED; (ii) remove normalize -> the consumer's sizeinv pixel assert fired (128 vs 89, the diff 39 > 3) plus the worldlight mean and the sizeinv pixel - FAILED; (iv) remove normal rotation -> the consumer's rotation-band assert fired (rot +pi 51 < 0.7*125 = 87.5) plus the worldlight band and the prediction - FAILED. ALL THREE caught on the FIRST try - no tightening needed. No engine problem exposed by the consumer (the composition passed cleanly on the frozen v4) - none to record.",
+   "notes": "Measured: DIAG consumer v4: wedge cal 14 sized 20; rot +0 125 +pi 113; sizeinv 125 vs 124; occlusion 0.923105 / 0.923105. Gates: FULL build exit 0; ctest 2/2 (5.26s/0.23s) exit 0 100%; alive x3 exit 0; git diff --check clean; diff tests only (+138). hostile_default.txt and Testing/ untouched.",
+   "commit": "4da092b",
+   "depends_on": [
+    263
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
