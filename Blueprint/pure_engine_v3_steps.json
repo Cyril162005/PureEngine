@@ -2842,6 +2842,18 @@
     254,
     250
    ]
+  },
+  {
+   "id": 256,
+   "name": "Docs: 3D engine version COMPLETE/FROZEN (the done-criteria audit)",
+   "status": "completed",
+   "definition_of_done": "DOCS/TRACKER ONLY, zero src/test changes. PROJECT TRUTH RELOADED FIRST: HEAD 5d547b3; highest completed id 255 (78136da) as expected. (1) THE DONE-CRITERIA AUDIT TABLE (verbatim criteria, no rewording, one row each): (1) 'every capability in the map above is VERIFIED with a real test (none PARTIAL/UNVERIFIED in the capability rows)' - 14 rows all VERIFIED, no PARTIAL/UNVERIFIED row (grep-verified) - VERIFIED; (2) 'the open findings (a)-(c) are RESOLVED (fixed with tests) or explicitly DEFERRED with a recorded version target' - (a) deferred (the next engine version), (b) deferred ('3D sizing source of truth', the next version, 4703a48), (c) RESOLVED (255: checkMeshStateLeak :6033, 78136da) - VERIFIED; (3) 'the 2D non-regression is green on every step (ctest 2/2 + the 2D byte-identical guarantees)' - every step 237-255 recorded ctest 2/2 + alive x3; the 2D drawWorld/digit paths untouched (the diffs: 3D additions only); FRESH ctest 2/2 100% - VERIFIED; (4) 'the full-solution build + ctest + alive x3 have actual execution evidence' - FRESH this step: build exit 0, ctest exit 0 (100% 2/2, 15.69s/1.55s), alive x3 exit 0 - VERIFIED; (5) 'the tracker records capabilities, dependencies, verification, limitations, and open findings' - steps.json 211+ entries + V3 (the map/findings/done-criteria) - VERIFIED; (6) 'the implementation is committed and pushed' - every step commit pushed - VERIFIED. (3) THE (c) WORDING CHECK: the original tracker text (253) vs the invariant 255 tested - the CORE invariant (the color-only clear guarantee) MATCHES; 255 is a SUPERSET (the state items were 255's session step-1 list). The map's state-leak row limit AMENDED: the program and the unit-0 texture bind recorded as LEFT SET (deterministic - every consumer sets its own bind). (4) OUTCOME: every criterion VERIFIED + step 2 green -> 3D ENGINE VERSION COMPLETE / FROZEN marked in the tracker, V3, board, README. The FROZEN CONTRACT LIST recorded (the loader, the registry, the textureId sampling, the CPU lighting, the depth contract, the 3D debug harness); the DEFERRED candidates for the next version: (a) world-space lighting, (b) 3D sizing source of truth. No game feature built.",
+   "notes": "All three gates executed FRESH this step (not cited from old runs): cmake --build build --config Release exit 0; ctest -C Release exit 0 (100% tests passed out of 2, 15.69s/1.55s); alive x3 exit 0 (ALIVE x PureEngine.exe, Platformer.exe, Pong.exe). git diff --check clean; the diff docs/tracker only. Two commits per the docs-only convention: the freeze doc (1ad56ec: V3 + board), the record (this commit). hostile_default.txt left untouched.",
+   "commit": "1ad56ec",
+   "depends_on": [
+    255,
+    253
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

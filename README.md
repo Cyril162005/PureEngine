@@ -13,7 +13,8 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–255): window/context, rendering pipeline,
+- **Engine** (tracked steps 25–256; the 3D version COMPLETE/FROZEN at
+  Step 256): window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),
   file-based asset loading (stb_image PNG) + binary blob/pack + cache,
