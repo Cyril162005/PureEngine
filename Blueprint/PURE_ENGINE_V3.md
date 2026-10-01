@@ -517,38 +517,80 @@ sampling, the depth contract, the 3D debug harness) is UNCHANGED.**
     non-uniform mean assert fired (125.5 > 121.5) — the non-uniform
     case guards the 1/s term SPECIFICALLY — NON-VACUOUS.
 
-**(b) 3D sizing source of truth**
+**(b) 3D sizing source of truth — RESOLVED (Step 261)**
 - Problem (one line): drawEntity3D/drawEntityMesh3D scale the mesh by
   e.scale only (drawn size 2*scale) while collision uses
   halfExtents*scale — the drawn size does not match the collision
   extents.
-- Current documented behavior: src/renderer.h:767 (drawEntity3D:
-  Mat4::scale(e.scale...) — the model = translation*rotationY*scale);
-  the CI-proven corner contract (checkEntity3D: "Model corner must be
-  position + scale/2"); src/mesh3d.h:46-47 (the unit cube at the
-  origin, corners ±0.5).
-- Test(s) it will change: checkEntity3D (the corner assert — the 3D
-  convention itself); the measured-strip tests (checkMeshRegistry
-  :6689, checkTexturedMesh :6807, checkMeshTextureId :6926,
-  checkWedgeMesh :5938, checkMeshLighting :7058, checkMeshOcclusion
-  :7154, checkMeshDepthState :5845); checkMeshStateLeak (the corner
-  pixel's coverage); checkFrozen3DConsumer (the strips/depths).
-- Open design questions (RECORDED, NOT decided): does the drawn size
-  use halfExtents*scale, or is per-path sizing documented as the
-  contract? Is the native mesh bounds unit-sized? (The hardcoded
-  cube/pyramid are ±0.5 unit-sized; the LOADER does not normalize the
-  loaded OBJs' bounds — the tetra/wedge are ~±0.5 by construction, but
-  a non-unit OBJ would have non-unit native bounds, so the formula's
-  2x factor depends on this answer.)
+- THE FIX (renderer.h, drawEntity3D's model construction ONLY —
+  drawEntityMesh3D consumes the caller's model, one construction
+  site): the model scale = **halfExtents * scale * 2** per axis — the
+  EXACT expression the 2D AABB debug draw uses (renderer.h:1084-1088,
+  contract comment :1083 "halfExtents * scale, doubled"; collision.h
+  :116 builds the same box). The drawn footprint now matches the
+  collision extents for every meshId. With unit halfExtents
+  (0.5,0.5,0.5) this is BIT-IDENTICAL to the pre-261 e.scale
+  (0.5*1*2 = 1), so every existing 3D pixel/strip/depth assert held
+  unchanged (verified: ctest 100% before any recalibration).
+- Decision 1 evidence: native bounds — cube (mesh3d.h:46-68) and
+  wedge (mesh_wedge.obj) exactly ±0.5 unit; pyramid ±0.5 base;
+  tetra x/y ±0.5, z 0.866 (disclosed "unit-ish" in the asset header) —
+  the formula is per-axis and correct for all four. The 2D AABB debug
+  draw's OWN quad is ±1 (renderer.h:278-284) so its drawn box is
+  4·hx·s = 2× the collision box (2·hx·s) — a SEPARATE 2D-debug-path
+  finding, RECORDED below (frozen, out of scope for 261).
+- DISCLOSED FINDING (not fixed, out of scope): the 2D AABB debug draw
+  draws its box 2× the collision extents (the quad ±1 with the
+  halfExtents*scale*2 scale); no CI test pins the drawn size; the 2D
+  debug path is frozen for v4.
+- Step 260 follow-up (Decision 2): the lit normals are now NORMALIZED
+  (drawEntityMesh3D: `wn = (mr0*ns.x + mr1*ns.y + mr2*ns.z).normalized()`
+  — vec3.h:88-94 zero-safe). Computed example (the diffuse changed
+  with entity size without it): the tetra's +X face n=(0.8661,0.2887,0.5)
+  (raw cross |n|=1.0408), L=(0.3520,0.8137,0.4620), yaw 0: model scale
+  (1,1,1) -> dot 0.771 -> F 0.851; model scale (3,2,2) (halfExtents
+  (1.5,1,1)) -> dot 0.335 -> F 0.567 — a 33% drop PURELY from size.
+  With the normalize: F 0.874 — the size no longer affects the factor
+  (the non-uniform scale's legitimate rotation effect remains).
+- OLD/NEW EXPECTATION TABLE (each change justified by the lighting
+  formula or the (b) contract, never by re-measuring output):
+  | Test | Old | New | Justification |
+  | checkEntity3D corner | corner = position + scale/2 (the Mat4 math) | UNCHANGED | the Mat4 composition test, no Entity/halfExtents |
+  | checkEntity3D GL depth / checkMeshDepthState / checkWedgeMesh / checkFrozen3DConsumer / checkMeshStateLeak / checkMeshRegistry / checkTexturedMesh / checkMeshTextureId / checkMeshOcclusion | depth/variance/state asserts (the entity data: the DEFAULT halfExtents (0.7071,0.7071,0)) | UNCHANGED values; the entity data = halfExtents (0.5,0.5,0.5) | the (b) contract: the drawn size matches the collision extents (the collision full 1x1x1 = the drawn 1x1x1) |
+  | checkMeshLighting | bright > dark+20; bright < 250; dark > 60 | UNCHANGED (the relative asserts survive the normalize: the diff 41.7 > 20; 90.2 > 60) | the lighting formula (the normalize changes the absolute factors, not the relative asserts) |
+  | checkMeshWorldLighting computed | F+@0 0.851079; F-@0 0.45474; F+@pi 0.35; F-@pi 0.55077; F+@90 0.357062; F+nu 0.751994; F+nu < F+@0 | F+@0 0.831389; F-@0 0.450625; F+@pi 0.35; F-@pi 0.542881; F+@90 0.356784; F+nu 0.906995; **F+nu > F+@0** | the lighting formula: the normalize; the F+nu flip: the normalized n/s re-amplifies the shrunk x, rotating the normal toward y/z where L is strong (the computed example) |
+  | checkMeshWorldLighting pixels | +0 135; -0 91; +pi 116; the mean < 0.9*rPlus0 | +0 132; -0 90; +pi 113; **the mean > 0.95*rPlus0** | the lighting formula (the pixel = texel*factor); the mean flip: the computed ratio analysis (the actual meanNu/rPlus0 1.014 vs the unnormalized 0.841; the 0.95 threshold between, so the mutation is caught) |
+- THE NEW REGRESSIONS: checkMeshSizing (meshIds 3 AND 5 at the
+  non-default halfExtents (0.6,0.4,0.5) + scale (1.25,1.25,1.0): the
+  model scale (1.5,1,1) asserted exactly from the formula; the
+  measured row span scales by exactly 1.5x its own calibration (the z
+  unchanged -> the linear projection), tolerance ±2, real GL) and
+  checkMeshSizeInvariantLighting (the SAME mesh at the scales
+  (1,1,1)/(2,2,2): the computed factors IDENTICAL 0.831389 from the
+  formula; the pixel at the span's 75% (the same relative position ->
+  the same interpolated texel) equal within ±3).
+- MUTATION TABLE (each an uncommitted edit restored by pathspec;
+  ctest FAILED):
+  - (i) the sizing reverted (the model scale -> e.scale): the wedge's
+    footprint assert fired (16 vs the expected 21, the diff 5 > 2) —
+    NON-VACUOUS; the tetra's assert missed by exactly the tolerance
+    (16 vs 18, the diff = 2.0 ≤ 2.0 — a rasterization-dependent
+    near-boundary, noted); the sizeinv test passed (as designed: the
+    mutated model scales = e.scale are identical for unit halfExtents) —
+    caught SPECIFICALLY by checkMeshSizing.
+  - (ii) the normalize removed: checkMeshWorldLighting's mean assert
+    fired (110.8 < 125.4; the pixels +0 135/-0 91 — the exact pre-261
+    values, confirming the computed prediction) AND
+    checkMeshSizeInvariantLighting's pixel assert fired (small 128 vs
+    big 89, the diff 39 > 3 — the size dependence exactly as computed)
+    — NON-VACUOUS.
 
-**(a)+(b) interaction (RECORDED, NOT decided):** with NON-UNIFORM
+**(a)+(b) interaction (RESOLVED, Step 260/261):** with NON-UNIFORM
 halfExtents the model matrix has a NON-UNIFORM scale, so transformed
-normals need the INVERSE-TRANSPOSE or the lighting is wrong (a
-non-uniform scale skews the normal). If (b) adopts halfExtents*scale
-with non-uniform halfExtents, (a)'s world-space normal transform must
-use the inverse-transpose. Whether (a) must PRECEDE (b), or they land
-together with the inverse-transpose designed in, is an open ordering
-question — recorded here, decided in a v4 step with evidence.
+normals use the INVERSE-TRANSPOSE — (a) landed first (260: n' =
+R*(n/s), the model-scale form (b) cannot break), and (b) landed with
+the final normalize (261: the diffuse SIZE-INVARIANT, the computed
+example recorded above); the ordering question is closed.
 
 ### Known test limits (recorded, no fix, no new scope)
 - The OOB-sample mutation is UB (entityTextures[99] is an OOB vector

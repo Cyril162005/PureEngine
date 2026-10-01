@@ -13,9 +13,9 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–260; the 3D v3 version COMPLETE/FROZEN at
-  Step 256; **Engine v4 - 3D correctness OPEN at 259** — (a) world-space
-  lighting RESOLVED at 260, (b) 3D sizing source of truth open):
+- **Engine** (tracked steps 25–261; the 3D v3 version COMPLETE/FROZEN at
+  Step 256; **Engine v4 - 3D correctness — both capabilities RESOLVED
+  at 260/261, version close-out pending**):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),
