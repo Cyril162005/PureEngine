@@ -600,6 +600,25 @@ example recorded above); the ordering question is closed.
   clearRegisteredMeshes (a still-registered mesh also draws); the
   count assert does (the 258 audit's nuance).
 
+### Step 262 pre-freeze mutation closure (tests only)
+Re-ran all four v4 mutations on the committed tree (0edf222); every
+assert that passed under its mutation was tightened (test code only,
+the expectations formula-derived) and its mutation re-proven:
+| Assert | Mutation | Before tightening | After tightening |
+| checkMeshWorldLighting rPlusPi band | (iv) the rotation removed | PASSED (51 < 132) | FAILED: the new floor `rPlusPi > rPlus0*0.7` (the mutated ratio 0.386 vs the actual 0.856, consistent with the formula's factor ratio 0.653 x the per-face texel calibration) + the prediction (the diff 57 > 6.0) |
+| checkMeshWorldLighting prediction | (ii) the normalize removed | PASSED (the diff 7.6 < 32.2) | FAILED: the tolerance 32.2 -> 6.0 (the non-mutated diff 4.6, the mutated 7.6); the mean (110.8 < 125.4) and the sizeinv pixel (128 vs 89) also fire |
+| checkMeshSizing tetra span | (i) the sizing reverted | PASSED (16 vs 18, the diff 2.0 <= 2.0 - the known weak point) | FAILED: the tolerance 2.0 -> 1.0 (the mutated diff 2 > 1.0); the wedge span (16 vs 21) also fires |
+Already failing under their mutations (no tightening needed): the
+wedge span (i), the mean (ii)/(iii), the sizeinv pixel (ii), the
+prediction (iv). The computed (lambda) asserts (1)-(4)/(11) are the
+formula documentation and validate via the pixel asserts.
+FULL TABLE (the initial re-run): (5)/(iv) PASSED; (6)/(ii) PASSED;
+(6)/(iv) FAILED; (7)/(ii) FAILED; (7)/(iii) FAILED (122.8 < 125.4,
+exactly as computed); (9)/(i) PASSED; (10)/(i) FAILED; (12)/(ii)
+FAILED (the diff 39 > 3). Each mutation: an uncommitted edit,
+restored by pathspec, never committed, git diff --stat -- src/ empty
+afterward.
+
 ### v4 done-criteria (the v3 done-criteria form)
 The v4 version is COMPLETE/FROZEN only when:
 - every capability assigned to v4 is implemented;
