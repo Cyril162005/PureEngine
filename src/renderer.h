@@ -871,6 +871,28 @@ public:
             centroid = centroid + Vec3(vertices[v * 5], vertices[v * 5 + 1], vertices[v * 5 + 2]);
         }
         centroid = centroid * (1.0f / static_cast<float>(vertCount));
+        // Step 260: the WORLD-SPACE normal transform - the inverse-
+        // transpose of the model's R*S (for orthonormal R and diagonal
+        // S: (RS)^-T = R * S^-1): the normal is scaled by 1/s THEN
+        // rotated by the model's rotation. Extracted from the model
+        // matrix's upper-left 3x3 (column i = s_i * R's column i), so
+        // the s here is the MODEL's scale - (b) (the sizing source of
+        // truth) cannot break this when it adopts halfExtents*scale.
+        // At rotation 0 and uniform scale this is BIT-IDENTICAL to the
+        // pre-260 raw normal (R = I, s = 1 -> n' = n).
+        // NOTE: the v4 prompt's stated formula ends with a normalize();
+        // the bit-identical gate forces its omission TODAY (the raw
+        // cross's magnitude is the current behavior - the normalize
+        // would shift the slanted faces' diffuse ~4-12% at rotation 0);
+        // adding it is a documented (b)-step follow-up with test
+        // recalibration.
+        const Vec3 mc0(model.m[0][0], model.m[0][1], model.m[0][2]);
+        const Vec3 mc1(model.m[1][0], model.m[1][1], model.m[1][2]);
+        const Vec3 mc2(model.m[2][0], model.m[2][1], model.m[2][2]);
+        const float ms0 = mc0.length(), ms1 = mc1.length(), ms2 = mc2.length();
+        const Vec3 mr0 = ms0 > 0.0f ? mc0 * (1.0f / ms0) : mc0;
+        const Vec3 mr1 = ms1 > 0.0f ? mc1 * (1.0f / ms1) : mc1;
+        const Vec3 mr2 = ms2 > 0.0f ? mc2 * (1.0f / ms2) : mc2;
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         for (std::size_t f = 0; f + 2 < vertCount; f += 3) {
             const Vec3 p0(vertices[f * 5], vertices[f * 5 + 1], vertices[f * 5 + 2]);
@@ -881,7 +903,13 @@ public:
             if (nrm.dot(toFace) < 0.0f) {
                 nrm = nrm * (-1.0f);   // outward, robust to any winding
             }
-            const float ndl = nrm.dot(lightDir);
+            // The world-space normal: n' = R * (n / s), the general
+            // inverse-transpose form (no final normalize - see above).
+            const Vec3 ns(nrm.x * (ms0 > 0.0f ? 1.0f / ms0 : 0.0f),
+                          nrm.y * (ms1 > 0.0f ? 1.0f / ms1 : 0.0f),
+                          nrm.z * (ms2 > 0.0f ? 1.0f / ms2 : 0.0f));
+            const Vec3 wn = mr0 * ns.x + mr1 * ns.y + mr2 * ns.z;
+            const float ndl = wn.dot(lightDir);
             const float diffuse = ndl > 0.0f ? ndl : 0.0f;
             const float factor = ambient + (1.0f - ambient) * diffuse;
             glUniform3f(colorLocation, r * factor, g * factor, b * factor);

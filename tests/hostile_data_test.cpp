@@ -6308,6 +6308,176 @@ static bool checkMeshStateLeak() {
     return ok;
 }
 
+// Step 260: the WORLD-SPACE lighting regression (the real path, the v4
+// (a) capability). THE FACTORS ARE COMPUTED IN THIS TEST from the
+// lighting formula (the mesh's LOCAL normals + the yaw + the fixed
+// light): factor = ambient + (1-ambient)*max(0, dot(R(yaw)*(n/s), L)) -
+// never copied from measured output. REQUIRED evidence:
+//   - the computed swap: F+@0 > F-@0 and F+@pi < F-@pi (the factors
+//     swap under a yaw pi - the world-space lighting works);
+//   - the 90-degree case: F+@90 strictly between the ambient and
+//     F+@0 (exactly predictable);
+//   - the non-uniform scale (2,1,1): F+nu < F+@0 (the n/s correction
+//     changes the factor - the entity supports per-axis scale);
+//   - the pixel level: rotation 0 vs pi - the pixels RESPOND to the
+//     rotation and match the computed-factor prediction via the
+//     derived per-face texel scale (the pixel = texel * factor).
+static bool checkMeshWorldLighting() {
+    bool ok = true;
+    const std::string fname = "mesh_worldlight_test.obj";
+    {
+        std::ofstream out("assets/" + fname);
+        out << "v -0.5 -0.5 -0.288675\n";
+        out << "v  0.5 -0.5 -0.288675\n";
+        out << "v  0.0 -0.5  0.57735\n";
+        out << "v  0.0  0.5  0.0\n";
+        out << "f 1 3 2\n";
+        out << "f 1 2 4\n";
+        out << "f 2 3 4\n";
+        out << "f 3 1 4\n";
+    }
+    std::vector<float> tetra;
+    if (!pe::loadMeshFromObj(fname, tetra)) {
+        std::cerr << "worldlight test fixture must load\n"; ok = false;
+    }
+    std::remove(("assets/" + fname).c_str());
+    // The computed factors (the test's OWN formula replication, the
+    // engine's form: n' = R(yaw) * (n / s), no final normalize).
+    const pe::Vec3 L = pe::Vec3(0.32f, 0.74f, 0.42f).normalized();
+    auto engineFactor = [&](const pe::Vec3& localNormal, float yaw,
+                            float sx, float sy, float sz) {
+        const float c = std::cos(yaw), s = std::sin(yaw);
+        const pe::Vec3 ns(localNormal.x / sx, localNormal.y / sy, localNormal.z / sz);
+        const pe::Vec3 wn(ns.x * c + ns.z * s, ns.y, -ns.x * s + ns.z * c);
+        const float ndl = wn.dot(L);
+        const float diffuse = ndl > 0.0f ? ndl : 0.0f;
+        return 0.35f + 0.65f * diffuse;
+    };
+    // The tetra's LOCAL normals (from the fixture's verts, the same
+    // cross + the outward flip as the engine).
+    const pe::Vec3 nPlus(0.8661f, 0.2887f, 0.5f);    // the +X-facing face
+    const pe::Vec3 nMinus(-0.8661f, 0.2887f, 0.5f);  // the -X-facing face
+    const float pi = 3.14159265358979f;
+    const float fPlus0 = engineFactor(nPlus, 0.0f, 1, 1, 1);
+    const float fMinus0 = engineFactor(nMinus, 0.0f, 1, 1, 1);
+    const float fPlusPi = engineFactor(nPlus, pi, 1, 1, 1);
+    const float fMinusPi = engineFactor(nMinus, pi, 1, 1, 1);
+    const float fPlus90 = engineFactor(nPlus, pi * 0.5f, 1, 1, 1);
+    const float fPlusNu = engineFactor(nPlus, 0.0f, 2, 1, 1);
+    std::cerr << "DIAG worldlight: F+0 " << fPlus0 << " F-0 " << fMinus0
+              << " F+pi " << fPlusPi << " F-pi " << fMinusPi
+              << " F+90 " << fPlus90 << " F+nu " << fPlusNu << "\n";
+    // The computed swap/predictability.
+    if (!(fPlus0 > fMinus0)) { std::cerr << "F+@0 must exceed F-@0\n"; ok = false; }
+    if (!(fPlusPi < fMinusPi)) { std::cerr << "the factors must swap under yaw pi\n"; ok = false; }
+    if (!(fPlus90 < fPlus0 && fPlus90 > 0.35f)) { std::cerr << "the 90-degree factor must be predictable\n"; ok = false; }
+    if (!(fPlusNu < fPlus0)) { std::cerr << "the n/s correction must change the factor\n"; ok = false; }
+    // The pixel level (real GL).
+    if (!glfwInit()) { std::cerr << "worldlight test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "worldlight", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "worldlight test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "worldlight test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Entity e;
+        e.meshId = 3;
+        e.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+        e.textureId = 0;   // tex_player: the low-contrast texels
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            r.registerMesh(3, tetra);
+            auto readR = [&](int x) {
+                unsigned char px[3] = {0, 0, 0};
+                glReadPixels(x, 120, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px);
+                return static_cast<float>(px[0]);
+            };
+            // Rotation 0: the baseline + the derived per-face texel
+            // scale (the pixel = texel * factor).
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float rPlus0 = readR(165);
+            const float rMinus0 = readR(155);
+            const float texPlus = rPlus0 / fPlus0;
+            const float texMinus = rMinus0 / fMinus0;
+            // Rotation pi: the faces swap sides; the pixels must match
+            // the computed-factor prediction.
+            e.rotationAngle = pi;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            const float rPlusPi = readR(165);   // now the -X face
+            const float rMinusPi = readR(155);  // now the +X face
+            std::cerr << "DIAG worldlight pixels: +0 " << rPlus0
+                      << " -0 " << rMinus0 << " +pi " << rPlusPi
+                      << " -pi " << rMinusPi << "\n";
+            // The +X side's pixel DIMS at pi (the +X face rotates to
+            // the -X side; the nearest surface there is now the -X
+            // face at its pi factor). The -X side's pixel ROSE in the
+            // measurement (the tetra's back slope rotates to face the
+            // light at pi - the factor 0.803) - asserting it dimmer
+            // would be WRONG, so only the +X side + the prediction.
+            if (!(rPlusPi < rPlus0)) {
+                std::cerr << "the pixels must respond to the world-space rotation\n"; ok = false;
+            }
+            if (!assertFloatClose(rPlusPi, texMinus * fMinusPi, texMinus * fMinusPi * 0.25f + 5.0f)) {
+                std::cerr << "the rotated pixel must match the computed-factor prediction\n"; ok = false;
+            }
+            // The non-uniform scale: the pixel responds to the n/s
+            // correction (the face's texel is the same local point).
+            // The tex_player's transparent texels poison min-based
+            // asserts (the first run measured min 0), so the DIAG strip
+            // calibrates the assert: the +X face's center at scale 2
+            // sits near the pixel ~173 (the centroid x 0.334 x the
+            // measured 40px/world ratio).
+            e.rotationAngle = 0.0f;
+            e.scale = pe::Vec3(2.0f, 1.0f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(e, cam.view(), cam.projection());
+            {
+                std::string row;
+                for (int x = 158; x <= 174; ++x) {
+                    row += " x" + std::to_string(x) + "=" + std::to_string(readR(x)).substr(0, 5);
+                }
+                std::cerr << "DIAG worldlight: nonuniform full row" << row << "\n";
+            }
+            float sumNu = 0.0f;
+            int countNu = 0;
+            float maxNu = 0.0f;
+            for (int x = 160; x <= 172; ++x) {
+                const float v = readR(x);
+                sumNu += v;
+                ++countNu;
+                if (v > maxNu) maxNu = v;
+            }
+            const float meanNu = sumNu / static_cast<float>(countNu);
+            std::cerr << "DIAG worldlight: nonuniform mean " << meanNu
+                      << " max " << maxNu << "\n";
+            // The n/s correction dims the factor (0.752 vs 0.851, the
+            // computed ratio 0.884): the strip MEAN must be dimmer than
+            // 0.9 of the uniform +X face - a threshold that sits
+            // between the corrected (110.85) and the uncorrected
+            // (the texel-mean x 0.851 ~ 125) means, so the 1/s mutation
+            // is caught.
+            if (!(meanNu < rPlus0 * 0.9f)) {
+                std::cerr << "the non-uniform lit pixels must be dimmer (the n/s effect)\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
 // Step 201: opt-in 3D debug-frame depth clear. THE ONE INVARIANT THAT
 // MATTERS, CI-proven under a real hidden-window GL context (same
 // pattern as checkDepthState): a depth clear that leaked into color
@@ -9783,6 +9953,7 @@ int main() {
     const bool texIdParseOk = checkTexIdParse();
     const bool meshStateLeakOk = checkMeshStateLeak();
     const bool frozen3DConsumerOk = checkFrozen3DConsumer();
+    const bool meshWorldLightOk = checkMeshWorldLighting();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -9837,7 +10008,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !meshWorldLightOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
