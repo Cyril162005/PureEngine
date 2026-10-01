@@ -6199,6 +6199,144 @@ static bool checkFrozen3DConsumer() {
             if (!(bright > dark + 20.0f)) {
                 std::cerr << "consumer: the directional light must light faces differently\n"; ok = false;
             }
+            // 6. Step 264: the v4-refresh composition - the FROZEN v4
+            // behaviors composed adversarially: non-default halfExtents
+            // and scale on meshIds 3 AND 5, one rotated entity, occlusion
+            // between a sized and a rotated entity, textureId set.
+            // Expected values COMPUTED from the formulas (the sizing
+            // source of truth halfExtents*scale*2; the world-space
+            // lighting; the size-invariant diffuse; the order-independent
+            // occlusion).
+            {
+                // The formula, asserted exactly: the model scale =
+                // halfExtents * scale * 2 per axis.
+                const pe::Entity cfg(pe::Vec3(0,0,0), 0.0f,
+                                     pe::Vec3(1.25f, 1.25f, 1.0f),
+                                     pe::Vec3(0.6f, 0.4f, 0.5f));
+                const pe::Vec3 ms = pe::Vec3(cfg.halfExtents.x * cfg.scale.x * 2.0f,
+                                             cfg.halfExtents.y * cfg.scale.y * 2.0f,
+                                             cfg.halfExtents.z * cfg.scale.z * 2.0f);
+                if (!assertFloatClose(ms.x, 1.5f) || !assertFloatClose(ms.y, 1.0f) ||
+                    !assertFloatClose(ms.z, 1.0f)) {
+                    std::cerr << "consumer: the model scale must be halfExtents*scale*2\n"; ok = false;
+                }
+                // The lit-factor size-invariance, computed from the
+                // formula: normalize(R*(n/s)) is scale-invariant for
+                // uniform s (the tetra's +X face, the yaw 0).
+                const pe::Vec3 Li = pe::Vec3(0.32f, 0.74f, 0.42f).normalized();
+                const pe::Vec3 nPi(0.8661f, 0.2887f, 0.5f);
+                auto factorOf = [&](float sz) {
+                    const pe::Vec3 ns(nPi.x / sz, nPi.y / sz, nPi.z / sz);
+                    const float ndl = ns.normalized().dot(Li);
+                    const float diffuse = ndl > 0.0f ? ndl : 0.0f;
+                    return 0.35f + 0.65f * diffuse;
+                };
+                if (!assertFloatClose(factorOf(1.0f), factorOf(2.0f))) {
+                    std::cerr << "consumer: the lit factor must be size-invariant\n"; ok = false;
+                }
+                // The pixel level. The span reads derive each draw's own
+                // silhouette (the row's depth-hit extent at y=120).
+                auto spanWidth = [&]() {
+                    int minX = 320, maxX = -1;
+                    for (int x = 0; x < 320; ++x) {
+                        float d = 1.0f;
+                        glReadPixels(x, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+                        if (d < 1.0f) {
+                            if (x < minX) minX = x;
+                            if (x > maxX) maxX = x;
+                        }
+                    }
+                    return (minX <= maxX) ? (maxX - minX + 1) : 0;
+                };
+                auto spanProbe = [&]() {
+                    int minX = 320, maxX = -1;
+                    for (int x = 0; x < 320; ++x) {
+                        float d = 1.0f;
+                        glReadPixels(x, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+                        if (d < 1.0f) {
+                            if (x < minX) minX = x;
+                            if (x > maxX) maxX = x;
+                        }
+                    }
+                    return (minX <= maxX) ? minX + (maxX - minX + 1) * 3 / 4 : 160;
+                };
+                // a. The SIZED wedge (meshId 5, textureId set): the
+                // non-default halfExtents (0.6,0.4,0.5) + scale
+                // (1.25,1.25,1.0) -> the model scale (1.5,1,1); the
+                // drawn span must be 1.5x its own calibration (the
+                // default config; the z unchanged -> the linear
+                // projection).
+                b.meshId = 5;
+                b.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+                b.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+                b.textureId = 0;
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(b, cam.view(), cam.projection());
+                const float wedgeCal = static_cast<float>(spanWidth());
+                b.halfExtents = pe::Vec3(0.6f, 0.4f, 0.5f);
+                b.scale = pe::Vec3(1.25f, 1.25f, 1.0f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(b, cam.view(), cam.projection());
+                const float wedgeSpan = static_cast<float>(spanWidth());
+                std::cerr << "DIAG consumer v4: wedge cal " << wedgeCal
+                          << " sized " << wedgeSpan << "\n";
+                if (!assertFloatClose(wedgeSpan, 1.5f * wedgeCal, 2.0f)) {
+                    std::cerr << "consumer: the sized wedge's drawn size must equal halfExtents*scale*2\n"; ok = false;
+                }
+                // b. The ROTATED tetra (meshId 3, textureId set): the
+                // world-space lighting responds to the rotation (the +X
+                // side's pixel dims at pi within the computed-consistent
+                // band: the formula's factor ratio 0.653 x the per-face
+                // texel calibration) and the lit factor is
+                // size-invariant (the tetra at two uniform sizes, the
+                // same relative probe).
+                a.meshId = 3;
+                a.halfExtents = pe::Vec3(0.5f, 0.5f, 0.5f);
+                a.scale = pe::Vec3(1.0f, 1.0f, 1.0f);
+                a.rotationAngle = 0.0f;
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(a, cam.view(), cam.projection());
+                const float rotPlus0 = readR(spanProbe());
+                a.rotationAngle = 3.14159265358979f;
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(a, cam.view(), cam.projection());
+                const float rotPlusPi = readR(spanProbe());
+                std::cerr << "DIAG consumer v4: rot +0 " << rotPlus0
+                          << " +pi " << rotPlusPi << "\n";
+                if (!(rotPlusPi < rotPlus0 && rotPlusPi > rotPlus0 * 0.7f)) {
+                    std::cerr << "consumer: the world-space lighting must respond to rotation\n"; ok = false;
+                }
+                a.rotationAngle = 0.0f;
+                a.scale = pe::Vec3(2.0f, 2.0f, 2.0f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(a, cam.view(), cam.projection());
+                const float rotBig = readR(spanProbe());
+                std::cerr << "DIAG consumer v4: sizeinv " << rotPlus0
+                          << " vs " << rotBig << "\n";
+                if (!assertFloatClose(rotPlus0, rotBig, 3.0f)) {
+                    std::cerr << "consumer: the lit factor must be size-invariant (the pixels)\n"; ok = false;
+                }
+                // c. The occlusion between a SIZED and a ROTATED entity:
+                // the tetra (rotated, near z=-2) and the wedge (sized,
+                // far z=-4) - order-independent (the near wins in both
+                // orders).
+                a.rotationAngle = 3.14159265358979f;
+                a.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+                b.position = pe::Vec3(0.0f, 0.0f, -4.0f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(b, cam.view(), cam.projection());
+                r.drawEntity3D(a, cam.view(), cam.projection());
+                const float occA = readCenter();
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(a, cam.view(), cam.projection());
+                r.drawEntity3D(b, cam.view(), cam.projection());
+                const float occB = readCenter();
+                std::cerr << "DIAG consumer v4: occlusion " << occA
+                          << " / " << occB << "\n";
+                if (!assertFloatClose(occA, occB, 0.001f)) {
+                    std::cerr << "consumer: the sized-vs-rotated occlusion must be order-independent\n"; ok = false;
+                }
+            }
         }
     }
     glfwDestroyWindow(w);
