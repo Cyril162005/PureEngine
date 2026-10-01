@@ -469,6 +469,98 @@ DEFERRED to the NEXT engine version (the recorded candidates):
   controlled convention change with the checkEntity3D amend +
   re-measured strips + a drawn-footprint regression test).
 
+## ENGINE v4 — 3D correctness (Step 259, OPEN)
+
+**Version name:** Engine v4 - 3D correctness. **Status: OPEN** — engine
+work only; games frozen. **This version AMENDS the v3 3D frozen
+contract at exactly the two capabilities below; EVERYTHING ELSE in the
+v3 frozen contract list (the loader, the registry, the textureId
+sampling, the depth contract, the 3D debug harness) is UNCHANGED.**
+
+### v4 scope (exactly two capabilities; no others unless a classified
+### finding with evidence is added)
+
+**(a) World-space lighting for rotated entities**
+- Problem (one line): the 247 CPU lighting computes the per-face
+  normal in LOCAL space, so a rotating mesh's lit factors are
+  MESH-FIXED instead of tracking a world-fixed light.
+- Current documented behavior: src/renderer.h:866-895
+  (drawEntityMesh3D: the per-face normal from the LOCAL vertices
+  dotted with the fixed lightDir); the 247 record documents "one FIXED
+  directional light".
+- Test(s) it will change: checkMeshLighting (:7058) likely passes
+  UNCHANGED (its entity is static, rotationAngle 0 — the factors do
+  not move); a NEW regression test is REQUIRED for a ROTATED entity
+  (the world-space lighting must change the lit factors as the yaw
+  rotates); checkFrozen3DConsumer's lighting assert (the static
+  entity) unchanged.
+- Open design question (RECORDED, NOT decided): the world-space normal
+  transform — the rotation part of the model matrix (assuming uniform
+  scale) vs the full inverse-transpose (the non-uniform scale
+  correctness); and whether the lighting stays CPU per-face or moves
+  to a shader path.
+
+**(b) 3D sizing source of truth**
+- Problem (one line): drawEntity3D/drawEntityMesh3D scale the mesh by
+  e.scale only (drawn size 2*scale) while collision uses
+  halfExtents*scale — the drawn size does not match the collision
+  extents.
+- Current documented behavior: src/renderer.h:767 (drawEntity3D:
+  Mat4::scale(e.scale...) — the model = translation*rotationY*scale);
+  the CI-proven corner contract (checkEntity3D: "Model corner must be
+  position + scale/2"); src/mesh3d.h:46-47 (the unit cube at the
+  origin, corners ±0.5).
+- Test(s) it will change: checkEntity3D (the corner assert — the 3D
+  convention itself); the measured-strip tests (checkMeshRegistry
+  :6689, checkTexturedMesh :6807, checkMeshTextureId :6926,
+  checkWedgeMesh :5938, checkMeshLighting :7058, checkMeshOcclusion
+  :7154, checkMeshDepthState :5845); checkMeshStateLeak (the corner
+  pixel's coverage); checkFrozen3DConsumer (the strips/depths).
+- Open design questions (RECORDED, NOT decided): does the drawn size
+  use halfExtents*scale, or is per-path sizing documented as the
+  contract? Is the native mesh bounds unit-sized? (The hardcoded
+  cube/pyramid are ±0.5 unit-sized; the LOADER does not normalize the
+  loaded OBJs' bounds — the tetra/wedge are ~±0.5 by construction, but
+  a non-unit OBJ would have non-unit native bounds, so the formula's
+  2x factor depends on this answer.)
+
+**(a)+(b) interaction (RECORDED, NOT decided):** with NON-UNIFORM
+halfExtents the model matrix has a NON-UNIFORM scale, so transformed
+normals need the INVERSE-TRANSPOSE or the lighting is wrong (a
+non-uniform scale skews the normal). If (b) adopts halfExtents*scale
+with non-uniform halfExtents, (a)'s world-space normal transform must
+use the inverse-transpose. Whether (a) must PRECEDE (b), or they land
+together with the inverse-transpose designed in, is an open ordering
+question — recorded here, decided in a v4 step with evidence.
+
+### Known test limits (recorded, no fix, no new scope)
+- The OOB-sample mutation is UB (entityTextures[99] is an OOB vector
+  access = a crash, not a clean FAIL) so the 246 fallback is proven
+  INDIRECTLY (the equivalent-safe mutation, the 258 audit).
+- The consumer's fallback-draw assert does NOT catch a no-op
+  clearRegisteredMeshes (a still-registered mesh also draws); the
+  count assert does (the 258 audit's nuance).
+
+### v4 done-criteria (the v3 done-criteria form)
+The v4 version is COMPLETE/FROZEN only when:
+- every capability assigned to v4 is implemented;
+- behavior is deterministic where the contract requires it;
+- required error handling exists;
+- required regression tests exist;
+- the new asserts are MUTATION-CHECKED (each must FAIL under a
+  reverting mutation — the 258 audit pattern);
+- required subsystem integration works at the engine boundaries;
+- existing tests remain green;
+- build/ctest/alive x3 have actual execution evidence;
+- the tracker records capabilities, limits, and findings;
+- implementation is committed and pushed.
+
+### Out of v4
+- No ECS, no editor, no glTF, no PBR, no game content, no new
+  subsystems. Game-originated needs are CLASSIFIED (existing
+  capability / engine defect / missing capability / game-specific
+  behavior), never added.
+
 ## Not started / pending engine debts (Step 236, docs-only)
 
 NOT STARTED (the freeze OUT list stands — do not plan):
