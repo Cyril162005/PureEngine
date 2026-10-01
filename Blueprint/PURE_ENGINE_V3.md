@@ -469,13 +469,16 @@ DEFERRED to the NEXT engine version (the recorded candidates):
   controlled convention change with the checkEntity3D amend +
   re-measured strips + a drawn-footprint regression test).
 
-## ENGINE v4 — 3D correctness (Step 259, OPEN)
+## ENGINE v4 — 3D correctness (Step 259, COMPLETE/FROZEN Step 263)
 
-**Version name:** Engine v4 - 3D correctness. **Status: OPEN** — engine
-work only; games frozen. **This version AMENDS the v3 3D frozen
-contract at exactly the two capabilities below; EVERYTHING ELSE in the
-v3 frozen contract list (the loader, the registry, the textureId
-sampling, the depth contract, the 3D debug harness) is UNCHANGED.**
+**Version name:** Engine v4 - 3D correctness. **Status: COMPLETE/FROZEN
+(Step 263, date 2026-10-01, HEAD f56e7d1)** — the done-criteria audit
+(10/10 VERIFIED, zero UNVERIFIED; fresh build/ctest/alive x3 exit 0 at
+f56e7d1) closes the version. Games frozen. **The version AMENDED the
+v3 3D frozen contract at exactly the two capabilities below ((a) and
+(b), both RESOLVED); EVERYTHING ELSE in the v3 frozen contract list
+(the loader, the registry, the textureId sampling, the depth contract,
+the 3D debug harness) is UNCHANGED.**
 
 ### v4 scope (exactly two capabilities; no others unless a classified
 ### finding with evidence is added)
@@ -638,6 +641,44 @@ The v4 version is COMPLETE/FROZEN only when:
   subsystems. Game-originated needs are CLASSIFIED (existing
   capability / engine defect / missing capability / game-specific
   behavior), never added.
+
+### Frozen contract list (v4, Step 263) — binding
+- OBJ loader (v/f only, per-face planar UVs, missing-file clean
+  failure) — checkMeshLoad, checkWedgeMesh:5938.
+- Mesh registry (meshId→OBJ map; 1/2 hardcoded cube/pyramid; 3 tetra,
+  5 wedge loaded at init; re-register replaces; clear falls back) —
+  checkMeshRegistry:7147, checkFrozen3DConsumer:6030.
+- textureId sampling (the 2D validation rule: OOB and released fall
+  back to the checker) — checkMeshTextureId:7384.
+- Depth contract (save/enable/restore, the single opt-in clear,
+  order-independent occlusion, the round-trip CI) —
+  checkMeshDepthState:5845, checkMeshOcclusion:7612.
+- 3D draw: the sizing source of truth (halfExtents*scale*2, the 2D
+  AABB expression) + the world-space lighting (n' = normalize(R*(n/s)),
+  size-invariant) — checkMeshSizing, checkMeshWorldLighting:6325,
+  checkMeshSizeInvariantLighting.
+- 3D debug harness (debug3d/meshid/texid) — checkDebug3dParse,
+  checkMeshIdParse, checkTexIdParse.
+
+### Disclosed items after v4 (Step 263, each with file:line citations)
+- **ENGINE DEFECT (candidate v5 first step): the 2D AABB debug draw's
+  quad is ±1** (src/renderer.h:278-284) **with the model scale
+  halfExtents*scale*2** (src/renderer.h:1086-1088), **so the drawn
+  debug box is 2x the collision size (4·hx·s vs the collision 2·hx·s,
+  collision.h:85-90), contradicting the documented contract at
+  src/renderer.h:277 ("scales by halfExtents*2 to get the real box
+  size") and src/renderer.h:1083 ("This is the exact same box
+  collision.h uses: halfExtents * scale, doubled").** Not fixed in v4;
+  no CI test pins the drawn size.
+- **OOB texture sample is UB** (entityTextures[99] is an OOB vector
+  access = a crash, not a clean FAIL), so the 246 fallback is proven
+  only INDIRECTLY (the equivalent-safe mutation, the 258 audit).
+- **The consumer's fallback-draw assert does NOT catch a no-op
+  clearRegisteredMeshes** (a still-registered mesh also draws);
+  the count assert does (checkFrozen3DConsumer:6151-6152, the 258
+  audit's nuance).
+- **Out-of-v4 list stands**: no ECS, no editor, no glTF, no PBR, no
+  game content, no new subsystems.
 
 ## Not started / pending engine debts (Step 236, docs-only)
 
