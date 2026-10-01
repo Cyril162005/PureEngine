@@ -2866,6 +2866,18 @@
     256,
     255
    ]
+  },
+  {
+   "id": 258,
+   "name": "Verify-only: mutation audit of the 257 asserts (non-vacuous)",
+   "status": "completed",
+   "definition_of_done": "PROJECT TRUTH RELOADED FIRST: HEAD bafa2b9; highest completed id 257 (9ea5457); 3D v3 FROZEN (256) - matches, no discrepancy; the author Cyril162005 <jerrycyrilarthur25@gmail.com> confirmed. INSPECTED: checkFrozen3DConsumer (tests/hostile_data_test.cpp:6030+) - the CALIBRATED asserts in 257: (1) the texture assert (:6132): OLD crimsonVar < checkerVar * 0.6 (the tetra-calibrated ratio) -> NEW crimsonVar < checkerVar - 10 (the margin) - guards the 246 textureId-sampling contract; (2) the lighting assert (:6185-6192): OLD the released-slot draw (the checker's texels masked the directional difference: +X 17/-X 116 inverted) -> NEW a.textureId = 0 (the 246 rule: the valid tex_player slot) + bright > dark + 20 - guards the 247 CPU lighting contract. The ORIGINAL-form asserts in the mutation list: the re-register (:6116, the 244 replacement contract), the clear (:6151-6157, the 244 clear/fallback contract). MUTATION AUDIT (each an uncommitted working-tree edit to src/renderer.h ONLY, restored by pathspec after each run, never committed): (A) the light direction FLIPPED -> ctest FAILED (the consumer's lighting assert fired: +X 56/-X 70 inverted + the 246/247 tests' asserts fired - the shared contract) - NON-VACUOUS; (B) the valid textureId path never samples (the EQUIVALENT-SAFE mutation - DISCLOSED DEVIATION: the session's literal 'OOB/released -> sampled' mutation is UB (entityTextures[99] is an OOB vector access = a crash, not a clean FAIL); the equivalent breaks the same 246 contract, the same assert fires) -> ctest FAILED (crimsonVar 166 == checkerVar 166) - NON-VACUOUS; (C) registerMesh ignores replacements -> ctest FAILED (reRegDepth 0.923483 - the tetra stayed - vs wedgeDepth 0.920854) - NON-VACUOUS; (D) clearRegisteredMeshes = a no-op -> ctest FAILED (the count assert 0 vs 2 + checkMeshRegistry's count/fallback-strip asserts) - NON-VACUOUS (NUANCE: the consumer's fallback-DRAW assert alone was vacuous against the no-op - a still-registered mesh also draws; the count assert catches it - the SUITE is non-vacuous for all four). OUTCOME: ALL FOUR mutations FAILED -> the asserts are NON-VACUOUS; the mutation table recorded in the V3 findings log. No src/ changes remained after the last restore (git diff --stat: only hostile_default.txt).",
+   "notes": "FULL GATES after the last mutation, FRESH: build exit 0, ctest -C Release exit 0 (100% tests passed out of 2, 9.75s/0.81s), alive x3 exit 0 (ALIVE x PureEngine.exe, Platformer.exe, Pong.exe). No src/ or test changes at all in this step (the mutations were never committed; the restores were pathspec git checkout --). The mutation table is in the V3 findings log. hostile_default.txt untouched.",
+   "commit": "NO-CODE",
+   "depends_on": [
+    257,
+    244
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -368,6 +368,20 @@ HUMAN-ONLY (SMOKE) everywhere.
 
 ## Open engine findings (Step 253, docs-only — classified, NOT fixed)
 
+### Mutation audit (Step 258, verify-only — the 257 asserts are NON-VACUOUS)
+
+| # | Assert (test:line) | Guarded contract | Mutation | Result |
+|---|---|---|---|---|
+| A | the consumer's lighting assert (checkFrozen3DConsumer :6191, bright > dark + 20) | 247 CPU lighting (the directional lights faces differently) | the light direction FLIPPED (renderer.h:866) | ctest FAILED: +X 56 / -X 70 (inverted) + the 246/247 tests' asserts fired (the shared contract) — NON-VACUOUS |
+| B | the consumer's texture assert (:6132, crimsonVar < checkerVar - 10) | 246 textureId sampling (a valid textureId samples its texture) | the valid path never samples (equivalent-safe; the literal OOB-sampled mutation is UB: entityTextures[99] OOB access) | ctest FAILED: crimsonVar 166 == checkerVar 166 — NON-VACUOUS |
+| C | the consumer's re-register assert (:6116, reRegDepth ~ wedgeDepth) | 244 registry (a re-register REPLACES the slot's data) | registerMesh ignores replacements | ctest FAILED: reRegDepth 0.923483 (the tetra stayed) vs wedgeDepth 0.920854 — NON-VACUOUS |
+| D | the consumer's clear asserts (:6151-6157) | 244 registry (the clear empties; the fallback works) | clearRegisteredMeshes = a no-op | ctest FAILED: the count assert (0 vs 2) + checkMeshRegistry's count/fallback-strip asserts — NON-VACUOUS (nuance: the consumer's fallback-DRAW assert alone was vacuous against the no-op — a still-registered mesh also draws; the count assert catches it) |
+
+Every mutation was an uncommitted working-tree edit to the single
+relevant src file, restored by pathspec after each run; no mutation was
+committed; after the last, git diff --stat showed NO src/ changes and
+the full gates ran clean (build/ctest/alive x3, exit 0 each).
+
 - **(a) Lighting vs entity rotation coordinate space — missing
   capability (next-version candidate).** The 247 CPU lighting computes
   the per-face normal in LOCAL space and dots it with a world-fixed
