@@ -6020,6 +6020,183 @@ static bool checkWedgeMesh() {
     return ok;
 }
 
+// Step 257: Phase D - the proof consumer of the FROZEN 3D version
+// (hosted in this existing harness; NO src/ engine edits). The
+// smallest consumer that uses ONLY the documented frozen APIs
+// (loadMeshFromObj, registerMesh ids 3/5, meshid/texid semantics via
+// the fields, drawEntity3D, the lighting + depth contracts) and tries
+// to BREAK the contract: adversarial composition with hard pass/fail.
+// Its goal is to break the contract, not to be fun.
+static bool checkFrozen3DConsumer() {
+    bool ok = true;
+    // The composition: the REAL assets from the assets probe.
+    std::vector<float> tetra, wedge;
+    if (!pe::loadMeshFromObj("mesh_tetrahedron.obj", tetra)) {
+        std::cerr << "consumer: the tetra asset must load\n"; ok = false;
+    }
+    if (!pe::loadMeshFromObj("mesh_wedge.obj", wedge)) {
+        std::cerr << "consumer: the wedge asset must load\n"; ok = false;
+    }
+    // Adversarial: a DEGENERATE face (collinear verts) - parses (not
+    // malformed), loads, no crash.
+    {
+        const std::string fname = "consumer_degenerate.obj";
+        {
+            std::ofstream out("assets/" + fname);
+            out << "v 0 0 0\nv 1 0 0\nv 2 0 0\n";
+            out << "f 1 2 3\n";
+        }
+        std::vector<float> deg;
+        if (!pe::loadMeshFromObj(fname, deg)) {
+            std::cerr << "consumer: a degenerate face must still parse-load\n"; ok = false;
+        } else if (deg.size() != 15) {
+            std::cerr << "consumer: the degenerate face must expand to 15 floats\n"; ok = false;
+        }
+        std::remove(("assets/" + fname).c_str());
+    }
+    if (!glfwInit()) { std::cerr << "consumer skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "phaseD", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "consumer skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "consumer skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Entity a, b;
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;
+            cam.setPerspective(1.0472f, 0.1f, 100.0f);
+            auto readCenter = [&]() {
+                float d = 1.0f;
+                glReadPixels(160, 120, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+                return d;
+            };
+            auto readR = [&](int x) {
+                unsigned char px[3] = {0, 0, 0};
+                glReadPixels(x, 120, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px);
+                return static_cast<float>(px[0]);
+            };
+            auto stripVariance = [&](int x0, int x1) {
+                float minR = 1e30f, maxR = -1e30f;
+                for (int x = x0; x <= x1; ++x) {
+                    unsigned char px[3];
+                    glReadPixels(x, 120, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px);
+                    if (px[0] < minR) minR = px[0];
+                    if (px[0] > maxR) maxR = px[0];
+                }
+                return maxR - minR;
+            };
+            r.registerMesh(3, tetra);
+            r.registerMesh(5, wedge);
+            a.meshId = 3;
+            a.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+            b.meshId = 5;
+            b.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+            // 1. The RE-REGISTER replaces the slot's data (the
+            // documented rule): the wedge under 3 renders the WEDGE's
+            // depth (the flat cap ~0.920), NOT the tetra's (~0.9235).
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(b, cam.view(), cam.projection());
+            const float wedgeDepth = readCenter();
+            r.registerMesh(3, wedge);   // the re-register
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(a, cam.view(), cam.projection());
+            const float reRegDepth = readCenter();
+            std::cerr << "DIAG consumer: wedgeDepth " << wedgeDepth
+                      << " reRegDepth " << reRegDepth << "\n";
+            if (!assertFloatClose(reRegDepth, wedgeDepth, 0.001f)) {
+                std::cerr << "consumer: the re-register must replace the slot's data\n"; ok = false;
+            }
+            // 2. The texid composition on the registered path: the
+            // valid (2) samples the crimson; the OOB (99) falls back
+            // to the checker (no garbage); the released falls back too.
+            a.textureId = 2;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(a, cam.view(), cam.projection());
+            const float crimsonVar = stripVariance(150, 170);
+            a.textureId = 99;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(a, cam.view(), cam.projection());
+            const float checkerVar = stripVariance(150, 170);
+            std::cerr << "DIAG consumer: crimsonVar " << crimsonVar
+                      << " checkerVar " << checkerVar << "\n";
+            if (!(crimsonVar > 10.0f && crimsonVar < checkerVar - 10.0f)) {
+                std::cerr << "consumer: the valid textureId must sample its texture\n"; ok = false;
+            }
+            if (!(checkerVar > 10.0f)) {
+                std::cerr << "consumer: an OOB textureId must fall back to the checker\n"; ok = false;
+            }
+            const int slot = r.registerNonCoreTexture("checker.png");
+            if (slot >= 0) {
+                r.unloadNonCoreTextures();
+                a.textureId = slot;
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                r.drawEntity3D(a, cam.view(), cam.projection());
+                const float relVar = stripVariance(150, 170);
+                if (!(relVar > 10.0f)) {
+                    std::cerr << "consumer: a released textureId must fall back to the checker\n"; ok = false;
+                }
+            }
+            // 3. clearRegisteredMeshes mid-session -> the fallback
+            // draws (no crash, no nothing).
+            const std::size_t cleared = r.clearRegisteredMeshes();
+            if (cleared != 2) { std::cerr << "consumer: the clear must return 2\n"; ok = false; }
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(a, cam.view(), cam.projection());
+            if (!(readCenter() < 1.0f)) {
+                std::cerr << "consumer: after the clear, meshId 3 must fall back to the cube\n"; ok = false;
+            }
+            // 4. The depth composition: two entities at different
+            // depths, order-independent occlusion.
+            r.registerMesh(3, tetra);
+            r.registerMesh(5, wedge);
+            pe::Entity nearE, farE;
+            nearE.meshId = 3;
+            nearE.position = pe::Vec3(0.0f, 0.0f, -2.0f);
+            farE.meshId = 5;
+            farE.position = pe::Vec3(0.0f, 0.0f, -4.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(farE, cam.view(), cam.projection());
+            r.drawEntity3D(nearE, cam.view(), cam.projection());
+            const float d1 = readCenter();
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(nearE, cam.view(), cam.projection());
+            r.drawEntity3D(farE, cam.view(), cam.projection());
+            const float d2 = readCenter();
+            std::cerr << "DIAG consumer: occlusion farThenNear " << d1
+                      << " nearThenFar " << d2 << "\n";
+            if (!assertFloatClose(d1, d2, 0.001f)) {
+                std::cerr << "consumer: the occlusion must be order-independent\n"; ok = false;
+            }
+            // 5. The lighting composition: the lit draw differs per
+            // face (the +X-facing vs the -X-facing). textureId 0 is the
+            // VALID tex_player slot (the 246 rule) - the low-contrast
+            // texels must not mask the directional difference (the
+            // checker's high-contrast texels would).
+            a.textureId = 0;
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawEntity3D(a, cam.view(), cam.projection());
+            const float bright = readR(165);
+            const float dark = readR(155);
+            std::cerr << "DIAG consumer: +X " << bright << " -X " << dark << "\n";
+            if (!(bright > dark + 20.0f)) {
+                std::cerr << "consumer: the directional light must light faces differently\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
 // Step 255: the entity mesh path's GL state-leak invariant (the (c)
 // finding's dedicated CI test - the checkDebugFrameDepth pattern). THE
 // INVARIANT (one sentence): after drawEntityMesh3D, the GL color
@@ -9605,6 +9782,7 @@ int main() {
     const bool wedgeMeshOk = checkWedgeMesh();
     const bool texIdParseOk = checkTexIdParse();
     const bool meshStateLeakOk = checkMeshStateLeak();
+    const bool frozen3DConsumerOk = checkFrozen3DConsumer();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -9659,7 +9837,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
