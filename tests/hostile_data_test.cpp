@@ -6445,10 +6445,18 @@ static bool checkMeshWorldLighting() {
             // measurement (the tetra's back slope rotates to face the
             // light at pi - the factor 0.803) - asserting it dimmer
             // would be WRONG, so only the +X side + the prediction.
+            // Step 262 tightening: the dim is BOUNDED - the mutated
+            // (iv) (the rotation removed) measures ratio 0.386, the
+            // actual 0.856, consistent with the formula's factor ratio
+            // 0.653 x the per-face texel calibration - the 0.7 floor
+            // sits between, so the rotation mutation is caught.
             if (!(rPlusPi < rPlus0)) {
                 std::cerr << "the pixels must respond to the world-space rotation\n"; ok = false;
             }
-            if (!assertFloatClose(rPlusPi, texMinus * fMinusPi, texMinus * fMinusPi * 0.25f + 5.0f)) {
+            if (!(rPlusPi > rPlus0 * 0.7f)) {
+                std::cerr << "the rotation dim must stay within the computed-consistent bound\n"; ok = false;
+            }
+            if (!assertFloatClose(rPlusPi, texMinus * fMinusPi, 6.0f)) {
                 std::cerr << "the rotated pixel must match the computed-factor prediction\n"; ok = false;
             }
             // The non-uniform scale: the pixel responds to the n/s
@@ -6590,7 +6598,7 @@ static bool checkMeshSizing() {
             const float tetraSpan = static_cast<float>(readSpan());
             std::cerr << "DIAG sizing: tetra calibration " << pxPerUnit
                       << " nondefault " << tetraSpan << "\n";
-            if (!assertFloatClose(tetraSpan, 1.5f * pxPerUnit, 2.0f)) {
+            if (!assertFloatClose(tetraSpan, 1.5f * pxPerUnit, 1.0f)) {
                 std::cerr << "sizing: meshId 3 footprint must equal halfExtents*scale*2\n"; ok = false;
             }
             // meshId 5 (the wedge): the same formula (the native x
