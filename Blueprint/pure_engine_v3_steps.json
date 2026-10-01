@@ -2878,6 +2878,18 @@
     257,
     244
    ]
+  },
+  {
+   "id": 259,
+   "name": "Docs: open ENGINE v4 - 3D correctness (the two-capability scope)",
+   "status": "completed",
+   "definition_of_done": "DOCS/TRACKER ONLY, zero src/test changes. PROJECT TRUTH RELOADED FIRST: HEAD 3fb0a29; highest completed id 258 (NO-CODE); 3D v3 FROZEN - matches, no discrepancy; the author Cyril162005 <jerrycyrilarthur25@gmail.com> confirmed. Note: an untracked Testing/ directory (CTest logs) appeared at the repo root - a runtime artifact, left untouched. (1) ENGINE VERSION 4 OPENED in the tracker/V3/board/README, named EXPLICITLY: 'Engine v4 - 3D correctness'. The version AMENDS the v3 3D frozen contract at EXACTLY the two capabilities below; EVERYTHING ELSE in the v3 frozen contract list (the loader, the registry, the textureId sampling, the depth contract, the 3D debug harness) UNCHANGED. (2) SCOPE, exactly two capabilities: (a) World-space lighting for rotated entities - problem: the 247 CPU lighting computes the per-face normal in LOCAL space (renderer.h:866-895) so a rotating mesh's lit factors are mesh-fixed; tests: checkMeshLighting (:7058) likely passes UNCHANGED (a static entity), a NEW regression test REQUIRED for a ROTATED entity, checkFrozen3DConsumer's lighting assert unchanged; open design question RECORDED (not decided): the rotation-part-of-the-model vs the inverse-transpose, and CPU per-face vs a shader path. (b) 3D sizing source of truth - problem: drawEntity3D/drawEntityMesh3D scale by e.scale only (renderer.h:767) while collision uses halfExtents*scale; tests: checkEntity3D (the CI-proven corner contract), the measured-strip tests (checkMeshRegistry/checkTexturedMesh/checkMeshTextureId/checkWedgeMesh/checkMeshLighting/checkMeshOcclusion/checkMeshDepthState), checkMeshStateLeak, checkFrozen3DConsumer; open design questions RECORDED (not decided): halfExtents*scale vs per-path sizing as the contract, and is the native mesh bounds unit-sized (the hardcoded cube/pyramid are +/-0.5; the LOADER does not normalize the loaded OBJs' bounds - a non-unit OBJ would have non-unit native bounds, so the formula's 2x depends on this). (a)+(b) interaction RECORDED (not decided): NON-UNIFORM halfExtents -> a NON-UNIFORM model scale -> the normals need the INVERSE-TRANSPOSE or the lighting is wrong; whether (a) must PRECEDE (b) or they land together is an open ordering question - decided in a v4 step with evidence. (3) KNOWN TEST LIMITS recorded: the OOB-sample mutation is UB so the 246 fallback is proven indirectly (the 258 audit); the consumer's fallback-draw assert does not catch a no-op clearRegisteredMeshes (the count assert does). (4) v4 DONE-CRITERIA written (the v3 form + the MUTATION-CHECKED clause: the new asserts must FAIL under a reverting mutation - the 258 pattern). (5) 'Out of v4': no ECS, no editor, no glTF, no PBR, no game content, no new subsystems; game-originated needs are classified, never added.",
+   "notes": "No src/ or test changes at all. Gates: git diff --check clean; the diff docs/tracker only (V3 +92, the board row); the build still green (incremental, zero errors). Two commits per the docs-only convention: the doc work (287fe47: V3 + board), the record (this commit).",
+   "commit": "287fe47",
+   "depends_on": [
+    258,
+    256
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
