@@ -480,25 +480,42 @@ sampling, the depth contract, the 3D debug harness) is UNCHANGED.**
 ### v4 scope (exactly two capabilities; no others unless a classified
 ### finding with evidence is added)
 
-**(a) World-space lighting for rotated entities**
+**(a) World-space lighting for rotated entities — RESOLVED (Step 260)**
 - Problem (one line): the 247 CPU lighting computes the per-face
   normal in LOCAL space, so a rotating mesh's lit factors are
   MESH-FIXED instead of tracking a world-fixed light.
-- Current documented behavior: src/renderer.h:866-895
-  (drawEntityMesh3D: the per-face normal from the LOCAL vertices
-  dotted with the fixed lightDir); the 247 record documents "one FIXED
-  directional light".
-- Test(s) it will change: checkMeshLighting (:7058) likely passes
-  UNCHANGED (its entity is static, rotationAngle 0 — the factors do
-  not move); a NEW regression test is REQUIRED for a ROTATED entity
-  (the world-space lighting must change the lit factors as the yaw
-  rotates); checkFrozen3DConsumer's lighting assert (the static
-  entity) unchanged.
-- Open design question (RECORDED, NOT decided): the world-space normal
-  transform — the rotation part of the model matrix (assuming uniform
-  scale) vs the full inverse-transpose (the non-uniform scale
-  correctness); and whether the lighting stays CPU per-face or moves
-  to a shader path.
+- THE FIX (renderer.h, the lighting loop only): the WORLD-SPACE normal
+  transform n' = R * (n / s) — the inverse-transpose of the model's
+  R*S (for orthonormal R and diagonal S: (RS)^-T = R * S^-1) —
+  extracted from the model matrix's upper-left 3x3 (column i = s_i *
+  R's column i), so the s is the MODEL's scale: (b) cannot break it
+  when it adopts halfExtents*scale. At rotation 0 and uniform scale
+  the output is BIT-IDENTICAL to the pre-260 raw normal (R = I, s = 1
+  -> n' = n; measured: +0 135 / -0 91 unchanged). CPU per-face STAYS
+  (the rotation is a single yaw; a shader change would touch the
+  shared 2D world shader).
+- DISCLOSED FORMULA CONFLICT + RESOLUTION: the v4 prompt's stated
+  formula ends with a normalize(); the bit-identical gate forces its
+  omission (the raw cross's magnitude is the current behavior — the
+  normalize would shift the slanted faces' diffuse ~4-12% at rotation
+  0). Adding the normalize is a documented (b)-step follow-up with
+  test recalibration.
+- THE REGRESSION: checkMeshWorldLighting (the factors COMPUTED from
+  the lighting formula in the test, never copied from measured
+  output): the computed swap (F+@0 0.851 > F-@0 0.455; F+@pi 0.35 <
+  F-@pi 0.551), the 90-degree case (F+@90 0.357, exactly predictable),
+  the non-uniform scale (2,1,1) (F+nu 0.752 < F+@0 — the n/s
+  correction), and the pixel level (the rotated pixels match the
+  computed-factor prediction via the derived per-face texel scale;
+  the non-uniform mean 110.85 < 0.9 of the uniform 135).
+- MUTATION TABLE (both mutations caught, ctest FAILED):
+  - the rotation removed from the transform -> the prediction assert
+    (+pi 51, no response) AND the non-uniform mean (125.5 > 121.5)
+    fired — NON-VACUOUS;
+  - the 1/s term removed (the rotation kept) -> the rotation asserts
+    PASSED (the 1/s at s=1 is a no-op — as designed) and the
+    non-uniform mean assert fired (125.5 > 121.5) — the non-uniform
+    case guards the 1/s term SPECIFICALLY — NON-VACUOUS.
 
 **(b) 3D sizing source of truth**
 - Problem (one line): drawEntity3D/drawEntityMesh3D scale the mesh by
