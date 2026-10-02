@@ -1312,6 +1312,63 @@ wait resolved it) — game-specific behavior (the dev environment).
 x3 exit 0; git diff --check clean; git diff --stat -- src/ EMPTY
 (verified).
 
+### Phase D result: classification and handoff (Step 279) — docs only, v6 stays NOT OPEN
+
+**1) The full findings table (all 275-278 entries; 16 entries; the
+final class, the evidence in FINDINGS.md, the impact + the fix size
+for each defect/missing capability):**
+
+| # | What | Class | Impact | Fix size estimate |
+|---|---|---|---|---|
+| 1 | A parse-fail KNOWN field (health=1e39) reported as "Unknown key" (prefab.h:153-172) | existing capability, doc-gap | misleading diagnostic | one function (the parse-fail branch's message) |
+| 2 | A duplicate field silently last-wins, no warning (prefab.h:154-171) | existing capability, doc-gap | silent data choice | one function (the duplicate detection) |
+| 3 | The partial-parse return carries no dropped-line count (prefab.h:101-102) | existing capability (API-clarity) | doc gap | one function (the return signature) |
+| 4 | The empty file fails clean (the header check) | existing capability | — | none (positive) |
+| 5 | The missing file fails clean (no crash, the out default) | existing capability | — | none (positive) |
+| 6 | A true unknown key warn-skipped | existing capability | — | none (positive) |
+| 7 | The probe paths never probe a data subdir; the bare name resolves against the CWD root only (prefab.h:69-75/:111-115) | existing capability, doc-gap | doc gap + the first-run friction | one function (the probe list) or the doc |
+| 8 | **A src include dir makes MSVC resolve <time.h> to the engine's src/time.h, shadowing the standard header; ctime's using ::clock_t fails** (src/time.h:48-52) | **ENGINE DEFECT** | **portability** (any target with a src include dir + the standard <ctime>/<time.h> breaks) | **mechanical rename** (src/time.h -> an engine-unique name) or the doc (the relative-include pattern) |
+| 9 | saveSceneToFile's fs::rename fails with a sharing violation on an open read handle (scene.h:443-448) | existing capability, doc-gap | doc gap | doc (the rename-fails-if-open) |
+| 10 | The 34-field v2 format serializes floats at 4dp; >4-decimal values do not round-trip bit-exact (scene.h:418) | existing capability, doc-gap | doc gap | doc (the precision) |
+| 11 | **loadSceneManagerFromFile honors ONLY the 3-candidate probe (assets/); the save honors explicit paths; the round-trip breaks for every non-assets path** (scene.h:726-728 vs :658-674) | **MISSING CAPABILITY** | **data-loss-adjacent** (the save succeeds, the load of the same path fails silently) | **one function** (the explicit-path handling, the same as loadSceneFromFile's :461-467) |
+| 12 | A loadScene call may reallocate the scenes vector; a Scene& taken before it dangles (0xC0000005 when the documented reserve/re-take rule, scene.h:108-109, is missed) | existing capability (the engine behaved as documented) | the crash when the rule is missed (safety) | design change (the handle-based access) — the doc already states the rule |
+| 13 | The loader's common failure paths return false SILENTLY (no stderr; only the unknown version warns, scene.h:775-777) | existing capability, doc-gap | misleading (no diagnostic) | one function (the stderr messages) |
+| 14 | The strict-load contract holds under programmatic corruption (27 clean rejects) | existing capability | — | none (positive) |
+| 15 | Saves do not reference prefabs; the missing tilemap reference rejects | existing capability | — | none (positive) |
+| 16 | The consumer's exe briefly locked by an external process (LNK1104; an antivirus scan) | game-specific behavior | — | none (the dev environment) |
+
+**Findings count by class:** existing capability 13 (6 with doc-gap
+notes, 5 positive, 2 API-clarity); engine defect 1; missing
+capability 1; game-specific 1.
+
+**2) CANDIDATE v6 SCOPE list (evidence-ranked, NOT opened; only the
+items with class engine defect or missing capability AND a repro):**
+1. **Entry 8 — src/time.h shadows the standard <time.h>** (the engine
+   defect, portability). REPRO (the 276 exact): a 3-line TU
+   `#include <ctime>` / `int main() { return 0; }` with
+   `target_include_directories(t PRIVATE "${CMAKE_SOURCE_DIR}/src" "${glfw_SOURCE_DIR}/include")`;
+   the exact error: `ctime(21,25): error C2039: 'clock_t': is not a
+   member of 'global namespace'` (+ asctime, clock). Fix: the
+   mechanical rename (src/time.h -> an engine-unique name) or the
+   documented relative-include pattern.
+2. **Entry 11 — loadSceneManagerFromFile does not honor explicit
+   paths** (the missing capability, data-loss-adjacent). REPRO: the
+   save to "consumers/level_pipeline/rt_manager.txt" returns true; the
+   load of the same path returns false silently. Fix: one function
+   (the explicit-path handling, the same as loadSceneFromFile's
+   :461-467).
+
+**v6 stays NOT OPEN** — this list is a candidate scope only; opening
+v6 is a separate step's decision.
+
+**3) The Phase D result:** the steps used 275-278 (4 of the <= 5 cap);
+the findings 16 (by class: above); **the stop condition did NOT fire**
+(the findings kept arriving through 278; the cap not reached); the
+consumer: consumers/level_pipeline/ (its own directory + target +
+CTest, the TIMEOUT 60 s), headless, engine src/ read-only throughout
+(git diff --stat -- src/ EMPTY at every step — verified); NO engine
+code fixed in any step.
+
 ### Capability audit and candidate list (Step 272) — docs/measurement only, v6 stays NOT OPEN
 
 **1) Capability inventory (whole engine).** 173 test functions in

@@ -3101,6 +3101,17 @@
    "depends_on": [
     277
    ]
+  },
+  {
+   "id": 279,
+   "name": "Docs: Phase D classification and handoff (the findings table, the candidate v6 scope)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 2772675, highest 278 - gate TRUE. STEP 1: the FULL FINDINGS TABLE (all 275-278 entries, 16 entries) with the final class, the evidence, and for each engine defect/missing capability the impact + the fix size estimate: #1 the parse-fail known-field 'Unknown key' message (existing capability, doc-gap; misleading diagnostic; one function); #2 the duplicate field silent last-wins (existing capability, doc-gap; silent data choice; one function); #3 the partial-parse return carries no dropped-line count (existing capability, API-clarity; doc gap; one function); #4/5/6 the empty-file/missing-file/unknown-key clean failures (positive); #7 the probe paths never probe a data subdir (existing capability, doc-gap; one function or the doc); #8 the src include dir shadows <time.h> (ENGINE DEFECT; portability; mechanical rename or the doc); #9 the open-reader sharing violation (existing capability, doc-gap; doc); #10 the 4dp float precision (existing capability, doc-gap; doc); #11 the manager loader's explicit-path absence (MISSING CAPABILITY; data-loss-adjacent; one function); #12 the dangling Scene& (existing capability - the engine behaved as documented; the crash when the rule is missed; design change - the doc states the rule); #13 the loader silent false returns (existing capability, doc-gap; misleading; one function); #14/15 the strict-load/saves-do-not-reference-prefabs (positive); #16 the exe lock (game-specific). The findings count by class: existing capability 13 (6 doc-gap, 5 positive, 2 API-clarity), engine defect 1, missing capability 1, game-specific 1. STEP 2: the CANDIDATE v6 SCOPE list (evidence-ranked, NOT opened; only the engine-defect/missing-capability items WITH a repro): (1) Entry 8 - src/time.h shadows <time.h> (the repro: the 3-line TU + the src include dir; the exact error ctime(21,25) C2039 'clock_t'); the fix: the mechanical rename or the doc; (2) Entry 11 - loadSceneManagerFromFile does not honor explicit paths (the repro: the save to consumers/... true; the load false silently); the fix: one function (the explicit-path handling). v6 STAYS NOT OPEN. STEP 3: the Phase D result: the steps used 275-278 (4 of the <=5 cap); the findings 16; the stop condition did NOT fire (the findings kept arriving through 278; the cap not reached); the consumer: consumers/level_pipeline/ (its own directory + target + CTest, the TIMEOUT 60 s), headless, engine src/ read-only throughout (git diff --stat -- src/ EMPTY at every step - verified); NO engine code fixed in any step.",
+   "notes": "Docs-only diff. Gates: git diff --check clean; git diff --stat docs only; build + ctest green (the 278-era green); alive x3. Docs edited with the edit tool only; the U+FFFD scan after editing: 0 in all five files; the remaining SESSION_BOARD mojibake (7 '?') untouched; dates from the system clock (2026-10-02). v5 visual confirmation stays 'pending'. hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-279",
+   "depends_on": [
+    278
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
