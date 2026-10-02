@@ -1098,6 +1098,67 @@ capability / game-specific behavior) with evidence; no engine fix
 inside a consumer step; stop when the findings log has no new entries
 for 2 consecutive steps or at the step cap.
 
+### Phase D consumer: level pipeline (Step 275) — step 1 of at most 5, v6 stays NOT OPEN
+
+**The consumer:** consumers/level_pipeline/ (its own directory + its
+own CMake target LevelPipelineConsumer + the CTest registration — the
+only CMake changes made); a headless executable (no GL) returning a
+nonzero exit code on any failed check; 3 committed prefab data files
+(prefab_tile.txt / prefab_pickup.txt / prefab_enemy.txt — differing
+fields, the expected values written in the test from the FILE
+CONTENTS, never from observed output). Engine src/ READ-ONLY for the
+duration (git diff --stat -- src/ EMPTY — verified).
+
+**The checks (all PASS):** loadPrefab succeeds for each of the three;
+instantiatePrefab produces the entities whose fields equal the
+prefab's (the position/scale/halfExtents/textureId/depth/roleId/
+moveSpeed/gravityScale/health/coyoteTime/jumpImpulse/maxFallSpeed/
+cols/rows/tag/clip, alive=true, isStatic); instantiating the same
+prefab twice gives independent entities (mutating one leaves the
+other); instantiating at distinct positions does not alias state
+(tag/scale); the Scene composition (queueSpawn's distinct indices +
+flushSpawns merges the queued two + the entities present + alive +
+the positions preserved).
+
+**The hostile cases (OBSERVED and recorded, stable across THREE
+runs):**
+| Case | Observed | Class |
+|---|---|---|
+| missing file | loadPrefab false, "[prefab] File not found", no crash, the out stays default | existing capability |
+| empty file | false, "[prefab] Missing or wrong header" | existing capability |
+| malformed line (no '=') | partial parse: loadPrefab TRUE, the valid fields kept, the bad line warn-skipped | existing capability (the partial-parse contract is documented; the return value carries no dropped-line count — an API-clarity note) |
+| unknown field | warn + skip, loadPrefab TRUE | existing capability |
+| duplicate field | loadPrefab TRUE, the LAST assignment wins (20.0, not 10.0), no duplicate warning | existing capability, with a doc-gap note (silent last-wins undocumented) |
+| out-of-range numeric (health=1e39) | the parse fails, the field keeps its DEFAULT (100.0), and the warn message is the MISLEADING "[prefab] Unknown key 'health'" (the parse-fail falls through the else-if chain to the unknown-key else, prefab.h:153-172) | existing capability, with a doc-gap note (the misleading message is undocumented; API-clarity friction, not a crash) |
+
+**The findings log:** consumers/level_pipeline/FINDINGS.md — 8 entries:
+(1) the parse-fail KNOWN field reported as "Unknown key" (the misleading
+message; API-clarity); (2) the duplicate field silently last-wins
+(doc-gap); (3) the partial-parse return carries no dropped-line count
+(API-clarity); (4) the empty file fails clean (positive); (5) the
+missing file fails clean (positive); (6) the true unknown key
+warn-skipped (positive); (7) the probe paths never probe a consumer's
+data subdir — the bare filename resolves against the CWD root only
+(worked around inside the consumer by referencing the subdir path;
+doc-gap); (8) a src include dir breaks targets using the standard
+<ctime>/<time.h> (the MSVC resolves <time.h> through the /I dirs to
+the engine's src/time.h, shadowing it; the existing tests' RELATIVE
+includes are the workaround) — **class: engine defect (candidate),
+worked around inside the consumer**.
+NO engine code fixed for any entry. Nothing blocked the consumer.
+
+**The process friction (the consumer's own build):** the src include
+dir (Entry 8) and the data-subdir probe (Entry 7) cost one build
+failure each; both worked around inside the consumer (the relative
+includes; the subdir paths); the CTest working directory needed the
+explicit WORKING_DIRECTORY "$<TARGET_FILE_DIR:...>" (the CTest's
+default CWD is the build root, not the target dir).
+
+**Gates:** cmake --build build --config Release exit 0; ctest -C
+Release: the count ROSE from 2 to 3, 3/3 100% (5.14s/0.08s/0.06s), exit
+0; alive x3 exit 0; git diff --check clean; git diff --stat -- src/
+EMPTY (verified).
+
 ### Capability audit and candidate list (Step 272) — docs/measurement only, v6 stays NOT OPEN
 
 **1) Capability inventory (whole engine).** 173 test functions in
