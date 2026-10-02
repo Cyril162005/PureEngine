@@ -235,6 +235,18 @@ target_include_directories(resources_test PRIVATE "${glfw_SOURCE_DIR}/deps")
 target_include_directories(resources_test PRIVATE "${stb_SOURCE_DIR}")
 add_test(NAME resources_test COMMAND resources_test)
 
+# Phase D consumer: level pipeline (Step 275) - headless prefab/scene
+# consumer; engine src/ read-only. Own directory, own target.
+add_executable(LevelPipelineConsumer
+    consumers/level_pipeline/consumer.cpp
+)
+target_include_directories(LevelPipelineConsumer PRIVATE "${glfw_SOURCE_DIR}/include")
+add_test(NAME LevelPipelineConsumer COMMAND LevelPipelineConsumer
+         WORKING_DIRECTORY "$<TARGET_FILE_DIR:LevelPipelineConsumer>")
+add_custom_command(TARGET LevelPipelineConsumer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/consumers/level_pipeline" "$<TARGET_FILE_DIR:LevelPipelineConsumer>/consumers/level_pipeline"
+)
+
 # Blob fixtures for the test: beep.wav + prefabs/ so the 3-candidate
 # probe finds real committed assets from any CWD (mirrors the
 # hostile_data_test fixture pattern). Runtime-written temp fixtures are

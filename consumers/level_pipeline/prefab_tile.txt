@@ -1,0 +1,10 @@
+# PureEngine prefab v1
+name=tile
+scale=1.0,1.0,1.0
+halfExtents=0.5,0.5,0.5
+textureId=1
+depth=0
+roleId=3
+isStatic=true
+health=100.0
+tag=tile

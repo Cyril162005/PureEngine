@@ -1,0 +1,18 @@
+# PureEngine prefab v1
+name=enemy
+scale=0.6,0.6,1.0
+halfExtents=0.3,0.3,0.5
+textureId=4
+depth=2
+roleId=2
+moveSpeed=2.2
+gravityScale=1.0
+isStatic=false
+health=50.0
+coyoteTime=0.05
+jumpImpulse=8.0
+maxFallSpeed=20.0
+cols=4
+rows=2
+tag=enemy
+clip=walk_left

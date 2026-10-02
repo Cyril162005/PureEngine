@@ -1,0 +1,10 @@
+# PureEngine prefab v1
+name=pickup
+scale=0.4,0.4,1.0
+halfExtents=0.2,0.2,0.5
+textureId=2
+depth=5
+roleId=0
+isStatic=false
+health=1.0
+tag=pickup
