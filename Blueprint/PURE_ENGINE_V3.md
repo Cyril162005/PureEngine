@@ -681,6 +681,25 @@ The v4 version is COMPLETE/FROZEN only when:
 - **Out-of-v4 list stands**: no ECS, no editor, no glTF, no PBR, no
   game content, no new subsystems — **not in v4 / not scheduled**.
 
+### Recommended stop after Step 266 (2026-10-02)
+Engine v4 - 3D correctness is COMPLETE/FROZEN (263, 10/10 done-criteria
+VERIFIED, zero UNVERIFIED); the pre-freeze mutation closure (262)
+tightened every assert that passed under a reverting mutation, so all
+four v4 mutations are caught; the Phase-D consumer was refreshed on the
+frozen v4 (264: the sized+rotated composition — the sizing source of
+truth, the world-space lighting, the size-invariant diffuse, and the
+order-independent occlusion all hold end-to-end, all three mutations
+caught first-try); the docs are consolidated (265: the step counts, the
+known limits, the stale facts swept to match the tracker). The health
+gate at Step 266 is green: cmake --build build --config Release exit 0;
+ctest -C Release 2/2 100% exit 0; alive x3 (PureEngine.exe,
+Platformer.exe, Pong.exe) exit 0. **Recommended stop: no further engine
+work is scheduled.** v5 candidates (classified findings only): the 2D
+AABB debug-draw 2x overscale (the ENGINE DEFECT recorded above — the
+only classified finding from this phase); no other findings were
+exposed. The out-of-v4 list stands (no ECS, no editor, no glTF, no PBR,
+no game content).
+
 ## Not started / pending engine debts (Step 236, docs-only)
 
 NOT STARTED (the freeze OUT list stands — do not plan):

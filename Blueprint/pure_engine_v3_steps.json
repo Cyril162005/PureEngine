@@ -2947,6 +2947,28 @@
    "depends_on": [
     263
    ]
+  },
+  {
+   "id": 265,
+   "name": "Docs: consolidation after v4 (the step counts, the known limits, the stale facts)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 34a8b14, highest 264 - gate TRUE. Swept: the SESSION_BOARD highest-id line (236 -> 264, 264 entries no dups); the session row's last-update (2026-09-28 -> 2026-10-02) and the 'Steps 233-264 processed' header; the stale 'Flagged unfixed: drawn mesh size != collision extents' -> Resolved (261, the (b) sizing source of truth); the README range 25-264; the V3 freeze date corrected to 2026-10-02 (the actual date; the 263 record had guessed 2026-10-01); the V3 'Disclosed items after v4' -> 'Known limits after v4' with the four items from 263, each marked 'not in v4 / not scheduled' except the 2D AABB defect (marked 'candidate v5'); the steps.json's 263 entry commit placeholder 'DOCS' -> the real hash 5967667. Facts match the tracker; no new claims.",
+   "notes": "Gates: git diff --check clean; git diff --stat docs only (4 files, +16/-15); push verified. hostile_default.txt and Testing/ untouched. PROCESS NOTE: this step's docs sweep did not add a steps.json entry for itself (the record convention gap, the same class as the 262's process finding) - the entry was added in the Step 266 record commit.",
+   "commit": "1ab8568",
+   "depends_on": [
+    264
+   ]
+  },
+  {
+   "id": 266,
+   "name": "Health gate + stop marker (recommended stop after 266)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 1ab8568 - gate: the tracker's highest entry was 264 (the 265 step's docs sweep did not add its own steps.json entry; its work WAS done: 1ab8568 pushed and verified) - treated as the same record-convention class as the 262 process finding, the entry added in this step's record commit. HEALTH GATE (the exact commands and exit codes): cmake --build build --config Release -> exit 0; ctest -C Release --output-on-failure -> 2/2 (7.23s/0.11s), 100%, exit 0; alive x3 (PureEngine.exe, Platformer.exe, Pong.exe) -> exit 0. GREEN -> the one-paragraph 'recommended stop after Step 266' note added in V3 (v4 frozen, consumer refreshed, limits documented, the v5 candidates listed: the 2D AABB defect - the only classified finding from this phase; no other findings exposed; the out-of-v4 list stands).",
+   "notes": "Docs-only commit (the V3 stop note + the 265/266 tracker entries). hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-266",
+   "depends_on": [
+    265
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
