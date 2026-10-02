@@ -924,6 +924,83 @@ scheduled; removing it from the candidate list).
 **v6 stays NOT OPEN** (recorded here only as candidates; opening v6 is
 a separate step's decision).
 
+### Cost attribution (Step 273) — measurement + docs only, v6 stays NOT OPEN
+
+**PRE-REGISTERED THRESHOLDS (written BEFORE measuring; not changed
+afterward):**
+- A candidate is **ELIGIBLE** for a version only if the cost it removes
+  is **>= 1.0 ms per frame** (about 6% of a 16.67 ms budget) in a
+  REALISTIC workload, **or** the cost grows superlinearly with entity
+  count.
+- **"Realistic workload"** = the measured per-frame counts from the
+  section below (2D sprites drawn, 3D entities drawn, draw calls,
+  buffer uploads — min/median/max over a fixed frame count per game).
+
+**Realistic workload counts (Step 273, indicative, loop-structure-exact,
+not asserted).** METHOD: a throwaway scratch counter (uncommitted,
+deleted before commit) with a hidden-window GL context; each game's
+REALISTIC play state scripted from the shipped data (the Arcade:
+buildInitialEntities + the C++-default hostiles = 7 sprites — NOTE: the
+shipped hostile_default.txt has 0 hostiles, so the realistic range is
+4-7 sprites; + the two drop entities for the debug3d-on case; the
+Platformer: level1's 20 solid tiles + the player + the companion = 22
+sprites; the Pong: 3 entities); the REAL draw paths
+(drawWorld/drawEntity3D) run per frame over 300 frames; the counters
+are the loop-structure-exact values (the 2D: 1 sprite = 1 draw + 1
+upload + 1 uniform set; the 3D: F faces = F draws + F uploads). The
+counts are deterministic, so min = median = max:
+- Arcade(play, debug3d off): sprites 7 (4-7 realistic), 3D 0, draws 7,
+  uploads 7
+- Arcade(play, debug3d on + 2 drops): sprites 7, 3D 2, draws 31,
+  uploads 31
+- Platformer(play): sprites 22, draws 22, uploads 22
+- Pong(play): sprites 3, draws 3, uploads 3
+
+**Ablation timing (Step 273, indicative, dev machine, NOT asserted).**
+Scratch (uncommitted, deleted before commit), hidden-window GL, 3
+repeats, the median reported; BOTH the CPU submit time and the total
+with glFinish at frame end. 3D, 100 wedge entities (F=8):
+| Variant | submit ms | total ms |
+| baseline | 10.616 | 10.926 |
+| skip VAO/VBO create+delete (reuse hack) | 0.180 | 0.348 |
+| collapse the F per-face uploads into one | 2.746 | 2.997 |
+| collapse the F draws into one | 8.176 | 8.735 |
+| remove the per-face uniform sets | 10.544 | 10.818 |
+| CPU lighting only | 0.000 | 0.148 |
+ATTRIBUTION: the VAO/VBO create/delete dominates (~10.4 ms submit,
+98% of the baseline); the per-face uploads cost ~7.9 ms; the draw
+calls cost ~2.4 ms; the per-face uniforms are negligible (~0.1 ms);
+the CPU lighting is negligible (~0.15 ms). 2D sprites, baseline
+drawWorld:
+| N | submit ms | total ms |
+| 100 | 0.287 | 0.461 |
+| 1000 | 1.899 | 2.110 |
+| 5000 | 9.345 | 9.568 |
+ATTRIBUTION: LINEAR scaling (4.6x sprites -> 4.6x time; 5x -> 4.5x) —
+no superlinear breach anywhere.
+
+**Verdict table (Step 273; the 3 candidates from 272, at the REALISTIC
+counts from above, vs the pre-registered 1.0 ms/frame threshold):**
+| Candidate | ms/frame removed at the realistic counts | Scaling | Verdict |
+| Per-face upload batching (3D) | ~0.38 (the Arcade's 2 3D entities) | linear | NOT ELIGIBLE |
+| VAO/VBO reuse (3D) | ~0.21 (the Arcade's 2 3D entities) | linear | NOT ELIGIBLE |
+| 2D sprite batching | ~0.05 (the Platformer's 22 sprites) | linear | NOT ELIGIBLE |
+**NOTHING IS ELIGIBLE — performance is not the next capability.** All
+three candidates remove 0.05-0.38 ms/frame at the realistic counts
+(4-22 sprites, 2 3D entities) — every one below the 1.0 ms threshold —
+and the cost grows linearly with entity count everywhere (no
+superlinear breach). The ablation numbers at 100 entities are large
+(the VAO/VBO create/delete ~10.4 ms) but the realistic 3D count is 2
+entities; a future workload with 100+ concurrent 3D entities would
+re-open this by measurement.
+
+**Hygiene (Step 273):** all scratch code deleted
+(scratch_bench272.cpp from 272 was already deleted; scratch273.cpp
+deleted); the temporary CMake targets reverted by pathspec
+(git diff -- CMakeLists.txt is empty — verified); git status shows
+only hostile_default.txt and Testing/ — stated explicitly, verified.
+No src/ or test changes in this step.
+
 ### Capability audit and candidate list (Step 272) — docs/measurement only, v6 stays NOT OPEN
 
 **1) Capability inventory (whole engine).** 173 test functions in
