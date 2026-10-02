@@ -2980,6 +2980,17 @@
    "depends_on": [
     266
    ]
+  },
+  {
+   "id": 268,
+   "name": "Sizing: 2D AABB debug quad to +-0.5 (finding (c) resolved)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 97f45b6, highest 267, Engine v5 OPEN with (c) (V3:768), v4 FROZEN (V3:472) - gate TRUE. INSPECTED BEFORE EDITING: drawAABBs draws the overlay as a thin GL_LINE_LOOP OUTLINE (renderer.h:1120), NOT a filled quad (the 267 blast radius did not state this - CORRECTED in the record); the scale expression now :1100-1104 (the z 1.0f flat), the contract comments :276-277 and :1095-1104 (the line numbers shifted from the 267 record); the single draw site, the F1 toggle, the private VAO/VBO all confirmed. DECISION: Option A (the quad to +-0.5, the scale expression UNTOUCHED) - the one-line reason: the contract text says halfExtents*2 is the real box size and the 3D meshes already use the +-0.5-native + halfExtents*scale*2 convention; A keeps the 2D scale expression (which checkMeshSizing cites as the 3D sizing source of truth) untouched and unifies the convention. CHANGE: the aabbVertices corners +-1 -> +-0.5 + the two comment updates; NO change to collision, physics, 3D, games, or assets; the colour, the F1 toggle, and the other debug behavior preserved.",
+   "notes": "checkAABBDebugSize (hidden window, real GL; the expected extents COMPUTED in the test from the collision size and the Camera's default ortho projection (320/12 = 240/9 = 26.6667 px per unit), never from measured output): the entity at the non-default halfExtents (0.4,0.3) + scale (2,2) -> the collision box (1.6,1.2) world -> the expected outline (42.67,32) px; the drawn (44,33) - within +-2 (the line rasterization). MUTATION (an uncommitted edit restored by pathspec; ctest FAILED): the quad reverted to +-1 -> the drawn outline 86 x 65 vs the expected 42.67 x 32 - EXACTLY 2x the collision box (the (c) defect reproduced perfectly) - NON-VACUOUS; git diff --stat -- src/ empty afterward. FULL SOLUTION build: exit 0; ctest 2/2 (6.98s/0.07s) exit 0 100%; alive x3 exit 0; git diff --check clean. The 3D path and v4 contracts untouched (verified: the diff touches the aabbVertices array + the two comment blocks in the 2D debug-AABB path only; the 3D tests pass unchanged - the 2D scale expression checkMeshSizing cites is untouched). STATUS: pixel-verified, visual confirmation pending (the F1 overlay's on-screen look is a HUMAN smoke check; SMOKE_TEST.md has no F1/AABB row - recorded as a known limit). Docs edited with the edit tool only; the U+FFFD scan after editing: 0 in all four files; the 7 remaining mojibake '?' in SESSION_BOARD untouched. hostile_default.txt and Testing/ untouched.",
+   "commit": "4c6c710",
+   "depends_on": [
+    267
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

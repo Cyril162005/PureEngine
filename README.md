@@ -13,9 +13,10 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–267; the 3D v4 version COMPLETE/FROZEN at
-  Step 263; **Engine v5 - 2D debug-draw correctness OPEN at 267** — scope:
-  (c) 2D AABB debug-draw size vs collision size):
+- **Engine** (tracked steps 25–268; the 3D v4 version COMPLETE/FROZEN at
+  Step 263; **Engine v5 - 2D debug-draw correctness — (c) RESOLVED at
+  268 (pixel-verified, visual confirmation pending), version close-out
+  pending**):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),

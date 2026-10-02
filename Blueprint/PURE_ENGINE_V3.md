@@ -206,7 +206,7 @@ A 2D-to-3D transition is not an extension. It is a different project. It require
 
 This section exists so that any future genuine need can be assessed honestly against the actual project direction and history: flat 2D remains the intended scope, and any 3D discussion should be treated as a separate endeavor rather than a default evolution of this codebase.
 
-**Stress-test result (Step 45, re-verified post-Steps 46-49):** Tested at 3, 20, and 50 hostiles using data-driven hostile_default.txt variants. Average frame time stayed flat at ~1.5�1.6 ms across all three counts. Re-measured at 50 hostiles after Steps 46-49 (EntityRole branching, depth-sort): 1.47�1.80 ms (avg ~1.6 ms), matching the Step 45 baseline within normal noise. No disproportionate cost from the added branching or sort. Broad-phase collision remains correctly deferred � the earlier inference is now confirmed by measurement.
+**Stress-test result (Step 45, re-verified post-Steps 46-49):** Tested at 3, 20, and 50 hostiles using data-driven hostile_default.txt variants. Average frame time stayed flat at ~1.5–1.6 ms across all three counts. Re-measured at 50 hostiles after Steps 46-49 (EntityRole branching, depth-sort): 1.47–1.80 ms (avg ~1.6 ms), matching the Step 45 baseline within normal noise. No disproportionate cost from the added branching or sort. Broad-phase collision remains correctly deferred — the earlier inference is now confirmed by measurement.
 
 **2D architectural maturity status:** 4/5 criteria met (camera split,
 transform decoupling, fixed coords, depth field). Broad-phase
@@ -775,43 +775,39 @@ and v4 frozen contract lists is UNCHANGED.**
 ### v5 scope (exactly one capability; no others unless a classified
 ### finding with evidence is added)
 
-**(c) 2D AABB debug-draw size vs collision size**
+**(c) 2D AABB debug-draw size vs collision size — RESOLVED (Step 268)**
 - Problem (one line): the debug quad is ±1 and the model scale is
   halfExtents*scale*2, so the drawn box is 2x the collision box.
-- Contract (file:line): src/renderer.h:277 ("which the draw method
-  scales by halfExtents*2 to get the real box size") and
-  src/renderer.h:1083 ("This is the exact same box collision.h uses:
-  halfExtents * scale, doubled").
-- Current behavior (file:line): src/renderer.h:278-284 (the quad
-  corners are ±1) with src/renderer.h:1086-1088 (the model scale =
-  halfExtents*scale*2) — the drawn full size is 4·hx·s while the
-  collision box (src/collision.h:85-90: the half-extents =
-  halfExtents*scale) is 2·hx·s.
-- Blast radius (from real grep, not guessed):
-  - every caller of the quad: the aabbVertices array is uploaded ONCE
-    at init (src/renderer.h:289) into its OWN VAO/VBO
-    (src/renderer.h:285-289, member :1246 "Step 42: debug unit-square
-    line loop"), bound at exactly ONE draw site (src/renderer.h:1086,
-    inside Renderer::drawAABBs — the F1 toggle: src/main.cpp:1717-1718,
-    the Input binding :870, the call :2157), destroyed at teardown
-    (src/renderer.h:1215-1216).
-  - tests asserting debug-AABB size: NONE (grep: the only reference is
-    checkMeshSizing's comment citing the 2D AABB expression as the 3D
-    sizing source of truth, tests/hostile_data_test.cpp:6651 — the
-    expression, not the drawn size).
-  - docs depending on how the F1 boxes look: NONE (SMOKE_TEST.md: no
-    F1/AABB-debug references; GAME_BUILD.md's AABB mentions at :17/:28/
-    :43/:45 are the collision/balance facts, not the debug draw's
-    appearance).
-  - is the quad shared with non-debug drawing? NO — the aabb quad has
-    its own VAO/VBO; the 2D entity sprites use a separate ±0.5 quad
-    (src/renderer.h:701-704) and the fullscreen quads another
-    (src/renderer.h:1038-1041).
-- Open design questions (RECORDED, NOT decided here): change the quad
-  to ±0.5 (one array edit, the scale expression untouched), change the
-  scale expression (hx*s for a ±1 quad — the contract comment's intent),
-  or document a deliberate 2x overlay (the contract then changes). Is
-  the quad shared with non-debug drawing? — answered above: NO.
+- THE FIX (Option A — renderer.h's aabbVertices array ONLY): the quad
+  corners to ±0.5 (the SAME native convention as the 3D meshes). The
+  scale expression (halfExtents*scale*2) is UNTOUCHED — checkMeshSizing
+  cites it as the 3D sizing source of truth, so A keeps the 3D tests'
+  comment valid; B (the scale expression) would have broken it. The
+  one-line reason: the contract text says halfExtents*2 is the real box
+  size and the 3D meshes already use that convention.
+- Decision-1 inspection CORRECTIONS to the 267 blast radius: the
+  overlay is drawn as a thin GL_LINE_LOOP OUTLINE, not a filled quad
+  (src/renderer.h:1120 — the 267 record did not state this); the line
+  numbers shifted — the scale expression is now :1100-1104 (the z
+  stays 1.0f flat), the drawAABBs contract comment :1095-1104, the
+  draw site :1120, the quad :278-284 (unchanged). The single draw
+  site, the F1 toggle (main.cpp:1717/2157, Input :870), and the
+  private VAO/VBO (:285-289, :1246) all confirmed unchanged.
+- THE REGRESSION: checkAABBDebugSize (hidden window, real GL; the
+  expected extents COMPUTED in the test from the collision size and
+  the Camera's default ortho projection (320/12 = 240/9 = 26.6667 px
+  per unit), never from measured output): the entity at the
+  non-default halfExtents (0.4,0.3) + scale (2,2) -> the collision box
+  (1.6,1.2) world -> the expected outline (42.67, 32) px; the drawn
+  (44, 33) — within ±2 (the line rasterization). The orange-tint pixel
+  scan bounds the outline; drawn == collision asserted.
+- MUTATION TABLE (an uncommitted edit restored by pathspec; ctest
+  FAILED): the quad reverted to ±1 -> the drawn outline measured
+  86 x 65 vs the expected 42.67 x 32 — EXACTLY 2x the collision box
+  (the (c) defect reproduced perfectly) — NON-VACUOUS.
+- STATUS: **pixel-verified, visual confirmation pending** (the F1
+  overlay's on-screen look is a HUMAN smoke check; SMOKE_TEST.md has
+  no F1/AABB row — recorded as a known limit).
 
 ### Carry forward (not fixed in v5, recorded)
 - OOB texture sample is UB (entityTextures[99] is an OOB vector access
