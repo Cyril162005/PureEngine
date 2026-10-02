@@ -3068,6 +3068,17 @@
    "depends_on": [
     274
    ]
+  },
+  {
+   "id": 276,
+   "name": "Consumer: scene save/load round-trip (Step 276)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 88585ba, highest 275 - gate TRUE. STEP 1 (Entry 8's exact repro, recorded in FINDINGS.md): the 3-line TU (#include <ctime> / int main) with the src include dir + the glfw include dir; the exact compiler error: ctime(21,25) error C2039 'clock_t' is not a member of the global namespace (+ asctime, clock - the same pattern); scratch only, the TU deleted, the CMake reverted (git status clean). STEP 2 (the inspection, file:line): saveSceneToFile (:381-450): the 34-field v2 format (the header + scene= + the optional tilemap= + the entity= lines, isStatic 0/1, tag/clip double-quoted), std::fixed setprecision(4) at :418, the dead entities SKIPPED at :420 (the documented Step 113), the tmp+rename atomic save (fs::rename :443-448), the explicit-path handling (the / and \\ and drive-letter honored directly, the dir auto-created; the bare names probe assets/, ../assets/, ../../assets/); loadSceneFromFile (:459-649): the 3-candidate probe + the explicit direct, the STRICT whole-file load (any malformed line -> false, out untouched), v1 (14-field) and v2 (34-field) shapes, the unknown versions warn+false (:636-640), the tilemap load if haveTilemap (:642-646). STEP 3 (the checks, all PASS): the scene built from the 3 prefabs at distinct positions; save; load into a fresh Scene; EVERY documented serialized field compared per entity (the 34-field list) - FIELD-EXACT within the 4dp format; the empty scene saves/loads with 0 entities + the name; the float edge values OBSERVED and RECORDED (1e-6 -> 0.0000 (the 4dp truncation); 0.12345678 -> 0.1235; 0.1f exact; 1e30 exact; the floats do NOT round-trip bit-exact for >4 decimals - the 4dp precision UNDOCUMENTED in the format comment - FINDINGS Entry 10); save->load->save BYTE-IDENTICAL (the 4dp rounding idempotent); the documented non-serialized runtime state NOT compared. STEP 4 (the negative control): the loaded copy's health altered to 999; the comparator reports the exact field ('health') - PASSED.",
+   "notes": "NEW FINDINGS (Entry 9, Entry 10): (9) saveSceneToFile's fs::rename fails with a sharing violation when the destination has an OPEN read handle (the consumer's unclosed ifstream; the engine's error return worked - existing capability, doc-gap note: the rename-fails-if-open is undocumented; worked around inside the consumer by closing the handle); (10) the 4dp float precision (the values with >4 decimals do not round-trip bit-exact; UNDOCUMENTED; observed, not asserted). PROCESS NOTE: the consumer's main() briefly lost the checkLoadAndInstantiate() call line and the checkSceneComposition's pe::Scene declaration was merged into a comment by an edit - both caught by the build errors and fixed. Gates: build exit 0; ctest -C Release 3/3 100% (20.48s/2.66s/0.29s), exit 0; alive x3 exit 0; git diff --check clean; git diff --stat -- src/ EMPTY (verified). hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-276",
+   "depends_on": [
+    275
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

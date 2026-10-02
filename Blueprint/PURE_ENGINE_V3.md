@@ -1159,6 +1159,51 @@ Release: the count ROSE from 2 to 3, 3/3 100% (5.14s/0.08s/0.06s), exit
 0; alive x3 exit 0; git diff --check clean; git diff --stat -- src/
 EMPTY (verified).
 
+### Phase D consumer: level pipeline (Step 276) — the scene save/load round-trip, v6 stays NOT OPEN
+
+**Entry 8's exact repro (recorded in FINDINGS.md):** the TU
+`#include <ctime>` / `int main() { return 0; }` (3 lines) with
+`target_include_directories(repro_time PRIVATE "${CMAKE_SOURCE_DIR}/src" "${glfw_SOURCE_DIR}/include")` +
+`cmake --build build --config Release --target repro_time`; the exact
+compiler error: `ctime(21,25): error C2039: 'clock_t': is not a member
+of '`global namespace''` (+ asctime, clock — the same pattern). Scratch
+only; the TU deleted, the CMake reverted (git status clean).
+
+**The round-trip checks (all PASS; ctest 3/3):**
+- The scene built from the 3 prefabs at distinct positions; save;
+  load into a fresh Scene; EVERY documented serialized field compared
+  per entity (the 34-field v2 list: position, rotationAngle,
+  rotationSpeed, scale, halfExtents, textureId, depth, roleId,
+  moveSpeed, velocity, gravityScale, isStatic, coyoteTime, jumpImpulse,
+  maxFallSpeed, tint, cols, rows, health, timer, tag, parentIndex,
+  animationSpeed, currentClipName) — the round-trip is FIELD-EXACT
+  (within the 4dp format).
+- The empty scene: saves; loads with 0 entities and the name.
+- The float edge values (OBSERVED and recorded, not asserted as
+  correct): 1e-6 → 0.0000 (the 4dp truncation); 0.12345678 → 0.1235;
+  0.1f round-trips exactly; 1e30 round-trips; **the floats do NOT
+  round-trip bit-exact for values with more than 4 decimals** (the 4dp
+  fixed precision, scene.h:418 — UNDOCUMENTED in the format comment,
+  scene.h:372-380 — FINDINGS Entry 10).
+- save->load->save is **byte-identical** (the 4dp rounding is
+  idempotent).
+- The documented non-serialized runtime state NOT compared (the
+  coyoteTimer/wasGrounded/animationState are not in the 34-field list).
+- **The negative control:** the loaded copy's health altered to 999;
+  the comparator reports the exact field ("health") ✓.
+
+**NEW FINDINGS (Entry 9, Entry 10):** (9) saveSceneToFile's fs::rename
+fails with a sharing violation when the destination has an OPEN read
+handle (the consumer's unclosed ifstream; the engine's error return
+worked — existing capability, doc-gap note: the rename-fails-if-open
+is undocumented; worked around inside the consumer); (10) the 4dp
+float precision (the values with >4 decimals do not round-trip
+bit-exact; the 4dp precision is undocumented; observed, not asserted).
+
+**Gates:** build exit 0; ctest -C Release 3/3 100% (20.48s/2.66s/
+0.29s), exit 0; alive x3 exit 0; git diff --check clean; git diff
+--stat -- src/ EMPTY (verified).
+
 ### Capability audit and candidate list (Step 272) — docs/measurement only, v6 stays NOT OPEN
 
 **1) Capability inventory (whole engine).** 173 test functions in
