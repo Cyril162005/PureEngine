@@ -143,3 +143,57 @@ Engine src/ is read-only; NO engine fix for any entry.
   precision is UNDOCUMENTED in the format comment (scene.h:372-380);
   observed, not asserted as correct.
 - **status:** recorded; no engine fix.
+
+## Entry 11 (Step 277)
+- **what:** saveSceneManagerToFile honors explicit paths (the /, the \,
+  the drive letter; the dir auto-created, scene.h:658-674) but its load
+  counterpart loadSceneManagerFromFile does NOT — the loader probes
+  ONLY assets/, ../assets/, ../../assets/ (scene.h:726-728); a save
+  written to any non-assets path (consumers/level_pipeline/
+  rt_manager.txt) is NOT findable by the loader — the round-trip
+  breaks for every non-assets path. loadSceneFromFile DOES honor
+  explicit paths (scene.h:461-467), so the asymmetry is specific to
+  the manager loader.
+- **evidence (exact repro):** saveSceneManagerToFile(m,
+  "consumers/level_pipeline/rt_manager.txt") returns true;
+  loadSceneManagerFromFile("consumers/level_pipeline/rt_manager.txt")
+  returns false silently; the file exists at that path.
+- **class:** **missing capability** (the explicit-path load absent;
+  the repro above) with a doc-gap note — the loader's doc (scene.h:
+  714-723) does not state that explicit paths are not honored.
+- **status:** recorded, worked around inside the consumer (the bare
+  name rt_manager.txt, probe-reachable); no engine fix.
+
+## Entry 12 (Step 277)
+- **what:** loadScene returns a Scene& into the SceneManager's scenes
+  vector; any loadScene call may REALLOCATE that vector, so a Scene&
+  or Scene* taken before a later loadScene DANGLES. The consumer took
+  s2 = &loadScene(m, "beta") and used it after loadScene(m, "gamma")
+  — the access violation (0xC0000005), the process crashed with the
+  stdout buffer lost. The documented rule (scene.h:108-109: "Call
+  scenes.reserve(N) before loadScene() to prevent reallocation.
+  Re-take activeScene* after any structural change") exists and was
+  violated by the consumer (no reserve, no re-take).
+- **evidence (exact repro):** two loadScene calls without reserve; the
+  first's returned Scene& used after the second → 0xC0000005. The
+  crash output: the stdout lost (buffered), the stderr survived.
+- **class:** **existing capability** — the engine behaved as the
+  documented rule says; the friction is that the raw-reference API
+  makes the rule load-bearing (a crash results when the reserve/
+  re-take is missed) — a safety/API-clarity note, not a defect.
+- **status:** recorded, worked around inside the consumer (reserve(3)
+  + the compared values copied before the later loadScene); no engine
+  fix.
+
+## Entry 13 (Step 277)
+- **what:** loadSceneManagerFromFile's common failure paths return
+  false SILENTLY — no stderr message for the count mismatch, the bad
+  current index, the failed scene load, or the unknown prefix (only
+  the unknown VERSION warns, scene.h:775-777). The consumer's first
+  manager-load failure (Entry 11) produced no diagnostic at all — the
+  failure reason had to be deduced by inspection.
+- **evidence:** the consumer's first manager-load run (no stderr for
+  the failed load); scene.h:724-794 (the silent false returns).
+- **class:** **existing capability, with a doc-gap note** — the
+  silent-failure behavior is undocumented; API-clarity friction.
+- **status:** recorded; no engine fix.

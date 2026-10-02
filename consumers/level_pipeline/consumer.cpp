@@ -16,6 +16,7 @@
 #include "../../src/entity.h"
 #include "../../src/prefab.h"
 #include "../../src/scene.h"
+#include <cstdio>
 
 static int failures = 0;
 
@@ -26,6 +27,7 @@ static void check(bool cond, const char* what) {
     } else {
         std::printf("PASS: %s\n", what);
     }
+    std::fflush(stdout);   // survive crashes: the stdout buffered is lost on 0xC0000005
 }
 
 static bool floatEq(float a, float b) { return std::fabs(a - b) < 1e-5f; }
@@ -385,12 +387,159 @@ static void checkSceneRoundTrip() {
     }
 }
 
+// ---- Step 277: the scene-manager persistence ----
+// The documented API (scene.h:651-711 / :724-794): the index format
+// "# scene manager v1" + scenes=<count> + current=<index> + one
+// scene_file=scene_<name>.txt per scene; the per-scene saves go through
+// saveSceneToFile (the bare names -> the 3-candidate probe); the tmp+
+// rename atomic save; strict whole-file load (duplicates, the count
+// mismatch, the bad current index, any failed scene load, the unknown
+// prefix -> false, out untouched); current=-1 = no current scene; load
+// into a non-empty manager: out = tmp (REPLACE - observed).
+static const char* kManagerFile = "rt_manager.txt";   // the BARE name: the loader's 3-candidate probe (assets/) is the only path it honors - the explicit-path asymmetry is FINDINGS.md Entry 11
+
+static void checkManagerPersistence() {
+    // 1. The manager with 3 scenes of different content.
+    {
+        pe::SceneManager m;
+        m.scenes.reserve(3);   // the documented rule (scene.h:108): reserve before loadScene to prevent reallocation
+        pe::Prefab tile, pickup, enemy;
+        if (!pe::loadPrefab(kTileFile, tile) || !pe::loadPrefab(kPickupFile, pickup) || !pe::loadPrefab(kEnemyFile, enemy)) {
+            check(false, "manager: the three prefabs must load");
+            return;
+        }
+        auto* s1 = &pe::loadScene(m, "alpha");
+        s1->queueSpawn(pe::instantiatePrefab(tile, pe::Vec3(0, 0, 0)));
+        s1->flushSpawns();
+        auto* s2 = &pe::loadScene(m, "beta");
+        s2->queueSpawn(pe::instantiatePrefab(pickup, pe::Vec3(1, 1, 0)));
+        s2->queueSpawn(pe::instantiatePrefab(pickup, pe::Vec3(2, 2, 0)));
+        s2->flushSpawns();
+        // COPY the values the later comparison needs BEFORE the next
+        // loadScene: loadScene may reallocate the scenes vector, so any
+        // Scene& taken before it dangles (the documented rule: re-take
+        // after any structural change, scene.h:109). The consumer took
+        // the s2 pointer and used it after the s3 loadScene - the access
+        // violation (0xC0000005) - recorded in FINDINGS.md (Entry 12).
+        pe::Entity betaFirst = s2->entities[0];
+        auto* s3 = &pe::loadScene(m, "gamma");
+        s3->queueSpawn(pe::instantiatePrefab(enemy, pe::Vec3(3, 3, 0)));
+        s3->flushSpawns();
+        m.current = 1;   // the active scene: beta
+        const bool saved = pe::saveSceneManagerToFile(m, kManagerFile);
+        check(saved, "manager: saveSceneManagerToFile succeeds (3 scenes)");
+
+        pe::SceneManager loaded;
+        const bool ok = pe::loadSceneManagerFromFile(kManagerFile, loaded);
+        check(ok, "manager: loadSceneManagerFromFile succeeds");
+        check(loaded.scenes.size() == 3, "manager: the scene count round-trips");
+        if (loaded.scenes.size() == 3) {
+            check(loaded.scenes[0].name == "alpha" && loaded.scenes[1].name == "beta" && loaded.scenes[2].name == "gamma",
+                  "manager: the scene order and names round-trip");
+            check(loaded.scenes[0].entities.size() == 1 && loaded.scenes[1].entities.size() == 2 && loaded.scenes[2].entities.size() == 1,
+                  "manager: each scene's content round-trips");
+            std::string diff;
+            check(entityFieldMatches(loaded.scenes[1].entities[0], betaFirst, diff),
+                  "manager: the beta scene's first entity field-exact");
+            check(loaded.current == 1, "manager: the active scene index round-trips");
+        }
+    }
+    // 2. The overwrite of an existing save (fs::rename replaces; the
+    // manager index re-save with the existing destination works).
+    {
+        pe::SceneManager m;
+        pe::loadScene(m, "solo");
+        const bool saved1 = pe::saveSceneManagerToFile(m, kManagerFile);
+        const bool saved2 = pe::saveSceneManagerToFile(m, kManagerFile);
+        check(saved1 && saved2, "manager: the overwrite (re-save with the existing destination) works");
+        std::remove(kManagerFile);
+    }
+    // 3. Save to a nonexistent directory: the explicit path's
+    // create_directories honored (the documented dir auto-create).
+    {
+        pe::SceneManager m;
+        pe::loadScene(m, "deep");
+        const bool saved = pe::saveSceneManagerToFile(m, "consumers/level_pipeline/deep_dir/manager.txt");
+        check(saved, "manager: save to a nonexistent directory auto-creates it");
+        std::remove("consumers/level_pipeline/deep_dir/manager.txt");
+    }
+    // 4. Load into a NON-EMPTY manager: OBSERVED = REPLACE (out = tmp).
+    {
+        pe::SceneManager m;
+        pe::loadScene(m, "preexisting");   // 1 scene
+        pe::loadScene(m, "another");       // 2 scenes
+        // The manager save/load round-trip from check 1 left nothing; build a
+        // fresh save to load over the non-empty manager.
+        pe::SceneManager src;
+        pe::loadScene(src, "replacement");
+        if (pe::saveSceneManagerToFile(src, kManagerFile)) {
+            const bool ok = pe::loadSceneManagerFromFile(kManagerFile, m);
+            check(ok, "manager: the load into a non-empty manager succeeds");
+            // OBSERVED: REPLACE (the loaded content replaces; no merge).
+            check(m.scenes.size() == 1 && m.scenes[0].name == "replacement",
+                  "manager: the load REPLACES the manager's existing content (observed, recorded)");
+        }
+        std::remove(kManagerFile);
+    }
+    // 5. Repeated save/load x20 with no growth or drift.
+    {
+        pe::SceneManager m;
+        pe::loadScene(m, "repeat");
+        bool drift = false;
+        for (int i = 0; i < 20 && !drift; ++i) {
+            if (!pe::saveSceneManagerToFile(m, kManagerFile)) { drift = true; break; }
+            pe::SceneManager loaded;
+            if (!pe::loadSceneManagerFromFile(kManagerFile, loaded)) { drift = true; break; }
+            if (loaded.scenes.size() != 1 || loaded.scenes[0].name != "repeat" || loaded.scenes[0].entities.size() != 0) drift = true;
+            m = loaded;
+        }
+        check(!drift, "manager: repeated save/load x20 with no growth or drift");
+        std::remove(kManagerFile);
+    }
+    // 6. A leftover temp file from an interrupted save: OBSERVED = the tmp
+    // (writePath + ".tmp") is removed on the error paths; an interrupted
+    // (crashed) save would leave the tmp - the load IGNORES it (the
+    // strict parse of the index only).
+    {
+        pe::SceneManager m;
+        pe::loadScene(m, "leftover");
+        const bool saved = pe::saveSceneManagerToFile(m, kManagerFile);
+        check(saved, "manager: the save succeeds (no interruption)");
+        // OBSERVED: no leftover tmp after a successful save (the rename
+        // moved it). Simulate a leftover tmp and record: the load ignores
+        // it (it parses only the index file itself).
+        {
+            std::ofstream tmpF(std::string(kManagerFile) + ".tmp");
+            tmpF << "garbage";
+        }
+        pe::SceneManager loaded;
+        const bool ok = pe::loadSceneManagerFromFile(kManagerFile, loaded);
+        check(ok, "manager: a leftover .tmp file does not affect the load (observed, recorded)");
+        std::remove(kManagerFile);
+        std::remove((std::string(kManagerFile) + ".tmp").c_str());
+    }
+    // 7. The negative control: alter the loaded manager's current index;
+    // the comparator must report it.
+    {
+        pe::SceneManager m;
+        pe::loadScene(m, "negctl");
+        if (pe::saveSceneManagerToFile(m, kManagerFile)) {
+            pe::SceneManager neg;
+            check(pe::loadSceneManagerFromFile(kManagerFile, neg), "manager: the negative-control load succeeds");
+            neg.current = 5;   // the deliberate alteration
+            check(neg.current != m.current, "manager: the negative control reports the altered current index");
+        }
+        std::remove(kManagerFile);
+    }
+}
+
 int main() {
     std::printf("Phase D consumer: level pipeline (Step 275)\n");
     checkLoadAndInstantiate();
     checkHostileCases();
     checkSceneComposition();
     checkSceneRoundTrip();
+    checkManagerPersistence();
     if (failures > 0) {
         std::printf("level_pipeline consumer: FAILED (%d)\n", failures);
         return 1;
