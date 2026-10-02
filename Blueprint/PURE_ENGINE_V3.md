@@ -1263,6 +1263,55 @@ reason had to be deduced by inspection — API-clarity friction.
 0.12s), exit 0; alive x3 exit 0; git diff --check clean; git diff
 --stat -- src/ EMPTY (verified).
 
+### Phase D consumer: level pipeline (Step 278) — adversarial persistence, v6 stays NOT OPEN
+
+**The corrupt inputs GENERATED PROGRAMMATICALLY** (not hand-edited)
+from a valid scene save + a valid manager save; for each the outcome
+recorded; the CTest TIMEOUT (60 s) guards hangs (the consumer's entry
+now carries it); the input sizes capped (the 1 MB line, the 4 KB
+garbage):
+
+**All 27 outcomes: clean rejects, NO crash, NO hang, NO huge
+allocation, NO silent data loss:**
+- **Truncated at every 1/8 (7 points): 0 partial loads, 7 clean
+  rejects** — the strict shape check catches a truncated entity line
+  before any partial use (the OBSERVED printout recorded).
+- **The version field:** missing header → rejected (the v1 default
+  path, OBSERVED); v99 → rejected (warn + false, out untouched);
+  v-1 → rejected (the unknown-version check); the manager v99 →
+  rejected.
+- **The count fields:** the manager scenes= -3 → rejected; 0 →
+  rejected; **2^31 → rejected by the file-count mismatch BEFORE any
+  allocation** (scene.h:781 checks the mismatch before the reserve at
+  :783 — no hang, no crash, no huge allocation, OBSERVED); the count
+  mismatching the actual entries → rejected.
+- **The duplicate scene= line** → rejected (the loadSceneFromFile's
+  haveScene check). NOTE: the save format has NO entity ids — the
+  entity lines are positional; there is nothing to duplicate at the
+  entity level (recorded).
+- **A 1 MB entity line** → rejected (the strict shape check; no hang —
+  the TIMEOUT guards).
+- **4 KB of binary garbage** → rejected.
+- **An empty file** → rejected (the header check).
+- **A directory path** → rejected (the ifstream's getline fails → the
+  header check, OBSERVED).
+- **Saves do not reference prefabs** (recorded): the 34-field entity
+  lines carry raw values, no prefab pointers; the closest file
+  reference is tilemap=<basename>; a MISSING referenced tilemap file
+  rejects the load (scene.h:642-646).
+
+**NEW FINDINGS:** (14) the strict-load contract works as documented
+under programmatic corruption (positive, no action); (15) saves do
+not reference prefabs; the missing tilemap reference rejects
+(positive); (16) the consumer's exe was briefly locked by an external
+process (LNK1104; tasklist showed no owner — an antivirus scan; the
+wait resolved it) — game-specific behavior (the dev environment).
+
+**Gates:** build exit 0; ctest -C Release 3/3 100% (8.88s/0.33s/
+0.36s), exit 0 (the TIMEOUT 60 s active on the consumer's entry); alive
+x3 exit 0; git diff --check clean; git diff --stat -- src/ EMPTY
+(verified).
+
 ### Capability audit and candidate list (Step 272) — docs/measurement only, v6 stays NOT OPEN
 
 **1) Capability inventory (whole engine).** 173 test functions in

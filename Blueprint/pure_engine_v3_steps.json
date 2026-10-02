@@ -3090,6 +3090,17 @@
    "depends_on": [
     276
    ]
+  },
+  {
+   "id": 278,
+   "name": "Consumer: adversarial persistence (programmatic corruption)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 38e48c2, highest 277 - gate TRUE. STEP 1: the corrupt inputs GENERATED PROGRAMMATICALLY (not hand-edited) from a valid scene save + a valid manager save: truncated at every 1/8 (7 points); the version field missing/higher (v99)/negative (v-1); the count fields negative/zero/2^31/mismatching the actual entries; the duplicate scene= line; an extremely long line (1 MB, capped); binary garbage (4 KB); empty file; a directory path instead of file; for scene AND scene-manager loads. STEP 2: ALL 27 outcomes: clean rejects, NO crash, NO hang, NO huge allocation, NO silent data loss: the 7 truncations -> 0 partial loads, 7 clean rejects (the strict shape check catches a truncated entity line before any partial use); the version v99/v-1 rejected (warn + false, out untouched); the manager v99 rejected; the scenes= -3/0 rejected; the 2^31 count rejected by the FILE-COUNT MISMATCH BEFORE any allocation (scene.h:781 checks the mismatch before the reserve at :783 - no hang, no crash, no huge allocation); the count mismatching the entries rejected; the duplicate scene= rejected (the haveScene check); the 1 MB line rejected (the strict shape check; no hang - the TIMEOUT guards); the 4 KB garbage rejected; the empty file rejected (the header check); a directory path rejected (the getline fails -> the header check); saves DO NOT reference prefabs (recorded: the 34-field lines carry raw values, no prefab pointers; the closest file reference is tilemap=<basename>; a MISSING referenced tilemap file rejects the load, scene.h:642-646). The CTest TIMEOUT (60 s) set on the consumer's entry (the CMake +1 line).",
+   "notes": "NEW FINDINGS: (14) the strict-load contract works as documented under programmatic corruption (positive, no action); (15) saves do not reference prefabs; the missing tilemap reference rejects (positive); (16) the consumer's exe was briefly locked by an external process (LNK1104; tasklist showed no owning process - consistent with an antivirus scan; resolved by waiting ~15 s) - game-specific behavior (the dev environment), recorded for the run log. Gates: build exit 0; ctest -C Release 3/3 100% (8.88s/0.33s/0.36s), exit 0 (the TIMEOUT 60 s active); alive x3 exit 0; git diff --check clean; git diff --stat -- src/ EMPTY (verified). hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-278",
+   "depends_on": [
+    277
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
