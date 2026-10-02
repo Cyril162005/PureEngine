@@ -7,8 +7,8 @@
  * lifecycle.h, hostile_data.h, gamestate.h, simulation.h, audio.h, ui.h.
  *
  * Includes are relative paths, never -Isrc: adding src/ to the include
- * path risks src/time.h shadowing the CRT time.h (see CMakeLists.txt
- * note at the hostile_data_test target).
+ * path risked the pre-281 src/time.h shadowing the CRT time.h (renamed
+ * to engine_time.h in Step 281; see CMakeLists.txt note).
  *
  * Current scope: window + renderer init + two paddles + ball with
  * wall/paddle bounce + ESC to quit. No score yet — arrives as its own
@@ -26,7 +26,7 @@
 #include "../../src/renderer.h"
 #include "../../src/camera.h"
 #include "../../src/input.h"
-#include "../../src/time.h"
+#include "../../src/engine_time.h"
 #include "../../src/animation_data.h"
 
 int main() {

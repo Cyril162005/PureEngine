@@ -244,6 +244,17 @@ target_include_directories(LevelPipelineConsumer PRIVATE "${glfw_SOURCE_DIR}/inc
 add_test(NAME LevelPipelineConsumer COMMAND LevelPipelineConsumer
          WORKING_DIRECTORY "$<TARGET_FILE_DIR:LevelPipelineConsumer>")
 set_tests_properties(LevelPipelineConsumer PROPERTIES TIMEOUT 60)
+
+# Step 281: permanent header-hygiene check (the (g) capability). THE
+# POINT: src IS on this target's include path, and the standard
+# <time.h>/<ctime> must still compile - a reintroduced colliding header
+# name in src/ makes this target FAIL to build.
+add_executable(header_hygiene
+    tests/header_hygiene.cpp
+)
+target_include_directories(header_hygiene PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_include_directories(header_hygiene PRIVATE "${glfw_SOURCE_DIR}/include")
+add_test(NAME header_hygiene COMMAND header_hygiene)
 add_custom_command(TARGET LevelPipelineConsumer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/consumers/level_pipeline" "$<TARGET_FILE_DIR:LevelPipelineConsumer>/consumers/level_pipeline"
 )
@@ -263,8 +274,9 @@ add_custom_command(TARGET resources_test POST_BUILD
 )
 
 # Keep the test translation unit scoped to the exact header it needs.
-# This avoids exposing the whole src/ directory, which is what makes
-# src/time.h shadow the CRT's time.h during compilation.
+# This avoids exposing the whole src/ directory, which is what made
+# the pre-281 src/time.h shadow the CRT's time.h during compilation
+# (renamed to engine_time.h in Step 281; the hygiene target enforces it).
 
 # Step 102: optional pe_core static library — compiled core, header-only remains.
 # Same headers, same inline functions, just precompiled. Games may either

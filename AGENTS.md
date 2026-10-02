@@ -46,7 +46,7 @@ For every claim such as "works," "passes," or "fixed," include the actual comman
 - `src/resources.h`: resource loading boundary
 - `src/camera.h`: camera boundary
 - `src/input.h`: input boundary
-- `src/time.h`: timing boundary
+- `src/engine_time.h`: timing boundary
 - `src/lifecycle.h`: entity lifecycle boundary
 - `src/audio.h`: audio boundary
 - `src/ui.h`: HUD/UI boundary

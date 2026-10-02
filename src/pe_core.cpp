@@ -24,7 +24,7 @@
 #include "shader.h"
 #include "simulation.h"
 #include "tilemap.h"
-#include "time.h"
+#include "engine_time.h"
 #include "ui.h"
 
 namespace pe {

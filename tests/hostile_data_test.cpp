@@ -21,7 +21,7 @@
 #include "../src/scene.h"
 #include "../src/simulation.h"
 #include "../src/tilemap.h"
-#include "../src/time.h"
+#include "../src/engine_time.h"
 #include "../src/animation_data.h"
 #include "../src/lighting.h"
 #include "../src/renderer.h"

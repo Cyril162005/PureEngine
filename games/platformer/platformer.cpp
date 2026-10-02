@@ -24,7 +24,7 @@
 #include "../../src/renderer.h"
 #include "../../src/camera.h"
 #include "../../src/input.h"
-#include "../../src/time.h"
+#include "../../src/engine_time.h"
 #include "../../src/gamestate.h"
 #include "../../src/animation_data.h"
 #include "../../src/tilemap.h"

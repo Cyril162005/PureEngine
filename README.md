@@ -167,7 +167,7 @@ src/camera.h            the camera boundary: follow, lookAt view,
 src/input.h             the input boundary: key-state polling, edge detection,
                          previous-frame snapshot
 src/gamepad.h           gamepad snapshots: poll, deadzone, button edges
-src/time.h              the time boundary: frame-time, clamped delta
+src/engine_time.h        the time boundary: frame-time, clamped delta
 src/lifecycle.h         the entity lifecycle boundary: initial construction
                          (incl. hierarchy satellite), snapshot restore
 src/gamestate.h         game-state enum + predicates and per-state lookups

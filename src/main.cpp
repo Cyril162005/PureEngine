@@ -46,14 +46,14 @@
 // five textures, the entity draw loop, and the digit UI path — now
 // lives in pe::Renderer (src/renderer.h). main.cpp OWNS the window,
 // audio, entities, game state, camera position, projection, and the
-// high score — frame timing moved to pe::FrameTime (src/time.h) in
+// high score — frame timing moved to pe::FrameTime (src/engine_time.h) in
 // Step 17; it asks the renderer to initialize once and to
 // submit frames. Header-only like the math layer and entity.h — no
 // CMakeLists.txt change. Every seam the continuation steps split
 // out of it is now its own boundary: texture loading by Step 14
 // (src/resources.h), camera state/math by Step 15 (src/camera.h),
 // keyboard polling/edge detection by Step 16 (src/input.h),
-// frame-time acquisition by Step 17 (src/time.h), entity lifecycle
+// frame-time acquisition by Step 17 (src/engine_time.h), entity lifecycle
 // operations by Step 18 (src/lifecycle.h), and the UI digit path by
 // Step 21 (src/ui.h — glyph GL stays here, the numbers are formatted
 // there).
@@ -84,7 +84,7 @@
 
 // --- Step 17: Time/Timestep Boundary ---
 // Frame-time ACQUISITION moved out of this file into pe::FrameTime
-// (src/time.h): the previous-timestamp state, the pre-loop seed, the
+// (src/engine_time.h): the previous-timestamp state, the pre-loop seed, the
 // once-per-frame glfwGetTime() read, current-minus-previous, the
 // timestamp advance, and the float conversion. What STAYS here: what
 // the seconds MEAN — survivalTime, the difficulty scale, the timer
@@ -93,7 +93,7 @@
 // (top of the loop body, before glfwPollEvents), so every delta
 // still spans the entire previous frame. Header-only: no
 // CMakeLists.txt change. glfwGetTime() is now exclusive to time.h.
-#include "time.h"
+#include "engine_time.h"
 
 // --- Step 18: Entity Lifecycle Boundary ---
 // Entity CREATION and RESET-RESTORATION moved out of this file into
@@ -423,7 +423,7 @@
  *
  * Step 17: Time/Timestep Boundary
  * Goal: Separate frame-time acquisition from systems that consume
- *       delta time. src/time.h gains pe::FrameTime owning the
+ *       delta time. src/engine_time.h gains pe::FrameTime owning the
  *       previous-timestamp state: start() seeds it pre-loop (the old
  *       lastFrameTime init), tick() reads glfwGetTime() once, computes
  *       current-minus-previous, advances the stored timestamp, and
