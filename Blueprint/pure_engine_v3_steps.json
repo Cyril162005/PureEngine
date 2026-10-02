@@ -3002,6 +3002,17 @@
    "depends_on": [
     268
    ]
+  },
+  {
+   "id": 270,
+   "name": "Docs: hands-on Arcade findings + Q/E orbit investigation (verify-only)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 0dd556d, highest 269, v4 and v5 FROZEN, v6 not open - gate TRUE. HUMAN FINDINGS RECORDED VERBATIM (two of four had unfilled placeholder slots - recorded as UNREPORTED, not interpreted): (1) 'F1 overlay appears in the Arcade only. F1 is not wired in Platformer or Pong.' (2) 'Edge alignment (outline vs touching entity):' UNREPORTED - the v5 visual confirmation therefore STAYS PENDING (never CONFIRMED beyond what Cyril reported). (3) 'Q/E did not orbit the 3D camera; debug3d orbit 30 did.' Failing context UNREPORTED. (4) '3D check via debug3d on, meshid 0 5, texid 0 <n>, debug3d orbit 30: wedge visible, texture changes, lighting works.' INVESTIGATION (inspect only, file:line, NO fix): the documented contract at main.cpp:1250-1252 (the Step 229 comment: 'Q/E keys also orbit in the debug3d block below') is VIOLATED at runtime - no isEdge/isDown handler for GLFW_KEY_Q/E exists anywhere in main.cpp; the action map (input.h:90-98) has no orbit action and Q/E map to nothing; Q/E are only REGISTERED in the Input key list (main.cpp:870-876); git history: git log --all -S 'GLFW_KEY_Q)' is EMPTY - the wiring NEVER existed (Q/E entered the key list at e1488f2 with no consumer); checkOrbitEye covers only the headless orbitEye math (a shortcut, not the input path); the Step 229 tracker record says 'debug3d-only' (the Q/E orbit was never scoped there) - the in-code comment is the false claim. CLASS (exactly one): ENGINE DEFECT (the documented contract is violated at runtime). CLASSIFIED 'F1 only in Arcade': GAME-SPECIFIC BEHAVIOR (the engine provides public drawAABBs renderer.h:1082; the F1 toggle wired only in the Arcade main.cpp:1717-1718/:870/:2157; the Platformer and Pong have NO F1/drawAABBs references - grep none). v6 CANDIDATE LIST (Step 270): (1) the Q/E orbit wiring (the engine defect) - either wire the keys or correct the comment; failing condition: any (the handler's absence). v6 STAYS NOT OPEN.",
+   "notes": "No src/ or test changes (verify-only + docs). Gates: git diff --check clean; git diff --stat docs/tracker only; build + ctest still green. Docs edited with the edit tool only; the U+FFFD scan after editing: 0 in all four files; the remaining SESSION_BOARD mojibake (7 '?') untouched; dates from the system clock (2026-10-02). hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-270",
+   "depends_on": [
+    269
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

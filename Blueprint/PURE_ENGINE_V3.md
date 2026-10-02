@@ -870,6 +870,53 @@ The v5 version is COMPLETE/FROZEN only when:
 | the tracker records capabilities, limits, and findings | V3 + steps.json (267/268/269) + board + README | VERIFIED |
 | implementation is committed and pushed | 4c6c710 + c8475e5 pushed | VERIFIED |
 
+### Step 270: the hands-on Arcade findings (verify-only, no src/test changes)
+
+**Human findings, recorded verbatim:**
+- "F1 overlay appears in the Arcade only. F1 is not wired in Platformer
+  or Pong."
+- "Edge alignment (outline vs touching entity):" — **UNREPORTED** (the
+  FLUSH / OVERLAP / GAP slot was not filled in this session's prompt;
+  the v5 visual confirmation therefore stays **pending**).
+- "Q/E did not orbit the 3D camera; `debug3d orbit 30` did." Failing
+  context: **UNREPORTED** (the menu / play / debug3d-on only / after
+  cam slot was not filled).
+- "3D check via debug3d on, meshid 0 5, texid 0 <n>, debug3d orbit 30:
+  wedge visible, texture changes, lighting works."
+
+**Classifications (each exactly one class, not fixed):**
+- **"F1 only in Arcade" = game-specific behavior.** Evidence: the
+  engine provides the public drawAABBs (src/renderer.h:1082); the F1
+  toggle is wired ONLY in the Arcade (src/main.cpp:1717-1718, the
+  Input binding :870, the call :2157); the Platformer and Pong have NO
+  F1/drawAABBs references (grep: none in
+  games/platformer/platformer.cpp, games/pong/pong.cpp) — each game
+  chooses to wire the toggle.
+- **"Q/E did not orbit" = engine defect.** Evidence: the documented
+  contract at src/main.cpp:1250-1252 (the Step 229 comment: "Q/E keys
+  also orbit in the debug3d block below") is VIOLATED at runtime — no
+  isEdge/isDown handler for GLFW_KEY_Q/E exists anywhere in main.cpp;
+  the action map (src/input.h:90-98) has no orbit action and Q/E map
+  to nothing; Q/E are only REGISTERED in the Input key list
+  (src/main.cpp:870-876). Git history: `git log --all -S 'GLFW_KEY_Q)'`
+  is EMPTY — the wiring NEVER existed (Q/E entered the key list at
+  e1488f2 with no consumer); checkOrbitEye covers only the headless
+  orbitEye math (a shortcut, not the input path). The failing
+  condition: ANY game state / any debug3d state — the handler does not
+  exist, so the keys do nothing regardless. The Step 229 tracker
+  record says "debug3d-only" (the Q/E orbit was never scoped there) —
+  the in-code comment is the false claim.
+
+**v6 candidate list (Step 270):**
+1. **The Q/E orbit wiring (the engine defect above)** — the documented
+   contract at src/main.cpp:1250-1252 claims Q/E keys orbit the 3D
+   camera in the debug3d block; no handler exists; either wire the
+   keys or correct the comment. The failing condition: any (the
+   handler's absence).
+
+**v6 stays NOT OPEN** (recorded here only as candidates; opening v6 is
+a separate step's decision).
+
 ### Out of v5
 - No ECS, no editor, no networking, no glTF, no PBR, no new 3D work, no
   game content, no AI/MCP layer. Game-originated needs are CLASSIFIED
