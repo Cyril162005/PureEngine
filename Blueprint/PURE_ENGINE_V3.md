@@ -1481,5 +1481,95 @@ updates). v6 stays NOT OPEN.
   (existing capability / engine defect / missing capability /
   game-specific behavior), never added.
 
+## ENGINE v6 — third-party readiness (Step 280, OPEN)
+
+**Version name:** Engine v6 - third-party readiness. **Status: OPEN** —
+engine work only; games frozen. **v4 and v5 stay COMPLETE/FROZEN (Steps
+263/269); this version AMENDS only the two capabilities below;
+EVERYTHING ELSE in the v3/v4/v5 frozen contract lists is UNCHANGED.**
+
+### v6 scope (exactly two capabilities; no others unless a classified
+### finding with evidence is added)
+
+**(g) Engine header-name hygiene (Phase D Entry 8)**
+- Problem (one line): no src header may shadow a standard, C, or
+  third-party header when src is on the include path.
+- Evidence/repro (the Phase D exact): a 3-line TU `#include <ctime>` /
+  `int main() { return 0; }` with src on the include path
+  (`target_include_directories(t PRIVATE "${CMAKE_SOURCE_DIR}/src" "${glfw_SOURCE_DIR}/include")`)
+  fails: `ctime(21,25): error C2039: 'clock_t': is not a member of
+  'global namespace'` (+ asctime, clock) — MSVC resolves `<time.h>`
+  (pulled by <ctime>) through the /I dirs to the engine's src/time.h,
+  shadowing the standard header.
+- Composes with: the existing target/include-dir conventions (the
+  tests' relative includes are the current workaround).
+- Test path: a permanent header-hygiene target (registered in CTest)
+  compiled with src on its include path whose sources include the
+  colliding standard headers; runs and returns 0.
+- Blast radius: every #include site for each colliding header across
+  src, tests, games, consumers, CMake, and docs — the exact count
+  comes from step 281's grep (the KNOWN: main.cpp's include of time.h,
+  the src headers' include chains, the AGENTS.md doc reference, the
+  level_pipeline consumer's relative-include workaround).
+- Open design questions (recorded, decided in the fix step): the
+  rename target's name (the project's naming convention vs a pe_
+  prefix); whether the level_pipeline consumer's relative-include
+  workaround becomes unnecessary (leave it if unsure).
+
+**(h) Scene-manager load honors explicit paths (Phase D Entry 11)**
+- Problem (one line): saveSceneManagerToFile to an explicit path
+  returns true; loadSceneManagerFromFile of the same path returns
+  false silently.
+- Evidence/repro (the Phase D exact): the save to
+  "consumers/level_pipeline/rt_manager.txt" returns true; the load of
+  the same path returns false silently (the loader probes ONLY
+  assets/, ../assets/, ../../assets/ — scene.h:726-728 — while the
+  save honors explicit paths, :658-674; the sibling loadSceneFromFile
+  DOES honor explicit paths, :461-467).
+- Composes with: the sibling loaders' path-resolution convention (the
+  3-candidate probe + the explicit-path handling + the absolute-path
+  guard).
+- Test path: the Entry 11 repro (the explicit-path round-trip) in the
+  level_pipeline consumer; the existing assets/ round-trip unchanged;
+  a nonexistent path still returns false; the absolute-path behavior
+  matches the sibling loaders; the negative control.
+- Blast radius: loadSceneManagerFromFile only (one function); the
+  existing assets/ behavior preserved exactly.
+- Open design questions (recorded, decided in the fix step): the
+  explicit-path resolution's exact form (the sibling loaders'
+  pattern); the absolute-path guard's form (as the siblings).
+
+### Carry forward unchanged (recorded)
+- OOB texture sample is UB (the 246 fallback proven only indirectly,
+  the 258 audit).
+- The consumer's fallback-draw assert does not catch a no-op
+  clearRegisteredMeshes (the count assert does, the 258 nuance).
+- v5 visual confirmation: **pending**.
+- Q/E orbit = missing capability, NOT scheduled (the 271
+  reclassification).
+- Performance not eligible (the 273 verdict; the dev-machine limits).
+
+### v6 done-criteria (the v5 done-criteria form)
+The v6 version is COMPLETE/FROZEN only when:
+- every capability assigned to v6 is implemented;
+- behavior is deterministic where the contract requires it;
+- required error handling exists;
+- required regression tests exist;
+- the new asserts are MUTATION-CHECKED (each must FAIL under a
+  reverting mutation, run on the committed tree — the 258 audit
+  pattern);
+- required subsystem integration works at the engine boundaries;
+- existing tests remain green;
+- build/ctest/alive x3 have actual execution evidence;
+- the tracker records capabilities, limits, and findings;
+- implementation is committed and pushed.
+
+### Out of v6
+- No ECS, no editor, no scripting, no networking, no glTF, no PBR, no
+  retained UI, no materials, no new 3D work, no prefab diagnostics
+  rework, no game content, no AI/MCP layer. Game-originated needs are
+  CLASSIFIED (existing capability / engine defect / missing capability
+  / game-specific behavior), never added.
+
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.

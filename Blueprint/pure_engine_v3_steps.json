@@ -3112,6 +3112,17 @@
    "depends_on": [
     278
    ]
+  },
+  {
+   "id": 280,
+   "name": "Docs: open Engine v6 - third-party readiness (the two-capability scope)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 18eb402, highest 279, v4+v5 FROZEN, v6 NOT open - gate TRUE. OPENED 'Engine v6 - third-party readiness' in V3, the tracker, the board, README; v4 and v5 stay frozen; v6 amends only (g) and (h). SCOPE (exactly two capabilities, each with the problem/evidence/composes-with/test path/blast radius/open design questions): (g) ENGINE HEADER-NAME HYGIENE (Phase D Entry 8): no src header may shadow a standard, C, or third-party header when src is on the include path - the repro: a 3-line TU (#include <ctime> / int main) with src on /I gives ctime(21,25) C2039 'clock_t' (MSVC resolves <time.h> through the /I dirs to the engine's src/time.h); composes with the existing target/include-dir conventions (the tests' relative includes are the workaround); the test path: a permanent header-hygiene target (CTest-registered) compiled with src on its include path whose sources include the colliding standard headers; the blast radius: every #include site for each colliding header across src/tests/games/consumers/CMake/docs (the exact count comes from step 281's grep; the KNOWN: main.cpp's time.h include, the src headers' chains, the AGENTS.md doc reference, the consumer's workaround); the open design questions: the rename target's name (the convention vs pe_), the consumer's workaround removal (leave if unsure). (h) SCENE-MANAGER LOAD HONORS EXPLICIT PATHS (Phase D Entry 11): the save to an explicit path returns true, the load of the same path returns false silently - the repro: the save to consumers/level_pipeline/rt_manager.txt true; the load false silently (the loader probes ONLY assets/, ../assets/, ../../assets/, scene.h:726-728; the save honors explicit paths :658-674; the sibling loadSceneFromFile DOES honor them :461-467); composes with the sibling loaders' path-resolution convention; the test path: the Entry 11 repro in the consumer + the existing assets/ round-trip unchanged + a nonexistent path false + the absolute-path behavior matches the siblings + the negative control; the blast radius: loadSceneManagerFromFile only (one function), the existing assets/ behavior preserved exactly; the open design questions: the explicit-path resolution's exact form (the siblings' pattern), the absolute-path guard's form (as the siblings). CARRY FORWARD unchanged: OOB texture UB (258), the weak consumer fallback assert (258), v5 visual confirmation pending, Q/E orbit = missing capability not scheduled, performance not eligible (273). v6 done-criteria in the v5 form including MUTATION-CHECKED. Out of v6: ECS, editor, scripting, networking, glTF, PBR, retained UI, materials, new 3D work, prefab diagnostics rework, game content, AI/MCP layer.",
+   "notes": "No src/ or test changes (docs only). Gates: git diff --check clean; git diff --stat docs only; build + ctest green (the 279-era green). hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-280",
+   "depends_on": [
+    279
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
