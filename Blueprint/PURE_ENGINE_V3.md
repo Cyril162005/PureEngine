@@ -765,5 +765,82 @@ recommended-stop marker against the re-entry criteria. **MAIN does not:**
 implement audio/input/physics, commit another session's in-flight files,
 or force a conflict.
 
+## ENGINE v5 — 2D debug-draw correctness (Step 267, OPEN)
+
+**Version name:** Engine v5 - 2D debug-draw correctness. **Status: OPEN**
+— engine work only; games frozen. **v4 stays COMPLETE/FROZEN (Step 263);
+this version AMENDS only the capability below; EVERYTHING ELSE in the v3
+and v4 frozen contract lists is UNCHANGED.**
+
+### v5 scope (exactly one capability; no others unless a classified
+### finding with evidence is added)
+
+**(c) 2D AABB debug-draw size vs collision size**
+- Problem (one line): the debug quad is ±1 and the model scale is
+  halfExtents*scale*2, so the drawn box is 2x the collision box.
+- Contract (file:line): src/renderer.h:277 ("which the draw method
+  scales by halfExtents*2 to get the real box size") and
+  src/renderer.h:1083 ("This is the exact same box collision.h uses:
+  halfExtents * scale, doubled").
+- Current behavior (file:line): src/renderer.h:278-284 (the quad
+  corners are ±1) with src/renderer.h:1086-1088 (the model scale =
+  halfExtents*scale*2) — the drawn full size is 4·hx·s while the
+  collision box (src/collision.h:85-90: the half-extents =
+  halfExtents*scale) is 2·hx·s.
+- Blast radius (from real grep, not guessed):
+  - every caller of the quad: the aabbVertices array is uploaded ONCE
+    at init (src/renderer.h:289) into its OWN VAO/VBO
+    (src/renderer.h:285-289, member :1246 "Step 42: debug unit-square
+    line loop"), bound at exactly ONE draw site (src/renderer.h:1086,
+    inside Renderer::drawAABBs — the F1 toggle: src/main.cpp:1717-1718,
+    the Input binding :870, the call :2157), destroyed at teardown
+    (src/renderer.h:1215-1216).
+  - tests asserting debug-AABB size: NONE (grep: the only reference is
+    checkMeshSizing's comment citing the 2D AABB expression as the 3D
+    sizing source of truth, tests/hostile_data_test.cpp:6651 — the
+    expression, not the drawn size).
+  - docs depending on how the F1 boxes look: NONE (SMOKE_TEST.md: no
+    F1/AABB-debug references; GAME_BUILD.md's AABB mentions at :17/:28/
+    :43/:45 are the collision/balance facts, not the debug draw's
+    appearance).
+  - is the quad shared with non-debug drawing? NO — the aabb quad has
+    its own VAO/VBO; the 2D entity sprites use a separate ±0.5 quad
+    (src/renderer.h:701-704) and the fullscreen quads another
+    (src/renderer.h:1038-1041).
+- Open design questions (RECORDED, NOT decided here): change the quad
+  to ±0.5 (one array edit, the scale expression untouched), change the
+  scale expression (hx*s for a ±1 quad — the contract comment's intent),
+  or document a deliberate 2x overlay (the contract then changes). Is
+  the quad shared with non-debug drawing? — answered above: NO.
+
+### Carry forward (not fixed in v5, recorded)
+- OOB texture sample is UB (entityTextures[99] is an OOB vector access
+  = a crash, not a clean FAIL), so the 246 fallback is proven only
+  INDIRECTLY (the equivalent-safe mutation, the 258 audit).
+- The consumer's fallback-draw assert does NOT catch a no-op
+  clearRegisteredMeshes (a still-registered mesh also draws); the count
+  assert does (checkFrozen3DConsumer, the 258 audit's nuance).
+
+### v5 done-criteria (the v4 done-criteria form)
+The v5 version is COMPLETE/FROZEN only when:
+- every capability assigned to v5 is implemented;
+- behavior is deterministic where the contract requires it;
+- required error handling exists;
+- required regression tests exist;
+- the new asserts are MUTATION-CHECKED (each must FAIL under a
+  reverting mutation, run on the committed tree — the 258 audit
+  pattern);
+- required subsystem integration works at the engine boundaries;
+- existing tests remain green;
+- build/ctest/alive x3 have actual execution evidence;
+- the tracker records capabilities, limits, and findings;
+- implementation is committed and pushed.
+
+### Out of v5
+- No ECS, no editor, no networking, no glTF, no PBR, no new 3D work, no
+  game content, no AI/MCP layer. Game-originated needs are CLASSIFIED
+  (existing capability / engine defect / missing capability /
+  game-specific behavior), never added.
+
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.

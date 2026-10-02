@@ -13,11 +13,9 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–264; **Engine v4 - 3D correctness
-  COMPLETE/FROZEN at Step 263** (2026-10-01, HEAD f56e7d1) — (a)
-  world-space lighting and (b) the 3D sizing source of truth both
-  resolved; the frozen contract list + disclosed limits in
-  Blueprint/PURE_ENGINE_V3.md):
+- **Engine** (tracked steps 25–267; the 3D v4 version COMPLETE/FROZEN at
+  Step 263; **Engine v5 - 2D debug-draw correctness OPEN at 267** — scope:
+  (c) 2D AABB debug-draw size vs collision size):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),

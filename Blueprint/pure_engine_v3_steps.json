@@ -2969,6 +2969,17 @@
    "depends_on": [
     265
    ]
+  },
+  {
+   "id": 267,
+   "name": "Docs: open Engine v5 - 2D debug-draw correctness (the one-capability scope)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 9f05bee, highest 266, Engine v4 COMPLETE/FROZEN (V3:474), the recommended-stop note present (V3:684), v5 NOT open - ALL gate conditions TRUE. OPENED Engine v5 - 2D debug-draw correctness in V3, the tracker, the board, README; v4 stays frozen; v5 amends only (c). SCOPE (exactly one capability): (c) 2D AABB debug-draw size vs collision size - Problem: the debug quad is +-1 and the model scale is halfExtents*scale*2, so the drawn box is 2x the collision box. Contract (file:line): renderer.h:277 and :1083. Current behavior: renderer.h:278-284 (the quad) + :1086-1088 (the scale). Blast radius (from real grep, not guessed): the quad is uploaded ONCE at init into its OWN VAO/VBO (renderer.h:285-289, member :1246), bound at exactly ONE draw site (renderer.h:1086, inside Renderer::drawAABBs - the F1 toggle: main.cpp:1717-1718, Input binding :870, call :2157), destroyed at teardown (renderer.h:1215-1216); tests asserting debug-AABB size: NONE (the only reference is checkMeshSizing's comment citing the 2D expression, tests/hostile_data_test.cpp:6651); docs depending on how the F1 boxes look: NONE (SMOKE_TEST.md: no F1/AABB-debug references; GAME_BUILD.md's AABB mentions at :17/:28/:43/:45 are collision/balance facts); the quad is NOT shared with non-debug drawing (the sprite quad :701-704 and the fullscreen quads :1038-1041 are separate VAOs). Open design questions RECORDED NOT decided: change the quad to +-0.5, change the scale expression (hx*s for a +-1 quad), or document a deliberate 2x overlay. CARRY FORWARD (not fixed): OOB texture sample is UB (258); the weak consumer fallback-draw assert (258). v5 done-criteria in the v4 form including the MUTATION-CHECKED clause (each new assert must FAIL under a reverting mutation, run on the committed tree). Out of v5: no ECS, editor, networking, glTF, PBR, new 3D work, game content, AI/MCP layer.",
+   "notes": "No src/ or test changes (docs/tracker only). PROCESS NOTES: (1) the V3 v5 section was first written via a PowerShell here-string + Set-Content, which mangled the em-dash to a literal U+FFFD (EF BF BD) - caught by a byte-level scan, V3 restored from HEAD (the committed file was clean: 0 corrupted bytes), the section re-applied with the edit tool; (2) the SESSION_BOARD had PRE-EXISTING mojibake: 23 raw 0x97 bytes (the Windows-1252 em-dash, the encoding-determined recovery - fixed byte-level to the proper em-dashes) and 5 literal U+FFFD's (the unambiguous range dashes in the other sessions' rows - fixed byte-level to the en-dashes); 7 literal '?''s remain NOT fixed (5 are mangled arrows in the pre-existing workflow text, 2 are range dashes - per-occurrence judgment calls, out of the 267 scope); the board's stale facts re-applied (the highest-id 267, the 262-266 appends, the date from the system clock 2026-10-02, the resolved flag). Gates: git diff --check clean; git diff --stat docs/tracker only; build + ctest still green.",
+   "commit": "DOCS-267",
+   "depends_on": [
+    266
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
