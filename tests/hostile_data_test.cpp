@@ -6862,6 +6862,85 @@ static bool checkMeshSizeInvariantLighting() {
     glfwTerminate();
     return ok;
 }
+
+// Step 268: the (c) fix - the 2D AABB debug-draw size vs collision size
+// (real GL). THE INVARIANT: the F1 overlay's drawn outline equals the
+// ACTUAL collision box (halfExtents*scale, doubled) - the pre-268 quad
+// was +-1 so the drawn outline was 2x the collision box. Expected
+// extents COMPUTED in this test from the collision size and the
+// Camera's ortho projection (320 px / 12 units = 26.6667 px per unit,
+// and 240 px / 9 units = the same, the 4:3 ortho box) - never from
+// measured output. Mutation: revert the quad to +-1 -> the drawn
+// outline doubles -> the assert fails.
+static bool checkAABBDebugSize() {
+    bool ok = true;
+    if (!glfwInit()) { std::cerr << "aabbsize test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "aabbsize", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "aabbsize test skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "aabbsize test skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        pe::Entity e;
+        // The non-default halfExtents + scale: the collision half-extents
+        // (0.8, 0.6), the full box (1.6, 1.2) world units.
+        e.halfExtents = pe::Vec3(0.4f, 0.3f, 0.0f);
+        e.scale = pe::Vec3(2.0f, 2.0f, 1.0f);
+        e.position = pe::Vec3(0.0f, 0.0f, 0.0f);
+        e.roleId = 0;   // the Player role -> the orange tint
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "renderer init must succeed\n"; ok = false; }
+        else {
+            pe::Camera cam;   // the DEFAULT ortho: (-6..6, -4.5..4.5)
+            // The computed expectation: the px per unit = 320/12 =
+            // 26.6667 (and 240/9 = the same, the 4:3 ortho box); the
+            // full box (1.6, 1.2) -> the expected outline extents
+            // (42.67, 32) px.
+            const float pxPerUnitX = 320.0f / 12.0f;
+            const float pxPerUnitY = 240.0f / 9.0f;
+            const float expectW = 2.0f * 0.4f * 2.0f * pxPerUnitX;
+            const float expectH = 2.0f * 0.3f * 2.0f * pxPerUnitY;
+            std::vector<pe::Entity> entities;
+            entities.push_back(e);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            r.drawAABBs(cam.projection(), cam.view(), entities, 0);
+            // The outline's bounds: the min/max of the tinted (orange)
+            // pixels across the whole frame.
+            int minX = 320, maxX = -1, minY = 240, maxY = -1;
+            for (int y = 0; y < 240; ++y) {
+                for (int x = 0; x < 320; ++x) {
+                    unsigned char px[3] = {0, 0, 0};
+                    glReadPixels(x, y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, px);
+                    if (px[0] > 200 && px[2] < 50) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            const float drawnW = static_cast<float>(maxX - minX + 1);
+            const float drawnH = static_cast<float>(maxY - minY + 1);
+            std::cerr << "DIAG aabbsize: drawn " << drawnW << " x " << drawnH
+                      << " expected " << expectW << " x " << expectH << "\n";
+            if (!assertFloatClose(drawnW, expectW, 2.0f) ||
+                !assertFloatClose(drawnH, expectH, 2.0f)) {
+                std::cerr << "the F1 overlay's drawn outline must equal the collision box\n"; ok = false;
+            }
+        }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
 // Step 201: opt-in 3D debug-frame depth clear. THE ONE INVARIANT THAT
 // MATTERS, CI-proven under a real hidden-window GL context (same
 // pattern as checkDepthState): a depth clear that leaked into color
@@ -10350,6 +10429,7 @@ int main() {
     const bool meshWorldLightOk = checkMeshWorldLighting();
     const bool meshSizingOk = checkMeshSizing();
     const bool meshSizeInvariantOk = checkMeshSizeInvariantLighting();
+    const bool aabbDebugSizeOk = checkAABBDebugSize();
     const bool rotationYOk = checkRotationY();
     const bool massWeightingOk = checkMassWeighting();
     const bool tileResolveOk = checkTileResolve();
@@ -10404,7 +10484,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !meshWorldLightOk || !meshSizingOk || !meshSizeInvariantOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !meshWorldLightOk || !meshSizingOk || !meshSizeInvariantOk || !aabbDebugSizeOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

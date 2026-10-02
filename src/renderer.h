@@ -273,14 +273,17 @@ public:
         // --- Step 42: debug AABB line-loop geometry (unit square, 4 verts) ---
         // Same interleaved 5-float layout so the SAME shader + attribute
         // pointers consume it. UVs are set to (0,0) — sampled, irrelevant.
-        // The four corners visit a +1/-1 unit square in order, which the
-        // draw method scales by halfExtents*2 to get the real box size.
+        // Step 268 (the (c) fix): the four corners visit a +-0.5 unit
+        // square (the SAME native convention as the 3D meshes), which
+        // the draw method scales by halfExtents*2 to get the real box
+        // size - the pre-268 +-1 quad drew the outline 2x the collision
+        // box.
         float aabbVertices[] = {
             // position              // UV
-            -1.0f, -1.0f, 0.0f,     0.0f, 0.0f,   // bottom-left
-             1.0f, -1.0f, 0.0f,     0.0f, 0.0f,   // bottom-right
-             1.0f,  1.0f, 0.0f,     0.0f, 0.0f,   // top-right
-            -1.0f,  1.0f, 0.0f,     0.0f, 0.0f    // top-left
+            -0.5f, -0.5f, 0.0f,     0.0f, 0.0f,   // bottom-left
+             0.5f, -0.5f, 0.0f,     0.0f, 0.0f,   // bottom-right
+             0.5f,  0.5f, 0.0f,     0.0f, 0.0f,   // top-right
+            -0.5f,  0.5f, 0.0f,     0.0f, 0.0f    // top-left
         };
         glGenVertexArrays(1, &aabbVAO);
         glGenBuffers(1, &aabbVBO);
@@ -1093,10 +1096,13 @@ public:
         for (size_t i = 0; i < entities.size(); ++i) {
             const Entity& entity = entities[i];
             // Model transform for the AABB: translate to entity origin,
-            // SCALE to (halfExtent*2, halfExtent*2, 1) so the unit square
-            // (-1..+1) maps to the actual full-sized box, NO rotation —
-            // AABBs are axis-aligned by definition. This is the exact
-            // same box collision.h uses: halfExtents * scale, doubled.
+            // SCALE to (halfExtent*2, halfExtent*2, 1) so the +-0.5 unit
+            // square (the Step 268 quad, the 3D meshes' native
+            // convention) maps to the actual full-sized box, NO
+            // rotation — AABBs are axis-aligned by definition. This is
+            // the exact same box collision.h uses: halfExtents * scale,
+            // doubled. Drawn as a thin GL_LINE_LOOP outline (not a
+            // filled quad).
             const Mat4 aabbModel =
                 Mat4::translation(entity.position)
                 * Mat4::scale(Vec3(entity.halfExtents.x * entity.scale.x * 2.0f,
