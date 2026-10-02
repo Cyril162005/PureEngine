@@ -472,7 +472,7 @@ DEFERRED to the NEXT engine version (the recorded candidates):
 ## ENGINE v4 — 3D correctness (Step 259, COMPLETE/FROZEN Step 263)
 
 **Version name:** Engine v4 - 3D correctness. **Status: COMPLETE/FROZEN
-(Step 263, date 2026-10-01, HEAD f56e7d1)** — the done-criteria audit
+(Step 263, date 2026-10-02, HEAD f56e7d1)** — the done-criteria audit
 (10/10 VERIFIED, zero UNVERIFIED; fresh build/ctest/alive x3 exit 0 at
 f56e7d1) closes the version. Games frozen. **The version AMENDED the
 v3 3D frozen contract at exactly the two capabilities below ((a) and
@@ -660,25 +660,26 @@ The v4 version is COMPLETE/FROZEN only when:
 - 3D debug harness (debug3d/meshid/texid) — checkDebug3dParse,
   checkMeshIdParse, checkTexIdParse.
 
-### Disclosed items after v4 (Step 263, each with file:line citations)
-- **ENGINE DEFECT (candidate v5 first step): the 2D AABB debug draw's
-  quad is ±1** (src/renderer.h:278-284) **with the model scale
-  halfExtents*scale*2** (src/renderer.h:1086-1088), **so the drawn
-  debug box is 2x the collision size (4·hx·s vs the collision 2·hx·s,
-  collision.h:85-90), contradicting the documented contract at
+### Known limits after v4 (Step 265 consolidation; the four items from 263)
+- **ENGINE DEFECT (candidate v5 first step; NOT in v4): the 2D AABB
+  debug draw's quad is ±1** (src/renderer.h:278-284) **with the model
+  scale halfExtents*scale*2** (src/renderer.h:1086-1088), **so the
+  drawn debug box is 2x the collision size (4·hx·s vs the collision
+  2·hx·s, collision.h:85-90), contradicting the documented contract at
   src/renderer.h:277 ("scales by halfExtents*2 to get the real box
   size") and src/renderer.h:1083 ("This is the exact same box
   collision.h uses: halfExtents * scale, doubled").** Not fixed in v4;
-  no CI test pins the drawn size.
+  no CI test pins the drawn size; **candidate v5**.
 - **OOB texture sample is UB** (entityTextures[99] is an OOB vector
   access = a crash, not a clean FAIL), so the 246 fallback is proven
-  only INDIRECTLY (the equivalent-safe mutation, the 258 audit).
+  only INDIRECTLY (the equivalent-safe mutation, the 258 audit) —
+  **not in v4 / not scheduled**.
 - **The consumer's fallback-draw assert does NOT catch a no-op
   clearRegisteredMeshes** (a still-registered mesh also draws);
   the count assert does (checkFrozen3DConsumer:6151-6152, the 258
-  audit's nuance).
+  audit's nuance) — **not in v4 / not scheduled**.
 - **Out-of-v4 list stands**: no ECS, no editor, no glTF, no PBR, no
-  game content, no new subsystems.
+  game content, no new subsystems — **not in v4 / not scheduled**.
 
 ## Not started / pending engine debts (Step 236, docs-only)
 

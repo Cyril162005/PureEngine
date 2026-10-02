@@ -13,7 +13,7 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–263; **Engine v4 - 3D correctness
+- **Engine** (tracked steps 25–264; **Engine v4 - 3D correctness
   COMPLETE/FROZEN at Step 263** (2026-10-01, HEAD f56e7d1) — (a)
   world-space lighting and (b) the 3D sizing source of truth both
   resolved; the frozen contract list + disclosed limits in
