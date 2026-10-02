@@ -884,7 +884,8 @@ The v5 version is COMPLETE/FROZEN only when:
 - "3D check via debug3d on, meshid 0 5, texid 0 <n>, debug3d orbit 30:
   wedge visible, texture changes, lighting works."
 
-**Classifications (each exactly one class, not fixed):**
+**Classifications (each exactly one class, not fixed; RECLASSIFIED
+Step 271 with the full grep evidence):**
 - **"F1 only in Arcade" = game-specific behavior.** Evidence: the
   engine provides the public drawAABBs (src/renderer.h:1082); the F1
   toggle is wired ONLY in the Arcade (src/main.cpp:1717-1718, the
@@ -892,30 +893,53 @@ The v5 version is COMPLETE/FROZEN only when:
   F1/drawAABBs references (grep: none in
   games/platformer/platformer.cpp, games/pong/pong.cpp) — each game
   chooses to wire the toggle.
-- **"Q/E did not orbit" = engine defect.** Evidence: the documented
-  contract at src/main.cpp:1250-1252 (the Step 229 comment: "Q/E keys
-  also orbit in the debug3d block below") is VIOLATED at runtime — no
-  isEdge/isDown handler for GLFW_KEY_Q/E exists anywhere in main.cpp;
-  the action map (src/input.h:90-98) has no orbit action and Q/E map
-  to nothing; Q/E are only REGISTERED in the Input key list
-  (src/main.cpp:870-876). Git history: `git log --all -S 'GLFW_KEY_Q)'`
-  is EMPTY — the wiring NEVER existed (Q/E entered the key list at
-  e1488f2 with no consumer); checkOrbitEye covers only the headless
-  orbitEye math (a shortcut, not the input path). The failing
-  condition: ANY game state / any debug3d state — the handler does not
-  exist, so the keys do nothing regardless. The Step 229 tracker
-  record says "debug3d-only" (the Q/E orbit was never scoped there) —
-  the in-code comment is the false claim.
+- **"Q/E did not orbit" = RECLASSIFIED (Step 271) into TWO parts:**
+  - **The false claim at src/main.cpp:1250-1252 (the Step 229 comment:
+    "Q/E keys also orbit in the debug3d block below") = documentation
+    defect — FIXED in Step 271.** The comment now states the only
+    orbit is the `debug3d orbit <degrees>` console command and records
+    the 271 correction. Evidence: the wiring NEVER existed (`git log
+    --all -S 'GLFW_KEY_Q)'` empty; Q/E entered the key list at e1488f2
+    with no consumer); the authoritative tracker (the Step 229 record)
+    promises only the `debug3d orbit` command ("debug3d-only").
+  - **The Q/E keyboard orbit = missing capability, NOT scheduled, NOT
+    a v6 candidate** unless Cyril deliberately chooses it. Evidence:
+    no isEdge/isDown handler for GLFW_KEY_Q/E exists anywhere in
+    main.cpp; the action map (src/input.h:90-98) has no orbit action
+    and Q/E map to nothing; Q/E are only REGISTERED in the Input key
+    list (src/main.cpp:870-876); checkOrbitEye covers only the
+    headless orbitEye math (a shortcut, not the input path).
+- The FULL Q/E claim map (Step 271, grep): the ONLY behavior claim was
+  the main.cpp:1251 comment; the other hits (main.cpp:876 the key
+  list, input.h:160 the key-name parse, V3:157 the 224-era deferral
+  list) are registrations/history, not behavior claims;
+  SMOKE_TEST.md/AGENTS.md/README/console usage strings have none; no
+  test asserts the usage string's exact text.
 
-**v6 candidate list (Step 270):**
-1. **The Q/E orbit wiring (the engine defect above)** — the documented
-   contract at src/main.cpp:1250-1252 claims Q/E keys orbit the 3D
-   camera in the debug3d block; no handler exists; either wire the
-   keys or correct the comment. The failing condition: any (the
-   handler's absence).
+**v6 candidate list (Step 270, REVISED Step 271): EMPTY** (the 270's
+candidate #1 — the Q/E orbit wiring — was reclassified into the
+documentation defect fixed in 271 + the missing capability NOT
+scheduled; removing it from the candidate list).
 
 **v6 stays NOT OPEN** (recorded here only as candidates; opening v6 is
 a separate step's decision).
+
+### Step 271: the Q/E orbit false-claim correction (documentation defect)
+The full grep (Step 271) found the ONLY behavior claim was the
+main.cpp:1250-1252 comment ("Q/E keys also orbit in the debug3d block
+below" — the wiring never existed); the authoritative tracker (the
+Step 229/230 record) promises only the `debug3d orbit` console command
+("debug3d-only"). The 270's engine-defect classification was based on
+an incomplete claim map and is RECLASSIFIED into two parts: (1) the
+false claim in the comment = **documentation defect — FIXED in Step
+271** (the comment now states the only orbit is the `debug3d orbit
+<degrees>` console command and records the correction; the diff shows
+only comment lines, no logic — verified by build/ctest/alive exit 0);
+(2) the Q/E keyboard orbit = **missing capability, NOT scheduled, NOT
+a v6 candidate** unless Cyril deliberately chooses it. The 270's "v6
+candidate #1" is REMOVED (the candidate list is now EMPTY). No test
+asserts the usage string's exact text (the correction required no test
+updates). v6 stays NOT OPEN.
 
 ### Out of v5
 - No ECS, no editor, no networking, no glTF, no PBR, no new 3D work, no

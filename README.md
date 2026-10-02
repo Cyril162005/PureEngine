@@ -13,11 +13,13 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–270; **Engine v5 - 2D debug-draw
+- **Engine** (tracked steps 25–271; **Engine v5 - 2D debug-draw
   correctness COMPLETE/FROZEN at Step 269** (2026-10-02, HEAD c8475e5) —
   (c) the 2D AABB debug-draw size vs collision size resolved
   (pixel-verified; visual confirmation pending); the hands-on findings +
-  classifications + v6 candidates in Blueprint/PURE_ENGINE_V3.md):
+  classifications in Blueprint/PURE_ENGINE_V3.md; the Q/E orbit false
+  claim corrected in 271 (the orbit is via `debug3d orbit <degrees>`;
+  the keyboard orbit is a missing capability, not scheduled)):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),

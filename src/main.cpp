@@ -1248,8 +1248,11 @@ if (clip != animations.end()) {
             return std::string("usage: debug3d cam <ex> <ey> <ez> <tx> <ty> <tz>");
         }
         // --- Step 229: debug3d orbit <degrees> - the eye orbits the
-        // target on the XZ plane (pure orbitEye; Q/E keys also orbit in
-        // the debug3d block below). Garbage does not mutate the camera.
+        // target on the XZ plane (pure orbitEye; the ONLY orbit is this
+        // console command - no Q/E key wiring exists; the 229-era
+        // comment claimed Q/E keys orbit "in the debug3d block below",
+        // a false claim corrected in Step 271 - the wiring never
+        // existed). Garbage does not mutate the camera.
         if (args.size() == 2 && args[0] == "orbit") {
             float deg = 0.0f;
             if (pe::parseFloat1({args[1]}, deg)) {
