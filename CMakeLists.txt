@@ -243,6 +243,7 @@ add_executable(LevelPipelineConsumer
 target_include_directories(LevelPipelineConsumer PRIVATE "${glfw_SOURCE_DIR}/include")
 add_test(NAME LevelPipelineConsumer COMMAND LevelPipelineConsumer
          WORKING_DIRECTORY "$<TARGET_FILE_DIR:LevelPipelineConsumer>")
+set_tests_properties(LevelPipelineConsumer PROPERTIES TIMEOUT 60)
 add_custom_command(TARGET LevelPipelineConsumer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/consumers/level_pipeline" "$<TARGET_FILE_DIR:LevelPipelineConsumer>/consumers/level_pipeline"
 )

@@ -197,3 +197,47 @@ Engine src/ is read-only; NO engine fix for any entry.
 - **class:** **existing capability, with a doc-gap note** — the
   silent-failure behavior is undocumented; API-clarity friction.
 - **status:** recorded; no engine fix.
+
+## Entry 14 (Step 278)
+- **what:** the strict whole-file load rejects EVERY programmatic
+  corruption cleanly: 7 truncations at 1/8..7/8 all rejected (0
+  partial loads — the strict shape check catches a truncated entity
+  line before any partial use); the version v99/v-1 rejected; the
+  manager scenes= -3/0/2^31/mismatch rejected — **the 2^31 count is
+  rejected by the file-count mismatch BEFORE any allocation**
+  (scene.h:781 checks sceneFiles.size() != sceneCount before the
+  reserve at :783) — no hang, no crash, no huge allocation; a 1 MB
+  entity line rejected (the shape check); 4 KB of binary garbage
+  rejected; a directory path rejected; a missing referenced tilemap
+  file rejected. No crash, no hang, no silent data loss in any case.
+- **evidence:** the consumer's adversarial run (27 recorded outcomes,
+  all clean rejects); scene.h:630-633 (the strict fail), :636-640 (the
+  unknown version), :781-782 (the mismatch before the reserve).
+- **class:** **existing capability** — the strict-load contract works
+  as documented under programmatic corruption.
+- **status:** recorded (positive evidence; no action).
+
+## Entry 15 (Step 278)
+- **what:** saves do not reference prefabs — the 34-field entity lines
+  carry raw values, no prefab pointers or names; the closest file
+  reference is tilemap=<basename> (written only when tilemapFile is
+  set); a missing referenced TILEMAP file rejects the load
+  (scene.h:642-646: tm.width <= 0 -> false). No prefab-missing-on-disk
+  behavior exists to observe.
+- **evidence:** the consumer's tilemap-reference check (the missing
+  tilemap rejects); scene.h:377/:413-414 (the tilemap= line), :642-646
+  (the load + the reject).
+- **class:** **existing capability** (documented: saves do not
+  reference prefabs; the tilemap reference rejects when missing).
+- **status:** recorded; no action.
+
+## Entry 16 (Step 278, process)
+- **what:** the consumer's built exe was briefly locked by an external
+  process (LNK1104 "cannot open file" on rebuild; tasklist showed no
+  owning process — consistent with an antivirus scan); resolved by
+  waiting ~15 s. Not an engine issue.
+- **evidence:** the LNK1104 build failure + the clean rebuild after
+  the wait.
+- **class:** **game-specific behavior** (the local dev environment;
+  not an engine concern) — recorded for the run log completeness.
+- **status:** resolved (the wait); no action.

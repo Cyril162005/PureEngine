@@ -533,6 +533,186 @@ static void checkManagerPersistence() {
     }
 }
 
+// ---- Step 278: adversarial persistence ----
+// Corrupt inputs GENERATED PROGRAMMATICALLY from a valid save (not
+// hand-edited). For each: the outcome recorded (the error / the partial
+// load / the default fill / the crash / the hang / the huge allocation).
+// The CTest TIMEOUT (60s) guards hangs; input sizes capped.
+static void readTextFile(const char* name, std::string& out) {
+    std::ifstream f(name, std::ios::binary);
+    out.assign((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+}
+
+static void checkAdversarialPersistence() {
+    // A valid scene save + a valid manager save as the corruption bases.
+    pe::Scene valid;
+    valid.name = "adv";
+    pe::Prefab tile, enemy;
+    if (!pe::loadPrefab(kTileFile, tile) || !pe::loadPrefab(kEnemyFile, enemy)) {
+        check(false, "adversarial: the prefabs must load");
+        return;
+    }
+    valid.queueSpawn(pe::instantiatePrefab(tile, pe::Vec3(0, 0, 0)));
+    valid.queueSpawn(pe::instantiatePrefab(enemy, pe::Vec3(1, 1, 0)));
+    valid.flushSpawns();
+    const char* kAdvScene = "consumers/level_pipeline/adv_scene.txt";
+    const char* kAdvMgr = "rt_adv_manager.txt";
+    const bool okScene = pe::saveSceneToFile(valid, kAdvScene);
+    pe::SceneManager vm;
+    pe::loadScene(vm, "adv");
+    const bool okMgr = pe::saveSceneManagerToFile(vm, kAdvMgr);
+    if (!okScene || !okMgr) {
+        check(false, "adversarial: the valid saves must succeed");
+        return;
+    }
+    std::string validText, validMgrText;
+    readTextFile(kAdvScene, validText);
+    readTextFile("assets/rt_adv_manager.txt", validMgrText);
+    check(!validText.empty() && !validMgrText.empty(), "adversarial: the valid save texts captured");
+
+    // 1. Truncated at every 1/8 of a valid save (7 truncation points).
+    {
+        int partialLoads = 0, cleanRejects = 0;
+        for (int i = 1; i <= 7; ++i) {
+            const std::size_t cut = validText.size() * i / 8;
+            std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc);
+            f << validText.substr(0, cut);
+            f.close();
+            pe::Scene t;
+            const bool ok = pe::loadSceneFromFile(kAdvScene, t);
+            if (ok) { ++partialLoads; } else { ++cleanRejects; }
+        }
+        std::printf("OBSERVED: truncations at 1/8..7/8: %d partial loads, %d clean rejects\n",
+                    partialLoads, cleanRejects);
+        check(partialLoads + cleanRejects == 7, "adversarial: all 7 truncations produced a recorded outcome");
+        check(partialLoads <= 2, "adversarial: at most the first truncation(s) before scene= are partial loads");
+        // Restore the valid save for the later cases.
+        { std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc); f << validText; }
+    }
+    // 2. The version field: missing header, higher (v99), negative (v-1).
+    {
+        // Missing: no "# scene vN" line at all (the comments only).
+        { std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc);
+          f << "# just a comment\nscene=adv\nentity="; for (std::size_t i = 0; i < 33; ++i) f << "0,";
+          f << "0\n"; }
+        pe::Scene t;
+        const bool ok = pe::loadSceneFromFile(kAdvScene, t);
+        // OBSERVED: no header defaults to v1 and PARSES (the v1 default).
+        std::printf("OBSERVED: missing version header: %s (defaults to v1)\n", ok ? "LOADS" : "rejects");
+        // Higher: v99.
+        { std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc);
+          f << "# scene v99\nscene=adv\n"; }
+        pe::Scene t2;
+        const bool ok2 = pe::loadSceneFromFile(kAdvScene, t2);
+        check(!ok2, "adversarial: version v99 rejected (warn + false, out untouched)");
+        // Negative: v-1.
+        { std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc);
+          f << "# scene v-1\nscene=adv\n"; }
+        pe::Scene t3;
+        const bool ok3 = pe::loadSceneFromFile(kAdvScene, t3);
+        // OBSERVED: v-1 parses as an int; fileVersion=-1 -> the unknown-version check fires -> false.
+        check(!ok3, "adversarial: version v-1 rejected (the unknown-version check)");
+        // The manager loader: the version v99.
+        { std::ofstream f("assets/rt_adv_manager.txt", std::ios::binary | std::ios::trunc);
+          f << "# scene manager v99\nscenes=1\ncurrent=0\nscene_file=scene_adv.txt\n"; }
+        pe::SceneManager tm;
+        const bool okM = pe::loadSceneManagerFromFile(kAdvMgr, tm);
+        check(!okM, "adversarial: the manager version v99 rejected");
+        { std::ofstream f("assets/rt_adv_manager.txt", std::ios::binary | std::ios::trunc); f << validMgrText; }
+    }
+    // 3. The count fields: negative, zero, 2^31, mismatching the actual entries.
+    {
+        // The manager scenes=: negative.
+        { std::ofstream f("assets/rt_adv_manager.txt", std::ios::binary | std::ios::trunc);
+          f << "# scene manager v1\nscenes=-3\ncurrent=0\nscene_file=scene_adv.txt\n"; }
+        pe::SceneManager tm;
+        check(!pe::loadSceneManagerFromFile(kAdvMgr, tm), "adversarial: scenes=-3 rejected");
+        // Zero.
+        { std::ofstream f("assets/rt_adv_manager.txt", std::ios::binary | std::ios::trunc);
+          f << "# scene manager v1\nscenes=0\ncurrent=0\nscene_file=scene_adv.txt\n"; }
+        pe::SceneManager tm2;
+        check(!pe::loadSceneManagerFromFile(kAdvMgr, tm2), "adversarial: scenes=0 rejected");
+        // 2^31: the parse accepts; the file-count mismatch rejects BEFORE
+        // any allocation (the mismatch check is before the reserve).
+        { std::ofstream f("assets/rt_adv_manager.txt", std::ios::binary | std::ios::trunc);
+          f << "# scene manager v1\nscenes=2147483647\ncurrent=0\nscene_file=scene_adv.txt\n"; }
+        pe::SceneManager tm3;
+        const bool ok3 = pe::loadSceneManagerFromFile(kAdvMgr, tm3);
+        // OBSERVED: the count mismatch (1 file vs 2147483647) rejects
+        // silently BEFORE any huge allocation - no hang, no crash.
+        std::printf("OBSERVED: scenes=2^31: %s (the file-count mismatch rejects before the reserve)\n",
+                    ok3 ? "LOADS (unexpected!)" : "rejects before allocation");
+        check(!ok3, "adversarial: scenes=2^31 rejected by the file-count mismatch (no huge allocation)");
+        // The manager scenes= count MISMATCHING the actual entries (the
+        // count 3, one file).
+        { std::ofstream f("assets/rt_adv_manager.txt", std::ios::binary | std::ios::trunc);
+          f << "# scene manager v1\nscenes=3\ncurrent=0\nscene_file=scene_adv.txt\n"; }
+        pe::SceneManager tm4;
+        check(!pe::loadSceneManagerFromFile(kAdvMgr, tm4), "adversarial: the scenes count mismatching the entries rejected");
+        { std::ofstream f("assets/rt_adv_manager.txt", std::ios::binary | std::ios::trunc); f << validMgrText; }
+    }
+    // 4. The duplicate scene= line (the scene loader rejects).
+    {
+        { std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc);
+          f << "# scene v2\nscene=adv\nscene=adv2\n"; }
+        pe::Scene t;
+        check(!pe::loadSceneFromFile(kAdvScene, t), "adversarial: the duplicate scene= line rejected");
+        // NOTE: the save format has NO entity ids - the entity lines are
+        // positional; there is nothing to duplicate at the entity level.
+    }
+    // 5. An extremely long line (1 MB, capped).
+    {
+        { std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc);
+          f << "# scene v2\nscene=adv\nentity=";
+          for (int i = 0; i < 1000000; ++i) f << 'x';
+          f << "\n"; }
+        pe::Scene t;
+        const bool ok = pe::loadSceneFromFile(kAdvScene, t);
+        // OBSERVED: the 1 MB line: the split produces 1 part -> neither
+        // 14 nor 34 -> strict false. No hang (the TIMEOUT guards).
+        std::printf("OBSERVED: a 1 MB entity line: %s (the strict shape check)\n", ok ? "LOADS (unexpected!)" : "rejected");
+        check(!ok, "adversarial: the 1 MB line rejected (no hang, no huge allocation)");
+    }
+    // 6. Binary garbage.
+    {
+        { std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc);
+          for (int i = 0; i < 4096; ++i) f << (char)(i % 251 + 1); }
+        pe::Scene t;
+        const bool ok = pe::loadSceneFromFile(kAdvScene, t);
+        std::printf("OBSERVED: 4 KB of binary garbage: %s\n", ok ? "LOADS (unexpected!)" : "rejected");
+        check(!ok, "adversarial: binary garbage rejected");
+    }
+    // 7. Empty file (the 276 covered it; re-record here for the record).
+    {
+        { std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc); }
+        pe::Scene t;
+        check(!pe::loadSceneFromFile(kAdvScene, t), "adversarial: the empty file rejected (the header check)");
+    }
+    // 8. A directory path instead of file.
+    {
+        pe::Scene t;
+        const bool ok = pe::loadSceneFromFile("consumers", t);
+        // OBSERVED: the ifstream on a directory: the open may succeed on
+        // Windows; the getline fails -> the header check -> false.
+        std::printf("OBSERVED: a directory path: %s\n", ok ? "LOADS (unexpected!)" : "rejected");
+        check(!ok, "adversarial: a directory path rejected");
+    }
+    // 9. Saves do not reference prefabs (recorded): the 34-field entity
+    // lines carry raw values, no prefab pointers; the closest file
+    // reference is tilemap=<basename> - a MISSING tilemap file rejects
+    // the load (scene.h:642-646: tm.width <= 0 -> false).
+    {
+        { std::ofstream f(kAdvScene, std::ios::binary | std::ios::trunc);
+          f << "# scene v2\nscene=adv\ntilemap=no_such_tilemap_zz.txt\n"; }
+        pe::Scene t;
+        const bool ok = pe::loadSceneFromFile(kAdvScene, t);
+        check(!ok, "adversarial: a missing referenced tilemap file rejects the load (saves reference tilemaps, not prefabs)");
+    }
+    std::remove(kAdvScene);
+    std::remove(kAdvMgr);
+    std::remove("assets/rt_adv_manager.txt");
+}
+
 int main() {
     std::printf("Phase D consumer: level pipeline (Step 275)\n");
     checkLoadAndInstantiate();
@@ -540,6 +720,7 @@ int main() {
     checkSceneComposition();
     checkSceneRoundTrip();
     checkManagerPersistence();
+    checkAdversarialPersistence();
     if (failures > 0) {
         std::printf("level_pipeline consumer: FAILED (%d)\n", failures);
         return 1;
