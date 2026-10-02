@@ -1204,6 +1204,65 @@ bit-exact; the 4dp precision is undocumented; observed, not asserted).
 0.29s), exit 0; alive x3 exit 0; git diff --check clean; git diff
 --stat -- src/ EMPTY (verified).
 
+### Phase D consumer: level pipeline (Step 277) — the scene-manager persistence, v6 stays NOT OPEN
+
+**The inspection (file:line):** saveSceneManagerToFile (:651-711): the
+index format "# scene manager v1" + scenes=<count> + current=<index> +
+one scene_file=scene_<name>.txt per scene; the per-scene saves go
+through saveSceneToFile (the bare names → the 3-candidate probe); the
+tmp+rename atomic save (fs::rename :704-709); if a per-scene save
+fails, the index's tmp is removed and false returned — but the
+per-scene files saved before the failure REMAIN (the partial state);
+loadSceneManagerToFile (:724-794): strict whole-file (the duplicates,
+the count mismatch, the bad current index, any failed scene load, the
+unknown prefix → false, out untouched); current=-1 valid; **the
+explicit paths are NOT honored by the loader** (the candidates:
+assets/ only, :726-728 — the save honors them, the load does not);
+**load into a non-empty manager: out = tmp (REPLACE, observed)**;
+scenes= ≤0 rejected at :759.
+
+**The checks (all PASS; ctest 3/3):**
+- The manager with 3 scenes of different content (alpha/beta/gamma);
+  save; load into a fresh manager; the scene count, order, names, each
+  scene's content (the beta entity field-exact), the active scene
+  index — all round-trip.
+- The overwrite: the re-save with the existing destination works
+  (fs::rename replaces).
+- The save to a nonexistent directory: create_directories honored
+  (the documented dir auto-create).
+- **Load into a non-empty manager: OBSERVED = REPLACE** (the loaded
+  content replaces; no merge — recorded, not asserted as correct).
+- **Repeated save/load ×20: no growth or drift** (the count, the name,
+  the content stable; the manager reassigned each iteration).
+- **A leftover .tmp file: does not affect the load** (the loader
+  parses only the index itself; observed, recorded).
+- **The negative control:** the loaded manager's current index altered
+  to 5; the comparator reports it ✓.
+
+**NEW FINDINGS (Entry 11, Entry 12, Entry 13):** (11) the
+**save/load path asymmetry** — the loader honors ONLY the
+3-candidate probe (assets/), the save honors explicit paths; the
+round-trip breaks for every non-assets path (the repro: the save to
+consumers/... returns true; the load of the same path returns false
+silently) — **missing capability** + doc-gap; worked around inside
+the consumer (the bare name, probe-reachable); (12) the **dangling
+Scene&** — a loadScene call may reallocate the scenes vector; a
+Scene& taken before a later loadScene dangles; the consumer took s2
+and used it after the s3 loadScene → **the access violation
+(0xC0000005), the process crashed with the stdout buffer lost** — the
+documented rule (scene.h:108-109: reserve + re-take) exists and was
+violated by the consumer — existing capability (the engine behaved as
+documented) with the safety note that the raw-reference API makes the
+rule load-bearing; worked around inside the consumer (reserve(3) +
+the compared values copied); (13) the **loader's silent false
+returns** — no stderr for the count mismatch/bad index/failed scene
+load/unknown prefix (only the unknown version warns) — the failure
+reason had to be deduced by inspection — API-clarity friction.
+
+**Gates:** build exit 0; ctest -C Release 3/3 100% (10.45s/0.77s/
+0.12s), exit 0; alive x3 exit 0; git diff --check clean; git diff
+--stat -- src/ EMPTY (verified).
+
 ### Capability audit and candidate list (Step 272) — docs/measurement only, v6 stays NOT OPEN
 
 **1) Capability inventory (whole engine).** 173 test functions in

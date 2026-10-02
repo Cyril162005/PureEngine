@@ -3079,6 +3079,17 @@
    "depends_on": [
     275
    ]
+  },
+  {
+   "id": 277,
+   "name": "Consumer: scene-manager persistence (Step 277)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 1838f33, highest 276 - gate TRUE. STEP 1 (the inspection, file:line): saveSceneManagerToFile (:651-711): the index format '# scene manager v1' + scenes=<count> + current=<index> + one scene_file=scene_<name>.txt per scene; the per-scene saves go through saveSceneToFile (the bare names -> the 3-candidate probe); the tmp+rename atomic save (fs::rename :704-709); a per-scene save failure removes the index's tmp and returns false but the per-scene files saved before the failure REMAIN (the partial state); loadSceneManagerFromFile (:724-794): strict whole-file (the duplicates, the count mismatch, the bad current index, any failed scene load, the unknown prefix -> false, out untouched); current=-1 valid; the explicit paths NOT honored by the loader (the candidates: assets/ only :726-728 - the save honors them); load into a non-empty manager: out = tmp (REPLACE); scenes= <=0 rejected at :759. STEP 2 (the checks, all PASS): the 3-scene manager round-trip (the count/order/names/content field-exact/the active index); the overwrite works (fs::rename replaces); the save to a nonexistent directory auto-creates it; the load into a non-empty manager: OBSERVED = REPLACE (recorded, not asserted as correct); the repeated save/load x20: no growth or drift; a leftover .tmp does not affect the load (observed, recorded); the negative control reports the altered current index.",
+   "notes": "NEW FINDINGS (Entry 11, Entry 12, Entry 13): (11) the save/load PATH ASYMMETRY - the loader honors ONLY the 3-candidate probe (assets/), the save honors explicit paths; the round-trip breaks for every non-assets path (the repro: the save to consumers/... returns true; the load of the same path returns false silently) - MISSING CAPABILITY + doc-gap; worked around inside the consumer (the bare name rt_manager.txt, probe-reachable); (12) the DANGLING Scene& - a loadScene call may reallocate the scenes vector; a Scene& taken before a later loadScene dangles; the consumer took s2 and used it after the s3 loadScene -> the ACCESS VIOLATION (0xC0000005), the process crashed with the stdout buffer lost - the documented rule (scene.h:108-109: reserve + re-take) exists and was violated by the consumer - existing capability (the engine behaved as documented) with the safety note that the raw-reference API makes the rule load-bearing; worked around inside the consumer (reserve(3) + the compared values copied to a local before the later loadScene); (13) the loader's SILENT false returns - no stderr for the count mismatch/bad index/failed scene load/unknown prefix (only the unknown version warns) - the failure reason had to be deduced by inspection - API-clarity friction. PROCESS NOTE: the consumer's stdout buffering lost the crash's output; fflush added to check() so crashes are diagnosable. Gates: build exit 0; ctest -C Release 3/3 100% (10.45s/0.77s/0.12s), exit 0; alive x3 exit 0; git diff --check clean; git diff --stat -- src/ EMPTY (verified). hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-277",
+   "depends_on": [
+    276
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
