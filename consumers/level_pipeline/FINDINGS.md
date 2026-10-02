@@ -111,3 +111,35 @@ Engine src/ is read-only; NO engine fix for any entry.
   targets' relative-include pattern is the workaround; not fixed here.
 - **status:** recorded, worked around inside the consumer (no engine
   fix).
+
+## Entry 9 (Step 276)
+- **what:** saveSceneToFile's fs::rename fails with a sharing violation
+  when the destination file has an OPEN read handle (a std::ifstream
+  left open by the caller). The FIRST consumer run of the save->load->
+  save check failed ("the second save succeeds") because the s1
+  ifstream was still in scope; the engine's documented error return
+  worked correctly (saveSceneToFile returned false, the tmp removed) —
+  the failure was the consumer's unclosed handle, not the engine.
+- **evidence (exact repro):** a std::ifstream on <file> left in scope;
+  pe::saveSceneToFile(scene, <file>) called again; the rename fails
+  (the Windows sharing violation), saveSceneToFile returns false.
+  src/scene.h:443-448 (the rename + the error return); the consumer's
+  fixed code (the inner scope closes f1 before the second save).
+- **class:** **existing capability** (the documented error return
+  works) with a doc-gap note — saveSceneToFile's doc does not say the
+  rename fails if the destination is open elsewhere on Windows.
+- **status:** recorded, worked around inside the consumer (the handle
+  closed); no engine fix.
+
+## Entry 10 (Step 276)
+- **what:** the 34-field v2 format serializes floats at 4dp fixed
+  precision (scene.h:418) — the values with more than 4 decimals do
+  NOT round-trip bit-exact (1e-6 -> 0.0000; 0.12345678 -> 0.1235);
+  values at 4dp or coarser (0.1f, 0, -1.5, 1e30) round-trip exactly;
+  save->load->save is byte-identical (the 4dp rounding is idempotent).
+- **evidence:** the consumer's float-edge checks (all PASS as
+  OBSERVED-recorded); src/scene.h:418 (std::fixed << setprecision(4)).
+- **class:** **existing capability, with a doc-gap note** — the 4dp
+  precision is UNDOCUMENTED in the format comment (scene.h:372-380);
+  observed, not asserted as correct.
+- **status:** recorded; no engine fix.

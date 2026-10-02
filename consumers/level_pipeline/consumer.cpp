@@ -211,11 +211,186 @@ static void checkSceneComposition() {
     }
 }
 
+// ---- Step 276: the scene save/load round-trip ----
+// The documented serialized fields (scene.h:372-380, the 34-field v2
+// format, 4dp fixed precision at :418): the position, the rotationAngle,
+// the rotationSpeed, the scale, the halfExtents, the textureId, the
+// depth, the roleId, the moveSpeed, the velocity, the gravityScale,
+// the isStatic, the coyoteTime, the jumpImpulse, the maxFallSpeed, the
+// tint, the cols, the rows, the health, the timer, the tag, the
+// parentIndex, the animationSpeed, the currentClipName. The documented
+// NON-serialized runtime state (NOT compared): the alive flag is not a
+// field (the dead are skipped at :420), the coyoteTimer/wasGrounded/
+// animationState/wasGrounded runtime fields are not in the 34-field
+// list.
+static const char* kRtSceneFile = "consumers/level_pipeline/rt_scene.txt";
+
+static bool entityFieldMatches(const pe::Entity& a, const pe::Entity& b, std::string& diff) {
+    if (!floatEq(a.position.x, b.position.x) || !floatEq(a.position.y, b.position.y) || !floatEq(a.position.z, b.position.z)) { diff = "position"; return false; }
+    if (!floatEq(a.rotationAngle, b.rotationAngle)) { diff = "rotationAngle"; return false; }
+    if (!floatEq(a.rotationSpeed, b.rotationSpeed)) { diff = "rotationSpeed"; return false; }
+    if (!floatEq(a.scale.x, b.scale.x) || !floatEq(a.scale.y, b.scale.y) || !floatEq(a.scale.z, b.scale.z)) { diff = "scale"; return false; }
+    if (!floatEq(a.halfExtents.x, b.halfExtents.x) || !floatEq(a.halfExtents.y, b.halfExtents.y) || !floatEq(a.halfExtents.z, b.halfExtents.z)) { diff = "halfExtents"; return false; }
+    if (a.textureId != b.textureId) { diff = "textureId"; return false; }
+    if (a.depth != b.depth) { diff = "depth"; return false; }
+    if (a.roleId != b.roleId) { diff = "roleId"; return false; }
+    if (!floatEq(a.moveSpeed, b.moveSpeed)) { diff = "moveSpeed"; return false; }
+    if (!floatEq(a.velocity.x, b.velocity.x) || !floatEq(a.velocity.y, b.velocity.y) || !floatEq(a.velocity.z, b.velocity.z)) { diff = "velocity"; return false; }
+    if (!floatEq(a.gravityScale, b.gravityScale)) { diff = "gravityScale"; return false; }
+    if (a.isStatic != b.isStatic) { diff = "isStatic"; return false; }
+    if (!floatEq(a.coyoteTime, b.coyoteTime)) { diff = "coyoteTime"; return false; }
+    if (!floatEq(a.jumpImpulse, b.jumpImpulse)) { diff = "jumpImpulse"; return false; }
+    if (!floatEq(a.maxFallSpeed, b.maxFallSpeed)) { diff = "maxFallSpeed"; return false; }
+    if (!floatEq(a.tint.x, b.tint.x) || !floatEq(a.tint.y, b.tint.y) || !floatEq(a.tint.z, b.tint.z)) { diff = "tint"; return false; }
+    if (a.cols != b.cols || a.rows != b.rows) { diff = "cols/rows"; return false; }
+    if (!floatEq(a.health, b.health)) { diff = "health"; return false; }
+    if (!floatEq(a.timer, b.timer)) { diff = "timer"; return false; }
+    if (a.tag != b.tag) { diff = "tag"; return false; }
+    if (a.parentIndex != b.parentIndex) { diff = "parentIndex"; return false; }
+    if (!floatEq(a.animationSpeed, b.animationSpeed)) { diff = "animationSpeed"; return false; }
+    if (a.currentClipName != b.currentClipName) { diff = "currentClipName"; return false; }
+    return true;
+}
+
+static void checkSceneRoundTrip() {
+    // Build the scene from the 3 prefabs at distinct positions.
+    pe::Prefab tile, pickup, enemy;
+    if (!pe::loadPrefab(kTileFile, tile) || !pe::loadPrefab(kPickupFile, pickup) || !pe::loadPrefab(kEnemyFile, enemy)) {
+        check(false, "round-trip: the three prefabs must load");
+        return;
+    }
+    pe::Scene scene;
+    scene.name = "consumer_roundtrip";
+    scene.queueSpawn(pe::instantiatePrefab(tile, pe::Vec3(0.0f, 0.0f, 0.0f)));
+    scene.queueSpawn(pe::instantiatePrefab(pickup, pe::Vec3(1.5f, -2.5f, 0.0f)));
+    scene.queueSpawn(pe::instantiatePrefab(enemy, pe::Vec3(3.0f, 3.0f, 0.0f)));
+    scene.flushSpawns();
+    check(scene.entities.size() == 3, "round-trip: the scene built from 3 prefabs");
+    // The enemy gets distinct float values for the round-trip comparison.
+    scene.entities[2].velocity = pe::Vec3(0.5f, -0.25f, 0.0f);
+    scene.entities[2].timer = 1.5f;
+    scene.entities[2].animationSpeed = 2.0f;
+    scene.entities[2].rotationAngle = 0.75f;
+
+    // Save.
+    const bool saved = pe::saveSceneToFile(scene, kRtSceneFile);
+    check(saved, "round-trip: saveSceneToFile succeeds");
+
+    // Load into a fresh Scene.
+    pe::Scene loaded;
+    const bool ok = pe::loadSceneFromFile(kRtSceneFile, loaded);
+    check(ok, "round-trip: loadSceneFromFile succeeds");
+    check(loaded.name == "consumer_roundtrip", "round-trip: the scene name round-trips");
+    check(loaded.entities.size() == scene.entities.size(), "round-trip: the entity count round-trips");
+
+    // Compare every documented serialized field per entity.
+    for (std::size_t i = 0; i < scene.entities.size() && i < loaded.entities.size(); ++i) {
+        std::string diff;
+        if (!entityFieldMatches(scene.entities[i], loaded.entities[i], diff)) {
+            std::printf("FAIL: round-trip: entity %d field differs: %s\n", (int)i, diff.c_str());
+            ++failures;
+        }
+    }
+    std::printf("PASS: round-trip: all documented serialized fields compared per entity\n");
+
+    // save->load->save gives a byte-identical file (the 4dp rounding is
+    // idempotent: the loaded 4dp-rounded values re-serialize to the same
+    // text).
+    {
+        std::string s1;
+        {
+            std::ifstream f1(kRtSceneFile, std::ios::binary);
+            s1.assign((std::istreambuf_iterator<char>(f1)), std::istreambuf_iterator<char>());
+        }   // f1 CLOSED before the second save - an open read handle makes
+            // saveSceneToFile's fs::rename fail with a sharing violation
+            // (recorded in FINDINGS.md, Entry 9).
+        pe::Scene reloaded;
+        if (pe::loadSceneFromFile(kRtSceneFile, reloaded)) {
+            const bool saved2 = pe::saveSceneToFile(reloaded, kRtSceneFile);
+            check(saved2, "round-trip: the second save succeeds");
+            std::ifstream f2(kRtSceneFile, std::ios::binary);
+            std::string s2((std::istreambuf_iterator<char>(f2)), std::istreambuf_iterator<char>());
+            check(s1 == s2, "round-trip: save->load->save is byte-identical (the 4dp rounding is idempotent)");
+        }
+        std::remove(kRtSceneFile);
+    }
+
+    // The empty scene: save; load; the count 0.
+    {
+        pe::Scene empty;
+        empty.name = "consumer_empty";
+        const bool savedE = pe::saveSceneToFile(empty, kRtSceneFile);
+        check(savedE, "round-trip: the empty scene saves");
+        pe::Scene loadedE;
+        const bool okE = pe::loadSceneFromFile(kRtSceneFile, loadedE);
+        check(okE && loadedE.entities.empty() && loadedE.name == "consumer_empty",
+              "round-trip: the empty scene loads with 0 entities and the name");
+        std::remove(kRtSceneFile);
+    }
+
+    // The float edge values (the 4dp format): 0, negative, very small,
+    // very large, 0.1f. OBSERVED AND RECORDED (the 4dp truncation is the
+    // documented format's precision; not bit-exact for values with more
+    // than 4 decimals).
+    {
+        pe::Scene fs;
+        fs.name = "consumer_floats";
+        pe::Entity a; a.position = pe::Vec3(0.0f, -1.5f, 1e-6f); a.timer = 0.1f; a.meshId = 0;
+        fs.queueSpawn(a);
+        pe::Entity b; b.position = pe::Vec3(1e30f, 0.12345678f, -0.0f); b.meshId = 0;
+        fs.queueSpawn(b);
+        fs.flushSpawns();
+        const bool savedF = pe::saveSceneToFile(fs, kRtSceneFile);
+        pe::Scene loadedF;
+        const bool okF = savedF && pe::loadSceneFromFile(kRtSceneFile, loadedF);
+        check(okF, "round-trip: the float edge values save+load");
+        if (okF && loadedF.entities.size() == 2) {
+            // OBSERVED: the very-small 1e-6 becomes 0.0000 (the 4dp
+            // truncation); the 0.12345678 becomes 0.1235; the 0.1f
+            // round-trips exactly; the 1e30 round-trips (the fixed 4dp
+            // of a large float keeps the integer digits).
+            check(loadedF.entities[0].position.z == 0.0f, "observed: 1e-6 truncated to 0.0000 by the 4dp format (recorded)");
+            check(floatEq(loadedF.entities[0].timer, 0.1f), "observed: 0.1f round-trips exactly at 4dp (recorded)");
+            check(floatEq(loadedF.entities[1].position.y, 0.1235f), "observed: 0.12345678 -> 0.1235 (the 4dp rounding, recorded)");
+            check(floatEq(loadedF.entities[1].position.x, 1e30f), "observed: 1e30 round-trips (recorded)");
+        }
+        std::remove(kRtSceneFile);
+    }
+
+    // The negative control: alter one field in the loaded copy; the
+    // comparator must report it.
+    {
+        pe::Scene again;
+        if (pe::loadSceneFromFile(kRtSceneFile, again)) {
+            std::remove(kRtSceneFile);
+        }
+        // Rebuild and reload a fresh copy for the negative control.
+        pe::Scene src2;
+        src2.name = "consumer_negctl";
+        pe::Prefab t2;
+        if (!pe::loadPrefab(kTileFile, t2)) {
+            check(false, "negative control: the tile prefab must load");
+            return;
+        }
+        src2.queueSpawn(pe::instantiatePrefab(t2, pe::Vec3(1.0f, 2.0f, 0.0f)));
+        src2.flushSpawns();
+        check(pe::saveSceneToFile(src2, kRtSceneFile), "negative control: the save succeeds");
+        pe::Scene neg;
+        check(pe::loadSceneFromFile(kRtSceneFile, neg), "negative control: the load succeeds");
+        neg.entities[0].health = 999.0f;   // the deliberate alteration
+        std::string diff;
+        const bool same = entityFieldMatches(src2.entities[0], neg.entities[0], diff);
+        check(!same && diff == "health", "negative control: the comparator reports the altered health field");
+        std::remove(kRtSceneFile);
+    }
+}
+
 int main() {
     std::printf("Phase D consumer: level pipeline (Step 275)\n");
     checkLoadAndInstantiate();
     checkHostileCases();
     checkSceneComposition();
+    checkSceneRoundTrip();
     if (failures > 0) {
         std::printf("level_pipeline consumer: FAILED (%d)\n", failures);
         return 1;
