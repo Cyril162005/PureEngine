@@ -2991,6 +2991,17 @@
    "depends_on": [
     267
    ]
+  },
+  {
+   "id": 269,
+   "name": "Docs: Engine v5 COMPLETE/FROZEN (the done-criteria audit)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD c8475e5, highest 268, Engine v5 OPEN with (c) RESOLVED, v4 FROZEN - gate TRUE. Audited every v5 done-criterion, quoted verbatim from V3:820-833, one row each (10/10 VERIFIED, zero UNVERIFIED): (c) implemented (4c6c710); deterministic (the outline 44x33 identical across the re-runs); error handling (no new paths; the existing hold); regression tests (checkAABBDebugSize, tests/hostile_data_test.cpp:6881); MUTATION-CHECKED (the 268 mutation: the quad reverted -> 86x65 exactly 2x -> FAILED on the committed tree, restored by pathspec); integration (the overlay = the collision box via the pixel proof); existing tests green; build/ctest/alive x3 fresh execution evidence at c8475e5 (build exit 0, ctest 2/2 100% 24.49s/2.12s exit 0, alive x3 exit 0); the tracker records; committed and pushed. v4 DRIFT CHECK: git diff 5967667..HEAD --stat -- src/ tests/ = exactly two src hunks (the aabbVertices array + its comments, and the drawAABBs contract comment only - the code below unchanged) - NOTHING else, CLEAN. RECORDED in V3, the tracker, the board, README: v5 COMPLETE/FROZEN with the freeze date (the system clock 2026-10-02) and HEAD c8475e5; the frozen contract (the debug outline equals the collision size, halfExtents*scale*2 with the +-0.5 quad, the GL_LINE_LOOP outline); visual confirmation recorded PENDING (no Cyril confirmation supplied in this session - never CONFIRMED on my own). Carry forward unchanged (OOB texture sample UB 258, the weak consumer fallback-draw assert 258). Out-of-v5 list stands.",
+   "notes": "No src/ or test changes (docs/tracker + verification only). Gates: git diff --check clean; git diff --stat docs/tracker only; build still green (the fresh re-run). Docs edited with the edit tool only; the U+FFFD scan after editing: 0 in all four files; the remaining SESSION_BOARD mojibake (7 '?') untouched. hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-269",
+   "depends_on": [
+    268
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

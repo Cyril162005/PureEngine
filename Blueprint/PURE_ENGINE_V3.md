@@ -765,12 +765,18 @@ recommended-stop marker against the re-entry criteria. **MAIN does not:**
 implement audio/input/physics, commit another session's in-flight files,
 or force a conflict.
 
-## ENGINE v5 — 2D debug-draw correctness (Step 267, OPEN)
+## ENGINE v5 - 2D debug-draw correctness (Step 267, COMPLETE/FROZEN Step 269)
 
-**Version name:** Engine v5 - 2D debug-draw correctness. **Status: OPEN**
-— engine work only; games frozen. **v4 stays COMPLETE/FROZEN (Step 263);
-this version AMENDS only the capability below; EVERYTHING ELSE in the v3
-and v4 frozen contract lists is UNCHANGED.**
+**Version name:** Engine v5 - 2D debug-draw correctness. **Status:
+COMPLETE/FROZEN (Step 269, date 2026-10-02, HEAD c8475e5)** — the
+done-criteria audit (10/10 VERIFIED, zero UNVERIFIED; fresh
+build/ctest/alive x3 exit 0 at c8475e5: ctest 2/2 100%, 24.49s/2.12s)
+closes the version. Games frozen. **v4 stays COMPLETE/FROZEN (Step
+263); this version AMENDED only the capability below (now RESOLVED);
+EVERYTHING ELSE in the v3 and v4 frozen contract lists is UNCHANGED**
+(the v4 drift check: exactly two hunks in src/ since the v4 freeze
+5967667 — the aabbVertices array + its comments and the drawAABBs
+contract comment, nothing else).
 
 ### v5 scope (exactly one capability; no others unless a classified
 ### finding with evidence is added)
@@ -831,6 +837,38 @@ The v5 version is COMPLETE/FROZEN only when:
 - build/ctest/alive x3 have actual execution evidence;
 - the tracker records capabilities, limits, and findings;
 - implementation is committed and pushed.
+
+### Frozen contract (v5, Step 269) — binding
+- **The debug outline equals the collision size**: the F1 AABB overlay
+  draws each entity's ACTUAL collision box — halfExtents*scale*2 with
+  the ±0.5-native quad (the 3D meshes' convention), as a thin
+  GL_LINE_LOOP outline — the exact box collision.h:85-90 tests against,
+  doubled. The scale expression is the 3D sizing source of truth's
+  twin (checkMeshSizing cites it). Pixel-verified (checkAABBDebugSize:
+  the drawn (44,33) vs the computed (42.67,32), ±2; the mutation
+  reproduced the 2x defect exactly). **Visual confirmation: pending**
+  (the F1 overlay's on-screen look is a HUMAN smoke check; SMOKE_TEST.md
+  has no F1/AABB row — never record CONFIRMED without it).
+- Carry forward (unchanged, not fixed in v5): OOB texture sample is UB
+  (the 246 fallback proven only indirectly, the 258 audit); the
+  consumer's fallback-draw assert does not catch a no-op
+  clearRegisteredMeshes (the count assert does, the 258 nuance).
+- Out of v5 stands: no ECS, no editor, no networking, no glTF, no PBR,
+  no new 3D work, no game content, no AI/MCP layer.
+
+### v5 done-criteria audit (Step 269, verbatim criteria from V3:820-833)
+| Criterion | Evidence | Status |
+|---|---|---|
+| every capability assigned to v5 is implemented | (c) 4c6c710 (268); V3 (c) record | VERIFIED |
+| behavior is deterministic where the contract requires it | the drawn outline 44x33 identical across the 268 re-runs | VERIFIED |
+| required error handling exists | the (c) fix has no new error paths; the existing loader/OOB/zero-safe paths hold | VERIFIED |
+| required regression tests exist | checkAABBDebugSize (tests/hostile_data_test.cpp:6881) | VERIFIED |
+| the new asserts are MUTATION-CHECKED | the 268 mutation table (V3 above): the quad reverted -> 86x65 (exactly 2x) -> FAILED on the committed tree | VERIFIED |
+| required subsystem integration works at the engine boundaries | the overlay = the collision box (collision.h:85-90) via the pixel proof | VERIFIED |
+| existing tests remain green | ctest 2/2 100% (the 268 gates + the fresh 269 re-run) | VERIFIED |
+| build/ctest/alive x3 have actual execution evidence | fresh at c8475e5: build exit 0, ctest 2/2 100% exit 0, alive x3 exit 0 | VERIFIED |
+| the tracker records capabilities, limits, and findings | V3 + steps.json (267/268/269) + board + README | VERIFIED |
+| implementation is committed and pushed | 4c6c710 + c8475e5 pushed | VERIFIED |
 
 ### Out of v5
 - No ECS, no editor, no networking, no glTF, no PBR, no new 3D work, no
