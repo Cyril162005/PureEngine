@@ -1001,6 +1001,103 @@ deleted); the temporary CMake targets reverted by pathspec
 only hostile_default.txt and Testing/ — stated explicitly, verified.
 No src/ or test changes in this step.
 
+### Phase D consumer brief (Step 274) — docs only, v6 stays NOT OPEN
+
+**1) The limits of the 273 verdict (recorded; the verdict itself NOT
+changed):**
+- The 273 numbers are dev-machine only, not target low-end hardware.
+- **Re-open triggers, computed from the 273 numbers:**
+  - **3D entity count for VAO/VBO reuse to remove >= 1.0 ms:** the 273
+    ablation's baseline-vs-reuse delta at N=100 is 10.616 - 0.180 =
+    10.436 ms submit; the removable fraction is 10.436/100 = 0.1044
+    ms/entity (the source: the 273 ablation table, the baseline and the
+    reuse rows at N=100); the trigger count is 1.0/0.1044 = **9.58, so
+    ~10 concurrent 3D entities**.
+  - **2D sprite count for sprite batching to remove >= 1.0 ms:** the
+    removable fraction was NOT measured in 273 (the batch-hack variant
+    was stubbed out of the scratch); the measured baseline is
+    0.461/100 = 0.0046 ms/sprite (the source: the 273 2D table at
+    N=100); even a hypothetical 100% removal needs 1.0/0.0046 = **217
+    sprites**; a realistic 50% removable fraction needs ~434; the 273's
+    realistic maximum (the Platformer) is 22 sprites — far below any
+    trigger. The re-open trigger: **re-measure with the batch hack
+    actually wired**.
+  - **Re-measure on real low-end hardware** (the dev-machine numbers do
+    not transfer).
+- **The scratch benchmark was deleted** (the 273 hygiene), so any
+  re-measure needs it rebuilt — a known cost; NOT rebuilt now.
+
+**2) Consumer coverage analysis (grep, file:line; UNEXERCISED only if
+grep across ALL THREE games AND main.cpp finds no call site):**
+
+| Subsystem/API | Exercised by | NOT exercised by |
+|---|---|---|
+| drawWorld (2D sprites) | Arcade (main.cpp), Platformer (the tiles :441/:562), Pong | — |
+| drawDigitString | Arcade (main.cpp:1506), Pong (:298-299) | Platformer |
+| drawTextString | Arcade (:2166), Platformer (:579-581), Pong (:302-303) | — |
+| drawAABBs (the F1 overlay) | Arcade ONLY (:2160) | Platformer, Pong |
+| drawEntity3D/drawEntityMesh3D | Arcade ONLY (the debug3d pass) | Platformer, Pong |
+| drawDebugMesh3D | Arcade ONLY (the debug cube) | Platformer, Pong |
+| input (the action map, the edges) | all three | — |
+| mouse input | Arcade (the pick) | Platformer, Pong |
+| gamepad | Arcade, Platformer (:35) | Pong |
+| audio | Arcade, Platformer (:38) | Pong |
+| physics (resolveCollision) | Arcade (the drop), Platformer (the controller), Pong (:25) | — |
+| sweptAABB | Platformer (the controller) | Pong |
+| animation | Arcade, Platformer (:29) | Pong |
+| scenes (SceneManager/loadScene/switchTo) | Arcade (main.cpp:767), Platformer (:157) | Pong |
+| serialization (saveSceneToFile :1464, loadSceneFromFile :1470) | Arcade ONLY | Platformer, Pong |
+| **saveSceneManagerToFile/loadSceneManagerToFile (scene.h:651/:714)** | **UNEXERCISED** (grep 'saveSceneManagerToFile\|loadSceneManagerToFile': platformer none, pong none, main.cpp none) | all three |
+| resources (the texture load via Renderer::init) | all three | — |
+| registerMesh | Arcade (main.cpp:712/:730) | Platformer, Pong |
+| **clearRegisteredMeshes** | **UNEXERCISED by games** (grep 'clearRegisteredMeshes': platformer none, pong none, main.cpp none — the tests exercise it) | all three |
+| registerNonCoreTexture/unloadNonCoreTextures | Arcade ONLY (:1488/:1497) | Platformer, Pong |
+| **prefab (loadPrefab/instantiatePrefab, prefab.h)** | **UNEXERCISED** (grep 'prefab\|instantiate': platformer none, pong none, main.cpp comments only) | all three |
+| particles | Arcade (main.cpp:177), Platformer (:36) | Pong |
+| killRole | Arcade (:924/:1299) | Platformer, Pong |
+| camera (setEyeTargetUp/orbitEye) | Arcade ONLY (:1226) | Platformer, Pong |
+| buildInitialEntities | Arcade (main.cpp:774) | Platformer, Pong |
+| tilemapToEntities/loadTilemapIntoScene | Platformer ONLY (:441/:562/:177) | Arcade, Pong |
+| **ui.h button layout helpers** | **UNEXERCISED** (grep 'buttonLayout\|uiButton': platformer none, pong none, main.cpp none) | all three |
+| console | all three | — |
+| math | all three | — |
+| components.h helpers | Arcade (main.cpp:156/:1416, the health command) | Platformer, Pong |
+| simulation (simulates) | Arcade, Platformer (:388) | Pong |
+| lighting.h (LightingState) | Arcade (:2128) | Platformer, Pong |
+| events (the bus) | Arcade (:174), Platformer (:33) | Pong |
+
+**3) Candidate consumers (at most 3, each from the UNEXERCISED set; DO
+NOT choose one, DO NOT start building):**
+1. **Scene-manager persistence consumer.** Two lines: a headless
+   consumer that builds 2-3 scenes, saves the MANAGER via
+   saveSceneManagerToFile, reloads via loadSceneManagerToFile, and
+   verifies the round-trip at the manager level. Covers:
+   saveSceneManagerToFile/loadSceneManagerToFile (UNEXERCISED). Size:
+   ~2-3 steps. Plausible findings: the manager index file's path
+   handling, the per-scene file naming, the version handling, the
+   fs::rename edge cases.
+2. **Prefab consumer.** Two lines: a headless consumer that loads
+   prefab templates (loadPrefab) and instantiates them
+   (instantiatePrefab) into scenes, verifying the template field
+   propagation and the instance overrides. Covers: prefab.h
+   (UNEXERCISED). Size: ~2-3 steps. Plausible findings: the prefab
+   file format edges, the template defaults vs instance data, the
+   entity field propagation gaps.
+3. **UI-primitives consumer.** Two lines: a real-GL consumer that lays
+   out buttons via ui.h's pure helpers and verifies the layout
+   math/hit-testing against the engine's coordinate conventions.
+   Covers: ui.h button layout (UNEXERCISED). Size: ~2-4 steps.
+   Plausible findings: the layout math edges, the hit-test conventions
+   vs the AABB rules, the retained-UI-freeze boundary (v1.1).
+
+**The Phase D protocol (recorded; applies to ANY consumer):** uses
+documented APIs only; engine src/ is read-only for the duration; own
+directory and CMake target; every friction point is logged and given
+exactly one class (existing capability / engine defect / missing
+capability / game-specific behavior) with evidence; no engine fix
+inside a consumer step; stop when the findings log has no new entries
+for 2 consecutive steps or at the step cap.
+
 ### Capability audit and candidate list (Step 272) — docs/measurement only, v6 stays NOT OPEN
 
 **1) Capability inventory (whole engine).** 173 test functions in
