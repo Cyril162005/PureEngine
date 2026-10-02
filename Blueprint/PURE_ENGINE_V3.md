@@ -924,6 +924,95 @@ scheduled; removing it from the candidate list).
 **v6 stays NOT OPEN** (recorded here only as candidates; opening v6 is
 a separate step's decision).
 
+### Capability audit and candidate list (Step 272) — docs/measurement only, v6 stays NOT OPEN
+
+**1) Capability inventory (whole engine).** 173 test functions in
+tests/hostile_data_test.cpp (grep count); MISSING means grep found
+nothing, with the grep named.
+
+| Subsystem | exists (file:line) | tests (names) | known limits | status |
+|---|---|---|---|---|
+| rendering 2D | renderer.h:454-670 (drawWorld per-entity loop :608-628; drawDigitString :690-719; drawTextString :1046-1067) | checkFrameUV (:10181), checkFollowLerp (:3602), checkFontCells (:547), checkFontMetrics (:580), checkDebugFrameDepth (:6960) | per-entity upload+draw (one glBufferData + one uniform set + one draw per sprite, :608-628); no batching | VERIFIED |
+| rendering 3D | renderer.h:734-949 (drawEntity3D :734; drawEntityMesh3D :826; drawDebugMesh3D :955-1010) | checkEntity3D (:7377), checkMesh3D (:9563), checkTint3D (:7207), checkView3D (:9505), checkCamera3D (:9607), check3DArcIntegration (:8216), checkMeshStateLeak (:6356), checkDebugFrameDepth | per-face upload/draw/uniform (60F bytes/entity); VAO/VBO created+deleted per draw call | VERIFIED |
+| input | input.h (the action map :90-98; keyNameFor :160; edges) | 14 tests (checkInputEdges, checkKeysForAllActions, checkGamepadActions, checkKeyNames, checkInputAdoptionHelper, checkInputBindings, checkActionMap, checkMouseInput, ...) | Q/E registered but unwired (the 271 correction); no orbit action | VERIFIED |
+| audio | audio.h (Audio, 15 public/private members) | 5 tests (checkVolumeClamp, checkMuteToggle, checkPerSoundVolume, checkMusicVolumeIndep, checkPreInitGuards, checkAudioDeviceLifecycle) | no mixer graph (the v1.1 ruling) | VERIFIED |
+| physics/collision | physics.h (11); collision.h (7: aabbOverlap :85, resolveCollision, sweptAABB) | 13 tests (checkResolve, checkFriction, checkSweptAABBContract, checkDropPhysics, checkSandboxResolve, checkRestitution, checkMassWeighting, checkBounceRestHeights, ...) | AABB only, no rotation in collision | VERIFIED |
+| animation | animation.h (7) + animation_data.h | 3 tests (checkAnimationClipSwitch, checkAnimationSystem, ...) | clip-level only, no blending states | VERIFIED |
+| scenes | scene.h (36: Scene, SceneManager, loadScene :117, switchTo) | 17 tests (checkSceneSerialization, checkSceneManagerSave, checkSceneDumpReload, checkSceneByName, checkPlatformerLevelSwitch, ...) | pointer re-take after structural change (:108-109) | VERIFIED |
+| resources/assets | resources.h (7: loadRgbTexture, loadRgbaTexture, registry) | 4 tests (checkTextureRegistry, checkMeshLoad, checkWedgeMesh, resources_test target) | OOB texture sample is UB (the 258 audit) | VERIFIED |
+| serialization | scene.h:381 (saveSceneToFile), :459 (loadSceneFromFile), :651 (saveSceneManagerToFile) | 9 tests (checkSceneSerialization, checkScenePersistenceV1Compat/V2/V99, checkPrefabScenePersist, ...) | text format only, no binary | VERIFIED |
+| entities | entity.h (10: Entity struct, modelMatrix, defaults) | 8 tests (checkEntityLifecycle, checkSpawnQueue, checkEntity3D, ...) | plain structs (the v1.1 ruling) | VERIFIED |
+| particles | particles.h (7) | 6 tests (checkParticleColorAndEmit, checkParticleSpawn, checkEmitterRate, checkParticleMotion, checkParticleDeath, checkParticleConvert) | pool/emit only | VERIFIED |
+| UI primitives | ui.h (10) | 1 test (checkButtonLayout) | plain data + pure helpers (the v1.1 ruling); retained-mode UI out | VERIFIED |
+| console | console.h (18) | 6 tests (checkConsoleContract, checkConsoleHistoryRecall, checkDebug3dParse, checkNohostilesParse, checkMeshIdParse, checkCamParse, ...) | no tab completion; 7 mojibake '?' in the board (unrelated) | VERIFIED |
+| math | math/vec3.h (6), math/mat4.h (2 builders + members) | 3 tests (checkRotationY, checkOrbitEye, checkPerspective) | no SIMD | VERIFIED |
+| lifecycle | lifecycle.h (6) | covered by checkEntityLifecycle + the spawn tests | killRole/queueSpawn only | VERIFIED |
+| asset loading | resources.h + mesh3d.h + font.h | checkMeshLoad, checkWedgeMesh, checkFontCells | the loader does not normalize bounds (disclosed v3) | VERIFIED |
+
+**2) 3D path cost, by inspection (drawEntityMesh3D, renderer.h:826-949).**
+For F = the mesh's face count (the tetra meshId 3: F=4; the wedge
+meshId 5: F=8), per entity per frame:
+- GL object creations/deletions: 2 creates + 2 deletes —
+  glGenVertexArrays :856 + glGenBuffers :857 + glDeleteBuffers :947 +
+  glDeleteVertexArrays :948 (independent of F)
+- glBufferData: F calls x 60 bytes (15 floats, GL_DYNAMIC_DRAW, :938-940)
+  = 60F bytes/entity/frame (independent of the mesh's total size)
+- draw calls: F x glDrawArrays(GL_TRIANGLES, 0, 3) (:941)
+- uniform sets: 2 + F — glUniform3f tint :840 + glUniformMatrix4fv
+  mvp :867 + F x glUniform3f lit color :934
+- one-time state per entity: 1 glBindTexture :838, 1 glUseProgram
+  :839, the depth save/enable/restore :841-842/:943-944, 2
+  glVertexAttribPointer + 2 glEnableVertexAttribArray :862-865, 2
+  glBindVertexArray :858/:946, 2 glBindBuffer :859/:909, the optional
+  1 glClear(GL_DEPTH_BUFFER_BIT) :852-853 (the opt-in)
+For N entities: N=1 -> 4 GL object ops, 4-8 bufferData (240-480 B),
+4-8 draws, 6-10 uniforms; N=10 -> 20/40-80 (2.4-4.8 KB)/40-80/60-100;
+N=100 -> 200/400-800 (24-48 KB)/400-800/600-1000.
+Per-frame CPU work (separate): the centroid O(V) (:883-886); per face
+1 cross :914 + 1 toFace :915 + 1 dot :916 + the optional flip :917 +
+the ns 3 scales :927-929 + 1 wn (3 mul-adds) + 1 normalize (sqrt)
+:930 + 1 dot :931 + the max/diffuse/factor :932-933 — ~10 float ops +
+1 sqrt per face, O(F) per entity.
+
+**3) Indicative timing (NOT asserted):** a throwaway scratch benchmark
+(C:\Temp workflow; the file deleted and the temporary CMake target
+reverted before commit; git status verified clean afterward), hidden
+window, 100 entities of meshId 5 (the wedge, 8 faces), 300 frames:
+**mean drawEntity3D cost 11.764 ms/frame for all 100 entities**
+(~0.118 ms/entity; ~140 entities at a 60 fps budget). Indicative only —
+nothing timing-based enters tests or the tracker as pass/fail.
+
+**4) Candidate list (at most 6; NO ranking, deciding, or opening).**
+Every candidate has evidence from steps 1-3:
+1. **Per-face upload batching in drawEntityMesh3D.** Evidence: 60F
+   bytes + F draws + F uniforms per entity per frame (the formula,
+   renderer.h:934-941); the indicative 11.764 ms/frame at N=100. Composes
+   with: the existing per-face loop + the mesh registry. Tested without a
+   game: the pixel asserts (the lit/color/depth) + a frame-count scaling
+   check. The main risk: the batching changes the per-face color path
+   (the uniform/draw ordering the 247 ruling chose for clarity). The open
+   design questions: a per-entity single upload vs a persistent dynamic
+   VBO; the face-count crossover where batching pays.
+2. **VAO/VBO reuse across drawEntityMesh3D calls.** Evidence: 2 creates
+   + 2 deletes per entity per frame (the formula, renderer.h:855-857/
+   :947-948); the indicative 11.764 ms/frame at N=100. Composes with: the
+   renderer's GL object ownership. Tested without a game: the state-leak
+   invariant (checkMeshStateLeak asserts the VAO returns to 0 — the
+   contract would need updating). The main risk: the leak-invariant
+   contract change. The open design questions: a persistent VAO/VBO vs
+   the temp-per-call; the invariant's new form.
+3. **2D sprite batching in drawWorld.** Evidence: one glBufferData + one
+   uniform set + one draw per sprite (renderer.h:608-628; the audit row);
+   N sprites -> N draws. Composes with: the existing per-entity 2D loop.
+   Tested without a game: the pixel asserts (checkFrameUV/
+   checkFollowLerp) + a frame-count scaling check. The main risk: the
+   2D path is the game's visual contract (the sprites' draw order).
+   The open design questions: instancing vs batching; the sprite-count
+   crossover.
+
+**v6 stays NOT OPEN** (this section records candidates only; opening v6
+is a separate step's decision).
+
 ### Step 271: the Q/E orbit false-claim correction (documentation defect)
 The full grep (Step 271) found the ONLY behavior claim was the
 main.cpp:1250-1252 comment ("Q/E keys also orbit in the debug3d block

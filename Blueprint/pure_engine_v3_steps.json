@@ -3024,6 +3024,17 @@
    "depends_on": [
     270
    ]
+  },
+  {
+   "id": 272,
+   "name": "Docs: capability audit + 3D path cost + candidate list (measurement)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD a39a9d1, highest 271, v4+v5 FROZEN, v6 not open - gate TRUE. STEP 1 (the capability inventory, whole engine): 16 subsystems, one row each (exists file:line | tests | known limits | status): ALL 16 VERIFIED (grep-evidenced; 173 test functions in hostile_data_test.cpp; MISSING would mean grep found nothing - none were MISSING; the named greps for serialization found scene.h:381/:459/:651). STEP 2 (the 3D path cost, by inspection, drawEntityMesh3D renderer.h:826-949, every term cited): per entity per frame, F = the face count (the tetra 3: F=4, the wedge 5: F=8): 2 GL creates + 2 deletes (:856-857/:947-948, F-independent); F x glBufferData (15 floats = 60 B, GL_DYNAMIC_DRAW, :938-940) = 60F bytes; F x glDrawArrays (:941); 2 + F uniform sets (:840/:867/:934); one-time state per entity (the bind/enable/restore/clear/attrib/binds, :833-865/:909/:943-948); per-frame CPU (the centroid O(V) :883-886; per face ~10 float ops + 1 sqrt :914-933). N=1/10/100: 4/20/200 GL object ops; 240-480B/2.4-4.8KB/24-48KB bufferData; 4-8/40-80/400-800 draws; 6-10/60-100/600-1000 uniforms. STEP 3 (the indicative timing, labeled NOT asserted): a throwaway scratch benchmark (the file deleted + the temporary CMake target reverted before commit; git status verified clean afterward), hidden window, 100 entities of meshId 5, 300 frames: mean drawEntity3D cost 11.764 ms/frame for all 100 (~0.118 ms/entity; ~140 entities at a 60fps budget) - nothing timing-based enters tests or the tracker as pass/fail. STEP 4 (the candidate list, at most 6, NO ranking/deciding/opening, each with evidence from steps 1-3): (1) per-face upload batching (60F bytes + F draws + F uniforms; the indicative 11.764 ms; the risk: the 247 clarity ruling; the questions: the single upload vs the persistent VBO, the crossover); (2) VAO/VBO reuse (2 creates + 2 deletes per entity per frame; the risk: the state-leak invariant's contract change; the questions: persistent vs temp); (3) 2D sprite batching in drawWorld (one upload + one uniform + one draw per sprite :608-628; the risk: the 2D visual contract; the questions: instancing vs batching, the crossover). v6 STAYS NOT OPEN.",
+   "notes": "No src/ or test changes (docs/measurement only). The scratch benchmark: build/Release/bench272.exe built via a temporary CMake target (reverted by pathspec; the scratch file deleted) - git status verified clean afterward (only hostile_default.txt + Testing/). Gates: git diff --check clean; git diff --stat docs only; build + ctest still green (the 271-era green build; ctest 2/2 100%). The Step 272 entry confirmed in pure_engine_v3_steps.json and in git diff --stat before committing. Docs edited with the edit tool only; the U+FFFD scan after editing: 0 in all four files; the remaining SESSION_BOARD mojibake (7 '?') untouched; dates from the system clock (2026-10-02). v5 visual confirmation stays 'pending'. hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-272",
+   "depends_on": [
+    271
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
