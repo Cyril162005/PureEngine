@@ -6,19 +6,22 @@ framework, no game library — every engine layer was written as part of the
 project itself.
 
 > **v1.1 toolkit FROZEN** (Step 141 confirmation). Scope guardrails are
-> binding: no ECS, no editor, no networking, no 3D. The human release gate
+> binding: no ECS, no editor IN THE ENGINE, no networking, no 3D (the 3D
+> contracts landed via the frozen v3/v4/v5 versions). AMENDED Step 284
+> (2026-10-03): Editor/tools phase ALLOWED (explicit allow by Cyril) —
+> an editor/tool is a CONSUMER of the frozen engine (own directory, own
+> CMake target, documented APIs only, engine src/ read-only); the engine
+> itself still ships no editing tools. The human release gate
 > is [`Blueprint/SMOKE_TEST.md`](Blueprint/SMOKE_TEST.md); the authoritative
 > freeze scope (capability map + OUT list) lives in
 > [`Blueprint/PURE_ENGINE_V3.md`](Blueprint/PURE_ENGINE_V3.md). New
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–283; the 3D v4/v5 versions
-  COMPLETE/FROZEN (Steps 263/269); **Engine v6 - third-party readiness
-  COMPLETE/FROZEN at Step 283** (2026-10-03, HEAD c6282ae) — (g) the
-  header-name hygiene (src/time.h → engine_time.h + the hygiene check)
-  and (h) the manager load honors explicit paths both resolved; the
-  frozen contracts + disclosed limits in Blueprint/PURE_ENGINE_V3.md):
+- **Engine** (tracked steps 25–284; the 3D v4/v5/v6 versions
+  COMPLETE/FROZEN (Steps 263/269/283); **Phase Tools/Editor OPEN at
+  284** (governance: an editor/tool is a CONSUMER of the frozen engine;
+  the engine-side bans stand; the engine still ships no editing tools)):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),

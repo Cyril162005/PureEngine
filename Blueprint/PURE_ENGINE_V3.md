@@ -182,8 +182,11 @@ smoother gameplay. Current Phase 2 scope does NOT require broad-phase.
 **Phase B triggers (no Step 54 opened):** no demonstrated need exists for any
 of the three candidates — spatial partitioning (Step 52 measured O(n), fine
 to 2000), a layer/group system (depth field + automatic stable-sort already
-cover draw ordering), or an in-game editor (no requesting use-case). Open a
-Step 54 when ONE of these becomes true: (A) a second draw-layering rule is
+cover draw ordering), or an in-game editor (no requesting use-case).
+**AMENDED Step 284 (2026-10-03): the editor/tools phase is now ALLOWED
+(explicit allow by Cyril) as a CONSUMER phase — see Phase Tools; the
+"no requesting use-case" note above was the pre-284 state.**
+Step 54's re-open list: ONE of these becomes true: (A) a second draw-layering rule is
 needed that raw depth ints cannot express; (B) a stress run shows frame time
 climbing superlinearly or breaching budget below 2000 hostiles; (C) a concrete
 level-design task requires in-world tweaking without recompile.
@@ -280,6 +283,12 @@ recommended stop under the freeze:
   remain binding: still no ECS, no editor, no networking, no 3D, no
   hot-reload, no retained-mode UI, no mixer graph, no broadphase
   without a measured >2000-entity breach.
+  **AMENDED Step 284 (2026-10-03, explicit allow by Cyril):** the
+  editor/tools work is a CONSUMER phase (see Phase Tools below) — the
+  ENGINE-side bans above stand unchanged; an editor/tool is a consumer
+  (own directory, own CMake target, documented APIs only, engine src/
+  read-only). The 3D contracts landed via the frozen v3/v4/v5
+  versions.
 - Re-entry criteria: a measured superlinear frame-time breach, a
   concrete engine-validation need demonstrated in real conditions, or
   an explicitly requested step citing one.
@@ -713,6 +722,12 @@ PENDING engine debts (inspect/adopt only on evidence):
   explicitly requested step citing a concrete engine-validation reason.
 
 ## PureEditor-lite v0 — TOOLING CONTRACT (docs foundation; explicit user-requested scope expansion)
+
+**AMENDED Step 284 (2026-10-03, explicit allow by Cyril):** this
+PureEditor-lite v0 contract is the historical foundation of the
+TOOLS/Editor phase (see Phase Tools below) — the tooling was partially
+opened before (the editor-lite v0 headless path landed at Step 197);
+Phase Tools opens it FORMALLY as a consumer phase.
 
 Secondary goal: PureEditor-lite (load/select/nudge/save) — tooling ON TOP
 of existing engine APIs, NOT engine internals.
@@ -1642,6 +1657,37 @@ The v6 version is COMPLETE/FROZEN only when:
 | build/ctest/alive x3 have actual execution evidence | fresh at c6282ae: build exit 0, ctest 4/4 100% exit 0, alive x3 exit 0 | VERIFIED |
 | the tracker records capabilities, limits, and findings | V3 + steps.json (280/281/282) + board + README | VERIFIED |
 | implementation is committed and pushed | 44f5de7 + c395bc8 pushed | VERIFIED |
+
+## PHASE TOOLS/EDITOR (Step 284, OPEN — a phase, NOT a numbered engine version)
+
+**AMENDED Step 284 (2026-10-03, explicit allow by Cyril):** an
+editor or tool is a CONSUMER of the frozen engine, like a game. The
+frozen engine itself ships no editing tools; v4/v5/v6 stay frozen and
+their Out lists are unchanged (they describe the ENGINE's per-version
+scope, not consumer work).
+
+**The Tools rules (binding on any Tools step):**
+- Own directory and own CMake target; documented APIs only; engine
+  src/ is read-only during any Tools step (git diff --stat -- src/
+  empty — verified).
+- Every friction is logged in a findings log with exactly one class
+  (existing capability / engine defect / missing capability /
+  game-specific behavior) and evidence; no engine fix inside a Tools
+  step; engine changes happen only through a normal engine version,
+  opened docs-first from classified findings.
+- **Prohibited loop:** EDITOR NEED → ENGINE FEATURE → EDITOR TEST →
+  NEW ENGINE FEATURE.
+- Tools steps are marked "Tools" in the tracker; unmarked steps remain
+  runtime engine steps. The one-step rule binds.
+- UI: the editor builds its own immediate-mode panels in its own
+  target using existing ui.h helpers and the bitmap font. NO engine
+  retained-UI framework and no engine text-input widget. A UI need
+  that cannot be met becomes a classified finding for a later engine
+  version.
+- Still banned, each needing its own explicit phase: ECS, networking,
+  scripting language, hot-reload, retained-mode UI in the engine,
+  AI/MCP layer, materials system. Not a Unity/UE/Godot clone; no
+  feature-parity goal.
 
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.

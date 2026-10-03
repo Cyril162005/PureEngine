@@ -85,15 +85,20 @@ Focus is on **engine internals**, not gameplay features or content. Gameplay wor
 PureEngine v1.1 is FROZEN (Step 141 confirmation). The engine owns mechanisms; the game owns the loop. The following are **OUT — do not plan, do not start, do not "accidentally" grow**:
 
 - **No ECS** — no archetype storage, no component scheduler, no query language. Entities stay plain structs (Step 7/103 ruling).
-- **No editor** — no in-game editing tools, no hot-reload framework.
+- **No editor** — no in-game editing tools in the ENGINE. AMENDED Step
+  284 (2026-10-03): an editor/tool is a CONSUMER of the frozen engine
+  (own directory, own CMake target, documented APIs only, engine src/
+  read-only during any Tools step) — Editor/tools phase ALLOWED,
+  explicit allow by Cyril; the engine itself still ships no editing
+  tools and no hot-reload framework.
 - **No networking** — no sockets, no multiplayer, no sync layers.
-- **No 3D** — flat 2D only (see PURE_ENGINE_V3.md 2D/3D architecture notes).
-- **No retained-mode UI system** — no widget tree, no layout engine, no focus system. Buttons/HUD stay plain data + pure helpers (Step 21/118 ruling).
+- **No 3D** — flat 2D only (see PURE_ENGINE_V3.md 2D/3D architecture notes; the 3D contracts landed via the v3/v4/v5 versions — this line is superseded by those frozen contracts, kept for history).
+- **No retained-mode UI system** — no widget tree, no layout engine, no focus system IN THE ENGINE. Buttons/HUD stay plain data + pure helpers (Step 21/118 ruling). AMENDED Step 284 (2026-10-03): a tool/editor may build its OWN immediate-mode panels in its own target; a UI need the engine cannot meet is a classified finding for a later engine version.
 - **No mixer graph** — audio stays pe::Audio's existing paths (Step 20/75/98/124 ruling).
 - **No broadphase replacement** — deferred by measurement (Step 52: fine ≤2000 entities; re-open ONLY on a measured superlinear breach).
 - **No materials system**, no generational handles, no container-ownership transfers.
 
-New capabilities land only as additive, opt-in, engine-pure steps with honest verification — frozen behavior is never changed or unfrozen. The authoritative scope statements live in `Blueprint/PURE_ENGINE_V3.md` (v1.1 toolkit freeze section) and the release gate in `Blueprint/SMOKE_TEST.md`.
+New capabilities land only as additive, opt-in, engine-pure steps with honest verification — frozen behavior is never changed or unfrozen. Editor/tools work is a CONSUMER phase (see PURE_ENGINE_V3.md Phase Tools), allowed Step 284 by explicit Cyril decision. The authoritative scope statements live in `Blueprint/PURE_ENGINE_V3.md` (v1.1 toolkit freeze section) and the release gate in `Blueprint/SMOKE_TEST.md`.
 
 ## Guardrails for agents
 
