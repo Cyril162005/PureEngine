@@ -13,10 +13,11 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–280; the 3D v4/v5 versions
+- **Engine** (tracked steps 25–281; the 3D v4/v5 versions
   COMPLETE/FROZEN (Steps 263/269); **Engine v6 - third-party readiness
-  OPEN at 280** — scope: (g) engine header-name hygiene, (h) the
-  scene-manager load honors explicit paths):
+  — (g) header-name hygiene RESOLVED at 281** (src/time.h →
+  engine_time.h; the hygiene check enforces it), (h) the scene-manager
+  load honors explicit paths open):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),

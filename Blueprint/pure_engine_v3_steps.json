@@ -3123,6 +3123,17 @@
    "depends_on": [
     279
    ]
+  },
+  {
+   "id": 281,
+   "name": "Header hygiene: rename src/time.h to engine_time.h (finding (g) resolved)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD a274e6d, highest 280, v6 OPEN (V3:1484) - gate TRUE. STEP 1 (the inspection): 31 headers under src/ (glob); each checked against the standard C headers, the platform headers, and the third-party (GLFW, glad, stb, miniaudio): EXACTLY ONE collision - src/time.h vs the standard C <time.h> (the src/math DIRECTORY does not shadow the math.h FILE; no other name matches); the #include sites: 2 code (main.cpp:96, pe_core.cpp:27) + 3 RELATIVE (platformer.cpp:27, pong.cpp:29, hostile_data_test.cpp:24 - the first grep MISSED these (the pattern bug); the build errors caught them), 0 direct in the consumers; 3 CMake comment references; the docs: AGENTS.md:49, README.md:170, V3; SMOKE_TEST.md none. STEP 2 (the decision): RENAME (the default, following the project's plain descriptive-name convention - renderer.h, camera.h, entity.h...); the pe_ prefix NOT needed since a convention exists; the one-line reason recorded. STEP 3 (the mechanical rename): git mv src/time.h src/engine_time.h (100% similarity); the 5 code include sites updated; the comment references updated (main.cpp x4, pong.cpp, CMakeLists.txt); the doc references updated (AGENTS.md, README.md); NO logic changes; the level_pipeline consumer's relative-include workaround LEFT (working; if unsure, leave it). STEP 4 (the permanent check): tests/header_hygiene.cpp + the CMake target header_hygiene (the CTest registration): compiled with src ON its include path; its source includes <time.h>, <ctime>, and the engine's engine_time.h; runs and returns 0 - THE POINT: src on the include path + the standard headers must still compile.",
+   "notes": "MUTATION TABLE: the stub src/time.h (an uncommitted file, restored by Remove-Item (untracked - the git rm pathspec did not match)) -> the hygiene target FAILED to build with the EXACT pre-281 errors (ctime(21,25) C2039 'clock_t' + time_t - the stub's shadow breaks the standard header) - NON-VACUOUS. PROCESS NOTE: the MSVC does not track /I headers as build dependencies, so the FIRST mutation build was cached (up-to-date) and did NOT fail - the mutation needed the exe/obj deleted + a forced rebuild - recorded. Gates: build ALL targets exit 0 (including the new header_hygiene); ctest -C Release: the count ROSE from 3 to 4, 4/4 100% (13.73s/0.93s/3.60s/0.07s), exit 0; alive x3 exit 0; git diff --check clean; the diff beyond the rename: only the new check target + the doc updates + the CMake comment update (verified). hostile_default.txt and Testing/ untouched.",
+   "commit": "44f5de7",
+   "depends_on": [
+    280
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

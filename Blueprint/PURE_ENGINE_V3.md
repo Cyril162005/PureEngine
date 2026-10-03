@@ -1483,38 +1483,52 @@ updates). v6 stays NOT OPEN.
 
 ## ENGINE v6 — third-party readiness (Step 280, OPEN)
 
-**Version name:** Engine v6 - third-party readiness. **Status: OPEN** —
-engine work only; games frozen. **v4 and v5 stay COMPLETE/FROZEN (Steps
-263/269); this version AMENDS only the two capabilities below;
-EVERYTHING ELSE in the v3/v4/v5 frozen contract lists is UNCHANGED.**
+**Version name:** Engine v6 - third-party readiness. **Status: (g)
+RESOLVED (Step 281), (h) open — engine work only; games frozen.**
+**v4 and v5 stay COMPLETE/FROZEN (Steps 263/269); this version AMENDS
+only the two capabilities below; EVERYTHING ELSE in the v3/v4/v5
+frozen contract lists is UNCHANGED.**
 
 ### v6 scope (exactly two capabilities; no others unless a classified
 ### finding with evidence is added)
 
-**(g) Engine header-name hygiene (Phase D Entry 8)**
-- Problem (one line): no src header may shadow a standard, C, or
-  third-party header when src is on the include path.
-- Evidence/repro (the Phase D exact): a 3-line TU `#include <ctime>` /
-  `int main() { return 0; }` with src on the include path
-  (`target_include_directories(t PRIVATE "${CMAKE_SOURCE_DIR}/src" "${glfw_SOURCE_DIR}/include")`)
-  fails: `ctime(21,25): error C2039: 'clock_t': is not a member of
-  'global namespace'` (+ asctime, clock) — MSVC resolves `<time.h>`
-  (pulled by <ctime>) through the /I dirs to the engine's src/time.h,
-  shadowing the standard header.
-- Composes with: the existing target/include-dir conventions (the
-  tests' relative includes are the current workaround).
-- Test path: a permanent header-hygiene target (registered in CTest)
-  compiled with src on its include path whose sources include the
-  colliding standard headers; runs and returns 0.
-- Blast radius: every #include site for each colliding header across
-  src, tests, games, consumers, CMake, and docs — the exact count
-  comes from step 281's grep (the KNOWN: main.cpp's include of time.h,
-  the src headers' include chains, the AGENTS.md doc reference, the
-  level_pipeline consumer's relative-include workaround).
-- Open design questions (recorded, decided in the fix step): the
-  rename target's name (the project's naming convention vs a pe_
-  prefix); whether the level_pipeline consumer's relative-include
-  workaround becomes unnecessary (leave it if unsure).
+**(g) Engine header-name hygiene (Phase D Entry 8) — RESOLVED (Step 281)**
+- THE INSPECTION: 31 headers under src/ (glob); checked each against
+  the standard C headers, the platform headers, and the third-party
+  (GLFW, glad, stb, miniaudio): **exactly ONE collision — src/time.h
+  vs the standard C <time.h>** (the src/math DIRECTORY does not shadow
+  the math.h FILE; no other name matches). The #include sites for
+  src/time.h: 2 code sites (src/main.cpp:96, src/pe_core.cpp:27) + 3
+  RELATIVE sites (platformer.cpp:27, pong.cpp:29, hostile_data_test.cpp
+  :24 — the first grep missed these; the build errors caught them);
+  0 direct in the consumers; 3 CMake comment references; the docs:
+  AGENTS.md:49, README.md:170, V3 (the finding records + the historical
+  audit mentions), SMOKE_TEST.md none.
+- THE DECISION: **rename (the default, following the project's plain
+  descriptive-name convention — renderer.h, camera.h, entity.h, ...);
+  the pe_ prefix NOT needed since a convention exists.** The one-line
+  reason: the project's naming convention exists, so the rename follows
+  it with a descriptive non-colliding name.
+- THE CHANGE (mechanical, git mv): src/time.h -> src/engine_time.h
+  (100% similarity); the 5 code include sites updated; the comment
+  references updated (main.cpp x4, pong.cpp, CMakeLists.txt); the doc
+  references updated (AGENTS.md, README.md). NO logic changes. The
+  level_pipeline consumer's relative-include workaround LEFT (working;
+  "if unsure, leave it").
+- THE PERMANENT CHECK: tests/header_hygiene.cpp + the CMake target
+  header_hygiene (the CTest registration): compiled with src ON its
+  include path; its source includes <time.h>, <ctime>, and the
+  engine's engine_time.h; runs and returns 0. THE POINT: src on the
+  include path + the standard headers must still compile.
+- MUTATION TABLE (an uncommitted stub src/time.h, restored by
+  Remove-Item (untracked); ctest FAILED to build): the stub
+  reintroduced a colliding header name -> the hygiene target FAILED
+  with the EXACT pre-281 errors (ctime(21,25) C2039 'clock_t' +
+  time_t — the stub's shadow breaks the standard header) —
+  NON-VACUOUS. PROCESS NOTE: the MSVC does not track /I headers as
+  build dependencies, so the first mutation build was cached
+  (up-to-date) and did NOT fail; the mutation needed the exe/obj
+  deleted + a forced rebuild — recorded.
 
 **(h) Scene-manager load honors explicit paths (Phase D Entry 11)**
 - Problem (one line): saveSceneManagerToFile to an explicit path
