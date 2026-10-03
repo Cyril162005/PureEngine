@@ -3145,6 +3145,17 @@
    "depends_on": [
     281
    ]
+  },
+  {
+   "id": 283,
+   "name": "Docs: Engine v6 COMPLETE/FROZEN (the done-criteria audit)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD c6282ae, highest 282 - gate TRUE. Audited every v6 done-criterion, quoted verbatim, one row each (10/10 VERIFIED, zero UNVERIFIED): capabilities implemented ((g) 44f5de7, (h) c395bc8); deterministic (the hygiene check enforces the rename; the loader's resolution deterministic); error handling (a nonexistent path false; the strict-load paths); regression tests (header_hygiene + the consumer's checkManagerExplicitPaths); MUTATION-CHECKED (the 281 stub -> the C2039 FAIL; the 282 resolution reverted -> 3 FAILS); integration (all targets build; the loader via the consumer); existing tests green (ctest 4/4 100%); build/ctest/alive x3 fresh evidence at c6282ae (build exit 0, ctest 4/4 100% 27.89s/0.94s/1.99s/0.93s exit 0, alive x3 exit 0); the tracker records; committed and pushed. DRIFT CHECK: git diff 0dd556d (the v5 freeze)..HEAD --stat -- src/ tests/: the rename (src/{time.h => engine_time.h} | 0 - 100% similarity, no content change), src/main.cpp (the rename's include/comment sites + the PRE-V6 271 comment correction - comments only, committed and verified in the 271 step), src/pe_core.cpp (the include), src/scene.h (the (h) function), tests/header_hygiene.cpp (the new check), tests/hostile_data_test.cpp (the include) - NOTHING else, CLEAN. RECORDED in V3, the tracker, the board, README: v6 COMPLETE/FROZEN with the date (the system clock 2026-10-03) and HEAD c6282ae; the frozen contract (g) and (h); the carry-forward and out-of-v6 lists stand.",
+   "notes": "Docs-only diff. Gates: git diff --check clean; build still green (the fresh re-run); ctest 4/4 100% exit 0; alive x3 exit 0. hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-283",
+   "depends_on": [
+    282
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

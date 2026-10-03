@@ -13,11 +13,12 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–282; the 3D v4/v5 versions
+- **Engine** (tracked steps 25–283; the 3D v4/v5 versions
   COMPLETE/FROZEN (Steps 263/269); **Engine v6 - third-party readiness
-  — both capabilities RESOLVED at 281/282** ((g) src/time.h →
-  engine_time.h + the hygiene check; (h) the manager load honors
-  explicit paths), version close-out pending):
+  COMPLETE/FROZEN at Step 283** (2026-10-03, HEAD c6282ae) — (g) the
+  header-name hygiene (src/time.h → engine_time.h + the hygiene check)
+  and (h) the manager load honors explicit paths both resolved; the
+  frozen contracts + disclosed limits in Blueprint/PURE_ENGINE_V3.md):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),

@@ -1481,14 +1481,18 @@ updates). v6 stays NOT OPEN.
   (existing capability / engine defect / missing capability /
   game-specific behavior), never added.
 
-## ENGINE v6 — third-party readiness (Step 280, (g) RESOLVED 281, (h) RESOLVED 282)
+## ENGINE v6 — third-party readiness (Step 280, COMPLETE/FROZEN Step 283)
 
-**Version name:** Engine v6 - third-party readiness. **Status: BOTH
-CAPABILITIES RESOLVED (Steps 281/282), version close-out pending** —
-engine work only; games frozen. **v4 and v5 stay COMPLETE/FROZEN
-(Steps 263/269); this version AMENDED only the two capabilities below
-(both RESOLVED); EVERYTHING ELSE in the v3/v4/v5 frozen contract lists
-is UNCHANGED.**
+**Version name:** Engine v6 - third-party readiness. **Status:
+COMPLETE/FROZEN (Step 283, date 2026-10-03, HEAD c6282ae)** — the
+done-criteria audit (10/10 VERIFIED, zero UNVERIFIED; fresh
+build/ctest/alive x3 exit 0 at c6282ae: ctest 4/4 100%,
+27.89s/0.94s/1.99s/0.93s) closes the version. Games frozen. **v4 and
+v5 stay COMPLETE/FROZEN (Steps 263/269); this version AMENDED only the
+two capabilities below (both RESOLVED); EVERYTHING ELSE in the
+v3/v4/v5 frozen contract lists is UNCHANGED** (the drift check: the
+rename (100% similarity), the (h) function, the new checks, the
+include sites, and the pre-v6 271 comment correction — nothing else).
 
 ### v6 scope (exactly two capabilities; no others unless a classified
 ### finding with evidence is added)
@@ -1597,6 +1601,47 @@ The v6 version is COMPLETE/FROZEN only when:
   rework, no game content, no AI/MCP layer. Game-originated needs are
   CLASSIFIED (existing capability / engine defect / missing capability
   / game-specific behavior), never added.
+
+### Frozen contract list (v6, Step 283) — binding
+- **(g) Header-name hygiene**: no src header shadows a standard, C, or
+  third-party header when src is on the include path; src/time.h is
+  named engine_time.h (the 281 rename, 100% similarity); the permanent
+  check is the CTest target header_hygiene (compiled with src ON its
+  include path; <time.h>, <ctime>, and engine_time.h coexist; runs
+  and returns 0) — a reintroduced colliding header name makes it FAIL
+  to build (mutation-proven).
+- **(h) The manager load honors explicit paths**: loadSceneManagerFromFile
+  follows the sibling loaders' exact path resolution (the explicit
+  paths — the /, the \, the drive letter — honored directly first, the
+  dir auto-created; the bare names probe assets/, ../assets/,
+  ../../assets/ exactly as before; the absolute-path guard = the
+  siblings' explicitPath form); the existing assets/ behavior
+  unchanged (mutation-proven: the resolution reverted → the three
+  explicit-path tests failed while the assets/ round-trip passed).
+- Carry forward (unchanged): OOB texture sample is UB (the 246
+  fallback proven only indirectly, the 258 audit); the consumer's
+  fallback-draw assert does not catch a no-op clearRegisteredMeshes
+  (the count assert does, the 258 nuance); v5 visual confirmation
+  **pending**; Q/E orbit = missing capability, NOT scheduled (the 271
+  reclassification); performance not eligible (the 273 verdict, the
+  dev-machine limits).
+- Out of v6 stands: no ECS, no editor, no scripting, no networking, no
+  glTF, no PBR, no retained UI, no materials, no new 3D work, no
+  prefab diagnostics rework, no game content, no AI/MCP layer.
+
+### v6 done-criteria audit (Step 283, verbatim criteria)
+| Criterion | Evidence | Status |
+|---|---|---|
+| every capability assigned to v6 is implemented | (g) 44f5de7 (281), (h) c395bc8 (282) | VERIFIED |
+| behavior is deterministic where the contract requires it | the hygiene check enforces the rename; the loader's path resolution deterministic | VERIFIED |
+| required error handling exists | a nonexistent path still returns false (the consumer's check); the strict-load paths | VERIFIED |
+| required regression tests exist | header_hygiene (the CTest) + the consumer's checkManagerExplicitPaths | VERIFIED |
+| the new asserts are MUTATION-CHECKED | the 281 mutation (the stub -> the C2039 FAIL); the 282 mutation (the resolution reverted -> 3 FAILS) | VERIFIED |
+| required subsystem integration works at the engine boundaries | all targets build (the include sites updated); the loader via the consumer | VERIFIED |
+| existing tests remain green | ctest 4/4 100% | VERIFIED |
+| build/ctest/alive x3 have actual execution evidence | fresh at c6282ae: build exit 0, ctest 4/4 100% exit 0, alive x3 exit 0 | VERIFIED |
+| the tracker records capabilities, limits, and findings | V3 + steps.json (280/281/282) + board + README | VERIFIED |
+| implementation is committed and pushed | 44f5de7 + c395bc8 pushed | VERIFIED |
 
 ## Kill criteria
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.
