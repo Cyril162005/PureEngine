@@ -9,6 +9,7 @@
  */
 #include <cstdio>
 #include <cmath>
+#include <direct.h>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -533,6 +534,110 @@ static void checkManagerPersistence() {
     }
 }
 
+// ---- Step 282: the (h) capability - the manager load honors explicit paths ----
+// The Entry 11 repro (the explicit-path round-trip) now passes; the
+// existing assets/ round-trip unchanged; a nonexistent path still
+// returns false; the absolute-path behavior matches the sibling
+// loaders (loadSceneFromFile).
+static void checkManagerExplicitPaths() {
+    // 1. The Entry 11 repro: the explicit-path round-trip.
+    {
+        pe::SceneManager m;
+        m.scenes.reserve(1);
+        pe::loadScene(m, "explicit");
+        const char* kExplicit = "consumers/level_pipeline/explicit_manager.txt";
+        const bool saved = pe::saveSceneManagerToFile(m, kExplicit);
+        check(saved, "explicit paths: the save to an explicit path succeeds");
+        pe::SceneManager loaded;
+        const bool ok = pe::loadSceneManagerFromFile(kExplicit, loaded);
+        // THE (h) FIX: the load of the same explicit path now succeeds
+        // (the pre-282 loader probed only assets/ and returned false).
+        check(ok, "explicit paths: the load of the SAME explicit path succeeds (the Entry 11 repro)");
+        if (ok) {
+            check(loaded.scenes.size() == 1 && loaded.scenes[0].name == "explicit",
+                  "explicit paths: the round-trip content matches");
+        }
+        std::remove(kExplicit);
+    }
+    // 2. The existing assets/ round-trip unchanged (the bare name).
+    {
+        pe::SceneManager m;
+        m.scenes.reserve(1);
+        pe::loadScene(m, "assetspath");
+        const bool saved = pe::saveSceneManagerToFile(m, "rt_assets_manager.txt");
+        pe::SceneManager loaded;
+        const bool ok = saved && pe::loadSceneManagerFromFile("rt_assets_manager.txt", loaded);
+        check(ok, "explicit paths: the existing assets/ round-trip (the bare name) unchanged");
+        if (ok) {
+            check(loaded.scenes.size() == 1 && loaded.scenes[0].name == "assetspath",
+                  "explicit paths: the assets/ round-trip content matches");
+        }
+        std::remove("rt_assets_manager.txt");
+        std::remove("assets/rt_assets_manager.txt");
+    }
+    // 3. A nonexistent path still returns false.
+    {
+        pe::SceneManager loaded;
+        check(!pe::loadSceneManagerFromFile("consumers/level_pipeline/no_such_manager_zz.txt", loaded),
+              "explicit paths: a nonexistent path still returns false");
+    }
+    // 4. The absolute-path behavior matches the sibling loaders
+    // (loadSceneFromFile honors absolute paths directly).
+    {
+        // Build an absolute path to a file we save explicitly.
+        char cwdBuf[1024];
+        const char* cwd = nullptr;
+        if (_getcwd(cwdBuf, sizeof(cwdBuf))) cwd = cwdBuf;
+        if (cwd) {
+            const std::string absPath = std::string(cwd) + "\\consumers\\level_pipeline\\abs_manager.txt";
+            pe::SceneManager m;
+            m.scenes.reserve(1);
+            pe::loadScene(m, "abs");
+            const bool saved = pe::saveSceneManagerToFile(m, absPath);
+            check(saved, "explicit paths: the save to an ABSOLUTE path succeeds");
+            pe::SceneManager loaded;
+            const bool ok = pe::loadSceneManagerFromFile(absPath, loaded);
+            // The siblings: loadSceneFromFile's explicitPath check (the
+            // drive letter) -> the candidates[0] = the absolute fileName
+            // directly -> the load succeeds. The manager loader now
+            // matches.
+            check(ok, "explicit paths: the ABSOLUTE-path load matches the sibling loaders");
+            if (ok) {
+                check(loaded.scenes.size() == 1 && loaded.scenes[0].name == "abs",
+                      "explicit paths: the absolute-path round-trip content matches");
+            }
+            std::remove(absPath.c_str());
+        }
+    }
+    // 5. The negative control: the explicit-path round-trip with one
+    // scene's content altered; the comparator must report it.
+    {
+        pe::SceneManager m;
+        m.scenes.reserve(1);
+        pe::Prefab tile;
+        if (!pe::loadPrefab(kTileFile, tile)) {
+            check(false, "explicit paths: the negative control's prefab must load");
+            return;
+        }
+        auto* s = &pe::loadScene(m, "negctl");
+        s->queueSpawn(pe::instantiatePrefab(tile, pe::Vec3(1, 2, 0)));
+        s->flushSpawns();
+        pe::Entity expected = s->entities[0];
+        const char* kNeg = "consumers/level_pipeline/negctl_manager.txt";
+        if (pe::saveSceneManagerToFile(m, kNeg)) {
+            pe::SceneManager neg;
+            check(pe::loadSceneManagerFromFile(kNeg, neg), "explicit paths: the negative-control load succeeds");
+            if (neg.scenes.size() == 1 && neg.scenes[0].entities.size() == 1) {
+                neg.scenes[0].entities[0].health = 1234.0f;   // the deliberate alteration
+                std::string diff;
+                const bool same = entityFieldMatches(expected, neg.scenes[0].entities[0], diff);
+                check(!same && diff == "health", "explicit paths: the negative control reports the altered health field");
+            }
+        }
+        std::remove(kNeg);
+    }
+}
+
 // ---- Step 278: adversarial persistence ----
 // Corrupt inputs GENERATED PROGRAMMATICALLY from a valid save (not
 // hand-edited). For each: the outcome recorded (the error / the partial
@@ -720,6 +825,7 @@ int main() {
     checkSceneComposition();
     checkSceneRoundTrip();
     checkManagerPersistence();
+    checkManagerExplicitPaths();
     checkAdversarialPersistence();
     if (failures > 0) {
         std::printf("level_pipeline consumer: FAILED (%d)\n", failures);

@@ -723,11 +723,33 @@ inline bool saveSceneManagerToFile(const SceneManager& m, const std::string& fil
 // reusing the SceneManager field's own convention.
 inline bool loadSceneManagerFromFile(const std::string& fileName, SceneManager& out) {
     if (fileName.empty()) return false;
-    const std::string candidates[3] = {"assets/" + fileName,
-                                       "../assets/" + fileName,
-                                       "../../assets/" + fileName};
+    // Step 282 (the (h) capability): the explicit paths (the /, the \,
+    // the drive letter) are honored DIRECTLY first - the SAME
+    // convention as the sibling loadSceneFromFile (:461-473). The save
+    // (saveSceneManagerToFile) honors explicit paths (:658-674), so the
+    // load must too - the pre-282 loader probed ONLY assets/..., so a
+    // save written to any non-assets path was not findable (the Phase D
+    // Entry 11). The bare names probe assets/, ../assets/, ../../assets/
+    // exactly as before (the existing assets/ behavior preserved); the
+    // absolute-path guard is the siblings' explicitPath form (the drive
+    // letter), unchanged.
+    const bool explicitPath = fileName.find('/') != std::string::npos ||
+                              fileName.find('\\') != std::string::npos ||
+                              (fileName.size() > 1 && fileName[1] == ':');
+    std::string candidates[3];
+    int candCount = 0;
+    if (explicitPath) {
+        candidates[candCount++] = fileName;
+        candidates[candCount++] = std::string("../") + fileName;
+        candidates[candCount++] = std::string("../../") + fileName;
+    } else {
+        candidates[0] = std::string("assets/") + fileName;
+        candidates[1] = std::string("../assets/") + fileName;
+        candidates[2] = std::string("../../assets/") + fileName;
+        candCount = 3;
+    }
     std::ifstream in;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < candCount; ++i) {
         in.open(candidates[i]);
         if (in) break;
         in.clear();
