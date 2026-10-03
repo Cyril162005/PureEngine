@@ -1481,13 +1481,14 @@ updates). v6 stays NOT OPEN.
   (existing capability / engine defect / missing capability /
   game-specific behavior), never added.
 
-## ENGINE v6 — third-party readiness (Step 280, OPEN)
+## ENGINE v6 — third-party readiness (Step 280, (g) RESOLVED 281, (h) RESOLVED 282)
 
-**Version name:** Engine v6 - third-party readiness. **Status: (g)
-RESOLVED (Step 281), (h) open — engine work only; games frozen.**
-**v4 and v5 stay COMPLETE/FROZEN (Steps 263/269); this version AMENDS
-only the two capabilities below; EVERYTHING ELSE in the v3/v4/v5
-frozen contract lists is UNCHANGED.**
+**Version name:** Engine v6 - third-party readiness. **Status: BOTH
+CAPABILITIES RESOLVED (Steps 281/282), version close-out pending** —
+engine work only; games frozen. **v4 and v5 stay COMPLETE/FROZEN
+(Steps 263/269); this version AMENDED only the two capabilities below
+(both RESOLVED); EVERYTHING ELSE in the v3/v4/v5 frozen contract lists
+is UNCHANGED.**
 
 ### v6 scope (exactly two capabilities; no others unless a classified
 ### finding with evidence is added)
@@ -1530,28 +1531,40 @@ frozen contract lists is UNCHANGED.**
   (up-to-date) and did NOT fail; the mutation needed the exe/obj
   deleted + a forced rebuild — recorded.
 
-**(h) Scene-manager load honors explicit paths (Phase D Entry 11)**
-- Problem (one line): saveSceneManagerToFile to an explicit path
-  returns true; loadSceneManagerFromFile of the same path returns
-  false silently.
-- Evidence/repro (the Phase D exact): the save to
-  "consumers/level_pipeline/rt_manager.txt" returns true; the load of
-  the same path returns false silently (the loader probes ONLY
-  assets/, ../assets/, ../../assets/ — scene.h:726-728 — while the
-  save honors explicit paths, :658-674; the sibling loadSceneFromFile
-  DOES honor explicit paths, :461-467).
-- Composes with: the sibling loaders' path-resolution convention (the
-  3-candidate probe + the explicit-path handling + the absolute-path
-  guard).
-- Test path: the Entry 11 repro (the explicit-path round-trip) in the
-  level_pipeline consumer; the existing assets/ round-trip unchanged;
-  a nonexistent path still returns false; the absolute-path behavior
-  matches the sibling loaders; the negative control.
-- Blast radius: loadSceneManagerFromFile only (one function); the
-  existing assets/ behavior preserved exactly.
-- Open design questions (recorded, decided in the fix step): the
-  explicit-path resolution's exact form (the sibling loaders'
-  pattern); the absolute-path guard's form (as the siblings).
+**(h) Scene-manager load honors explicit paths (Phase D Entry 11) — RESOLVED (Step 282)**
+- THE INSPECTION: saveSceneManagerToFile (scene.h:658-674) honors the
+  explicit paths (the /, the \, the drive letter; the dir
+  auto-created); loadSceneManagerFromFile (scene.h:726-728, the
+  pre-282) probed ONLY assets/, ../assets/, ../../assets/ — NO
+  explicit-path handling; the sibling loadSceneFromFile (scene.h:
+  461-473) honors explicit paths directly first (the fileName +
+  the ../fileName + the ../../fileName variants) — THE EXISTING
+  PROJECT CONVENTION: the explicit paths honored directly first; the
+  bare names probe the assets/-relative candidates; the absolute
+  paths honored directly (the drive-letter explicitPath check).
+- THE DECISION: make the manager loader follow the sibling loaders'
+  EXACT path resolution (the default). The one-line reason: the
+  save/load symmetry and the project convention; the existing assets/
+  behavior and the absolute-path guard preserved exactly as the
+  siblings implement them.
+- THE CHANGE (the smallest, loadSceneManagerFromFile only): the
+  explicitPath check (the drive-letter form, the siblings' exact
+  shape) + the explicit candidates (the fileName + the ../fileName +
+  the ../../fileName) + the bare candidates (assets/... unchanged);
+  NO other function touched.
+- THE TESTS (the consumer's checkManagerExplicitPaths; all PASS): the
+  Entry 11 repro (the explicit-path round-trip) now passes; the
+  existing assets/ round-trip (the bare name) unchanged; a
+  nonexistent path still returns false; the ABSOLUTE-path load
+  matches the sibling loaders (the drive-letter path, the round-trip
+  content matches); the negative control (the loaded copy's health
+  altered; the comparator reports the exact field "health") ✓.
+- MUTATION TABLE (an uncommitted edit to src/scene.h, restored by
+  pathspec; ctest FAILED): the path resolution reverted (the
+  explicitPath forced false) -> THREE explicit-path tests failed (the
+  Entry 11 repro, the ABSOLUTE-path load, the negative-control load)
+  while the assets/ round-trip PASSED (unchanged, as designed — the
+  mutation only removes the explicit-path handling) — NON-VACUOUS.
 
 ### Carry forward unchanged (recorded)
 - OOB texture sample is UB (the 246 fallback proven only indirectly,

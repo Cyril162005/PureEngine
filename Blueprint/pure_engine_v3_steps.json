@@ -3134,6 +3134,17 @@
    "depends_on": [
     280
    ]
+  },
+  {
+   "id": 282,
+   "name": "Persistence: manager load honors explicit paths (finding (h) resolved)",
+   "status": "completed",
+   "definition_of_done": "Reloaded: HEAD 8b28a08, highest 281, v6 OPEN - gate TRUE. STEP 1 (the inspection, file:line): saveSceneManagerToFile (scene.h:658-674) honors the explicit paths (the /, the \\, the drive letter; the dir auto-created); loadSceneManagerFromFile (scene.h:726-728 pre-282) probed ONLY assets/ - NO explicit-path handling; the sibling loadSceneFromFile (scene.h:461-473) honors explicit paths directly first (the fileName + the ../fileName + the ../../fileName variants); loadPrefab (prefab.h:103-125): the assets/prefabs probe + the CWD-relative fallback + the absolute-path guard - THE EXISTING PROJECT CONVENTION: the explicit paths honored directly first; the bare names probe the assets/-relative candidates; the absolute paths honored directly. STEP 2 (the decision): make the manager loader follow the sibling loaders' EXACT path resolution (the default); the reason: the save/load symmetry and the project convention; the existing assets/ behavior and the absolute-path guard preserved exactly as the siblings implement them. STEP 3 (the smallest change, loadSceneManagerFromFile only): the explicitPath check (the drive-letter form, the siblings' exact shape) + the explicit candidates + the bare candidates (assets/... unchanged); NO other function touched.",
+   "notes": "THE TESTS (the consumer's checkManagerExplicitPaths; all PASS; exit 0): the Entry 11 repro (the explicit-path round-trip) NOW PASSES; the existing assets/ round-trip (the bare name) UNCHANGED; a nonexistent path still returns false; the ABSOLUTE-path load MATCHES the sibling loaders (the drive-letter path, the content matches); the negative control (the loaded copy's health altered; the comparator reports the exact field 'health'). MUTATION TABLE (an uncommitted edit to src/scene.h, restored by pathspec; ctest FAILED): the path resolution reverted (the explicitPath forced false) -> THREE explicit-path tests failed (the Entry 11 repro, the ABSOLUTE-path load, the negative-control load) while the assets/ round-trip PASSED (unchanged, as designed) - NON-VACUOUS; git diff --stat -- src/ empty afterward. Gates: build exit 0; ctest -C Release 4/4 100% (12.40s/0.63s/0.60s/0.57s), exit 0; alive x3 exit 0; git diff --check clean. hostile_default.txt and Testing/ untouched.",
+   "commit": "c395bc8",
+   "depends_on": [
+    281
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
