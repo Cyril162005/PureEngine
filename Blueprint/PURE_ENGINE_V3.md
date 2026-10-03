@@ -1690,4 +1690,16 @@ scope, not consumer work).
   feature-parity goal.
 
 ## Kill criteria
+
+***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED — the phase ends
+here.*** The Step 284 record commit `64fb5a3` (the governance
+amendment + the Phase Tools rules) is LOCAL ONLY: `git push` fails
+with exit 128 and no surfaced error message, while the remote IS
+reachable (`git ls-remote origin HEAD` returns ad4e8ce, exit 0) —
+consistent with a credential/expiry issue in this non-interactive
+shell; multiple retries consumed the retry-once budget. Step 285 (the
+Editor-0 brief) was NOT attempted (the next-step rule: only if green
+AND pushed). The human: push `64fb5a3` when the credentials recover,
+then resume at Step 285 (reload first: expect HEAD `64fb5a3`, highest
+284, Tools phase OPEN).
 If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it.
