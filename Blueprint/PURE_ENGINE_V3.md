@@ -1658,7 +1658,74 @@ The v6 version is COMPLETE/FROZEN only when:
 | the tracker records capabilities, limits, and findings | V3 + steps.json (280/281/282) + board + README | VERIFIED |
 | implementation is committed and pushed | 44f5de7 + c395bc8 pushed | VERIFIED |
 
-## PHASE TOOLS/EDITOR (Step 284, OPEN — a phase, NOT a numbered engine version)
+## Editor-0 brief (Step 286) — docs only, no editor code, no option chosen
+
+**1) The editor API inventory (exists | tests | limits; file:line):**
+
+| API an editor would use | exists | tests | limits |
+|---|---|---|---|
+| saveSceneToFile (scene.h:381) | YES | checkSceneSerialization, checkScenePersistenceV1Compat/V2/V99, the consumer's round-trip | 4dp floats; the explicit paths + the dir auto-create; the tmp+rename atomic; the dead skipped |
+| loadSceneFromFile (scene.h:459) | YES | the same + the consumer | STRICT whole-file: any malformed line → false, out untouched; v1/v2 shapes |
+| saveSceneManagerToFile (scene.h:651) | YES | checkSceneManagerSave, the consumer | the index + the per-scene saves via the 3-candidate probe |
+| loadSceneManagerFromFile (scene.h:724) | YES | the consumer's checkManagerExplicitPaths | the 282 fix: the explicit paths honored (the sibling convention); the strict whole-file |
+| Scene::queueSpawn/flushSpawns (scene.h:73/:81) | YES | checkSpawnQueue, the consumer | queueSpawn DEFERS to pendingSpawns; flushSpawns at end-of-frame OUTSIDE any iteration; the returned index = size+pending-1 |
+| buildInitialEntities (lifecycle.h:76) | YES | checkEntityLifecycle | the Arcade's constructions (an editor builds its own) |
+| resetEntities (lifecycle.h:142) | YES | checkEntityLifecycle + the snapshot tests | the snapshot-restore assignment |
+| killRole (scene.h:252) | YES | checkNohostilesKill | the role-filtered kill |
+| The mouse snapshot (input.h:264) | YES | checkMouseInput, checkInputEdges | the position + the buttons; Step 117's third responsibility |
+| screenToWorld / screenToWorldUi (camera.h:304/:299) | YES | checkPerspective (the camera math) | screenToWorld ADDS the camera position; screenToWorldUi IGNORES it (the raw ortho box conversion); the ortho only (no 3D picking) |
+| worldToScreen / worldToScreenUi (camera.h:315) | YES | checkPerspective | the inverse mapping for inspector overlays |
+| pickEntity (collision.h:323) | YES | the 127-129 pick logic (CI); the SMOKE pick is HUMAN (4.3) | the AABB containment; an entity index or -1 |
+| ui.h: Button/hitTest/drawButton (ui.h:98/:107/:118) | YES | checkButtonLayout | the plain data + pure helpers; **NO text-input widget** (a missing capability, pre-classified) |
+| fontCellFor (font.h:34) + drawTextString | YES | checkFontCells, checkFontMetrics | the 37-cell atlas; the bitmap font renders labels/values |
+| drawAABBs (renderer.h) | YES | the v5 frozen contract (checkAABBDebugSize) | the F1 debug overlay; reusable for the AABB visualization |
+| registerCommand (console.h) | YES | checkConsoleContract + the parse tests | the typed commands; no tab completion |
+| **PureEditor-lite v0** (V3:724; the headless path LANDED at Step 197) | YES | checkEditorLiteSuccess, checkEditorLiteSafety, checkEditorLiteKill, checkEditorLiteSpawn (4 tests) | load/select/nudge/save on TOP of the existing APIs; the non-goals (binding): full hierarchy editor, animation studio, multiplayer, ECS; the headless loop |
+| **The 4-decimal float format** (scene.h:418; Phase D Entry 10) | YES | the consumer's float-edge checks | the >4-decimal values do NOT round-trip bit-exact (1e-6 → 0.0000; 0.12345678 → 0.1235); save→load→save is byte-identical (the 4dp rounding idempotent). **What it means for an editor that saves:** a nudged value with more than 4 decimals loses precision on save/load — the editor's save writes 4dp text; the round-trip is stable (byte-identical) but NOT bit-exact; an editor should either round user input to 4dp deliberately or treat the saved file as the source of truth after save. |
+
+**2) Editor-0 scope options (at most 3, each at most 5 steps; EVALUATED,
+NOT chosen):**
+
+**A) Viewer (load, render, pan/zoom).** Capabilities used:
+loadSceneFromFile/loadSceneManagerFromFile, drawWorld (the sprites),
+drawAABBs, the camera's follow/position (the pan), the mouse+keys.
+Steps: ~2-3. Gaps expected (pre-classified): none for the load path
+(the (h) fix landed); the zoom is an unmet capability if the camera has
+no zoom API (a classified finding for a later engine version if
+needed). The findings it can produce: the load-path frictions (the
+strict whole-file vs partial files, the malformed level files), the
+render-order questions, the camera pan edges. Write-safety: nothing is
+written (the read-only viewer).
+
+**B) A + pick + read-only inspector.** Capabilities used: A +
+pickEntity + screenToWorld (the picking), worldToScreenUi (the
+inspector overlay), ui.h Button/hitTest/drawButton + drawTextString
+(the panel), the bitmap font. Steps: ~3-4. Gaps expected
+(pre-classified): **missing text input** (no engine text-input widget —
+the inspector displays values but cannot edit text — a classified
+finding for a later engine version); **no field display helper** (the
+inspector's label/value rows are built from ui.h's plain helpers —
+possible but raw). The findings: the pick's AABB-only limits (the
+rotated entities pick by their AABB), the hit-test vs the coordinate
+conventions, the ui.h helper edges. Write-safety: nothing written.
+
+**C) B + nudge + save-as.** Capabilities used: B + the entity mutation
+(the nudge = the position field), saveSceneToFile (the SAVE-AS). Steps:
+~4-5. Gaps expected (pre-classified): the save-as must NOT overwrite
+the source scene (the write-safety rule below); the 4dp precision (the
+nudged values beyond 4dp lose precision on save); the missing text
+input still binds (the nudge is key/arrow-driven, not typed). The
+findings: the save-path frictions (the explicit paths, the tmp+rename),
+the round-trip stability, the field-mutation edges. **Write-safety
+rule (ALL options): an editor save writes a NEW file and NEVER
+overwrites the source scene until the round-trip is proven** (the
+Phase D pattern: save→load→compare before any overwrite is even
+considered).
+
+**3) Do NOT choose an option; do NOT write editor code** — this brief
+is the evaluation basis; the choice is a human decision.
+
+## PHASE TOOLS/EDITOR (Step 284, OPEN - a phase, NOT a numbered engine version)
 
 **The unattended-phase protocol (Step 285) is now a standing order in
 AGENTS.md ("Unattended phase protocol") — binding on unattended runs:
@@ -1699,8 +1766,7 @@ scope, not consumer work).
 
 ## Kill criteria
 
-***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED — the phase ends
-here.*** The Step 284 record commit `64fb5a3` (the governance
+***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
 amendment + the Phase Tools rules) is LOCAL ONLY: `git push` fails
 with exit 128 and no surfaced error message, while the remote IS
 reachable (`git ls-remote origin HEAD` returns ad4e8ce, exit 0) —
