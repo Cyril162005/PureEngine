@@ -18,10 +18,12 @@ project itself.
 > capabilities land only as additive, opt-in, engine-pure steps with honest
 > verification — frozen behavior is never changed or unfrozen.
 
-- **Engine** (tracked steps 25–284; the 3D v4/v5/v6 versions
+- **Engine** (tracked steps 25–285; the 3D v4/v5/v6 versions
   COMPLETE/FROZEN (Steps 263/269/283); **Phase Tools/Editor OPEN at
   284** (governance: an editor/tool is a CONSUMER of the frozen engine;
-  the engine-side bans stand; the engine still ships no editing tools)):
+  the engine-side bans stand; the engine still ships no editing tools);
+  the **unattended-phase protocol** is a standing order in AGENTS.md
+  (Step 285)):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),

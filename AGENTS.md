@@ -108,3 +108,48 @@ New capabilities land only as additive, opt-in, engine-pure steps with honest ve
 - Do not make out-of-scope changes without flagging them clearly.
 - No "bulletproof" or "production-ready" language unless a claim is backed by real verification.
 
+## Unattended phase protocol (Step 285 — binding on unattended runs)
+
+- A phase is a numbered list of steps written by a human in the prompt. The
+  agent executes only those steps, never invents steps, never opens a
+  version or phase, never marks anything CONFIRMED that a human must
+  confirm, and never changes scope.
+- Preflight at the start of every phase: `git status -sb` (tree clean
+  except `assets/hostile_default.txt` and `Testing/`), `git remote -v`
+  (origin is the SSH alias below), `ssh -T git@github-pureengine`
+  (judge by the message; the non-zero exit is normal), `git fetch origin`
+  (local HEAD equals origin/main), `git push --dry-run origin main`.
+  A failing preflight ends the phase before any work.
+- Per step: reload the trackers, report the four engine-first lines, do
+  the work, run gates (`cmake --build build --config Release`,
+  `ctest -C Release`, alive x3, `git diff --check`,
+  `git diff --stat`), record, commit, push, verify `git log -2` and
+  `git status`, and continue ONLY if green AND pushed.
+- STOP conditions: failed gate, tracker/prompt discrepancy, UNVERIFIED
+  required item, hang, ambiguity, or a failed push after one retry. On
+  STOP: write a STOP note in the tracker, commit it, push if possible,
+  end the phase, and do not attempt later steps or fix anything outside
+  the step's scope.
+- Mutation checks: commit implementation and tests first, mutate only the
+  committed tree, restore by pathspec, never commit a mutation, confirm
+  `git diff --stat -- src/` is empty afterward. Expected values come from
+  the contract or inputs, never from re-measured output.
+- Consumer and Tools steps: engine src/ read-only; findings logged with
+  one class each (existing capability / engine defect / missing
+  capability / game-specific behavior); no engine fix inside a consumer
+  step.
+- Docs: edit tool only; scan U+FFFD; leave the SESSION_BOARD mojibake alone;
+  dates from the system clock; confirm the step's entry exists in
+  pure_engine_v3_steps.json and in git diff --stat before committing.
+- Push route and credentials: origin is the SSH alias remote
+  `git@github-pureengine:Cyril162005/PureEngine.git`, authenticated by a
+  repo-scoped deploy key stored in the user's profile (.ssh). The agent
+  never reads, prints, copies, or commits key material, tokens, or
+  credentials; never edits ~/.ssh or the git credential configuration;
+  never changes the remote URL; never uses --force, --no-verify, or
+  --amend on pushed commits. A failed push is retried once, then STOP.
+- Human-only decisions: opening a version or phase, choosing scope or a
+  consumer, visual confirmations (v5 stays "pending"), any change to the
+  frozen contracts, any change to these standing orders, and any
+  credential or remote change.
+

@@ -1660,6 +1660,14 @@ The v6 version is COMPLETE/FROZEN only when:
 
 ## PHASE TOOLS/EDITOR (Step 284, OPEN — a phase, NOT a numbered engine version)
 
+**The unattended-phase protocol (Step 285) is now a standing order in
+AGENTS.md ("Unattended phase protocol") — binding on unattended runs:
+the preflight checks, the per-step gate/record/push/verify loop, the
+STOP conditions, the mutation-check discipline, the consumer/Tools
+read-only rule, the docs hygiene, the SSH-alias push route and
+credential rules, and the human-only decisions list. See AGENTS.md for
+the verbatim orders.**
+
 **AMENDED Step 284 (2026-10-03, explicit allow by Cyril):** an
 editor or tool is a CONSUMER of the frozen engine, like a game. The
 frozen engine itself ships no editing tools; v4/v5/v6 stay frozen and
