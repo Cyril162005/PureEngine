@@ -3189,6 +3189,17 @@
    "depends_on": [
     285
    ]
+  },
+  {
+   "id": 287,
+   "name": "TOOLS: protocol amendment - size guard + history rule (docs only)",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT (all five checks PASS): git status -sb = '## main...origin/main' + ' M assets/hostile_default.txt' + '?? Testing/'; git remote -v = the SSH alias (matches); ssh -T = authenticated (exit 1, normal, judged by the message); git fetch origin exit 0, local HEAD 9db5c02 == origin/main; git push --dry-run exit 0 ('Everything up-to-date'). Reloaded: HEAD 9db5c02, highest 286, Tools phase OPEN (V3:1728), v4-v6 FROZEN (V3:481/783/1499), v7 not open - gate TRUE. ADDED to the 'Unattended phase protocol (Step 285)' section in AGENTS.md: (1) SIZE GUARD (Step 287): before every commit, list changed files with sizes; any changed file over 5 MB, or any tracked doc that grew more than 2x in one step, means STOP; never append to tracked files with shell redirection, Add-Content, or WriteAllText loops; docs are edited with the edit tool only, and large generated data is not committed - REASON recorded: the 285/286 incident (SESSION_BOARD grew to 176 MB by an append loop, the mojibake amplification; the push was rejected over the 100 MB limit; the recovery needed history surgery on unpushed commits, Step 286, 9db5c02). (2) HISTORY (Step 287): never rewrite history, including unpushed commits (reset, rebase, amend), without human approval; if a commit is wrong or a push is rejected, STOP, report the evidence, and wait. AUTHORIZED by Cyril via the phase prompt (a change to the standing orders is a human-only decision, made here by the human).",
+   "notes": "Docs only; no src/ or test changes. GATE ENVIRONMENT REPAIR (recorded, not a step change): the build tree referenced a cmake.exe that no longer exists (C:/Program Files/CMake/bin - uninstalled since the last session), and the system Git for Windows install is missing its shell layer (dash.exe/sh.exe absent - git submodule cannot run), which broke the FetchContent re-clone during reconfigure (glfw 'git-submodule is broken'). Repaired machine-locally without touching tracked source: reconfigure with the VS-bundled cmake + the VS-bundled complete Git (GIT_EXECUTABLE override), no file in the repo changed by the repair. Gates after repair: configure exit 0; build exit 0; ctest -C Release 4/4 100% (16.35s total: hostile_data_test, resources_test, LevelPipelineConsumer, header_hygiene), exit 0; alive x3 exit 0; git diff --check clean; git diff --stat docs only (AGENTS.md + the tracker + the board); size guard applied (largest changed file 378.7 KB, no doc grew >2x: AGENTS.md 1.1x, board 1.0x, tracker 1.0x). hostile_default.txt and Testing/ untouched.",
+   "commit": "DOCS-287",
+   "depends_on": [
+    286
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

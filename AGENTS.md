@@ -148,6 +148,19 @@ New capabilities land only as additive, opt-in, engine-pure steps with honest ve
   credentials; never edits ~/.ssh or the git credential configuration;
   never changes the remote URL; never uses --force, --no-verify, or
   --amend on pushed commits. A failed push is retried once, then STOP.
+- Size guard (Step 287): before every commit, list changed files with
+  sizes (`git diff --stat` plus file sizes for new files). Any changed
+  file over 5 MB, or any tracked doc that grew more than 2x in one step,
+  means STOP (record the STOP note, end the phase). Never append to
+  tracked files with shell redirection, Add-Content, or WriteAllText
+  loops; docs are edited with the edit tool only, and large generated
+  data is not committed. REASON (the 285/286 incident): SESSION_BOARD
+  grew to 176 MB by an append loop (the mojibake amplification), the
+  push was rejected over the 100 MB limit, and the recovery needed
+  history surgery on unpushed commits (Step 286, `9db5c02`).
+- History (Step 287): never rewrite history, including unpushed commits
+  (`reset`, `rebase`, `amend`), without human approval. If a commit is
+  wrong or a push is rejected, STOP, report the evidence, and wait.
 - Human-only decisions: opening a version or phase, choosing scope or a
   consumer, visual confirmations (v5 stays "pending"), any change to the
   frozen contracts, any change to these standing orders, and any
