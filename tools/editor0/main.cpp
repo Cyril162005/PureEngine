@@ -1,25 +1,42 @@
 /**
- * PureEditor0 (Step 288, Tools step 1 of 5) - headless --selftest only.
+ * PureEditor0 (Step 289, Tools step 2 of 5) - viewer + headless --selftest.
  *
- * No window, no GL. Consumes ONLY documented engine APIs: Entity
- * (src/entity.h), loadPrefab/instantiatePrefab (src/prefab.h), Scene +
- * saveSceneToFile (src/scene.h:381). The editor boundary is
- * editor0_core.h::loadSceneForEditor (editor-owned). Any failed check
- * exits nonzero; registered in CTest (TIMEOUT 60). Engine src/ is
+ * Modes:
+ *   PureEditor0.exe --selftest   headless pure checks + ONE hidden-window
+ *                                frame (real GL, no visible window); the
+ *                                pure parts need no window.
+ *   PureEditor0.exe <scene>      opens a window, loads the scene through
+ *                                loadSceneForEditor, draws all entities and
+ *                                their debug AABBs, shows the status line
+ *                                with the bitmap font (file name, entity
+ *                                count). On load failure the error text is
+ *                                shown on screen and the editor keeps
+ *                                running. NO saving of any kind.
+ *
+ * Consumes ONLY documented engine APIs: Entity (src/entity.h),
+ * loadPrefab/instantiatePrefab (src/prefab.h), Scene (src/scene.h),
+ * flagsForCount (src/lifecycle.h), Renderer drawWorld/drawAABBs/
+ * drawTextString (src/renderer.h), Camera (src/camera.h), WindowGuard
+ * (src/window_guard.h, Step 190). The editor boundary is
+ * editor0_core.h (editor-owned). The window/loop pattern mirrors
+ * games/pong/pong.cpp (glfwInit -> hints -> window -> context+glad ->
+ * renderer.init -> camera+onResize -> loop -> shutdown). Engine src/ is
  * read-only for this Tools step; every friction goes to FINDINGS.md.
- *
- * Reuses the Phase D consumer pattern (consumers/level_pipeline):
- * check() helper, the 34-field v2 round-trip comparator, prefab files
- * copied POST_BUILD into the target dir, WORKING_DIRECTORY =
- * $<TARGET_FILE_DIR>.
  */
+#include <glad/gl.h>
+#include <GLFW/glfw3.h>
 #include <cstdio>
 #include <cmath>
 #include <string>
+#include <vector>
 
 #include "../../src/entity.h"
 #include "../../src/prefab.h"
 #include "../../src/scene.h"
+#include "../../src/lifecycle.h"
+#include "../../src/renderer.h"
+#include "../../src/camera.h"
+#include "../../src/window_guard.h"
 #include "editor0_core.h"
 
 static int failures = 0;
@@ -69,7 +86,8 @@ static const char* kEnemyFile  = "consumers/level_pipeline/prefab_enemy.txt";
 static const char* kTempScene  = "editor0_tmp/rt_scene.txt";  // temp: a NEW file, never a source
 static const char* kMissing    = "editor0_tmp/no_such_scene_zz.txt";
 
-static void checkSelftest() {
+// The pure parts (no window, no GL): the 288 checks + the status line.
+static void checkPureParts() {
     // --- build the scene from the EXISTING prefabs ---
     pe::Prefab tile, pickup, enemy;
     if (!pe::loadPrefab(kTileFile, tile) || !pe::loadPrefab(kPickupFile, pickup) || !pe::loadPrefab(kEnemyFile, enemy)) {
@@ -149,23 +167,133 @@ static void checkSelftest() {
         check(diff == "health", "selftest: the comparator names the altered field (health)");
     }
 
-    std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
+    // --- Step 289: the status-line pure function (expected from the inputs) ---
+    const std::string okLine = editor0::makeStatusLine(kTempScene, 3, "");
+    std::printf("OBSERVED: ok status line: [%s]\n", okLine.c_str());
+    check(okLine == "editor0: editor0_tmp/rt_scene.txt | 3 entities",
+          "status line: the ok format (file name + entity count)");
+    check(editor0::makeStatusLine("x.txt", 0, "file not found: x.txt") == "editor0 ERROR: file not found: x.txt",
+          "status line: the error format");
+    // Negative control: err takes precedence; the count MUST NOT appear.
+    {
+        const std::string s = editor0::makeStatusLine("x.txt", 3, "boom");
+        check(s.find("3 entities") == std::string::npos && s == "editor0 ERROR: boom",
+              "status line: err takes precedence over count (negative control)");
+    }
+}
+
+// Step 289: ONE hidden-window frame with a loaded scene (real GL, no
+// visible window). Asserts glGetError() == 0 after the frame and that
+// the one-iteration loop exits cleanly (control returns here).
+static void checkHiddenWindowFrame() {
+    if (!glfwInit()) { check(false, "hidden-window: glfwInit failed"); return; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);      // hidden window
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    GLFWwindow* window = glfwCreateWindow(320, 240, "editor0-selftest", NULL, NULL);
+    if (!window) { glfwTerminate(); check(false, "hidden-window: the window must be created"); return; }
+    pe::WindowGuard guard(window);  // any early return destroys + terminates GLFW
+    glfwMakeContextCurrent(window);
+    if (!gladLoadGL(glfwGetProcAddress)) { check(false, "hidden-window: gladLoadGL failed"); return; }
+    pe::Renderer renderer;
+    if (!renderer.init()) { check(false, "hidden-window: renderer.init failed"); return; }
+    pe::Camera camera;
+    {   // the Pong pattern: viewport + projection follow the window size
+        int fw, fh;
+        glfwGetFramebufferSize(window, &fw, &fh);
+        camera.onResize(fw, fh);
+        glViewport(0, 0, fw, fh);
+    }
+    pe::Scene loaded; std::string err;
+    check(editor0::loadSceneForEditor(kTempScene, loaded, err), "hidden-window: the scene must load");
+    check(loaded.entities.size() == 3, "hidden-window: the loaded count is 3");
+    const std::vector<char> colliding = pe::flagsForCount(loaded.entities.size());
+    const std::string status = editor0::makeStatusLine(kTempScene, loaded.entities.size(), err);
+    // ONE frame: clear + entities + debug AABBs (-1 matches no role: all
+    // yellow) + the bitmap-font status line.
+    renderer.clear(0.0f, 0.0f, 0.0f);
+    renderer.drawWorld(camera.projection(), camera.view(), loaded.entities, colliding);
+    renderer.drawAABBs(camera.projection(), camera.view(), loaded.entities, -1);
+    renderer.drawTextString(status, -5.8f, 4.1f, camera.projection(), pe::TextAlign::Left);
+    glfwSwapBuffers(window);
+    const GLenum glErr = glGetError();
+    check(glErr == GL_NO_ERROR, "hidden-window: glGetError() == 0 after one frame");
+    renderer.shutdown();   // BEFORE the guard's destruction (the WindowGuard contract)
+    check(true, "hidden-window: the frame loop exits cleanly");
+}
+
+// Step 289: the window viewer. Loads ONCE through the editor boundary,
+// draws every frame. On load failure the error text is on screen and
+// the editor keeps running. NO saving of any kind.
+static int runViewer(const char* scenePath) {
+    if (!glfwInit()) { std::fprintf(stderr, "editor0: glfwInit failed\n"); return 1; }
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+#endif
+    GLFWwindow* window = glfwCreateWindow(800, 600, "PureEditor0", NULL, NULL);
+    if (!window) { std::fprintf(stderr, "editor0: window creation failed\n"); glfwTerminate(); return 1; }
+    pe::WindowGuard guard(window);
+    glfwMakeContextCurrent(window);
+    if (!gladLoadGL(glfwGetProcAddress)) { std::fprintf(stderr, "editor0: gladLoadGL failed\n"); return 1; }
+    pe::Renderer renderer;
+    if (!renderer.init()) { std::fprintf(stderr, "editor0: renderer init failed\n"); return 1; }
+    pe::Camera camera;
+    glfwSetWindowUserPointer(window, &camera);
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int w, int h) {
+        glViewport(0, 0, w, h);
+        auto* cam = static_cast<pe::Camera*>(glfwGetWindowUserPointer(win));
+        if (cam) cam->onResize(w, h);
+    });
+    {   // the Pong pattern: initial viewport + projection
+        int fw, fh;
+        glfwGetFramebufferSize(window, &fw, &fh);
+        camera.onResize(fw, fh);
+        glViewport(0, 0, fw, fh);
+    }
+
+    pe::Scene current;
+    std::string err;
+    const bool ok = editor0::loadSceneForEditor(scenePath, current, err);
+    const std::string status = editor0::makeStatusLine(scenePath, current.entities.size(), ok ? std::string() : err);
+    if (!ok) std::fprintf(stderr, "%s\n", status.c_str());
+
+    while (!glfwWindowShouldClose(window)) {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, GLFW_TRUE);
+        glfwPollEvents();
+        renderer.clear(0.0f, 0.0f, 0.0f);
+        const std::vector<char> colliding = pe::flagsForCount(current.entities.size());
+        renderer.drawWorld(camera.projection(), camera.view(), current.entities, colliding);
+        renderer.drawAABBs(camera.projection(), camera.view(), current.entities, -1);
+        renderer.drawTextString(status, -5.8f, 4.1f, camera.projection(), pe::TextAlign::Left);
+        glfwSwapBuffers(window);
+    }
+    renderer.shutdown();
+    return 0;
 }
 
 int main(int argc, char** argv) {
     bool selftest = false;
+    const char* scenePath = nullptr;
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selftest") selftest = true;
+        else scenePath = argv[i];
     }
-    if (!selftest) {
-        std::printf("PureEditor0: no mode given. Only --selftest is supported (Step 288, Tools step 1 of 5).\n");
-        return 2;
+    if (selftest) {
+        checkPureParts();
+        checkHiddenWindowFrame();  // Step 289: one hidden-window frame
+        std::remove(kTempScene);   // runtime output cleanup (build/ is gitignored)
+        if (failures != 0) {
+            std::printf("PureEditor0 --selftest: %d check(s) FAILED\n", failures);
+            return 1;
+        }
+        std::printf("PureEditor0 --selftest: all checks passed\n");
+        return 0;
     }
-    checkSelftest();
-    if (failures != 0) {
-        std::printf("PureEditor0 --selftest: %d check(s) FAILED\n", failures);
-        return 1;
-    }
-    std::printf("PureEditor0 --selftest: all checks passed\n");
-    return 0;
+    if (scenePath) return runViewer(scenePath);
+    std::printf("PureEditor0: no mode given. Usage: PureEditor0 --selftest | PureEditor0 <scene>\n");
+    return 2;
 }

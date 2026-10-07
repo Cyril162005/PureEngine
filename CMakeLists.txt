@@ -246,14 +246,19 @@ add_test(NAME LevelPipelineConsumer COMMAND LevelPipelineConsumer
 set_tests_properties(LevelPipelineConsumer PROPERTIES TIMEOUT 60)
 
 # Phase Tools consumer: editor0 (Step 288, Tools step 1 of 5) - the
-# PureEditor0 tool target; headless --selftest only; engine src/
+# PureEditor0 tool target; viewer + --selftest (Step 289); engine src/
 # read-only for the step. Own directory, own target; CMake changes
 # limited to adding this target (the fixture copy is the consumer
 # pattern: the prefab files the selftest loads).
 add_executable(PureEditor0
     tools/editor0/main.cpp
+    src/stb_impl.cpp
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
+target_include_directories(PureEditor0 PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(PureEditor0 PRIVATE "${stb_SOURCE_DIR}")
 target_include_directories(PureEditor0 PRIVATE "${glfw_SOURCE_DIR}/include")
+target_link_libraries(PureEditor0 glfw)
 add_test(NAME PureEditor0 COMMAND PureEditor0 --selftest
          WORKING_DIRECTORY "$<TARGET_FILE_DIR:PureEditor0>")
 set_tests_properties(PureEditor0 PROPERTIES TIMEOUT 60)

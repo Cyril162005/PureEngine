@@ -56,6 +56,18 @@ inline bool loadSceneForEditor(const std::string& path, pe::Scene& current, std:
     return true;
 }
 
+// The editor's status line (pure text-building: no GL, no window, no
+// engine call). Tested headless by --selftest with expected strings
+// from the inputs.
+//   ok:   "editor0: <path> | <count> entities"
+//   err:  "editor0 ERROR: <err>"  (err takes precedence; count ignored)
+inline std::string makeStatusLine(const std::string& path, std::size_t count, const std::string& err) {
+    if (!err.empty()) {
+        return "editor0 ERROR: " + err;
+    }
+    return "editor0: " + path + " | " + std::to_string(count) + " entities";
+}
+
 }  // namespace editor0
 
 #endif  // EDITOR0_CORE_H

@@ -46,3 +46,48 @@ NO engine fix for any entry.
   existing consumer follows; the friction is an editor-side compile
   error, not an engine issue).
 - **status:** recorded, fixed editor-side.
+
+## Entry 4
+- **what:** renderer.init()'s fatal asset set is large (2 shader files,
+  checker.png, 5 entity textures, the 6th-texture proof, the font
+  atlas) and every GL consumer covers it ONLY through the 3-candidate
+  CWD probe: from a build/Release CWD the "../../assets/" candidate
+  silently hits the REPO ROOT, so a consumer needs no fixture copy but
+  carries an implicit repo-root dependency.
+- **evidence:** src/renderer.h (the init() fatal list, each via the
+  assets/, ../assets/, ../../assets/ probe); the PureEditor0 hidden-
+  window frame ran under the ctest CWD (build/Release) with NO new
+  asset copy and passed (glGetError() == 0).
+- **class:** existing capability (the probe covers the need; the
+  implicit repo-root dependency is a maintainability note, not a
+  defect).
+- **status:** recorded, not fixed (no engine fix inside a Tools step).
+
+## Entry 5
+- **what:** drawWorld's colliding flags are mandatory (the F-04
+  assert: entities.size() == colliding.size()) even for a viewer with
+  NO collision state - a stateless consumer must fabricate flags via
+  pe::flagsForCount (zero-initialized) to draw at all.
+- **evidence:** src/renderer.h:401-404 (the assert on every drawWorld
+  call), src/lifecycle.h:152 (flagsForCount), tools/editor0/main.cpp
+  (the fabricated all-zero flags in both the viewer loop and the
+  hidden-window frame).
+- **class:** existing capability (the assert is documented and the
+  helper is the documented pattern; a viewer's all-zero flags are
+  correct, not a defect).
+- **status:** recorded, not fixed.
+
+## Entry 6
+- **what:** the GL-consumer include set is wide (glad/gl.h +
+  GLFW/glfw3.h + renderer.h + camera.h) and easy to miss part of: the
+  first 289 rewrite dropped renderer.h/camera.h and the build failed
+  with C2039 'Renderer' is not a member of 'pe' (19 errors).
+- **evidence:** the 289 dev build output (C2039/C2065 cascade at
+  main.cpp(195), see-declaration pointing at window_guard.h's pe);
+  the fix was editor-side (the two includes restored), rebuild exit 0.
+  The pattern is documented in games/pong/pong.cpp (relative includes,
+  never -Isrc).
+- **class:** existing capability (a documented convention the editor
+  author must copy whole; the friction is an editor-side compile
+  error, not an engine issue).
+- **status:** recorded, fixed editor-side.
