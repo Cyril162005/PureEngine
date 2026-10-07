@@ -245,6 +245,22 @@ add_test(NAME LevelPipelineConsumer COMMAND LevelPipelineConsumer
          WORKING_DIRECTORY "$<TARGET_FILE_DIR:LevelPipelineConsumer>")
 set_tests_properties(LevelPipelineConsumer PROPERTIES TIMEOUT 60)
 
+# Phase Tools consumer: editor0 (Step 288, Tools step 1 of 5) - the
+# PureEditor0 tool target; headless --selftest only; engine src/
+# read-only for the step. Own directory, own target; CMake changes
+# limited to adding this target (the fixture copy is the consumer
+# pattern: the prefab files the selftest loads).
+add_executable(PureEditor0
+    tools/editor0/main.cpp
+)
+target_include_directories(PureEditor0 PRIVATE "${glfw_SOURCE_DIR}/include")
+add_test(NAME PureEditor0 COMMAND PureEditor0 --selftest
+         WORKING_DIRECTORY "$<TARGET_FILE_DIR:PureEditor0>")
+set_tests_properties(PureEditor0 PROPERTIES TIMEOUT 60)
+add_custom_command(TARGET PureEditor0 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/consumers/level_pipeline" "$<TARGET_FILE_DIR:PureEditor0>/consumers/level_pipeline"
+)
+
 # Step 281: permanent header-hygiene check (the (g) capability). THE
 # POINT: src IS on this target's include path, and the standard
 # <time.h>/<ctime> must still compile - a reintroduced colliding header

@@ -1764,6 +1764,28 @@ scope, not consumer work).
   AI/MCP layer, materials system. Not a Unity/UE/Godot clone; no
   feature-parity goal.
 
+### Phase Tools consumer: editor0 (Step 288) - step 1 of 5
+
+TOOLS/Editor consumer step; no engine version opened, v4/v5/v6 stay
+frozen. tools/editor0/ landed: the PureEditor0 CMake target (CMake
+changes limited to adding it + its fixture copy, the consumer
+pattern), editor0_core.h (editor-owned; loadSceneForEditor(path,
+pe::Scene&, err) -> bool - loads into a temporary Scene via
+pe::loadSceneFromFile, replaces `current` only on success; on failure
+`current` is untouched and err is set), main.cpp (headless --selftest
+only, no window/no GL), FINDINGS.md (3 entries, one class each, none
+fixed inside the Tools step). --selftest: 21 checks green - the
+3-prefab scene from the existing consumers/level_pipeline prefab
+files, save to a temp path, the editor load, the entity count and
+every one of the 24 compared fields round-trip, the missing-file
+failure returns false + err set + `current` untouched, the negative
+control names the altered field (health). CTest TIMEOUT 60, count
+4 -> 5 (5/5 100%). No engine code added or changed (git diff --stat
+-- src/ empty); findings recorded: the loader's bare false with no
+reason code (existing capability), the per-consumer fixture-copy
+duplication (existing capability), the pe::-qualified engine types
+(existing capability).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

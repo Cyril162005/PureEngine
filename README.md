@@ -24,7 +24,7 @@ project itself.
   the engine-side bans stand; the engine still ships no editing tools);
   the **unattended-phase protocol** is a standing order in AGENTS.md
   (Step 285); the **Editor-0 brief** recorded (Step 286, no option
-  chosen, no editor code)):
+  chosen, no editor code; **Step 288** Tools editor0 step 1 of 5: the PureEditor0 tool target + loadSceneForEditor + --selftest green in tools/editor0/)):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),
