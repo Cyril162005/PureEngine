@@ -143,3 +143,60 @@ NO engine fix for any entry.
   author must copy whole; the friction is an editor-side compile
   error, not an engine issue).
 - **status:** recorded, fixed editor-side.
+
+## Entry 10
+- **what:** the hostile-load outcomes (Step 291, all inputs generated
+  programmatically, nothing committed): every case is a clean reject
+  with a non-empty err and the previous scene UNCHANGED (verified by
+  the full field comparison against the snapshot). No crash, no hang,
+  no huge allocation. The observed outcome of each case: the empty
+  file rejected; all 7 truncation points rejected (0 valid-prefix
+  loads - no line-boundary alignment in this sample); the wrong
+  version (v99) and the negative version (v-1) rejected with the
+  engine's stderr warn ("unknown scene version ... expected v1 or
+  v2"); 4 KB of garbage bytes rejected; the 1 MB entity line rejected
+  with NO hang; ALL FOUR injected count-field lines (0, -1, 2^31,
+  5-mismatching) rejected as UNKNOWN keys - the SCENE (v2) format has
+  NO count field (the count lives in the manager format), so the
+  step's "count fields" are unknown-key strict rejects, observed and
+  recorded; a directory path rejected (see Entry 11); a missing path
+  rejected.
+- **evidence:** tools/editor0/main.cpp (checkHostileLoads; the
+  OBSERVED lines in the 291 selftest output); 65 selftest checks
+  green.
+- **class:** existing capability (the strict whole-file load contract
+  held for every hostile input; the failures are safe).
+- **status:** recorded, not fixed (nothing to fix - no defect found).
+
+## Entry 11
+- **what:** a directory path is classified "file not found" by the
+  editor probe (the std::ifstream open on a directory FAILED in the
+  291 run) - imprecise (the path exists; it is not a file) - and the
+  ifstream-on-directory behavior DIFFERS from the 278-era consumer
+  observation ("the open may succeed on Windows; the getline fails ->
+  the header check -> false"). Both observations end in a safe
+  reject; the classification wording differs.
+- **evidence:** tools/editor0/editor0_core.h (the probe; the OBSERVED
+  err "file not found: editor0_tmp") vs consumers/level_pipeline
+  (the 278-era note "the open may succeed on Windows").
+- **class:** existing capability (an API-clarity gap in the
+  editor-side classification; both outcomes are safe rejects, not a
+  defect).
+- **status:** recorded, not fixed.
+
+## Entry 12
+- **what:** the mutation check nuance: under the
+  replace-before-parse mutation, the 288 missing-file check still
+  PASSED - its "current untouched" property is protected by the
+  editor probe's EARLY RETURN (the missing-file path returns before
+  any scene mutation could run), not by the parse-replace discipline.
+  The parse-path discipline is proven by the 18 hostile/reload
+  checks that DID fail under the mutation.
+- **evidence:** the 291 mutation run: 18 checks FAILED (every
+  "leaves the scene unchanged" assertion for the parse-reaching
+  cases) while "selftest: `current` untouched on failure" passed
+  (the probe path).
+- **class:** existing capability (the documented wrapper design: the
+  probe guard is the missing-file protection; a test-coverage note,
+  not a defect).
+- **status:** recorded, not fixed.

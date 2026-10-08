@@ -1858,6 +1858,44 @@ capability, the pe::-qualification + header self-containment =
 existing capability). Visual confirmation (the drawn pixels + the
 pan/zoom feel): PENDING.
 
+### Phase Tools consumer: editor0 (Step 291) - step 4 of 5
+
+TOOLS/Editor consumer step; no engine version opened, v4/v5/v6 stay
+frozen. Step 290 visual feedback CONFIRMED by Cyril (the viewer
+works, no problems reported). Implementation committed FIRST (the
+anchoring rule): commit `df152d1` - tools/editor0/main.cpp: the
+reload key R (edge-tracked; the current path through
+loadSceneForEditor; on success the scene is replaced and the status
+re-made, on failure the error shows and the scene is untouched);
+checkReload (the 3-entity sample loaded, the file rewritten with a
+DIFFERENT 2-entity count programmatically, saved to the SAME path
+(the engine saver's rename-overwrite contract), reloaded - the scene
+equals the second file exactly (count + per-entity fields), NO
+leftover entities, NO pending spawns from the first load; the
+negative control names the altered field); checkHostileLoads (the
+inputs generated PROGRAMMATICALLY into the temp dir, never
+hand-edited, nothing committed: the empty file, 7 truncations, wrong
+v99 + negative v-1 versions, 4 KB garbage, the 1 MB line, count
+fields 0/-1/2^31/5 (the SCENE v2 format has NO count field -
+unknown-key strict rejects, observed), a directory path, a missing
+path - EVERY case: false + a non-empty err + the previous scene
+UNCHANGED (the full field comparison against the snapshot); NO
+crash, no hang; the negative control on the unchanged-checker). 65
+selftest checks green. MUTATION (on the committed tree, never
+committed): loadSceneForEditor made to replace `current` BEFORE
+parsing succeeds -> 18 checks FAILED (every "leaves the scene
+unchanged" for the parse-reaching cases) - NON-VACUOUS; the
+missing-file check still passed (the probe's early return protects
+it - FINDINGS Entry 12); restored by pathspec; git diff --stat --
+src/ EMPTY. GATES against the committed tree: cmake --build build
+--config Release exit 0; ctest -C Release exit 0 5/5 100% (13.31s);
+alive x3 exit 0; git diff --check exit 0 clean; git diff --stat --
+src/ exit 0 EMPTY. FINDINGS: 12 entries (the hostile outcomes, the
+directory classification + the ifstream inconsistency, the mutation
+nuance - all existing capability; NO engine defect found). Visual
+confirmation: PENDING (the 289 error-line display stays
+unconfirmed; the 290 viewer confirmed by Cyril).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
