@@ -1817,6 +1817,47 @@ flags for a stateless viewer, the wide GL-consumer include set - all
 existing capability, none fixed inside the Tools step). Visual
 confirmation: PENDING.
 
+### Phase Tools consumer: editor0 (Step 290) - step 3 of 5
+
+TOOLS/Editor consumer step; no engine version opened, v4/v5/v6 stay
+frozen. Step 289 visual feedback: the window opened/stayed open; the
+on-screen error text was NOT reported - the error line display stays
+UNCONFIRMED, visual confirmation PENDING. Implementation committed
+FIRST (the anchoring rule): commit `6ae05f5` - tools/editor0/
+extended: editor0_core.h +69 (kEditorZoomMin 0.25 / kEditorZoomMax
+4.0 EDITOR-documented limits - the engine documents none; clampedZoom;
+cameraPanDelta (the formula: worldPerPixel = 2*half/(zoom*fb); the
+camera moves (-dx*wppx, +dy*wppy), the y flip); zoomedProjection
+(pe::Mat4::scale composed into the caller's projection - a
+screen-center zoom; the engine API takes the caller's matrix
+unchanged); screenToWorldAtZoom/worldToScreenAtZoom (the documented
+pe::screenToUi/uiToScreen fed the zoomed half-extents + camPos)).
+main.cpp: the --make-sample mode (buildSampleScene + makeSampleScene-
+File: saves with pe::saveSceneToFile, REFUSES to overwrite an
+existing file, the file untouched); the viewer wiring: pe::Input
+edge-tracked keys (ESC quit, +/= zoom in x1.25, -/_ zoom out /1.25 -
+one step per press; NO wheel - input.h exposes no scroll), left-drag
+pan via cameraPanDelta + Camera::follow (the documented position
+setter; position is private), the zoomed projection for drawWorld/
+drawAABBs/drawTextString. --selftest: 41 checks green - the sample
+generator (written, loads, count 3, REFUSED, unchanged), the pan/zoom
+math (the 12x9 box, the round-trips at tolerance 1e-4, the engine
+Camera agreement, the formula delta (-1.5, -0.75), the known-point
+move (100, -50) px at tolerance 1e-3, BOTH negative controls, the
+zoom clamps, the zoomed round-trip) + the 288/289 checks. MUTATION
+(on the committed tree, never committed): the zoom max clamp dropped
+-> 'FAIL: pan/zoom: zoom clamps at the documented max (4.0)' exit 1 -
+NON-VACUOUS; restored by pathspec; git diff --stat -- src/ EMPTY.
+GATES against the committed tree: cmake --build build --config
+Release exit 0; ctest -C Release exit 0 5/5 100% (43.22s, PureEditor0
+16.02s); alive x3 exit 0; git diff --check exit 0 clean; git diff
+--stat -- src/ exit 0 EMPTY; --make-sample smoke: the path printed
+exit 0, the second run REFUSED. FINDINGS: 9 entries (the camera zoom
+API = missing capability, the wheel/scroll input = missing
+capability, the pe::-qualification + header self-containment =
+existing capability). Visual confirmation (the drawn pixels + the
+pan/zoom feel): PENDING.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

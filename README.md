@@ -24,7 +24,7 @@ project itself.
   the engine-side bans stand; the engine still ships no editing tools);
   the **unattended-phase protocol** is a standing order in AGENTS.md
   (Step 285); the **Editor-0 brief** recorded (Step 286, no option
-  chosen, no editor code; **Step 288** Tools editor0 step 1 of 5: the PureEditor0 tool target + loadSceneForEditor + --selftest green in tools/editor0/; **Step 289** editor0 step 2: the window viewer (entities + debug AABBs + bitmap-font status line; load failure keeps running) + the hidden-window GL frame, selftest 27 checks green, visual confirmation PENDING)):
+  chosen, no editor code; **Step 288** Tools editor0 step 1 of 5: the PureEditor0 tool target + loadSceneForEditor + --selftest green in tools/editor0/; **Step 289** editor0 step 2: the window viewer (entities + debug AABBs + bitmap-font status line; load failure keeps running) + the hidden-window GL frame, selftest 27 checks green, visual confirmation PENDING; **Step 290** editor0 step 3: the sample generator (--make-sample, refuses to overwrite) + mouse-drag pan + +/- zoom (clamped 0.25-4.0, editor-documented limits; NO wheel input in the engine), selftest 41 checks green, visual confirmation PENDING)):
   window/context, rendering pipeline,
   own math library (`Vec3`/`Mat4`), entity/collision/state systems,
   audio playback (miniaudio: SFX pool, event sounds, music loop, mute),

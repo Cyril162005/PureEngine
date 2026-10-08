@@ -91,3 +91,55 @@ NO engine fix for any entry.
   author must copy whole; the friction is an editor-side compile
   error, not an engine issue).
 - **status:** recorded, fixed editor-side.
+
+## Entry 7
+- **what:** the camera exposes NO zoom API. camera.h has no zoom; the
+  vertical world span can NEVER change through the public API
+  (onResize locks halfHeight at 4.5 and there is no half-extent
+  setter; position/halfWidth/halfHeight are private); the only
+  projection rebuild is onResize. The engine's Camera::screenToWorld
+  also has no zoom knowledge, so a zoomed view cannot be converted
+  with the engine conversion alone.
+- **evidence:** src/camera.h (the private fields, the onResize
+  halfHeight=4.5 lock, no zoom symbol - a "zoom" grep over camera.h
+  returns zero hits); PURE_ENGINE_V3.md:1693 pre-classified the zoom
+  as unmet if the camera has no zoom API. The editor implements zoom
+  as an EDITOR-OWNED screen-center scale (pe::Mat4::scale composed
+  into the caller's projection via zoomedProjection) + zoom-aware
+  conversions (screenToWorldAtZoom/worldToScreenAtZoom feeding the
+  documented pe::screenToUi/uiToScreen the zoomed half-extents);
+  41 selftest checks green including the zoom clamps and the zoomed
+  round-trip.
+- **class:** **missing capability** (a camera zoom API - engine work
+  for a later engine version).
+- **status:** recorded, not fixed (no engine fix inside a Tools step).
+
+## Entry 8
+- **what:** input.h exposes NO wheel/scroll input. The MouseState
+  snapshot carries only position + left/right buttons; the header
+  documents "no scroll, no cursor management". A wheel zoom is not
+  expressible through the documented input boundary.
+- **evidence:** src/input.h:264-290 (the MouseState struct + the "no
+  scroll" note); the editor uses GLFW_KEY_EQUAL/GLFW_KEY_MINUS edges
+  (one step per press) for zoom instead. 41 selftest checks green
+  (the clampedZoom contract).
+- **class:** **missing capability** (a wheel/scroll input - engine
+  work for a later engine version).
+- **status:** recorded, not fixed (zoom is +/- keys in editor0).
+
+## Entry 9
+- **what:** the pe::-qualification convention bites again, with the
+  header self-containment as the new part: unqualified Vec3/Mat4 in
+  editor code fail to parse (C4430/C2146 'missing type specifier' at
+  editor0_core.h(98/112) with C2440/C2660 cascades; TWO dev builds
+  failed), and editor0_core.h must include camera.h itself (it now
+  consumes pe::screenToUi/pe::uiToScreen) - it did not compile
+  self-contained until the include was added.
+- **evidence:** the 290 dev build outputs (the bogus 'editor0::Vec3'
+  declarations + the argument-list cascades); the fix = pe::Vec3/
+  pe::Mat4 everywhere + the camera.h include; rebuild exit 0. The
+  same convention as Entry 3 (288 recorded Scene; 290 hit Vec3/Mat4).
+- **class:** existing capability (a documented convention the editor
+  author must copy whole; the friction is an editor-side compile
+  error, not an engine issue).
+- **status:** recorded, fixed editor-side.
