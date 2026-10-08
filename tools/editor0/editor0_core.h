@@ -137,6 +137,86 @@ inline pe::Vec3 worldToScreenAtZoom(const pe::Vec3& world, int fbWidth, int fbHe
                           halfW / zoom, halfH / zoom);
 }
 
+// --- Step 294: selection + gesture + report sink (pure: no GL, no GLFW) ---
+// The click-vs-drag threshold (EDITOR-OWNED, documented): a press and
+// release within this many PIXELS (Euclidean distance) is a CLICK;
+// anything further is a DRAG.
+inline constexpr float kEditorClickThresholdPx = 4.0f;
+
+enum class PointerGesture { Click, Drag };
+
+// Classify a pointer gesture (pure, testable): the Euclidean pixel
+// distance between the press and the release decides. dist == the
+// threshold is a CLICK (the boundary is inclusive).
+inline PointerGesture classifyPointerGesture(float downX, float downY,
+                                             float upX, float upY,
+                                             float thresholdPx) {
+    const float dx = upX - downX;
+    const float dy = upY - downY;
+    const float distSq = dx * dx + dy * dy;
+    return (distSq <= thresholdPx * thresholdPx)
+               ? PointerGesture::Click : PointerGesture::Drag;
+}
+
+// The editor's report sink (the Step 294 print discipline): ALL editor
+// diagnostics route through ONE function taking an ostream - a failed
+// load reports ONCE per attempt, and a std::ostringstream sink can
+// count the reports in tests.
+inline void reportMessage(std::ostream& out, const std::string& message) {
+    out << message << "\n";
+}
+
+// The zoom-aware pick (the editor's composition): the world point at
+// the current pan+zoom via screenToWorldAtZoom, then the DOCUMENTED
+// pe::pickEntity (world coords in, index out). The engine's
+// pickEntityAtScreen has no zoom knowledge (it converts with the
+// camera's stored half-extents), so the editor composes.
+inline int pickEntityAtScreenZoomed(const std::vector<pe::Entity>& entities,
+                                    float mouseX, float mouseY,
+                                    int fbWidth, int fbHeight,
+                                    float halfW, float halfH, float zoom,
+                                    const pe::Vec3& camPos) {
+    if (zoom <= 0.0f) {
+        return -1;
+    }
+    const pe::Vec3 world = screenToWorldAtZoom(mouseX, mouseY, fbWidth, fbHeight,
+                                               halfW, halfH, zoom, camPos);
+    return pe::pickEntity(entities, world.x, world.y);
+}
+
+// The editor's reload WITH the selection lifecycle (the Step 294
+// contract): on SUCCESS the scene is replaced AND the selection is
+// CLEARED (the indices are stale after any structural change); on
+// FAILURE both `current` and `selected` are UNCHANGED. Returns the
+// load result.
+inline bool reloadForEditor(const std::string& path, pe::Scene& current,
+                            int& selected, std::string& err) {
+    const bool ok = loadSceneForEditor(path, current, err);
+    if (ok) {
+        selected = -1;  // the successful reload clears the selection
+    }
+    return ok;  // the failed reload leaves the selection unchanged
+}
+
+// The status line WITH the selection (the Step 294 extension): the same
+// ok format + " | selected <i> (<tag>)" when something is selected;
+// selected < 0 = nothing selected (the base format unchanged). The err
+// rule is unchanged: err takes precedence (no selection shown).
+inline std::string makeStatusLine(const std::string& path, std::size_t count,
+                                  const std::string& err,
+                                  int selected,
+                                  const std::vector<pe::Entity>& entities) {
+    std::string s = makeStatusLine(path, count, err);
+    if (!err.empty()) {
+        return s;
+    }
+    if (selected >= 0 && selected < static_cast<int>(entities.size())) {
+        s += " | selected " + std::to_string(selected) + " ("
+             + entities[static_cast<std::size_t>(selected)].tag + ")";
+    }
+    return s;
+}
+
 }  // namespace editor0
 
 #endif  // EDITOR0_CORE_H

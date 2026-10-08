@@ -39,6 +39,8 @@
 #include <GLFW/glfw3.h>
 #include <cstdio>
 #include <cmath>
+#include <sstream>
+#include <algorithm>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -579,6 +581,127 @@ static void checkHostileLoads() {
     std::remove(kHostile);
 }
 
+// Step 294: selection + pick + gesture + the print discipline (pure,
+// no GL). Expected values come from the formulas, never from
+// re-measured output.
+static void checkSelectionAndPick() {
+    // --- the pick at a NON-DEFAULT pan and zoom: a click at the screen
+    //     position computed from a known entity's world position
+    //     selects it ---
+    pe::Camera cam;
+    cam.onResize(800, 600);
+    const float halfW = cam.halfExtentX();   // 6.0
+    const float halfH = cam.halfExtentY();   // 4.5
+    cam.follow(pe::Vec3(2.0f, 1.0f, 0.0f));  // the non-default pan
+    const float z = 1.5f;                    // the non-default zoom
+    // A known entity at world (3,3,0): its screen position from the
+    // formulas: rel = (1,2); the zoomed half-extents (4, 3);
+    // uiToScreen(1,2,800,600,4,3) = (500, 100).
+    pe::Entity e(pe::Vec3(3.0f, 3.0f, 0.0f), 0.0f, pe::Vec3(0.5f, 0.5f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.5f), 1);
+    e.alive = true;
+    e.roleId = 7;
+    e.depth = 0;
+    std::vector<pe::Entity> entities;
+    entities.push_back(e);
+    const pe::Vec3 screenPos = editor0::worldToScreenAtZoom(e.position, 800, 600, halfW, halfH, z, cam.getPosition());
+    std::printf("OBSERVED: the known entity's screen position: (%.4f, %.4f)\n", screenPos.x, screenPos.y);
+    check(floatEqT(screenPos.x, 500.0f, 1e-3f) && floatEqT(screenPos.y, 100.0f, 1e-3f),
+          "pick: the screen position from the formulas = (500, 100) at pan (2,1) zoom 1.5");
+    const int picked = editor0::pickEntityAtScreenZoomed(entities, screenPos.x, screenPos.y, 800, 600, halfW, halfH, z, cam.getPosition());
+    check(picked == 0, "pick: a click at the computed screen position selects the known entity");
+
+    // --- a click OUTSIDE selects nothing ---
+    const int missed = editor0::pickEntityAtScreenZoomed(entities, 10.0f, 10.0f, 800, 600, halfW, halfH, z, cam.getPosition());
+    check(missed == -1, "pick: a click outside selects nothing (-1)");
+
+    // --- negative control: a click computed with the WRONG zoom misses ---
+    {
+        const float wrongZoom = 0.75f;  // ignoring the zoom -> the wrong world point
+        const pe::Vec3 wrongWorld = editor0::screenToWorldAtZoom(screenPos.x, screenPos.y, 800, 600, halfW, halfH, wrongZoom, cam.getPosition());
+        // expected: the unzoomed conversion of (500,100) with the 0.75
+        // half-extents: rel = (2,4) -> world (4,5) - clearly outside.
+        std::printf("OBSERVED: the wrong-zoom world point: (%.4f, %.4f)\n", wrongWorld.x, wrongWorld.y);
+        check(floatEqT(wrongWorld.x, 4.0f, 1e-3f) && floatEqT(wrongWorld.y, 5.0f, 1e-3f),
+              "pick: the wrong-zoom conversion lands at (4,5) (from the formulas)");
+        const int wrongPick = editor0::pickEntityAtScreenZoomed(entities, screenPos.x, screenPos.y, 800, 600, halfW, halfH, wrongZoom, cam.getPosition());
+        check(wrongPick == -1, "pick: negative control - a click computed with the wrong zoom MISSES");
+    }
+
+    // --- overlapping entities: the observed pick order (a finding, NOT
+    //     asserted as a contract) ---
+    {
+        pe::Entity e2 = e;
+        e2.depth = 2;        // a LOWER depth
+        e.depth = 5;         // the higher depth
+        std::vector<pe::Entity> both;
+        both.push_back(e);   // index 0, depth 5
+        both.push_back(e2);  // index 1, depth 2
+        const int pickedBoth = editor0::pickEntityAtScreenZoomed(both, screenPos.x, screenPos.y, 800, 600, halfW, halfH, z, cam.getPosition());
+        std::printf("OBSERVED: overlapping entities (depths 5 then 2): the pick returned index %d\n", pickedBoth);
+        // recorded as a finding; NOT asserted as a contract (the step).
+    }
+
+    // --- a dead entity is not selectable (the engine skips it) ---
+    {
+        pe::Entity dead = e;
+        dead.alive = false;
+        std::vector<pe::Entity> withDead;
+        withDead.push_back(dead);  // ONLY the dead entity
+        const int pickedDead = editor0::pickEntityAtScreenZoomed(withDead, screenPos.x, screenPos.y, 800, 600, halfW, halfH, z, cam.getPosition());
+        check(pickedDead == -1, "pick: a dead entity is NOT selectable (the engine skips alive=false)");
+    }
+
+    // --- the click-vs-drag classification at the threshold boundary ---
+    check(editor0::classifyPointerGesture(0.0f, 0.0f, 4.0f, 0.0f, editor0::kEditorClickThresholdPx) == editor0::PointerGesture::Click,
+          "gesture: dist == the threshold (4 px) is a CLICK (the inclusive boundary)");
+    check(editor0::classifyPointerGesture(0.0f, 0.0f, 4.1f, 0.0f, editor0::kEditorClickThresholdPx) == editor0::PointerGesture::Drag,
+          "gesture: dist just past the threshold is a DRAG");
+    check(editor0::classifyPointerGesture(0.0f, 0.0f, 0.0f, 0.0f, editor0::kEditorClickThresholdPx) == editor0::PointerGesture::Click,
+          "gesture: a zero-distance release is a CLICK");
+    // negative control: a far release is a DRAG, not a CLICK.
+    check(editor0::classifyPointerGesture(0.0f, 0.0f, 100.0f, 50.0f, editor0::kEditorClickThresholdPx) == editor0::PointerGesture::Drag,
+          "gesture: negative control - a far release is a DRAG");
+
+    // --- the selection lifecycle across reloads (the editor contract) ---
+    {
+        const char* kSel = "editor0_tmp/sel_scene.txt";
+        std::string serr;
+        if (!makeSampleSceneFile(kSel, serr)) {
+            check(false, "reload/selection: the sample must be written");
+        } else {
+            pe::Scene cur; std::string lerr;
+            check(editor0::loadSceneForEditor(kSel, cur, lerr), "reload/selection: the first load");
+            int sel = 1;
+            // a SUCCESSFUL reload CLEARS the selection
+            check(editor0::reloadForEditor(kSel, cur, sel, lerr), "reload/selection: the successful reload");
+            check(sel == -1, "reload/selection: the successful reload CLEARS the selection");
+            // a FAILED reload KEEPS the selection
+            sel = 2;
+            const bool ok2 = editor0::reloadForEditor(kMissing, cur, sel, lerr);
+            check(!ok2, "reload/selection: the failed reload returns false");
+            check(sel == 2, "reload/selection: the failed reload KEEPS the selection");
+        }
+        std::remove(kSel);
+    }
+
+    // --- the print discipline (Step 294): ONE failed load = exactly
+    //     ONE report (the test sink counts them) ---
+    {
+        std::ostringstream sink;
+        pe::Scene cur; std::string lerr;
+        const bool ok3 = editor0::loadSceneForEditor(kMissing, cur, lerr);
+        if (!ok3) {
+            editor0::reportMessage(sink, editor0::makeStatusLine(kMissing, cur.entities.size(), lerr));
+        }
+        const std::string reported = sink.str();
+        const int lines = static_cast<int>(std::count(reported.begin(), reported.end(), '\n'));
+        std::printf("OBSERVED: one failed load produced %d report line(s): [%s]\n", lines, reported.c_str());
+        check(lines == 1, "print: one failed load reports EXACTLY once (the test sink)");
+        check(reported == "editor0 ERROR: file not found: editor0_tmp/no_such_scene_zz.txt\n",
+              "print: the report is the editor0 ERROR status line");
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -659,18 +782,22 @@ static int runViewer(const char* scenePath) {
     pe::Scene current;
     std::string err;
     const bool ok = editor0::loadSceneForEditor(scenePath, current, err);
-    std::string status = editor0::makeStatusLine(scenePath, current.entities.size(), ok ? std::string() : err);
-    if (!ok) std::fprintf(stderr, "%s\n", status.c_str());
+    int selected = -1;  // editor-owned selection state; -1 = nothing selected
+    std::string status = editor0::makeStatusLine(scenePath, current.entities.size(),
+                                                 ok ? std::string() : err, selected, current.entities);
+    if (!ok) editor0::reportMessage(std::cerr, status);  // ONE report per attempt
 
-    // Steps 290/291: editor state - the zoom (the documented limits) +
-    // the drag tracking + the reload path. Edge-tracked keys: ESC
-    // (quit) + +/- (zoom steps) + R (reload) - one event per press (the
-    // documented edge read). NO wheel: input.h exposes no scroll input
-    // (the missing-capability finding).
+    // Steps 290/291/294: editor state - the zoom (the documented
+    // limits) + the drag/click tracking + the reload path + the
+    // selection. Edge-tracked keys: ESC (quit) + +/- (zoom steps) + R
+    // (reload) - one event per press (the documented edge read). NO
+    // wheel: input.h exposes no scroll input (the missing-capability
+    // finding).
     pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R});
     float zoom = 1.0f;
     bool dragging = false;
     float lastX = 0.0f, lastY = 0.0f;
+    float downX = 0.0f, downY = 0.0f;  // the press position for the gesture classification
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -678,19 +805,23 @@ static int runViewer(const char* scenePath) {
         if (input.isEdge(window, GLFW_KEY_EQUAL)) zoom = editor0::clampedZoom(zoom * 1.25f);
         if (input.isEdge(window, GLFW_KEY_MINUS)) zoom = editor0::clampedZoom(zoom / 1.25f);
         // Reload (R): the current path through the editor boundary. On
-        // success the scene is replaced and the status re-made (the new
-        // count); on failure the error text shows and the scene is
-        // untouched (the loadSceneForEditor contract).
+        // success the scene is replaced AND the selection is CLEARED
+        // (the indices are stale); on failure the error text shows, the
+        // scene is untouched AND the selection is KEPT (both documented).
         if (input.isEdge(window, GLFW_KEY_R)) {
             std::string rerr;
-            const bool rok = editor0::loadSceneForEditor(scenePath, current, rerr);
-            status = editor0::makeStatusLine(scenePath, current.entities.size(), rok ? std::string() : rerr);
-            if (!rok) std::fprintf(stderr, "%s\n", status.c_str());
+            const bool rok = editor0::reloadForEditor(scenePath, current, selected, rerr);
+            status = editor0::makeStatusLine(scenePath, current.entities.size(),
+                                             rok ? std::string() : rerr, selected, current.entities);
+            if (!rok) editor0::reportMessage(std::cerr, status);  // ONE report per attempt
         }
         // Quit: ESC, one edge per press.
         if (input.isEdge(window, GLFW_KEY_ESCAPE)) glfwSetWindowShouldClose(window, GLFW_TRUE);
-        // Pan: left-drag; the grabbed world point follows the cursor
-        // (position += ui(m0) - ui(m1), the cameraPanDelta formula).
+        // Pan + selection: left-press starts a gesture; while held the
+        // grabbed world point follows the cursor (the cameraPanDelta
+        // formula); on release the gesture is CLASSIFIED editor-side -
+        // a CLICK (within the threshold) selects the entity under the
+        // cursor (or clears on empty space), a DRAG panned (as before).
         const pe::MouseState m = pe::Input::pollMouse(window);
         if (m.left) {
             if (dragging) {
@@ -700,11 +831,31 @@ static int runViewer(const char* scenePath) {
                                                              camera.halfExtentX(), camera.halfExtentY(), zoom);
                 camera.follow(pe::Vec3(camera.getPosition().x + pan.x,
                                        camera.getPosition().y + pan.y, 0.0f));
+            } else {
+                downX = m.x;   // the press START: capture the position
+                downY = m.y;
             }
             dragging = true;
             lastX = m.x;
             lastY = m.y;
         } else {
+            if (dragging) {
+                // Release: classify the gesture (editor-owned, pure).
+                const editor0::PointerGesture g =
+                    editor0::classifyPointerGesture(downX, downY, m.x, m.y,
+                                                    editor0::kEditorClickThresholdPx);
+                if (g == editor0::PointerGesture::Click) {
+                    // Select: the entity under the cursor at the current
+                    // pan+zoom; empty space (-1) CLEARS the selection.
+                    int fw, fh;
+                    glfwGetFramebufferSize(window, &fw, &fh);
+                    selected = editor0::pickEntityAtScreenZoomed(current.entities, m.x, m.y, fw, fh,
+                                                                 camera.halfExtentX(), camera.halfExtentY(), zoom,
+                                                                 camera.getPosition());
+                    status = editor0::makeStatusLine(scenePath, current.entities.size(),
+                                                     std::string(), selected, current.entities);
+                }
+            }
             dragging = false;
         }
         input.update(window);   // frame-end snapshot (the documented temporal order)
@@ -713,7 +864,12 @@ static int runViewer(const char* scenePath) {
         const std::vector<char> colliding = pe::flagsForCount(current.entities.size());
         const pe::Mat4 proj = editor0::zoomedProjection(zoom, camera.projection());
         renderer.drawWorld(proj, camera.view(), current.entities, colliding);
-        renderer.drawAABBs(proj, camera.view(), current.entities, -1);
+        // The highlight: the selected entity's ROLE GROUP draws orange
+        // (the engine's playerRoleId parameter - no engine change; the
+        // sample's roles are distinct so exactly the selected entity
+        // highlights). Nothing selected (-1): all yellow.
+        renderer.drawAABBs(proj, camera.view(), current.entities,
+                           (selected >= 0) ? current.entities[static_cast<std::size_t>(selected)].roleId : -1);
         renderer.drawTextString(status, -5.8f, 4.1f, proj, pe::TextAlign::Left);
         glfwSwapBuffers(window);
     }
@@ -736,6 +892,7 @@ int main(int argc, char** argv) {
         checkSampleAndPanZoom();  // Step 290: the sample generator + pan/zoom math
         checkReload();            // Step 291: the reload path
         checkHostileLoads();      // Step 291: the hostile loads
+        checkSelectionAndPick();  // Step 294: selection + pick + gesture + print discipline
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
