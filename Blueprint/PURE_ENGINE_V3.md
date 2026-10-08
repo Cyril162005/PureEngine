@@ -1896,6 +1896,65 @@ nuance - all existing capability; NO engine defect found). Visual
 confirmation: PENDING (the 289 error-line display stays
 unconfirmed; the 290 viewer confirmed by Cyril).
 
+### Phase Tools consumer: editor0 (Step 292) - step 5 of 5, Editor-0 slice COMPLETE
+
+DOCS ONLY (no code, no features, no version/phase opened; v4/v5/v6
+stay frozen). Human feedback recorded VERBATIM: the prompt's
+feedback placeholder was not replaced - the 291 hostile visual
+feedback is recorded as "none"; the 289 error-line display stays
+PENDING (the on-screen text was not reported); the 290 viewer
+visual CONFIRMED by Cyril.
+
+**The slice, 288-291 (5 steps, 6 commits, 65 checks):** 288
+(`a532f41`): tools/editor0/ + the PureEditor0 target +
+loadSceneForEditor + the headless --selftest (21 checks; the CTest
+count 4 -> 5). 289 (`e799b90` impl + `44b3094` record): the window
+viewer (entities + debug AABBs + the bitmap-font status line; load
+failure keeps running) + the hidden-window GL frame
+(glGetError() == 0; 27 checks). 290 (`6ae05f5` impl + `5fdeb1d`
+record): --make-sample (refuses to overwrite) + mouse-drag pan +
++/- zoom (clamped 0.25-4.0, editor-documented limits; 41 checks).
+291 (`df152d1` impl + `d93e85d` record): the R reload (the scene
+replaced exactly, no leftovers/spawns) + the hostile loads (12+7
+case types, all clean rejects, the scene unchanged every time, NO
+crash/hang; 65 checks). Both mutations NON-VACUOUS (290: the zoom
+max clamp; 291: the replace-before-parse). FINDINGS: 12 entries
+classified (10 existing capability - 4 with doc-gap notes, 2
+missing capability: the camera zoom API + the wheel/scroll input,
+0 engine defect, 0 game-specific).
+
+**Is Editor-0 option B blocked? NO - evidence, not chosen:** the
+pick trio exists (pe::pickEntity collision.h:323 +
+pe::pickEntityAtScreen collision.h:364-369), worldToScreenUi
+(camera.h:293-300), ui.h Button/hitTest/drawButton
+(ui.h:98/107/118) + the bitmap font (renderer.h:1027) - all
+verified. The blockers: NO text-input widget - blocks NEITHER B
+(read-only inspector) NOR C-as-specified (the nudge is
+key/arrow-driven), it would block a future typed-edit feature; NO
+camera zoom API - blocks NEITHER (the editor-side
+zoomedProjection + screenToWorldAtZoom composition is proven,
+290); NO wheel input - blocks NEITHER (zoom is +/- keys, 290).
+What can proceed in tools/ WITHOUT lifting any freeze: option B (a
+Tools step prompt), option C (the nudge + save-as - the
+write-safety rule: an editor save writes a NEW file, never
+overwrites the source until round-trip proven), docs work.
+
+**Options open to the human (prerequisites; NONE recommended):**
+(a) option B in tools/ - prerequisites: the verified APIs above, a
+Tools step prompt, no freeze lift, ~3-4 steps (the V3 brief).
+(b) a docs direction spec - prerequisites: none (docs only).
+(c) a seed-and-noise version open - prerequisites: a HUMAN-ONLY
+decision (opening a version is never agent-initiated); per the
+version rules a real demonstrated need in the source/build
+(classified findings) + a docs-first scope; additive/opt-in/
+engine-pure; the freeze guardrails apply.
+(d) stop - the phase ends; the engine stays frozen; the Tools
+phase closes at 5 of 5.
+
+Gates (docs only, unchanged): cmake --build build --config Release
+exit 0; ctest -C Release exit 0 5/5 100%; alive x3 exit 0; git
+diff --check exit 0 clean; git diff --stat -- src/ exit 0 EMPTY.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
