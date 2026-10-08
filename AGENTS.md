@@ -16,6 +16,7 @@ This repository is a compact, single-developer C++ OpenGL game engine and arcade
 - Engine work is tracked across the `Blueprint/` documents, but source and build output are the authoritative truth.
 - The current implementation is organized as a set of engine boundaries in `src/` rather than a monolithic main file.
 - The project is still in active development; treat tracker files as hints, not guarantees.
+- Product direction: the **PureEngine Direction Specification** (Blueprint/PURE_ENGINE_V3.md, Step 293) files every capability into the 5-category map and states the phase entry/exit criteria; the product goal is a general-purpose 2D + 3D engine (the human decision, 2026-10-08); frozen is not rejected - only a human phase-open step unfreezes anything.
 
 ## Build and verification
 

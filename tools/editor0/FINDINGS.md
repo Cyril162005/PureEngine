@@ -316,3 +316,27 @@ TALLY: 12 entries = 10 existing capability (4 with doc-gap notes),
 entry (the Tools rules); the two missing capabilities are engine
 work for a later engine version, opened docs-first from these
 findings if the human chooses.
+
+## Step 293 observation: the repeated console print on a failed load
+
+- **what (recorded VERBATIM from Cyril's hands-on run, 2026-10-08):**
+  he ran `PureEditor0.exe savedata\sample_truncated.txt` and
+  `PureEditor0.exe savedata\sample_garbage.txt` (made by truncating
+  and by writing 4096 bytes of garbage). EACH printed
+  "editor0 ERROR: parse failed: <path>" to the TERMINAL 5 times
+  (identical lines) and the editor stayed running until ESC. He
+  opened `savedata\sample_scene.txt` normally and reported that it
+  works. --make-sample on an existing path refused to overwrite, as
+  designed. He did NOT describe the on-screen error-line text, so
+  the window error-line display (Step 289) stays UNCONFIRMED.
+- **classification: OBSERVATION** (per the Step 293 prompt - not a
+  defect and not one of the four classes; the outcome is safe: the
+  editor stays running until ESC and the scene is untouched).
+- **mechanism (UNVERIFIED):** the code path prints ONCE per failed
+  load (tools/editor0/main.cpp runViewer: the single
+  std::fprintf(stderr, ...) at the load site, BEFORE the loop); the
+  5x count is NOT explained by the cited code path - the likely
+  explanation is the accumulated console output across multiple
+  opens in the same terminal; unverified, recorded as reported.
+- **status:** recorded (an observation; no engine fix, no editor
+  fix inside a docs step).

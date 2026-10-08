@@ -1955,6 +1955,263 @@ Gates (docs only, unchanged): cmake --build build --config Release
 exit 0; ctest -C Release exit 0 5/5 100%; alive x3 exit 0; git
 diff --check exit 0 clean; git diff --stat -- src/ exit 0 EMPTY.
 
+### PureEngine Direction Specification (Step 293, docs only)
+
+**HUMAN DECISION (Cyril, explicit, recorded by the Step 293 prompt,
+2026-10-08, verbatim):** PureEngine's product goal is a
+general-purpose 2D + 3D engine. 2D is the proven production path;
+3D is introduced progressively, one capability per version, through
+the engine-first process. This decision does NOT lift any other
+freeze: ECS, networking, scripting, hot-reload, engine retained UI,
+PBR, glTF, materials system and volumetric generation stay blocked
+until each gets its own explicit human phase-open step.
+
+**The rule:** the current state does NOT define the final boundary.
+Frozen is not rejected: only a human phase-open step unfreezes
+anything. A phase is a numbered list of steps written by a human in
+the prompt (the Step 285 protocol); the agent executes only those
+steps, never invents steps, and never marks anything CONFIRMED that
+a human must confirm.
+
+**The 5-category map (a filing system, NOT a roadmap).** Every
+capability, subsystem, or finding files into exactly ONE category.
+The placement questions:
+1. Core foundation - does it define or guard the engine's own
+   data/time/lifecycle? (math, entity, collision, state, events,
+   time, lifecycle, input, gamepad)
+2. World + content - does it describe or load the WORLD the game
+   runs in? (scene, tilemap, prefab, hostile data, animation data)
+3. Graphics + audio + assets - does it draw, light, or sound?
+   (renderer, shader, lighting, camera, font, ui, particles, audio,
+   mesh3d, resources)
+4. Simulation + game systems - does it simulate or drive gameplay?
+   (physics, simulation, components)
+5. Editor + build + distribution - does it edit, build, package, or
+   ship? (tools/, CMakeLists.txt, package.ps1, the game targets)
+The map files work; it does NOT schedule work or define the next
+step - the version rules and the Step 285 protocol do that.
+
+**Current state per category (file:line evidence, grep-verified
+2026-10-08; the 2026-10-02 audit (Step 272, V3:1387: 16/16
+subsystems VERIFIED, 173 test functions in tests/
+hostile_data_test.cpp) is the BASELINE - no invented progress
+bars):**
+
+**1 Core foundation - EXISTS (the v1.0 core, Step 100; audit
+VERIFIED):** math (src/math/vec3.h, src/math/mat4.h - rotationZ
+:125 + rotationY :260 builders; known limit: no SIMD), entity
+(src/entity.h:46-47 the SINGLE-AXIS rotation - "current Z rotation
+in RADIANS"; :279 Mat4::rotationZ; :128 no TRS composition; plain
+structs per the v1.1 ruling), collision (src/collision.h:323
+pickEntity, :364-369 pickEntityAtScreen; AABB only), state
+(src/gamestate.h), events (src/events.h), time (src/engine_time.h
+:58-61 the pre-loop CLOCK seed - not an RNG seed), lifecycle
+(src/lifecycle.h:152 flagsForCount), input (src/input.h:264-290
+the MouseState snapshot + the raw/edge reads; "no scroll, no
+cursor management" :267), gamepad (src/gamepad.h).
+
+**2 World + content - EXISTS (audit VERIFIED):** scene
+(src/scene.h:117 loadScene, :381 saveSceneToFile, :459
+loadSceneFromFile, :651/:724 the manager save/load; text format
+only, no binary), tilemap (src/tilemap.h), prefab (src/prefab.h
+:103 loadPrefab, :181 instantiatePrefab), hostile data (src/
+hostile_data.h - data-driven config), animation data (src/
+animation.h + src/animation_data.h; clip-level only, no blending).
+
+**3 Graphics + audio + assets - EXISTS, with the 3D versions v3/
+v4/v5 COMPLETE/FROZEN (audit VERIFIED):** renderer
+(src/renderer.h:141 init, :401 drawWorld, :1085 drawAABBs, :1027
+drawTextString; known limits: the per-entity 2D upload+draw, no
+batching; the per-face 3D VAO/VBO create+delete per draw), shader
+(src/shader.h), lighting (src/lighting.h), camera (src/camera.h
+:204 onResize with the halfHeight=4.5 LOCK - no zoom API; :237-249
+orbitEye, the XZ-PLANE-ONLY orbit, debug3d-only), font
+(src/font.h:31 TextAlign, :58 alignOffsetX), ui (src/ui.h:98
+Button, :107 hitTest, :118 drawButton; plain data + pure helpers -
+NO text-input widget), particles (src/particles.h:105 std::rand -
+NON-seedable, :23-28 documents the gap and the call sites), audio
+(src/audio.h - the SFX pool/event sounds/music loop/mute; no mixer
+graph per the v1.1 ruling), mesh3d (src/mesh3d.h:102
+loadMeshFromObj - v+f lines only, NO vn/vt :92/:184, per-face
+planar UVs, no glTF, no index buffers, no materials), resources
+(src/resources.h - blob/pack/cache/probe; OOB texture sample UB
+disclosed).
+
+**4 Simulation + game systems - EXISTS (audit VERIFIED):** physics
+(src/physics.h - gravity, impulse resolve, statics, the character
+controller; Step 173's sweptAABB opt-in, the game wire still on
+request), simulation (src/simulation.h), components
+(src/components.h).
+
+**5 Editor + build + distribution - PARTLY EXISTS:** the Editor-0
+slice (tools/editor0/ - editor0_core.h, main.cpp, FINDINGS.md: the
+Steps 288-292 viewer/sample-generator/pan/zoom/reload/hostile-load
+proof, 65 checks, the CTest count 5; option B NOT BLOCKED per the
+292 classification), CMakeLists.txt (the targets + the fixture
+copies), package.ps1 + the six asset-generation scripts
+(make_beep.ps1, make_checker.ps1, make_font.ps1, make_music.ps1,
+make_paddlesheet.ps1, make_textures.ps1 - the committed assets/),
+the game targets (games/pong/pong.cpp, games/platformer/
+platformer.cpp). The UNIFIED editor is NOT OPEN: the Editor-0
+slice is a viewer + a sample generator, not an editor.
+
+**The phases (EVERY one NOT OPEN; the map files them, the human
+opens them). For each: entry criteria, first capability (citing
+verified evidence), test path, exit criteria.**
+
+**P1 shared foundation** - PARTLY EXISTS (the v1.0 core's 9 Core
+subsystems above; audit VERIFIED). NOT OPEN.
+- Entry criteria: a human phase-open step naming the capability;
+  a classified finding showing the need in the source/build.
+- First capability (candidate, cited): a seedable deterministic
+  RNG framework - the gap is documented IN-SOURCE
+  (src/particles.h:23-28: "a real rng (seedable, deterministic)"
+  deferred; std::rand used, the tests assert ranges never exact
+  values) and the engine_time "seed" is the clock only
+  (src/engine_time.h:58-61).
+- Test path: headless (the pure math - deterministic asserts
+  become possible once seedable; no GL, no window).
+- Exit criteria: the capability verified by a dedicated test; the
+  audit scores re-run; no frozen behavior changed or unfrozen.
+
+**P2 2D stabilization** - PARTLY EXISTS (v5 COMPLETE/FROZEN Step
+269: the 2D AABB debug-draw correctness (c) RESOLVED Step 268 -
+the drawn outline = the collision box, pixel-verified, the visual
+confirmation PENDING). NOT OPEN.
+- Entry criteria: a human phase-open step; a measured or
+  classified 2D defect (the 2D re-open trigger is UNMEASURED -
+  Step 274).
+- First capability (candidate, cited): the 2D sprite-batching
+  re-open trigger measurement (src/renderer.h:608-628 the
+  per-entity upload+draw; Step 274: "the 2D trigger unmeasured -
+  the batch hack was stubbed").
+- Test path: headless + the pixel checks (the Step 268 pattern) +
+  the HUMAN visual confirmation.
+- Exit criteria: the pending visual confirmations closed (human);
+  no drift; the audit re-run.
+
+**P3 asset/scene foundation** - PARTLY EXISTS (scene/tilemap/
+prefab/resources/animation above; the field-exact v2 round-trip,
+Step 276). NOT OPEN.
+- Entry criteria: a human phase-open step; a classified finding.
+- First capability (candidate, cited): the load/save REASON CODES
+  - pe::loadSceneFromFile returns bare false with no reason
+  (src/scene.h:459-473; FINDINGS Entry 1 - the editor had to probe
+  the file itself to distinguish not-found from parse-failed).
+- Test path: headless (the loader tests - the Steps 276-278
+  pattern: the field-exact round-trip, the hostile inputs
+  generated programmatically).
+- Exit criteria: the round-trip stays field-exact; the reason
+  codes verified; no frozen behavior changed.
+
+**P4 3D foundation** - PARTLY EXISTS (the 3D ENGINE VERSION
+COMPLETE/FROZEN Step 256 + v4 COMPLETE/FROZEN Step 263:
+Mat4::perspective/lookAt (Step 191), the camera 3D mode (Step
+193), the single depth clear (Step 201), the world-space lighting
++ the sizing (Steps 260-261)). NOT OPEN.
+- Entry criteria: a human phase-open step; a classified 3D
+  finding (the re-open trigger ~10 concurrent 3D entities,
+  Step 274).
+- First capability (candidate, cited): the entity rotation is
+  SINGLE-AXIS (src/entity.h:46-47 "current Z rotation in RADIANS",
+  :279 Mat4::rotationZ - the rotationY builder exists at
+  src/math/mat4.h:260 but the entity path never consumes it) and
+  the camera orbit is XZ-PLANE-ONLY (src/camera.h:237-249) - a
+  candidate: the per-axis entity rotation or the full camera
+  orbit.
+- Test path: the hidden-window GL + the depth/state checks (the
+  Step 261 pattern) + the SMOKE gates.
+- Exit criteria: the done-criteria audit (the Step 256/263
+  pattern); both mutations caught; no frozen behavior changed.
+
+**P5 3D assets** - PARTLY EXISTS (the OBJ loader src/mesh3d.h:102
+loadMeshFromObj - v+f lines ONLY, NO vn/vt :92/:184; the mesh
+registry Step 242; the textured loaded meshes Steps 245/250).
+NOT OPEN.
+- Entry criteria: a human phase-open step; a classified finding.
+  glTF stays BLOCKED (the decision above) until its own
+  phase-open step.
+- First capability (candidate, cited): the vn/normals support in
+  loadMeshFromObj - the loader skips vn/vt (src/mesh3d.h:92/:184)
+  and the loaded meshes' lighting normals are COMPUTED per-face
+  (the v4 path), not read.
+- Test path: headless (the loader) + the hidden-window GL (the
+  sampling, the Step 261 pattern).
+- Exit criteria: the round-trip + the sampling verified; no
+  frozen behavior changed.
+
+**P6 unified editor** - PARTLY EXISTS (the Editor-0 slice; option
+B NOT BLOCKED - the 292 classification). NOT OPEN.
+- Entry criteria: a human phase-open step (a Tools phase step
+  list); the editor stays a CONSUMER (own directory, own target,
+  engine src/ read-only).
+- First capability (candidate, cited): option B - the pick +
+  read-only inspector; the APIs verified (pe::pickEntityAtScreen
+  src/collision.h:364-369, pe::worldToScreenUi src/camera.h:293-300,
+  ui.h Button/hitTest/drawButton :98/:107/:118 + the bitmap font
+  src/renderer.h:1027).
+- Test path: the headless pure parts + the hidden-window GL frame
+  (the Step 289 pattern) + the HUMAN visual confirmation (the
+  on-screen error-line text unreported so far - the 289 display
+  stays UNCONFIRMED).
+- Exit criteria: the selftest green; the visual confirmations;
+  git diff --stat -- src/ empty.
+
+**P7 simulation** - PARTLY EXISTS (physics.h + Step 173's
+sweptAABB opt-in; the game wire on request). NOT OPEN.
+- Entry criteria: a human phase-open step; a classified finding
+  with a concrete engine-validation reason.
+- First capability (candidate, cited): the useSwept controller
+  game wire (the board: "useSwept controller opt-in landed
+  (Step 181); game wire still on request").
+- Test path: headless (the physics twin tests - the Step 175
+  pattern).
+- Exit criteria: the twin tests green; no drift; the audit
+  re-run.
+
+**P8 procedural generation** - DOES NOT EXIST (no seedable RNG, no
+noise functions anywhere in src/ - grep-verified 2026-10-08;
+particles.h:23-28 is the only randomness and it is non-seedable
+std::rand). NOT OPEN.
+- Entry criteria: a HUMAN-ONLY decision (the 292 option (c)) + a
+  docs-first version brief; the freeze guardrails apply
+  (additive, opt-in, engine-pure).
+- First capability (candidate, cited): the seedable deterministic
+  RNG (src/particles.h:23-28 documents the gap and the exact call
+  sites) - then the noise functions (none exist).
+- Test path: headless (the pure math; deterministic asserts
+  possible once seedable).
+- Exit criteria: the deterministic tests; the audit re-run; no
+  frozen behavior changed.
+
+**P9 build/package/export** - PARTLY EXISTS (package.ps1 + the six
+asset-generation scripts + CMakeLists.txt; Step 138's
+single-source zip, Step 143's dry-run note). NOT OPEN.
+- Entry criteria: a human phase-open step; a classified finding.
+- First capability (candidate, cited): the second-game packaging -
+  Pong/Platformer are NOT packaged (CMakeLists.txt:316-317: "No
+  POST_BUILD asset copy yet: run Pong from the repo root ...
+  packaging a second game is a separate decision").
+- Test path: the package.ps1 dry-run + the exe launches (the
+  alive-probe pattern).
+- Exit criteria: the exes run from the package (the alive
+  probes); no frozen behavior changed.
+
+**Agent rules (the Direction Specification's own):**
+- The repository is truth: inspect before claiming; every name and
+  file:line in this section was grep-verified 2026-10-08; anything
+  not verified is marked UNVERIFIED (the 5x console-print
+  mechanism, FINDINGS; the 289 on-screen error-line display).
+- One capability per version; no feature dumping.
+- Do NOT copy Unity or Unreal checklists; the product is its own
+  2D+3D engine with its own proven step model.
+- Any game or editor need is CLASSIFIED (existing capability /
+  engine defect / missing capability / game-specific behavior,
+  with evidence), never added silently; the classified findings
+  are the ONLY input to a future version open.
+- Frozen is not rejected: only a human phase-open step unfreezes
+  anything.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
