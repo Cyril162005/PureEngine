@@ -1786,6 +1786,37 @@ reason code (existing capability), the per-consumer fixture-copy
 duplication (existing capability), the pe::-qualified engine types
 (existing capability).
 
+### Phase Tools consumer: editor0 (Step 289) - step 2 of 5
+
+TOOLS/Editor consumer step; no engine version opened, v4/v5/v6 stay
+frozen. Implementation committed FIRST (the anchoring rule): commit
+`e799b90` - tools/editor0/ extended: editor0_core.h gains the pure
+makeStatusLine(path, count, err) (ok: "editor0: <path> | <count>
+entities"; err: "editor0 ERROR: <err>", err takes precedence);
+main.cpp rewritten: `PureEditor0.exe <scene>` opens a window (the
+Pong pattern: glfwInit -> hints -> window -> context+glad ->
+renderer.init -> camera+onResize -> loop -> shutdown), loads through
+loadSceneForEditor, draws all entities + their debug AABBs
+(drawWorld + drawAABBs with playerRoleId -1: all yellow) + the
+bitmap-font status line (file name, entity count); on load failure
+the error text is on screen and the editor keeps running; NO saving
+of any kind. --selftest: the pure parts need no window; + the
+status-line checks (ok/error formats + the precedence negative
+control) + ONE hidden-window frame (GLFW_VISIBLE FALSE, real GL:
+flagsForCount flags, clear + drawWorld + drawAABBs + drawTextString
++ swap, glGetError() == 0 after it, the one-iteration loop exits
+cleanly) - 27 checks green. CMakeLists.txt: the PureEditor0 target
+gains stb_impl.cpp + glad_gl.c + the deps/stb/glfw include dirs +
+link glfw. GATES against the committed tree (all as separate calls:
+a multi-quote one-liner broke cmd's parsing): cmake --build build
+--config Release exit 0; ctest -C Release exit 0 5/5 100% (12.92s);
+alive x3 exit 0; git diff --check exit 0 clean; git diff --stat --
+src/ exit 0 EMPTY. FINDINGS: 6 entries (the 288 three + the renderer
+asset probe's implicit repo-root dependency, the mandatory colliding
+flags for a stateless viewer, the wide GL-consumer include set - all
+existing capability, none fixed inside the Tools step). Visual
+confirmation: PENDING.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
