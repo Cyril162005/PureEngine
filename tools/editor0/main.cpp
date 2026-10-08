@@ -1,5 +1,5 @@
 /**
- * PureEditor0 (Step 290, Tools step 3 of 5) - viewer + sample + --selftest.
+ * PureEditor0 (Step 291, Tools step 4 of 5) - viewer + sample + --selftest.
  *
  * Modes (run from D:\PureEngine or any CWD with assets/ reachable):
  *   PureEditor0.exe --selftest        headless checks + ONE hidden-window
@@ -15,10 +15,12 @@
  *                                     line with the bitmap font.
  *                                     CONTROLS: left-drag = pan,
  *                                     +/= = zoom in, -/_ = zoom out
- *                                     (clamped 0.25..4.0), ESC = quit.
- *                                     On load failure the error text is
- *                                     shown and the editor keeps
- *                                     running. NO saving of any kind.
+ *                                     (clamped 0.25..4.0), R = reload
+ *                                     the current path, ESC = quit.
+ *                                     On load/reload failure the error
+ *                                     text is shown and the editor
+ *                                     keeps running (the scene is
+ *                                     untouched). NO saving of any kind.
  *
  * Consumes ONLY documented engine APIs: Entity (src/entity.h),
  * loadPrefab/instantiatePrefab (src/prefab.h), Scene (src/scene.h),
@@ -92,6 +94,17 @@ static bool entityFieldMatches(const pe::Entity& a, const pe::Entity& b, std::st
     return true;
 }
 
+// The full-unchanged check: current vs the snapshot (name + count +
+// every compared field). The mutation-catcher for the failed loads.
+static bool sceneUnchanged(const pe::Scene& a, const pe::Scene& b, std::string& diff) {
+    if (a.name != b.name) { diff = "name"; return false; }
+    if (a.entities.size() != b.entities.size()) { diff = "entity count"; return false; }
+    for (std::size_t i = 0; i < a.entities.size(); ++i) {
+        if (!entityFieldMatches(a.entities[i], b.entities[i], diff)) return false;
+    }
+    return true;
+}
+
 // Expected values come from the inputs (the committed prefab files +
 // the explicit values set below), never from re-measured output.
 static const char* kTileFile   = "consumers/level_pipeline/prefab_tile.txt";
@@ -103,6 +116,13 @@ static const char* kMissing    = "editor0_tmp/no_such_scene_zz.txt";
 static void readTextFile(const char* name, std::string& out) {
     std::ifstream f(name, std::ios::binary);
     out.assign((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+}
+
+// Hostile inputs are GENERATED PROGRAMMATICALLY (never hand-edited)
+// and written to the temp dir (gitignored; nothing committed).
+static void writeRawFile(const char* path, const std::string& content) {
+    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    f << content;
 }
 
 // Step 290: build the 3-prefab sample scene (the same scene --selftest
@@ -214,11 +234,7 @@ static void checkPureParts() {
         check(!ok, "selftest: loadSceneForEditor(missing file) returns false");
         check(!err2.empty() && err2.rfind("file not found", 0) == 0, "selftest: err names the failure (file not found)");
         std::string diff;
-        bool untouched = before.name == current.name && before.entities.size() == current.entities.size();
-        for (std::size_t i = 0; untouched && i < before.entities.size(); ++i) {
-            untouched = entityFieldMatches(before.entities[i], current.entities[i], diff);
-        }
-        check(untouched, "selftest: `current` untouched on failure (name + count + all fields)");
+        check(!ok && sceneUnchanged(before, current, diff), "selftest: `current` untouched on failure (name + count + all fields)");
     }
 
     // --- negative control: the comparator reports the altered field ---
@@ -343,6 +359,226 @@ static void checkSampleAndPanZoom() {
     }
 }
 
+// Step 291: the reload path. After a successful load, rewrite the file
+// with a DIFFERENT entity count (generated programmatically), reload,
+// and the scene equals the second file exactly (count + per-entity
+// fields), with no leftover entities and no pending spawns from the
+// first load. Negative control included.
+static void checkReload() {
+    const char* kReload = "editor0_tmp/reload_scene.txt";
+    std::string serr;
+    if (!makeSampleSceneFile(kReload, serr)) { check(false, "reload: the sample must be written"); return; }
+    pe::Scene current; std::string err;
+    if (!editor0::loadSceneForEditor(kReload, current, err)) { check(false, "reload: the first load must succeed"); return; }
+    check(current.entities.size() == 3, "reload: the first load has 3 entities");
+    check(current.pendingSpawns.empty(), "reload: the first load has no pending spawns");
+
+    // Rewrite the file with a DIFFERENT entity count (2: tile + pickup),
+    // generated programmatically, saved to the SAME path (the engine
+    // saver's rename-overwrite contract, Step 162).
+    pe::Scene second;
+    {
+        pe::Prefab tile, pickup;
+        if (!pe::loadPrefab(kTileFile, tile) || !pe::loadPrefab(kPickupFile, pickup)) {
+            check(false, "reload: the two prefabs must load");
+            return;
+        }
+        second.name = "editor0_sample2";
+        second.queueSpawn(pe::instantiatePrefab(tile,   pe::Vec3(0.0f, 0.0f, 0.0f)));
+        second.queueSpawn(pe::instantiatePrefab(pickup, pe::Vec3(1.0f, 1.0f, 0.0f)));
+        second.flushSpawns();
+    }
+    check(pe::saveSceneToFile(second, kReload), "reload: the second save (overwrite, a different count)");
+
+    check(editor0::loadSceneForEditor(kReload, current, err), "reload: the second load succeeds");
+    // The scene equals the second file EXACTLY: count + per-entity
+    // fields; NO leftover entities; NO pending spawns.
+    check(current.entities.size() == 2, "reload: the count is the second file's 2 (no leftover from the first 3)");
+    check(current.pendingSpawns.empty(), "reload: no pending spawns after the reload");
+    std::string diff;
+    bool same = current.name == second.name;
+    for (std::size_t i = 0; same && i < 2; ++i) {
+        same = entityFieldMatches(second.entities[i], current.entities[i], diff);
+    }
+    check(same, "reload: the scene equals the second file (name + both entities' fields)");
+
+    // Negative control: alter one field of the reloaded scene; the
+    // comparator reports it.
+    current.entities[0].health += 0.5f;
+    diff.clear();
+    const bool same2 = entityFieldMatches(second.entities[0], current.entities[0], diff);
+    std::printf("OBSERVED: reload negative-control diff field: %s\n", diff.c_str());
+    check(!same2 && diff == "health", "reload: negative control - the altered field is reported (health)");
+
+    std::remove(kReload);
+}
+
+// Step 291: hostile loads, generated PROGRAMMATICALLY into the temp
+// directory (never hand-edited, sizes capped, nothing committed). For
+// each: loadSceneForEditor returns false with a non-empty err, and the
+// previous scene is UNCHANGED (a full field comparison against the
+// saved snapshot). The CTest TIMEOUT (60s) guards hangs; a crash or
+// hang would be an engine-defect finding with the exact repro, not a
+// fix.
+static void checkHostileLoads() {
+    pe::Scene snapshot; std::string lerr;
+    if (!editor0::loadSceneForEditor(kTempScene, snapshot, lerr)) {
+        check(false, "hostile: the snapshot scene must load");
+        return;
+    }
+    std::string validText;
+    readTextFile(kTempScene, validText);
+    check(!validText.empty(), "hostile: the valid sample text captured");
+    const char* kHostile = "editor0_tmp/hostile_scene.txt";
+    pe::Scene current = snapshot;  // the protected scene
+
+    // 1. Empty file.
+    {
+        writeRawFile(kHostile, "");
+        std::string err;
+        const bool ok = editor0::loadSceneForEditor(kHostile, current, err);
+        std::printf("OBSERVED: the empty file: %s\n", ok ? "LOADED (unexpected!)" : "rejected");
+        std::string diff;
+        check(!ok && !err.empty(), "hostile: the empty file rejected with a non-empty err");
+        check(!ok && sceneUnchanged(current, snapshot, diff), "hostile: the empty file leaves the scene unchanged (all fields)");
+    }
+
+    // 2. Truncated at every 1/8 of the valid sample (7 points).
+    {
+        int rejects = 0, prefixLoads = 0;
+        for (int i = 1; i <= 7; ++i) {
+            const std::size_t cut = validText.size() * (std::size_t)i / 8;
+            writeRawFile(kHostile, validText.substr(0, cut));
+            std::string err;
+            const bool ok = editor0::loadSceneForEditor(kHostile, current, err);
+            std::string diff;
+            if (ok) {
+                // OBSERVED: a line-boundary truncation is a VALID SHORTER
+                // scene (the scene= line carries no count, so the strict
+                // whole-file contract cannot tell a prefix from a full
+                // file). Recorded; the protected scene restored.
+                ++prefixLoads;
+                std::printf("OBSERVED: truncation %d/8 LOADS as a shorter scene (%d entities)\n", i, (int)current.entities.size());
+                check(current.entities.size() < 3, "hostile: a prefix-load has fewer entities than the sample");
+                std::string rerr;
+                if (!editor0::loadSceneForEditor(kTempScene, current, rerr)) { check(false, "hostile: the snapshot re-load"); return; }
+            } else {
+                ++rejects;
+                check(!err.empty(), "hostile: a truncation reject has a non-empty err");
+                check(sceneUnchanged(current, snapshot, diff), "hostile: a truncation reject leaves the scene unchanged");
+            }
+        }
+        std::printf("OBSERVED: truncations: %d rejected, %d valid-prefix loads\n", rejects, prefixLoads);
+        check(rejects + prefixLoads == 7, "hostile: all 7 truncation points ran");
+    }
+
+    // 3. Wrong version ("# scene v99").
+    {
+        std::string bad = validText;
+        const std::size_t pos = bad.find("# scene v2");
+        if (pos != std::string::npos) bad.replace(pos, 10, "# scene v99");
+        writeRawFile(kHostile, bad);
+        std::string err;
+        const bool ok = editor0::loadSceneForEditor(kHostile, current, err);
+        std::printf("OBSERVED: the wrong version: %s\n", ok ? "LOADED (unexpected!)" : "rejected");
+        std::string diff;
+        check(!ok && !err.empty(), "hostile: the wrong version rejected with a non-empty err");
+        check(!ok && sceneUnchanged(current, snapshot, diff), "hostile: the wrong version leaves the scene unchanged");
+    }
+
+    // 4. Negative version ("# scene v-1").
+    {
+        std::string bad = validText;
+        const std::size_t pos = bad.find("# scene v2");
+        if (pos != std::string::npos) bad.replace(pos, 10, "# scene v-1");
+        writeRawFile(kHostile, bad);
+        std::string err;
+        const bool ok = editor0::loadSceneForEditor(kHostile, current, err);
+        std::printf("OBSERVED: the negative version: %s\n", ok ? "LOADED (unexpected!)" : "rejected");
+        std::string diff;
+        check(!ok && !err.empty(), "hostile: the negative version rejected with a non-empty err");
+        check(!ok && sceneUnchanged(current, snapshot, diff), "hostile: the negative version leaves the scene unchanged");
+    }
+
+    // 5. Garbage bytes (4 KB).
+    {
+        std::string g;
+        g.reserve(4096);
+        for (int i = 0; i < 4096; ++i) g.push_back((char)(i % 251 + 1));
+        writeRawFile(kHostile, g);
+        std::string err;
+        const bool ok = editor0::loadSceneForEditor(kHostile, current, err);
+        std::printf("OBSERVED: 4 KB of garbage bytes: %s\n", ok ? "LOADED (unexpected!)" : "rejected");
+        std::string diff;
+        check(!ok && !err.empty(), "hostile: the garbage bytes rejected with a non-empty err");
+        check(!ok && sceneUnchanged(current, snapshot, diff), "hostile: the garbage bytes leave the scene unchanged");
+    }
+
+    // 6. One 1 MB line (sizes capped; the TIMEOUT guards hangs).
+    {
+        std::string big = "# scene v2\nscene=adv\nentity=";
+        big.append(1000000, 'x');
+        big.append("\n");
+        writeRawFile(kHostile, big);
+        std::string err;
+        const bool ok = editor0::loadSceneForEditor(kHostile, current, err);
+        std::printf("OBSERVED: the 1 MB line: %s\n", ok ? "LOADED (unexpected!)" : "rejected");
+        std::string diff;
+        check(!ok && !err.empty(), "hostile: the 1 MB line rejected with a non-empty err (no hang)");
+        check(!ok && sceneUnchanged(current, snapshot, diff), "hostile: the 1 MB line leaves the scene unchanged");
+    }
+
+    // 7-10. The count fields: the SCENE (v2) format has NO count field,
+    // so the injected "count=N" lines are UNKNOWN keys -> the strict
+    // reject (the count field lives in the manager format; the observed
+    // outcome is recorded in FINDINGS).
+    {
+        const char* countTexts[4] = {"0", "-1", "2147483648", "5"};
+        const char* countLabels[4] = {"0", "-1", "2^31 (2147483648)", "5 (mismatching the 3 entries)"};
+        for (int i = 0; i < 4; ++i) {
+            std::string bad = validText + "count=" + countTexts[i] + "\n";
+            writeRawFile(kHostile, bad);
+            std::string err;
+            const bool ok = editor0::loadSceneForEditor(kHostile, current, err);
+            std::printf("OBSERVED: count=%s: %s\n", countLabels[i], ok ? "LOADED (unexpected!)" : "rejected");
+            std::string diff;
+            check(!ok && !err.empty(), "hostile: the count-field line rejected with a non-empty err");
+            check(!ok && sceneUnchanged(current, snapshot, diff), "hostile: the count-field line leaves the scene unchanged");
+        }
+    }
+
+    // 11. A path that is a directory.
+    {
+        std::string err;
+        const bool ok = editor0::loadSceneForEditor("editor0_tmp", current, err);
+        std::printf("OBSERVED: a directory path: %s (err: %s)\n", ok ? "LOADED (unexpected!)" : "rejected", err.c_str());
+        std::string diff;
+        check(!ok && !err.empty(), "hostile: a directory path rejected with a non-empty err");
+        check(!ok && sceneUnchanged(current, snapshot, diff), "hostile: a directory path leaves the scene unchanged");
+    }
+
+    // 12. A missing path.
+    {
+        std::string err;
+        const bool ok = editor0::loadSceneForEditor(kMissing, current, err);
+        std::printf("OBSERVED: a missing path: %s (err: %s)\n", ok ? "LOADED (unexpected!)" : "rejected", err.c_str());
+        std::string diff;
+        check(!ok && !err.empty(), "hostile: a missing path rejected with a non-empty err");
+        check(!ok && sceneUnchanged(current, snapshot, diff), "hostile: a missing path leaves the scene unchanged");
+    }
+
+    // Negative control: the unchanged-checker itself - a copy of the
+    // snapshot with ONE altered field is detected and named.
+    {
+        pe::Scene altered = snapshot;
+        altered.entities[1].health += 0.5f;
+        std::string diff;
+        check(!sceneUnchanged(altered, snapshot, diff) && diff == "health",
+              "hostile: negative control - the unchanged-checker detects the altered field (health)");
+    }
+    std::remove(kHostile);
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -385,10 +621,12 @@ static void checkHiddenWindowFrame() {
     check(true, "hidden-window: the frame loop exits cleanly");
 }
 
-// Steps 289/290: the window viewer. Loads ONCE through the editor
-// boundary, draws every frame. On load failure the error text is on
-// screen and the editor keeps running. NO saving of any kind.
-// Controls: left-drag = pan, +/- = zoom (clamped 0.25..4.0), ESC = quit.
+// Steps 289-291: the window viewer. Loads ONCE through the editor
+// boundary, draws every frame. On load/reload failure the error text
+// is on screen and the editor keeps running (the scene is untouched).
+// NO saving of any kind.
+// Controls: left-drag = pan, +/- = zoom (clamped 0.25..4.0), R =
+// reload the current path, ESC = quit.
 static int runViewer(const char* scenePath) {
     if (!glfwInit()) { std::fprintf(stderr, "editor0: glfwInit failed\n"); return 1; }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -421,14 +659,15 @@ static int runViewer(const char* scenePath) {
     pe::Scene current;
     std::string err;
     const bool ok = editor0::loadSceneForEditor(scenePath, current, err);
-    const std::string status = editor0::makeStatusLine(scenePath, current.entities.size(), ok ? std::string() : err);
+    std::string status = editor0::makeStatusLine(scenePath, current.entities.size(), ok ? std::string() : err);
     if (!ok) std::fprintf(stderr, "%s\n", status.c_str());
 
-    // Step 290: editor state - the zoom (the documented limits) + the
-    // drag tracking. Edge-tracked keys: ESC (quit) + +/- (zoom steps) -
-    // one event per press (the documented edge read). NO wheel: input.h
-    // exposes no scroll input (the missing-capability finding).
-    pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS});
+    // Steps 290/291: editor state - the zoom (the documented limits) +
+    // the drag tracking + the reload path. Edge-tracked keys: ESC
+    // (quit) + +/- (zoom steps) + R (reload) - one event per press (the
+    // documented edge read). NO wheel: input.h exposes no scroll input
+    // (the missing-capability finding).
+    pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R});
     float zoom = 1.0f;
     bool dragging = false;
     float lastX = 0.0f, lastY = 0.0f;
@@ -438,6 +677,16 @@ static int runViewer(const char* scenePath) {
         // Zoom: +/- keys, one step per press.
         if (input.isEdge(window, GLFW_KEY_EQUAL)) zoom = editor0::clampedZoom(zoom * 1.25f);
         if (input.isEdge(window, GLFW_KEY_MINUS)) zoom = editor0::clampedZoom(zoom / 1.25f);
+        // Reload (R): the current path through the editor boundary. On
+        // success the scene is replaced and the status re-made (the new
+        // count); on failure the error text shows and the scene is
+        // untouched (the loadSceneForEditor contract).
+        if (input.isEdge(window, GLFW_KEY_R)) {
+            std::string rerr;
+            const bool rok = editor0::loadSceneForEditor(scenePath, current, rerr);
+            status = editor0::makeStatusLine(scenePath, current.entities.size(), rok ? std::string() : rerr);
+            if (!rok) std::fprintf(stderr, "%s\n", status.c_str());
+        }
         // Quit: ESC, one edge per press.
         if (input.isEdge(window, GLFW_KEY_ESCAPE)) glfwSetWindowShouldClose(window, GLFW_TRUE);
         // Pan: left-drag; the grabbed world point follows the cursor
@@ -484,9 +733,11 @@ int main(int argc, char** argv) {
     }
     if (selftest) {
         checkPureParts();
-        checkSampleAndPanZoom();   // Step 290: the sample generator + pan/zoom math
-        checkHiddenWindowFrame();  // Step 289: one hidden-window frame
-        std::remove(kTempScene);   // runtime output cleanup (build/ is gitignored)
+        checkSampleAndPanZoom();  // Step 290: the sample generator + pan/zoom math
+        checkReload();            // Step 291: the reload path
+        checkHostileLoads();      // Step 291: the hostile loads
+        checkHiddenWindowFrame(); // Step 289: one hidden-window frame
+        std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
             std::printf("PureEditor0 --selftest: %d check(s) FAILED\n", failures);
             return 1;
@@ -508,6 +759,6 @@ int main(int argc, char** argv) {
     std::printf("PureEditor0: no mode given. Usage:\n"
                 "  PureEditor0 --selftest          headless checks (+ one hidden-window GL frame)\n"
                 "  PureEditor0 --make-sample <p>   write the 3-prefab sample scene to <p> (refuses to overwrite)\n"
-                "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, ESC = quit)\n");
+                "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, R = reload, ESC = quit)\n");
     return 2;
 }
