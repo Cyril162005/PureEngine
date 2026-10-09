@@ -2258,6 +2258,38 @@ print discipline - all existing capability). Visual confirmation:
 PENDING (the on-screen error-line display stays UNCONFIRMED; the
 selection/highlight visual confirmation PENDING).
 
+### Phase Tools consumer: editor0 option B (Step 295) - step 2 of at most 5, COMPLETE
+
+Tools/Editor consumer step; no engine version opened, v4/v5/v6 stay
+frozen. The live-path wiring + the coordinate ratio fix landed
+(commit `95b81a8`; the STOP note recorded the size-cap breach: net
++354 > ~300; the step completed by the human's follow-up). The
+coordinate-space audit (grep-verified): the cursor = WINDOW
+coordinates (glfwGetCursorPos, input.h:374, camera.h:60/:286 - the
+engine documented the space correctly); the sizes = FRAMEBUFFER
+pixels (glfwGetFramebufferSize, main.cpp:724/:777/:829/:851). THE
+DEFECT (editor-side, found and fixed): an unconverted cursor picked
+the wrong world point at display scaling != 100% (the reported
+no-selection). The fix: windowToFbX/Y (the ratio conversion) before
+any pan or pick in stepEditorFrame; runViewer rewired to EditorState
++ stepEditorFrame (GLFW-free, plain data in); the status feedback
+(reloaded <file> (<N> entities) / reload failed: <reason> / the
+startup 'no selection') exact-string tested; --diag-input (ONE line
+per click: the cursor/window/fb/world/pick). 102 selftest checks
+green (the ratio tests at 1.0/1.25/1.5 + the negative controls: the
+raw cursor MISSES; the drag pans but does not select; the
+empty-space click clears; the R reload through the real step
+function; the failed reload keeps both). MUTATION: the ratio
+skipped in the pick path -> both ratio tests FAILED (1.25 + 1.50) -
+NON-VACUOUS; restored by pathspec; git diff --stat -- src/ EMPTY.
+GATES against 95b81a8: cmake --build build --config Release exit 0;
+ctest -C Release exit 0 5/5 100% (14.50s; the PureEditor0 duration
+1.22s - under the 40s guard); alive x3 exit 0; git diff --check
+clean. HUMAN PASS (Cyril, verbatim, 2026-10-09): the live select/
+clear/drag/zoom/R/ESC all work; the truncated load printed 1 line
+(the 294 fix confirmed). The 294/295 visual confirmations:
+CONFIRMED.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

@@ -341,6 +341,44 @@ findings if the human chooses.
 - **status:** recorded (an observation; no engine fix, no editor
   fix inside a docs step).
 
+## Entry 18
+- **what:** the live-path coordinate-space DEFECT (found and fixed
+  editor-side): the editor's cursor came from
+  pe::Input::pollMouse -> glfwGetCursorPos (src/input.h:374) in
+  WINDOW (logical) coordinates while every size it passed to the
+  conversions came from glfwGetFramebufferSize (main.cpp:724/:777/
+  :829/:851) in FRAMEBUFFER (physical) pixels; with display scaling
+  != 100% the spaces differ by the scale ratio and an unconverted
+  cursor picked the WRONG world point (the reported live defect: the
+  left click showed no clear selection, R showed no visible change).
+- **evidence:** src/input.h:374 (the cursor), src/camera.h:60/:286
+  (the documented raw glfwGetCursorPos space - the ENGINE documented
+  the space correctly), main.cpp:724/:777/:829/:851 (the fb sizes);
+  the fix = windowToFbX/Y (the ratio conversion) in stepEditorFrame;
+  102 selftest checks green (the ratio tests at 1.0/1.25/1.5 + the
+  negative controls: the raw cursor MISSES); the MUTATION (the ratio
+  skipped in the pick path) made both ratio tests FAIL - NON-VACUOUS.
+- **class:** existing capability (the engine's documented cursor
+  space is correct; the defect was the EDITOR's wiring, found and
+  fixed editor-side; no engine change).
+- **status:** fixed editor-side (the Step 295 ratio conversion).
+
+## Entry 19
+- **what:** the HUMAN PASS on the live select (Cyril, verbatim,
+  2026-10-09): click on entity deepens/strengthens box color (select
+  works); empty space returns to original color (clear works); drag
+  pans OK; zoom OK; R status/reload feedback changes, the scene
+  looks the same if the file unchanged (expected) - accepted OK; ESC
+  OK. Overall: all work well. Truncated load earlier: lines printed
+  = 1 (the Step 294 one-report-per-attempt fix CONFIRMED by the
+  human). Do not reopen Pong; the selection is not still broken.
+- **evidence:** Cyril's hands-on run of
+  build\Release\PureEditor0.exe savedata\sample_scene.txt from
+  D:\PureEngine; the 295-STOP commit 95b81a8 (the wiring + the fix).
+- **class:** existing capability (the live path confirmed by the
+  human; the 294/295 visual confirmations CLOSED).
+- **status:** recorded (the visual confirmations: CONFIRMED).
+
 ## Entry 13
 - **what:** the engine's pickEntityAtScreen has NO zoom knowledge (it
   converts with the camera's stored half-extents), so a pick at
