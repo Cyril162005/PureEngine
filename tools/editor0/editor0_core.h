@@ -200,7 +200,7 @@ inline bool reloadForEditor(const std::string& path, pe::Scene& current,
 
 // The status line WITH the selection (the Step 294 extension): the same
 // ok format + " | selected <i> (<tag>)" when something is selected;
-// selected < 0 = nothing selected (the base format unchanged). The err
+// selected < 0 = 'no selection' (the Step 295 state; the 3-param base unchanged). The err
 // rule is unchanged: err takes precedence (no selection shown).
 inline std::string makeStatusLine(const std::string& path, std::size_t count,
                                   const std::string& err,
@@ -213,8 +213,157 @@ inline std::string makeStatusLine(const std::string& path, std::size_t count,
     if (selected >= 0 && selected < static_cast<int>(entities.size())) {
         s += " | selected " + std::to_string(selected) + " ("
              + entities[static_cast<std::size_t>(selected)].tag + ")";
+    } else {
+        s += " | no selection";   // the Step 295 startup/empty state
     }
     return s;
+}
+
+// --- Step 295: the per-frame editor update (the live-path wiring,
+// GLFW-free: plain data in) ---
+// COORDINATE TRUTH (the Step 295 audit, grep-verified 2026-10-09): the
+// cursor comes from pe::Input::pollMouse -> glfwGetCursorPos
+// (src/input.h:374) in WINDOW (logical) coordinates; the editor's
+// sizes come from glfwGetFramebufferSize (main.cpp:724/:777/:829/:851)
+// in FRAMEBUFFER (physical) pixels. With display scaling != 100% the
+// two spaces differ by the scale ratio and an unconverted cursor
+// picks the WRONG world point (the reported live-path defect: the
+// left click showed no clear selection). The fix is editor-side:
+// convert the cursor by the window/framebuffer ratio before any pan
+// or pick.
+
+// The per-frame editor input (plain data, no GLFW): main.cpp fills it
+// from the real input each frame.
+struct EditorInput {
+    float cursorX = 0.0f, cursorY = 0.0f;   // WINDOW coordinates (the raw glfwGetCursorPos space)
+    int windowWidth = 0, windowHeight = 0;  // the window's logical size
+    int fbWidth = 0, fbHeight = 0;          // the framebuffer's pixel size
+    bool leftDown = false;                  // the left button level NOW
+    bool keyR = false;                      // the R edge (reload)
+    bool keyZoomIn = false;                 // the +/- edge (zoom in)
+    bool keyZoomOut = false;                // the -/_ edge (zoom out)
+    bool keyEsc = false;                    // the ESC edge (quit)
+};
+
+// The editor-owned state (everything the per-frame update touches).
+struct EditorState {
+    pe::Scene current;      // the loaded scene
+    std::string path;       // the loaded path (for R + the status)
+    pe::Camera camera;      // the editor's camera (main.cpp calls onResize)
+    std::string status;     // the base + selection line
+    std::string feedback;   // the transient reload feedback (empty = none)
+    int selected = -1;      // -1 = nothing selected
+    float zoom = 1.0f;
+    bool dragging = false;
+    bool quitRequested = false;
+    float lastX = 0.0f, lastY = 0.0f;   // the last cursor (window coords)
+    float downX = 0.0f, downY = 0.0f;   // the press position (window coords)
+    // The diag/testability fields (the last click's record):
+    int pickCount = 0;                  // how many CLICK picks happened
+    int lastPickIndex = -2;             // the last click's pick result
+    float lastClickWorldX = 0.0f, lastClickWorldY = 0.0f;  // the converted world point
+};
+
+// The window->framebuffer ratio conversion (the Step 295 fix): the
+// cursor is given in WINDOW coordinates; the conversions need
+// FRAMEBUFFER pixels. A degenerate window size (0) passes the cursor
+// through unchanged (never divide by zero).
+inline float windowToFbX(float cursorX, int windowWidth, int fbWidth) {
+    return (windowWidth > 0)
+               ? cursorX * (static_cast<float>(fbWidth) / static_cast<float>(windowWidth))
+               : cursorX;
+}
+inline float windowToFbY(float cursorY, int windowHeight, int fbHeight) {
+    return (windowHeight > 0)
+               ? cursorY * (static_cast<float>(fbHeight) / static_cast<float>(windowHeight))
+               : cursorY;
+}
+
+// The transient reload feedback (the Step 295 contract): the status
+// line shows this after an R, UNTIL THE NEXT EVENT (a click or
+// another R); then the base + selection returns. Exact-string tested.
+inline std::string makeReloadFeedback(bool ok, const std::string& path,
+                                      std::size_t count, const std::string& reason) {
+    if (ok) {
+        return "reloaded " + path + " (" + std::to_string(count) + " entities)";
+    }
+    return "reload failed: " + reason;
+}
+
+// The per-frame editor update (the Step 295 extraction; editor-owned,
+// GLFW-free): the cursor is given in WINDOW coordinates and converted
+// to FRAMEBUFFER pixels by the ratio BEFORE any pan or pick. Pure: no
+// GL, no GLFW; driven by synthetic EditorInput sequences in tests.
+inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
+    // The cursor in FRAMEBUFFER pixels (the ratio conversion).
+    const float fbX = windowToFbX(in.cursorX, in.windowWidth, in.fbWidth);
+    const float fbY = windowToFbY(in.cursorY, in.windowHeight, in.fbHeight);
+
+    // The key edges: quit first.
+    if (in.keyEsc) {
+        state.quitRequested = true;
+    }
+    // The zoom steps (one per press).
+    if (in.keyZoomIn)  state.zoom = clampedZoom(state.zoom * 1.25f);
+    if (in.keyZoomOut) state.zoom = clampedZoom(state.zoom / 1.25f);
+    // The reload (R): through reloadForEditor (the selection lifecycle);
+    // the transient feedback lasts until the next event.
+    if (in.keyR) {
+        std::string err;
+        const bool ok = reloadForEditor(state.path, state.current, state.selected, err);
+        state.feedback = makeReloadFeedback(ok, state.path, state.current.entities.size(), err);
+        state.status = makeStatusLine(state.path, state.current.entities.size(),
+                                      std::string(), state.selected, state.current.entities);
+    }
+    // The pointer: the gesture classification. The threshold is in
+    // WINDOW pixels (the same space the press was captured in); the
+    // PAN and PICK use the FB-converted cursor.
+    if (in.leftDown) {
+        if (state.dragging) {
+            // The drag pan: the deltas in WINDOW coords, converted to FB
+            // pixels by the ratio, then the cameraPanDelta formula.
+            const float dxFb = windowToFbX(in.cursorX - state.lastX, in.windowWidth, in.fbWidth);
+            const float dyFb = windowToFbY(in.cursorY - state.lastY, in.windowHeight, in.fbHeight);
+            const pe::Vec3 pan = cameraPanDelta(dxFb, dyFb, in.fbWidth, in.fbHeight,
+                                                state.camera.halfExtentX(), state.camera.halfExtentY(),
+                                                state.zoom);
+            state.camera.follow(pe::Vec3(state.camera.getPosition().x + pan.x,
+                                         state.camera.getPosition().y + pan.y, 0.0f));
+        } else {
+            state.downX = in.cursorX;   // the press START (window coords)
+            state.downY = in.cursorY;
+        }
+        state.dragging = true;
+        state.lastX = in.cursorX;
+        state.lastY = in.cursorY;
+    } else {
+        if (state.dragging) {
+            // The release: classify the gesture (WINDOW pixels).
+            const PointerGesture g = classifyPointerGesture(state.downX, state.downY,
+                                                            in.cursorX, in.cursorY,
+                                                            kEditorClickThresholdPx);
+            if (g == PointerGesture::Click) {
+                // Select: the entity under the FB-converted cursor at the
+                // current pan+zoom; empty space (-1) CLEARS.
+                state.selected = pickEntityAtScreenZoomed(state.current.entities, fbX, fbY,
+                                                          in.fbWidth, in.fbHeight,
+                                                          state.camera.halfExtentX(), state.camera.halfExtentY(),
+                                                          state.zoom, state.camera.getPosition());
+                state.status = makeStatusLine(state.path, state.current.entities.size(),
+                                              std::string(), state.selected, state.current.entities);
+                state.feedback.clear();  // the next event: the feedback clears
+                // The diag/testability record (the last click).
+                const pe::Vec3 clickWorld = screenToWorldAtZoom(fbX, fbY, in.fbWidth, in.fbHeight,
+                                                                state.camera.halfExtentX(), state.camera.halfExtentY(),
+                                                                state.zoom, state.camera.getPosition());
+                ++state.pickCount;
+                state.lastPickIndex = state.selected;
+                state.lastClickWorldX = clickWorld.x;
+                state.lastClickWorldY = clickWorld.y;
+            }
+        }
+        state.dragging = false;
+    }
 }
 
 }  // namespace editor0
