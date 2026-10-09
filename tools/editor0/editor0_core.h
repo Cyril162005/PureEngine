@@ -16,6 +16,7 @@
 #ifndef EDITOR0_CORE_H
 #define EDITOR0_CORE_H
 
+#include <cstdio>
 #include <fstream>
 #include <string>
 
@@ -294,6 +295,11 @@ inline std::string makeReloadFeedback(bool ok, const std::string& path,
 // GLFW-free): the cursor is given in WINDOW coordinates and converted
 // to FRAMEBUFFER pixels by the ratio BEFORE any pan or pick. Pure: no
 // GL, no GLFW; driven by synthetic EditorInput sequences in tests.
+// The forward declaration: stepEditorFrame's click suppression uses
+// pointInPanelRect (declared below, the Step 296 section).
+inline bool pointInPanelRect(float px, float py, bool panelActive, float halfW, float halfH,
+                             int fbWidth, int fbHeight);
+
 inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
     // The cursor in FRAMEBUFFER pixels (the ratio conversion).
     const float fbX = windowToFbX(in.cursorX, in.windowWidth, in.fbWidth);
@@ -342,7 +348,14 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
             const PointerGesture g = classifyPointerGesture(state.downX, state.downY,
                                                             in.cursorX, in.cursorY,
                                                             kEditorClickThresholdPx);
-            if (g == PointerGesture::Click) {
+            // The inspector panel does not edit (the Step 296 contract):
+            // a click INSIDE the panel rect NEVER changes the selection
+            // (a complete no-op: no pick, no status change; the entities
+            // behind the panel are not clickable - pan/zoom to reach
+            // them; documented).
+            if (g == PointerGesture::Click &&
+                !pointInPanelRect(fbX, fbY, state.selected >= 0, state.camera.halfExtentX(), state.camera.halfExtentY(),
+                                  in.fbWidth, in.fbHeight)) {
                 // Select: the entity under the FB-converted cursor at the
                 // current pan+zoom; empty space (-1) CLEARS.
                 state.selected = pickEntityAtScreenZoomed(state.current.entities, fbX, fbY,
@@ -364,6 +377,111 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
         }
         state.dragging = false;
     }
+}
+
+// --- Step 296: the read-only inspector (pure: no GL, no GLFW) ---
+// The floats use the SCENE SAVER's 4-decimal style (std::fixed,
+// setprecision(4) - the same "%.4f"), so the panel shows exactly what
+// the file round-trips (the 4dp precision is the saver's documented
+// view, the 276 finding).
+inline std::string f4(float v) {
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%.4f", v);
+    return buf;
+}
+
+// The inspector lines for ONE entity (the Step 296 contract; pure):
+// a FIXED field order - index, tag, role, position, scale, rotation
+// (+units), halfExtents, health, textureId, tint, then EVERY field
+// the scene saver writes (the saver's 24-field list, scene.h:381-458:
+// position, rotationAngle, rotationSpeed, scale, halfExtents,
+// textureId, depth, roleId, moveSpeed, velocity, gravityScale,
+// isStatic, coyoteTime, jumpImpulse, maxFallSpeed, tint, cols, rows,
+// health, timer, tag, parentIndex, animationSpeed, currentClipName).
+// Multi-component fields split into per-component lines so every line
+// fits the 12x9 default view (<= 22 chars at 0.52 advance). More
+// lines than maxLines -> the final "+N more" line. The panel NEVER
+// edits. The rotation is the SINGLE-AXIS rotationAngle; the axis is
+// PER MODE (z-spin in the 2D path, yaw about +Y in the 3D path -
+// renderer.h:732-734/:777), documented on the rot.axis line.
+inline std::vector<std::string> makeInspectorLines(const pe::Entity& e, int index, int maxLines) {
+    std::vector<std::string> all;
+    all.reserve(36);
+    all.push_back("entity " + std::to_string(index));
+    all.push_back("tag " + e.tag);
+    all.push_back("role " + std::to_string(e.roleId));
+    all.push_back("pos.x " + f4(e.position.x));
+    all.push_back("pos.y " + f4(e.position.y));
+    all.push_back("pos.z " + f4(e.position.z));
+    all.push_back("scale.x " + f4(e.scale.x));
+    all.push_back("scale.y " + f4(e.scale.y));
+    all.push_back("scale.z " + f4(e.scale.z));
+    all.push_back("rotation " + f4(e.rotationAngle) + " rad");
+    all.push_back("rot.speed " + f4(e.rotationSpeed) + " rad/s");
+    all.push_back("rot.axis z(2d)/y(3d)");
+    all.push_back("half.x " + f4(e.halfExtents.x));
+    all.push_back("half.y " + f4(e.halfExtents.y));
+    all.push_back("half.z " + f4(e.halfExtents.z));
+    all.push_back("health " + f4(e.health));
+    all.push_back("textureId " + std::to_string(e.textureId));
+    all.push_back("tint.r " + f4(e.tint.x));
+    all.push_back("tint.g " + f4(e.tint.y));
+    all.push_back("tint.b " + f4(e.tint.z));
+    all.push_back("depth " + std::to_string(e.depth));
+    all.push_back("moveSpeed " + f4(e.moveSpeed));
+    all.push_back("vel.x " + f4(e.velocity.x));
+    all.push_back("vel.y " + f4(e.velocity.y));
+    all.push_back("vel.z " + f4(e.velocity.z));
+    all.push_back("gravityScale " + f4(e.gravityScale));
+    all.push_back("isStatic " + std::string(e.isStatic ? "1" : "0"));
+    all.push_back("coyoteTime " + f4(e.coyoteTime));
+    all.push_back("jumpImpulse " + f4(e.jumpImpulse));
+    all.push_back("maxFallSpeed " + f4(e.maxFallSpeed));
+    all.push_back("cols " + std::to_string(e.cols));
+    all.push_back("rows " + std::to_string(e.rows));
+    all.push_back("timer " + f4(e.timer));
+    all.push_back("parentIndex " + std::to_string(e.parentIndex));
+    all.push_back("animSpeed " + f4(e.animationSpeed));
+    all.push_back("clip " + e.currentClipName);
+    if (maxLines > 0 && static_cast<int>(all.size()) > maxLines) {
+        const int overflow = static_cast<int>(all.size()) - (maxLines - 1);
+        all.resize(maxLines - 1);
+        all.push_back("+" + std::to_string(overflow) + " more");
+    }
+    return all;
+}
+
+// The panel lines for the CURRENT selection (the Step 296 contract):
+// no selection (or an OOB index) -> ONE "no selection" line.
+inline std::vector<std::string> inspectorLinesForSelection(const pe::Scene& scene,
+                                                           int selected, int maxLines) {
+    if (selected < 0 || selected >= static_cast<int>(scene.entities.size())) {
+        return std::vector<std::string>{ "no selection" };
+    }
+    return makeInspectorLines(scene.entities[static_cast<std::size_t>(selected)], selected, maxLines);
+}
+
+// The inspector panel's click rect (the Step 296 contract): the
+// panel's drawn extent in UI space (x -6.0..5.7, y -1.2..4.0 - the
+// 22-char lines from x -5.8, 12 lines from y 3.6), converted to
+// framebuffer pixels with the DOCUMENTED pe::uiToScreen. A click
+// inside NEVER changes the selection (the panel does not edit; the
+// entities behind the panel are not clickable - pan/zoom to reach
+// them; documented).
+inline bool pointInPanelRect(float px, float py, bool panelActive, float halfW, float halfH,
+                             int fbWidth, int fbHeight) {
+    // The panel's ACTUAL drawn extent: the 12-line inspector when a
+    // selection exists (panelActive), the one-line "no selection" strip
+    // otherwise - the line count is deterministic, so the rect matches
+    // what is on screen (a startup strip must never suppress the
+    // entity clicks below it).
+    const int lineCount = panelActive ? 12 : 1;
+    const float yBottomUi = 3.6f - static_cast<float>(lineCount - 1) * 0.42f - 0.35f;
+    const pe::Vec3 tl = pe::uiToScreen(-6.0f, 4.0f, static_cast<float>(fbWidth),
+                                       static_cast<float>(fbHeight), halfW, halfH);
+    const pe::Vec3 br = pe::uiToScreen(5.7f, yBottomUi, static_cast<float>(fbWidth),
+                                       static_cast<float>(fbHeight), halfW, halfH);
+    return px >= tl.x && px <= br.x && py >= tl.y && py <= br.y;
 }
 
 }  // namespace editor0

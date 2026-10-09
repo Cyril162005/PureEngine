@@ -868,6 +868,151 @@ static void checkLiveInputWiring() {
     }
 }
 
+// Step 296: the read-only inspector panel (pure, no GL). Expected
+// strings come from the inputs (the hand-built entity's fields), never
+// from re-measured output.
+static void checkInspectorPanel() {
+    // --- the exact strings: the 36-line list for a known entity ---
+    pe::Entity e(pe::Vec3(3.0f, 3.0f, 0.0f), 0.5f, pe::Vec3(0.6f, 0.6f, 1.0f), pe::Vec3(0.3f, 0.3f, 0.5f), 4);
+    e.alive = true;
+    e.roleId = 2;
+    e.depth = 2;
+    e.health = 50.0f;
+    e.timer = 1.5f;
+    e.velocity = pe::Vec3(0.5f, -0.25f, 0.0f);
+    e.gravityScale = 1.0f;
+    e.isStatic = false;
+    e.coyoteTime = 0.05f;
+    e.jumpImpulse = 8.0f;
+    e.maxFallSpeed = 20.0f;
+    e.tint = pe::Vec3(1.0f, 1.0f, 1.0f);
+    e.cols = 4;
+    e.rows = 2;
+    e.tag = "enemy";
+    e.parentIndex = -1;
+    e.animationSpeed = 2.0f;
+    e.currentClipName = "walk_left";
+    e.rotationAngle = 0.75f;
+    e.moveSpeed = 2.2f;
+    const char* expected[36] = {
+        "entity 2",
+        "tag enemy",
+        "role 2",
+        "pos.x 3.0000",
+        "pos.y 3.0000",
+        "pos.z 0.0000",
+        "scale.x 0.6000",
+        "scale.y 0.6000",
+        "scale.z 1.0000",
+        "rotation 0.7500 rad",
+        "rot.speed 0.5000 rad/s",
+        "rot.axis z(2d)/y(3d)",
+        "half.x 0.3000",
+        "half.y 0.3000",
+        "half.z 0.5000",
+        "health 50.0000",
+        "textureId 4",
+        "tint.r 1.0000",
+        "tint.g 1.0000",
+        "tint.b 1.0000",
+        "depth 2",
+        "moveSpeed 2.2000",
+        "vel.x 0.5000",
+        "vel.y -0.2500",
+        "vel.z 0.0000",
+        "gravityScale 1.0000",
+        "isStatic 0",
+        "coyoteTime 0.0500",
+        "jumpImpulse 8.0000",
+        "maxFallSpeed 20.0000",
+        "cols 4",
+        "rows 2",
+        "timer 1.5000",
+        "parentIndex -1",
+        "animSpeed 2.0000",
+        "clip walk_left",
+    };
+    const std::vector<std::string> lines = editor0::makeInspectorLines(e, 2, 100);
+    check(lines.size() == 36, "inspector: the full list is 36 lines (24 saver fields + the context lines)");
+    int exactFails = 0;
+    for (int i = 0; i < 36; ++i) {
+        if (lines[static_cast<std::size_t>(i)] != expected[i]) {
+            ++exactFails;
+            std::printf("FAIL: inspector line %d: [%s] != [%s]\n", i, lines[static_cast<std::size_t>(i)].c_str(), expected[i]);
+        }
+    }
+    check(exactFails == 0, "inspector: all 36 lines exact (the fixed order, the saver 4dp style)");
+
+    // --- the field coverage: every field the scene saver writes appears
+    //     (the 24 saver fields -> the inspector labels) ---
+    {
+        const char* labels[25] = {
+            "entity ", "tag ", "role ", "pos.", "scale.", "rotation ", "rot.speed", "rot.axis",
+            "half.", "health", "textureId", "tint.", "depth", "moveSpeed", "vel.",
+            "gravityScale", "isStatic", "coyoteTime", "jumpImpulse", "maxFallSpeed",
+            "cols", "rows", "timer", "parentIndex", "animSpeed",
+        };
+        int missing = 0;
+        for (int i = 0; i < 25; ++i) {
+            bool found = false;
+            for (const std::string& l : lines) {
+                if (l.rfind(labels[i], 0) == 0) { found = true; break; }
+            }
+            if (!found) {
+                ++missing;
+                std::printf("FAIL: the coverage: the label [%s] has no line\n", labels[i]);
+            }
+        }
+        check(missing == 0, "inspector: the field coverage - every saver field has a line (the negative control: a dropped field FAILS this)");
+    }
+
+    // --- the +N more boundary ---
+    {
+        const std::vector<std::string> capped = editor0::makeInspectorLines(e, 2, 12);
+        check(capped.size() == 12, "inspector: maxLines 12 -> 12 lines");
+        check(capped[10] == "rot.speed 0.5000 rad/s", "inspector: the 11th line is the 11th field (the cap boundary)");
+        check(capped[11] == "+25 more", "inspector: the overflow line is +25 more (36 - 11)");
+        const std::vector<std::string> full = editor0::makeInspectorLines(e, 2, 36);
+        check(full.size() == 36 && full[35] == "clip walk_left", "inspector: maxLines 36 -> all 36, no overflow line");
+        const std::vector<std::string> over = editor0::makeInspectorLines(e, 2, 50);
+        check(over.size() == 36, "inspector: maxLines beyond the total -> all 36, no overflow line");
+    }
+
+    // --- no selection -> one 'no selection' line ---
+    {
+        const std::vector<std::string> none = editor0::inspectorLinesForSelection(pe::Scene(), -1, 12);
+        check(none.size() == 1 && none[0] == "no selection", "inspector: no selection -> exactly one 'no selection' line");
+    }
+
+    // --- the click inside the panel rect KEEPS the selection (the
+    //     point would otherwise CLEAR: no entity at the world point) ---
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.selected = 1;  // pre-selected
+        editor0::EditorInput in;
+        in.cursorX = 100.0f; in.cursorY = 100.0f;  // inside the panel rect (fb 27..975 x 0..380 at 800x600)
+        in.windowWidth = 800; in.windowHeight = 600;
+        in.fbWidth = 800; in.fbHeight = 600;
+        in.leftDown = true;
+        editor0::stepEditorFrame(state, in);
+        in.leftDown = false;
+        editor0::stepEditorFrame(state, in);
+        check(state.selected == 1, "panel: a click inside the panel rect KEEPS the selection (no pick, no clear)");
+        // The control: the same-size click OUTSIDE the rect clears.
+        editor0::EditorInput in2;
+        in2.cursorX = 400.0f; in2.cursorY = 500.0f;  // y=500 > 380: outside the rect; no entity there
+        in2.windowWidth = 800; in2.windowHeight = 600;
+        in2.fbWidth = 800; in2.fbHeight = 600;
+        in2.leftDown = true;
+        editor0::stepEditorFrame(state, in2);
+        in2.leftDown = false;
+        editor0::stepEditorFrame(state, in2);
+        check(state.selected == -1, "panel: the control - a click outside the rect clears (empty space)");
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -906,6 +1051,19 @@ static void checkHiddenWindowFrame() {
     glfwSwapBuffers(window);
     const GLenum glErr = glGetError();
     check(glErr == GL_NO_ERROR, "hidden-window: glGetError() == 0 after one frame");
+    // The panel draw (the Step 296 test): the inspector lines in UI
+    // space (the unzoomed projection), one frame, glGetError() == 0.
+    {
+        const std::vector<std::string> panelLines = editor0::inspectorLinesForSelection(loaded, 0, 12);
+        float py = 3.6f;
+        for (const std::string& l : panelLines) {
+            renderer.drawTextString(l, -5.8f, py, camera.projection(), pe::TextAlign::Left);
+            py -= 0.42f;
+        }
+        glfwSwapBuffers(window);
+        const GLenum glErr2 = glGetError();
+        check(glErr2 == GL_NO_ERROR, "panel: glGetError() == 0 after the panel draw");
+    }
     renderer.shutdown();   // BEFORE the guard's destruction (the WindowGuard contract)
     check(true, "hidden-window: the frame loop exits cleanly");
 }
@@ -992,6 +1150,19 @@ static int runViewer(const char* scenePath) {
         // highlights). Nothing selected (-1): all yellow.
         renderer.drawAABBs(proj, state.camera.view(), state.current.entities,
                            (state.selected >= 0) ? state.current.entities[static_cast<std::size_t>(state.selected)].roleId : -1);
+        // The inspector panel (the Step 296 read-only inspector): the
+        // lines in UI space with the UNZOOMED base projection - immune
+        // to pan and zoom (the pan lives in the view matrix, the zoom
+        // in the composed projection; neither is used here). The panel
+        // never edits.
+        {
+            const std::vector<std::string> lines = editor0::inspectorLinesForSelection(state.current, state.selected, 12);
+            float y = 3.6f;
+            for (const std::string& l : lines) {
+                renderer.drawTextString(l, -5.8f, y, state.camera.projection(), pe::TextAlign::Left);
+                y -= 0.42f;
+            }
+        }
         // The status line: the transient reload feedback until the next
         // event, then the base + selection.
         const std::string& line = state.feedback.empty() ? state.status : state.feedback;
@@ -1094,6 +1265,7 @@ int main(int argc, char** argv) {
         checkHostileLoads();      // Step 291: the hostile loads
         checkSelectionAndPick();  // Step 294: selection + pick + gesture + print discipline
         checkLiveInputWiring();   // Step 295: the live-path wiring (synthetic input)
+        checkInspectorPanel();    // Step 296: the read-only inspector panel
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
