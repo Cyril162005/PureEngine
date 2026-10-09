@@ -340,3 +340,81 @@ findings if the human chooses.
   opens in the same terminal; unverified, recorded as reported.
 - **status:** recorded (an observation; no engine fix, no editor
   fix inside a docs step).
+
+## Entry 13
+- **what:** the engine's pickEntityAtScreen has NO zoom knowledge (it
+  converts with the camera's stored half-extents), so a pick at
+  zoom != 1 cannot use the engine wrapper alone; the editor composes
+  a zoom-aware pick (the world point via screenToWorldAtZoom, then
+  the DOCUMENTED pe::pickEntity with world coords).
+- **evidence:** src/collision.h:364-369 (the Camera-based wrapper);
+  tools/editor0/editor0_core.h (pickEntityAtScreenZoomed); 82
+  selftest checks green (the pick at pan (2,1) zoom 1.5 selects the
+  computed entity; the wrong-zoom negative control misses).
+- **class:** existing capability (the composition works; the engine
+  wrapper is documented as Camera-based - no engine change).
+- **status:** recorded, not fixed (nothing to fix).
+
+## Entry 14
+- **what:** the selected-entity highlight is a ROLE-GROUP color: the
+  engine's drawAABBs takes only a playerRoleId (the color is decided
+  INSIDE by roleId: orange vs yellow) - no per-entity or
+  selected-entity color parameter exists. The editor passes the
+  selected entity's roleId, which highlights the selected entity
+  AND its role-mates (the sample's roles are distinct, so exactly
+  the selected entity highlights); a TRUE per-entity color would
+  need an engine change.
+- **evidence:** src/renderer.h:1085 (the signature) + the
+  roleId-based coloring inside; tools/editor0/main.cpp (the
+  highlight call). 82 selftest checks green.
+- **class:** existing capability, with a doc-gap note (the
+  per-entity color parameter is a MISSING CAPABILITY for a later
+  engine version - the role-group highlight works without any
+  engine change).
+- **status:** recorded, not fixed.
+
+## Entry 15
+- **what:** the overlapping-entity pick order OBSERVED (recorded as
+  a finding, NOT asserted as a contract per the step): two
+  entities at the same position with depths 5 (index 0) and 2
+  (index 1) - the pick returned index 0 (the HIGHEST depth wins;
+  ties keep the earlier index, collision.h:341-343).
+- **evidence:** src/collision.h:341-343 (the depth rule + the tie
+  comment); the 294 selftest OBSERVED line ("the pick returned
+  index 0").
+- **class:** existing capability (documented in-source; the
+  observation recorded).
+- **status:** recorded, not asserted as a contract.
+
+## Entry 16
+- **what:** a dead entity is NOT selectable: pickEntity skips
+  alive=false entities (collision.h:330-332), so a dead entity
+  under the cursor returns -1 (observed).
+- **evidence:** src/collision.h:330-332 (the alive skip); the 294
+  selftest dead test (the pick returned -1 for a dead-only list).
+- **class:** existing capability (documented; the dead entity is
+  not selectable - correct for the editor).
+- **status:** recorded, not fixed (nothing to fix).
+
+## Entry 17
+- **what:** the print discipline (the Step 294 investigation of
+  Cyril's 5-identical-lines observation): the editor's load path
+  has EXACTLY ONE stderr print site (main.cpp:663, the load site;
+  the full grep: the reload site :688 per R press, the make-sample
+  sites :749/:755, the init failure sites :631-644; editor0_core.h
+  has ZERO print sites). The test sink (the editor-owned
+  reportMessage(std::ostream&)) proves ONE failed load produces
+  EXACTLY ONE report line. The 5x observation is NOT reproducible
+  from the editor code - the cause is OUTSIDE the editor (the most
+  likely: the accumulated console output across multiple opens in
+  the same terminal; UNVERIFIED). All diagnostic sites now route
+  through reportMessage - the once-per-attempt discipline is
+  explicit and tested.
+- **evidence:** the grep (the print sites); the 294 selftest sink
+  test ("one failed load produced 1 report line(s)"); the 293
+  observation entry.
+- **class:** existing capability (the report discipline is correct;
+  the 5x was the terminal, not the code; no duplicate-print defect
+  existed in the editor).
+- **status:** recorded (the discipline made explicit + tested; no
+  behavior change).

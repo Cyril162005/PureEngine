@@ -2212,6 +2212,52 @@ single-source zip, Step 143's dry-run note). NOT OPEN.
 - Frozen is not rejected: only a human phase-open step unfreezes
   anything.
 
+### Phase Tools consumer: editor0 option B (Step 294) - step 1 of at most 4
+
+TOOLS/Editor consumer step; no engine version opened, v4/v5/v6 stay
+frozen. Implementation committed FIRST (the anchoring rule): commit
+`f55c0ef` - tools/editor0/ extended: editor0_core.h +80
+(kEditorClickThresholdPx 4.0 EDITOR-documented; PointerGesture +
+classifyPointerGesture - the Euclidean pixel distance, the
+inclusive boundary; reportMessage(std::ostream&) - the print sink;
+pickEntityAtScreenZoomed - the zoom-aware pick composed from
+screenToWorldAtZoom + the DOCUMENTED pe::pickEntity (the engine's
+pickEntityAtScreen has no zoom knowledge, collision.h:364-369);
+reloadForEditor - on SUCCESS the scene replaced AND the selection
+CLEARED, on FAILURE both UNCHANGED (documented); the
+makeStatusLine overload with the selection: " | selected <i>
+(<tag>)", err takes precedence). main.cpp: the selection wiring
+(the press captures the position; on release the gesture is
+classified - a CLICK selects via the zoomed pick or CLEARS on empty
+space, a DRAG panned as before); the highlight = the selected
+entity's ROLE GROUP via the engine's playerRoleId parameter (no
+engine change; the sample's distinct roles make it exact); the R
+reload via reloadForEditor; the status shows the selection; ALL
+diagnostic sites routed through reportMessage. --selftest: 82
+checks green - the pick at a NON-DEFAULT pan and zoom (the screen
+position from the formulas = (500,100), the click selects), a
+click outside (-1), the negative control (the wrong zoom 0.75
+lands at (4,5) and MISSES), the overlapping pick order OBSERVED
+(index 0, depths 5 then 2 - the highest depth wins, ties keep the
+earlier index, collision.h:341-343; recorded as a finding, NOT
+asserted as a contract), the dead entity NOT selectable (-1 - the
+engine skips alive=false, collision.h:330-332), the gesture
+threshold boundary, the reload/selection lifecycle (cleared on
+success, kept on failure), the print discipline (ONE failed load =
+EXACTLY ONE report in the test sink). MUTATION (on the committed
+tree, never committed): the zoom IGNORED in the pick conversion ->
+the pick test FAILED exit 1 - NON-VACUOUS; restored by pathspec;
+git diff --stat -- src/ EMPTY. GATES against the committed tree:
+cmake --build build --config Release exit 0; ctest -C Release exit
+0 5/5 100% (17.03s; the PureEditor0 duration 0.49s - under the 40s
+guard); alive x3 exit 0; git diff --check exit 0 clean; git diff
+--stat -- src/ exit 0 EMPTY. FINDINGS: 17 entries (the zoomed pick
+composition, the role-group highlight + the per-entity-color
+missing capability, the observed overlap order, the dead skip, the
+print discipline - all existing capability). Visual confirmation:
+PENDING (the on-screen error-line display stays UNCONFIRMED; the
+selection/highlight visual confirmation PENDING).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
