@@ -379,6 +379,77 @@ findings if the human chooses.
   human; the 294/295 visual confirmations CLOSED).
 - **status:** recorded (the visual confirmations: CONFIRMED).
 
+## Entry 20
+- **what:** the read-only inspector panel (the Step 296): the 36-line
+  list = the 24 scene-saver fields (position/rotationAngle/
+  rotationSpeed/scale/halfExtents/textureId/depth/roleId/moveSpeed/
+  velocity/gravityScale/isStatic/coyoteTime/jumpImpulse/maxFallSpeed/
+  tint/cols/rows/health/timer/tag/parentIndex/animationSpeed/
+  currentClipName) + the context lines (the rot.axis z(2d)/y(3d));
+  the per-component lines so every line fits the 12x9 default view
+  (<= 22 chars at 0.52 advance); the floats in the SAVER's 4-decimal
+  style (the panel shows exactly what the file round-trips - the 4dp
+  precision is the saver's documented view, the 276 finding); the
+  "+N more" overflow; no selection -> ONE "no selection" line; the
+  panel never edits.
+- **evidence:** tools/editor0/editor0_core.h (makeInspectorLines/
+  inspectorLinesForSelection); 113 selftest checks green (the 36
+  exact lines, the coverage, the +N more boundary: maxLines 12 -> 11
+  + "+25 more", maxLines 36/50 -> all 36).
+- **class:** existing capability (the bitmap font + the documented
+  pe::uiToScreen; no engine change).
+- **status:** recorded (the panel landed; verified).
+
+## Entry 21
+- **what:** the panel-rect DEFECT (found and fixed in the same step):
+  the FIRST pointInPanelRect used a FIXED 12-line extent regardless
+  of the actual line count, so the startup ONE-LINE "no selection"
+  strip suppressed the entity clicks behind it (the 3 selection
+  tests FAILED: the ratio 1.0/1.25/1.5 clicks hit the y 0..380 rect).
+  The fix: the panel's ACTUAL extent - the line count is
+  deterministic (12 lines when selected, 1 when not) - a startup
+  strip must never suppress the entity clicks below it.
+- **evidence:** the 296 selftest runs (the 3-FAILED run before the
+  fix; the 113-check green run after); the panel-suppression test
+  (a click inside the grown rect KEEPS the selection; the
+  outside-rect control CLEARS).
+- **class:** existing capability (the editor's own defect, found and
+  fixed editor-side; no engine change).
+- **status:** fixed editor-side (verified).
+
+## Entry 22
+- **what:** the rotation-axis truth - the Direction Spec's "Z-only"
+  (Step 293) was INCOMPLETE: rotationAngle is ONE field with the
+  AXIS PER MODE - the 2D path reads it as a Z-SPIN in the XY plane
+  (src/renderer.h:591 Mat4::rotationZ in modelMatrix), the 3D path
+  (drawEntity3D, src/renderer.h:732-734/:777) REINTERPRETS the same
+  field as YAW about +Y (Mat4::rotationY, Step 214, documented
+  in-source as the explicit choice).
+- **evidence:** src/entity.h:46-47 (the field's comment says "current
+  Z rotation" - the 2D reading), src/renderer.h:591 (rotationZ),
+  src/renderer.h:732-734/:777 (rotationY as yaw). The Direction Spec
+  corrected in the record commit.
+- **class:** existing capability (documented in-source; the doc-gap
+  was the Direction Spec's ambiguous summary).
+- **status:** corrected (the record commit).
+
+## Entry 23
+- **what:** the stash/lock incident (the 295-296 stop + the
+  recovery): an exclusive file lock on build/Release/PureEditor0.exe
+  blocked the link ~1 hour - the READ side was ALSO blocked, so it
+  was NOT a running-instance image lock but an exclusive DATA handle
+  (a stuck sync/copy tool, an AV scan, or a backup; the holder was
+  invisible to the non-elevated shell). The 296 work was stashed
+  (stash@{0}) with a backup patch (D:\PureEngine_wip\296_stash.patch,
+  17934 bytes); the HUMAN deleted and rebuilt the exe (the lock
+  cleared); the stash popped CLEANLY and was dropped (99793f80)
+  only after the pop succeeded.
+- **evidence:** the LNK1104 outputs (7 build attempts + del/ren/waits
+  blocked); git stash list/pop; the recovery's 113-check green run.
+- **class:** existing capability (the git stash recovery worked end
+  to end; the blocker was external to the repository).
+- **status:** recorded (recovered).
+
 ## Entry 13
 - **what:** the engine's pickEntityAtScreen has NO zoom knowledge (it
   converts with the camera's stored half-extents), so a pick at

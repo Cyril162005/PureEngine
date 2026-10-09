@@ -2290,6 +2290,54 @@ clear/drag/zoom/R/ESC all work; the truncated load printed 1 line
 (the 294 fix confirmed). The 294/295 visual confirmations:
 CONFIRMED.
 
+### Phase Tools consumer: editor0 option B (Step 296) - step 2 of at most 5, COMPLETE
+
+Tools/Editor consumer step; no engine version opened, v4/v5/v6 stay
+frozen. The read-only inspector panel landed (commit `f47f1aa`; the
+work was stashed unverified during the LNK1104 lock blocker and
+recovered cleanly - FINDINGS Entry 23). THE INSPECTOR:
+editor0_core.h gains f4 (the SCENE SAVER's 4-decimal style -
+the panel shows exactly what the file round-trips), makeInspectorLines
+(the FIXED field order: 36 lines = the 24 scene-saver fields +
+the context lines; the per-component lines so every line fits the
+12x9 default view; the "+N more" overflow; no selection -> ONE "no
+selection" line; the panel NEVER edits), inspectorLinesForSelection,
+pointInPanelRect (the panel's ACTUAL extent - the 12-line inspector
+when selected, the one-line strip otherwise; the line count is
+deterministic so a startup strip never suppresses the entity clicks
+- the FIRST fixed-extent rect suppressed them and the 3 selection
+tests caught it, FIXED); the click suppression in stepEditorFrame (a
+click inside the panel rect NEVER changes the selection - a complete
+no-op; the entities behind the panel are not clickable - pan/zoom to
+reach them; documented); the panel draw in runViewer (UI space, the
+UNZOOMED base projection - immune to pan and zoom). --selftest: 113
+checks green (the 36 exact lines, the field coverage, the +N more
+boundary, the no-selection, the click-in-panel keeps selection + the
+outside-rect clears control, the hidden-window panel draw
+glGetError() == 0, and every 288-295 check unchanged). MUTATION: the
+health field dropped from makeInspectorLines -> 6 checks FAILED (the
+coverage: "the label [health] has no line"; the exact lines; the +N
+more boundary) - NON-VACUOUS; restored by pathspec; git diff --stat
+-- src/ EMPTY. GATES against f47f1aa: cmake --build build --config
+Release exit 0; ctest -C Release exit 0 5/5 100% (26.17s; the
+PureEditor0 duration 1.73s - under the 40s guard); alive x3 exit 0;
+git diff --check clean. THE ROTATION TRUTH (the Direction Spec
+correction): the 293 "Z-only" was INCOMPLETE - rotationAngle is ONE
+field with the AXIS PER MODE: the 2D path reads it as a Z-SPIN
+(src/renderer.h:591 Mat4::rotationZ), the 3D path (drawEntity3D,
+src/renderer.h:732-734/:777) REINTERPRETS the same field as YAW
+about +Y (Mat4::rotationY, Step 214, documented in-source as the
+explicit choice); the Direction Spec's rotation facts corrected
+below. FINDINGS: 23 entries (the inspector, the panel-rect defect
+fixed, the rotation truth, the stash/lock incident - all existing
+capability).
+
+**Direction Spec correction (Step 296):** in the "1 Core foundation"
+current-state text, the entity rotation reads "the SINGLE-AXIS
+rotation - 'current Z rotation in RADIANS'": the SINGLE-AXIS part is
+correct; the axis is PER MODE (z-spin in the 2D path, yaw about +Y
+in the 3D path) - see the Step 296 section above.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
