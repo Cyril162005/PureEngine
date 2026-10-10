@@ -2338,6 +2338,52 @@ rotation - 'current Z rotation in RADIANS'": the SINGLE-AXIS part is
 correct; the axis is PER MODE (z-spin in the 2D path, yaw about +Y
 in the 3D path) - see the Step 296 section above.
 
+### Phase Tools consumer: editor0 option B (Step 297) - step 4 of at most 5, COMPLETE
+
+Tools/Editor consumer step; no engine version opened, v4/v5/v6 stay
+frozen. The navigation + the line caps + the N-entity sample landed
+(commit `b1ca958`). THE KEY AUDIT FIRST (grep-verified): the
+edge-tracking registration is the CONSUMER'S ctor list
+(src/main.cpp:866-882; untracked keys simply report no edge); Tab is
+MAPPED (input.h:176) but was NOT registered anywhere; the Shift-as-
+LEVEL read is ENGINE-PROVEN (src/main.cpp:1609-1610). FINAL KEY
+CHOICE: Tab = the next (registered in the editor's ctor list),
+Shift+Tab = the previous (the Tab edge + the Shift level) - both
+usable, no missing capability. THE IMPLEMENTATION: navigateSelection
+(the direction-matched scan: the next walks FORWARD, the previous
+walks BACKWARD; the wrap always non-negative; the dead skipped; no
+selection -> the first/last alive; the empty scene = a safe no-op);
+kInspectorMaxLineChars 40 + the '...' cap (the extreme values
+bounded); the makeStatusLine tag cap 20 + '...'; the EditorInput nav
+edges + the stepEditorFrame nav handling (the diag record); the
+EditorState nav fields; buildSampleSceneN (the count<=3 branch
+copies the 288-296 layout VERBATIM; count > 3 = the prefab cycle on
+a grid; count 0 = the empty scene; the cap 10000);
+makeSampleSceneFile(path, err, count = 3); --diag-input prints ONE
+line per nav key press (key=<next|prev> index <before> -> <after>).
+--selftest: 151 checks green (the 40-entity cycle + the wrap + the
+dead-skip + the empty scene + the caps (1e30/3.4e38/NaN/inf/the
+long tag) + the N-entity samples + the pick at 40 entities + the nav
+wiring through the REAL stepEditorFrame). MUTATION: the wrap removed
+(the start clamped) -> 3 checks FAILED - NON-VACUOUS; restored by
+pathspec; git diff --stat -- src/ EMPTY. GATES against b1ca958:
+cmake --build build --config Release exit 0; ctest -C Release exit 0
+5/5 100% (14.41s; the PureEditor0 duration 0.63s - under the 40s
+guard); alive x3 exit 0; git diff --check clean. HUMAN PASS (the
+296 inspector, Cyril's photos): CONFIRMED; the polish finding (the
+big bitmap font + the crowded top status line) = cosmetic, recorded,
+not scheduled.
+
+**PROMPT CONFLICT (Step 297, reported, not resolved by guessing):**
+the prompt contained TWO versions of this step's spec. THE FIRST
+(governing - the filled human feedback + 'Key audit FIRST'): the key
+audit, the navigation, the line capping, --make-sample [count] with
+40 entities, ONE mutation. THE SECOND (an unfilled-placeholder
+draft): the raw Tab/Shift assumption, the panel scroll/toggle
+(Up/Down + I), a 2000-entity scene, a SECOND mutation (the scroll
+clamp). THE FIRST WAS FOLLOWED; the second's extras are NOT
+implemented - a candidate for a later step if the human confirms.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

@@ -450,6 +450,55 @@ findings if the human chooses.
   to end; the blocker was external to the repository).
 - **status:** recorded (recovered).
 
+## Entry 24
+- **what:** the key audit for the navigation (the Step 297): Tab is
+  MAPPED ("TAB" -> GLFW_KEY_TAB, src/input.h:176) but was NOT
+  registered in any edge-tracked list - the registration is the
+  CONSUMER's ctor list (src/main.cpp:866-882 the Arcade's list; the
+  doc: "untracked keys simply report no edge"). The Shift modifier
+  as a LEVEL read is ENGINE-PROVEN: src/main.cpp:1609-1610 uses
+  pe::Input::isDown(window, GLFW_KEY_LEFT_SHIFT) ||
+  ...RIGHT_SHIFT. The final key choice: Tab = the next (the Tab edge,
+  registered in the editor's ctor list), Shift+Tab = the previous
+  (the Tab edge + the Shift level).
+- **evidence:** src/input.h:160-177 (the mapping + the edge reads),
+  src/main.cpp:866-882 (the registration pattern), src/main.cpp:
+  1609-1610 (the Shift level in use); the editor's Input ctor now
+  includes GLFW_KEY_TAB; 151 selftest checks green.
+- **class:** existing capability (the mechanism supports any GLFW
+  key; the only gap was the editor's own registration list, fixed).
+- **status:** recorded (the keys documented).
+
+## Entry 25
+- **what:** the nav scan-direction DEFECT (found and fixed in-step by
+  the test): the first navigateSelection scanned FORWARD for BOTH
+  directions, so "previous from 6" with the dead 5 found ITSELF
+  (index 6) instead of skipping back to 4 - the test caught it ("nav:
+  the previous from 6 skips the dead 5 -> 4" FAILED). The fix: the
+  scan direction matches (the next walks FORWARD, the previous walks
+  BACKWARD; the wrap is always non-negative).
+- **evidence:** the 297 selftest run (1 check FAILED before the fix;
+  151 checks green after); tools/editor0/editor0_core.h
+  (navigateSelection's direction-matched scan).
+- **class:** existing capability (the editor's own defect, found and
+  fixed editor-side by the test; no engine change).
+- **status:** fixed editor-side (verified).
+
+## Entry 26
+- **what:** the HUMAN FEEDBACK on the 296 inspector (Cyril's photos,
+  2026-10-09, verbatim summary): "no selection" shown when nothing is
+  picked; selecting an entity shows tag, role, pos, scale, half,
+  rotation and "+25 more"; the selected entity's outline turns
+  orange; drag, zoom, R, ESC still work. THE 296 VISUAL
+  CONFIRMATION: CONFIRMED. The polish finding (recorded, cosmetic):
+  the big bitmap font and a crowded top status line.
+- **evidence:** Cyril's photos of the running editor; the 296 commit
+  f47f1aa.
+- **class:** existing capability (the polish items are cosmetic
+  notes, not defects).
+- **status:** recorded (the visual confirmations: CONFIRMED; the
+  polish: a candidate for a later cosmetic pass, not scheduled).
+
 ## Entry 13
 - **what:** the engine's pickEntityAtScreen has NO zoom knowledge (it
   converts with the camera's stored half-extents), so a pick at
