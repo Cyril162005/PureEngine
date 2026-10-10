@@ -270,6 +270,62 @@ inline int navigateSelection(const pe::Scene& scene, int current, int direction)
 // this bound.
 inline constexpr int kInspectorMaxLineChars = 40;
 
+// --- Step 299: the save-as (the editor's WRITE path; the first one) ---
+// The save-as target path (pure): the loaded file's basename +
+// "_edit<N>.txt" under savedata/ (a NEW path; a bare source name also
+// lands under savedata/; the engine's saver creates the directory for
+// explicit paths). Deterministic, no clock.
+inline std::string makeSaveAsPath(const std::string& sourcePath, int n) {
+    std::string base = sourcePath;
+    const std::size_t slash = base.find_last_of("/\\");
+    if (slash != std::string::npos) base = base.substr(slash + 1);
+    const std::size_t dot = base.find_last_of('.');
+    if (dot != std::string::npos && dot > 0) base = base.substr(0, dot);
+    return "savedata/" + base + "_edit" + std::to_string(n) + ".txt";
+}
+
+// The save-as (the Step 299; the write-safety rules, the V3 option C
+// brief): a NEW file path ONLY. Wraps the frozen engine API
+// pe::saveSceneToFile (src/scene.h:381, the explicit-path +
+// rename-overwrite contract) with the editor refusals: an empty path,
+// the currently loaded SOURCE path, and an EXISTING destination are
+// REFUSED (the same spirit as the sample refusal) until the
+// round-trip is proven. On failure err is set with a short reason.
+// sourcePath defaults to empty (no source refusal) for direct calls.
+inline bool saveAsForEditor(const std::string& path, const pe::Scene& current, std::string& err,
+                            const std::string& sourcePath = std::string()) {
+    err.clear();
+    if (path.empty()) {
+        err = "empty path";
+        return false;
+    }
+    if (!sourcePath.empty() && path == sourcePath) {
+        err = "refusing to save over the loaded source: " + path;
+        return false;
+    }
+    {
+        std::ifstream probe(path, std::ios::binary);
+        if (probe) {
+            err = "refusing to overwrite an existing file: " + path;
+            return false;
+        }
+    }
+    if (!pe::saveSceneToFile(current, path)) {
+        err = "the save failed: " + path;
+        return false;
+    }
+    return true;
+}
+
+// The save-as feedback (the Step 299; exact-string tested).
+inline std::string makeSaveFeedback(bool ok, const std::string& path,
+                                    std::size_t count, const std::string& reason) {
+    if (ok) {
+        return "saved " + path + " (" + std::to_string(count) + " entities)";
+    }
+    return "save failed: " + reason;
+}
+
 // The per-frame editor input (plain data, no GLFW): main.cpp fills it
 // from the real input each frame.
 struct EditorInput {
@@ -283,6 +339,7 @@ struct EditorInput {
     bool keyEsc = false;                    // the ESC edge (quit)
     bool keyNavNext = false;                // the Tab edge WITHOUT Shift (the next, the Step 297)
     bool keyNavPrev = false;                // the Tab edge WITH Shift (the previous, the Step 297)
+    bool keySave = false;                   // the Ctrl+S edge (the save-as, the Step 299)
 };
 
 // The editor-owned state (everything the per-frame update touches).
@@ -307,6 +364,10 @@ struct EditorState {
     int lastNavBefore = -2;             // the selection before the last nav
     int lastNavIndex = -2;              // the selection after the last nav
     bool lastNavWasNext = false;        // the last nav's direction
+    // The save-as fields (the Step 299):
+    int saveCounter = 1;                // the next free _edit<N> number
+    int saveCount = 0;                  // how many saves happened (the diag)
+    std::string lastSavePath;           // the last saved path
 };
 
 // The window->framebuffer ratio conversion (the Step 295 fix): the
@@ -380,6 +441,32 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
         state.lastNavBefore = before;
         state.lastNavIndex = state.selected;
         state.lastNavWasNext = in.keyNavNext;
+    }
+    // The save-as (the Step 299): Ctrl+S -> the first free
+    // savedata/<base>_edit<N>.txt (a NEW path; NEVER the source). The
+    // counter advances only on success; the existing-destination
+    // refusal auto-advances the scan. The save is an event: the stale
+    // feedback clears.
+    if (in.keySave) {
+        std::string saveErr;
+        std::string target;
+        bool saved = false;
+        int n = state.saveCounter;
+        for (int attempt = 0; attempt < 1000; ++attempt, ++n) {
+            target = makeSaveAsPath(state.path, n);
+            if (saveAsForEditor(target, state.current, saveErr, state.path)) { saved = true; break; }
+            if (saveErr.rfind("refusing to overwrite", 0) != 0) break;  // a non-refusal failure: stop
+        }
+        if (saved) {
+            state.saveCounter = n + 1;  // the next free name (the break skips the loop's ++n)
+            state.feedback = makeSaveFeedback(true, target, state.current.entities.size(), "");
+            ++state.saveCount;
+            state.lastSavePath = target;
+        } else {
+            state.feedback = makeSaveFeedback(false, target, state.current.entities.size(), saveErr);
+        }
+        state.status = makeStatusLine(state.path, state.current.entities.size(),
+                                      std::string(), state.selected, state.current.entities);
     }
     // The pointer: the gesture classification. The threshold is in
     // WINDOW pixels (the same space the press was captured in); the

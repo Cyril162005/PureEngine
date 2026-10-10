@@ -1175,6 +1175,104 @@ static void checkNavigationAndCaps() {
     }
 }
 
+// Step 299: the save-as (the round-trip + the refusals + the
+// feedback + the live trigger). Expected values from the inputs.
+static void checkSaveAs() {
+    // a) the round-trip: save -> load -> field-exact compare; save ->
+    //    load -> save byte-identical (the 276 pattern).
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = "editor0_tmp/saveas_source.txt";
+        std::string err;
+        const std::string target = "editor0_tmp/saveas_rt.txt";
+        check(editor0::saveAsForEditor(target, state.current, err, state.path), "save-as: the save to a NEW path succeeds");
+        pe::Scene loaded;
+        check(editor0::loadSceneForEditor(target, loaded, err), "save-as: the saved file loads");
+        check(loaded.entities.size() == 3, "save-as: the loaded count is 3");
+        std::string diff;
+        bool same = loaded.name == state.current.name;
+        for (std::size_t i = 0; same && i < 3; ++i) same = entityFieldMatches(state.current.entities[i], loaded.entities[i], diff);
+        check(same, "save-as: the round-trip is field-exact (all 24 checks per entity)");
+        const std::string target2 = "editor0_tmp/saveas_rt2.txt";
+        check(editor0::saveAsForEditor(target2, loaded, err, target), "save-as: the second save (from the loaded scene)");
+        std::string text1, text2;
+        readTextFile(target.c_str(), text1);
+        readTextFile(target2.c_str(), text2);
+        check(!text1.empty() && text1 == text2, "save-as: save->load->save is byte-identical");
+        std::remove(target.c_str()); std::remove(target2.c_str());
+    }
+    // b) the refusals: empty, source, existing (the file untouched).
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        std::string err;
+        check(!editor0::saveAsForEditor("", state.current, err) && err == "empty path",
+              "save-as: the empty path refused with a clear err");
+        check(!editor0::saveAsForEditor("editor0_tmp/src.txt", state.current, err, "editor0_tmp/src.txt")
+              && err.rfind("refusing to save over the loaded source", 0) == 0,
+              "save-as: the source path refused with a clear err");
+        const char* kExisting = "editor0_tmp/saveas_exists.txt";
+        { std::ofstream f(kExisting, std::ios::binary | std::ios::trunc); f << "junk"; }
+        check(!editor0::saveAsForEditor(kExisting, state.current, err, "other.txt")
+              && err.rfind("refusing to overwrite an existing file", 0) == 0,
+              "save-as: the existing destination refused with a clear err");
+        std::string before;
+        readTextFile(kExisting, before);
+        check(before == "junk", "save-as: the refused file is unchanged");
+        std::remove(kExisting);
+    }
+    // c) the exact strings.
+    check(editor0::makeSaveFeedback(true, "savedata/x_edit1.txt", 3, "") == "saved savedata/x_edit1.txt (3 entities)",
+          "save-as: the saved feedback exact");
+    check(editor0::makeSaveFeedback(false, "", 0, "empty path") == "save failed: empty path",
+          "save-as: the failed feedback exact");
+    check(editor0::makeSaveAsPath("savedata/sample_scene.txt", 1) == "savedata/sample_scene_edit1.txt",
+          "save-as: the derived path from an explicit source");
+    check(editor0::makeSaveAsPath("sample_scene.txt", 2) == "savedata/sample_scene_edit2.txt",
+          "save-as: the derived path from a bare source lands under savedata/");
+    check(editor0::makeSaveAsPath("a/b/c.txt", 3) == "savedata/c_edit3.txt",
+          "save-as: the derived path uses the basename only");
+    // d) the save through the REAL stepEditorFrame (the trigger + the
+    //    auto-increment counter).
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = "editor0_tmp/saveas_live.txt";
+        state.camera.onResize(800, 600);
+        editor0::EditorInput in;
+        in.windowWidth = 800; in.windowHeight = 600; in.fbWidth = 800; in.fbHeight = 600;
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.feedback == "saved savedata/saveas_live_edit1.txt (3 entities)",
+              "save-as: the Ctrl+S trigger saves through the real step function");
+        check(state.saveCounter == 2, "save-as: the counter advanced");
+        editor0::stepEditorFrame(state, in);
+        check(state.feedback == "saved savedata/saveas_live_edit2.txt (3 entities)",
+              "save-as: the second save uses the next free name (no refusal)");
+        std::remove("savedata/saveas_live_edit1.txt");
+        std::remove("savedata/saveas_live_edit2.txt");
+    }
+    // e) negative control: a broken compare is caught.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        std::string err;
+        const std::string target = "editor0_tmp/saveas_neg.txt";
+        check(editor0::saveAsForEditor(target, state.current, err, state.path), "save-as: the negative-control save");
+        pe::Scene loaded;
+        check(editor0::loadSceneForEditor(target, loaded, err), "save-as: the negative-control load");
+        std::string diff;
+        check(entityFieldMatches(state.current.entities[1], loaded.entities[1], diff),
+              "save-as: the unaltered pair matches (the comparator baseline)");
+        loaded.entities[1].health += 0.5f;
+        diff.clear();
+        check(!entityFieldMatches(state.current.entities[1], loaded.entities[1], diff) && diff == "health",
+              "save-as: negative control - a broken compare is caught (health)");
+        std::remove(target.c_str());
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -1279,7 +1377,7 @@ static int runViewer(const char* scenePath) {
     // Edge-tracked keys: ESC (quit) + +/- (zoom steps) + R (reload) -
     // one event per press (the documented edge read). NO wheel:
     // input.h exposes no scroll input (the missing-capability finding).
-    pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R, GLFW_KEY_TAB});
+    pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R, GLFW_KEY_TAB, GLFW_KEY_S});
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -1304,6 +1402,12 @@ static int runViewer(const char* scenePath) {
                                pe::Input::isDown(window, GLFW_KEY_RIGHT_SHIFT);
         in.keyNavNext = tabEdge && !shiftDown;
         in.keyNavPrev = tabEdge && shiftDown;
+        // The save-as (the Step 299): the S edge + the Ctrl level (the
+        // engine-proven combo pattern, src/main.cpp:1609-1610).
+        const bool sEdge = input.isEdge(window, GLFW_KEY_S);
+        const bool ctrlDown = pe::Input::isDown(window, GLFW_KEY_LEFT_CONTROL) ||
+                              pe::Input::isDown(window, GLFW_KEY_RIGHT_CONTROL);
+        in.keySave = sEdge && ctrlDown;
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);   // frame-end snapshot (the documented temporal order)
@@ -1452,6 +1556,7 @@ int main(int argc, char** argv) {
         checkLiveInputWiring();   // Step 295: the live-path wiring (synthetic input)
         checkInspectorPanel();    // Step 296: the read-only inspector panel
         checkNavigationAndCaps(); // Step 297: the navigation + the caps + the N-entity sample
+        checkSaveAs();            // Step 299: the save-as (the round-trip + the refusals)
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
