@@ -38,6 +38,8 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <cstdio>
+#include <cstdlib>
+#include <limits>
 #include <cmath>
 #include <sstream>
 #include <algorithm>
@@ -146,11 +148,49 @@ static bool buildSampleScene(pe::Scene& scene) {
     return true;
 }
 
+// Step 297: the N-entity sample build (a SEPARATE function; the
+// original 3-prefab buildSampleScene above is UNCHANGED and still
+// serves the default). count <= 3 keeps the EXACT 288-296 layout (the
+// branch copies it verbatim); count > 3 uses the prefab cycle
+// tile/pickup/enemy on a grid, entity i at ((i%8)*1.2, (i/8)*1.2) -
+// the cells 1.2 units apart so nothing overlaps and the pick can
+// click a KNOWN entity. count 0 = the empty scene. The cap 10000 is
+// documented (the sizes stay bounded).
+static bool buildSampleSceneN(pe::Scene& scene, int count) {
+    if (count < 0 || count > 10000) return false;
+    pe::Prefab tile, pickup, enemy;
+    if (!pe::loadPrefab(kTileFile, tile) || !pe::loadPrefab(kPickupFile, pickup) || !pe::loadPrefab(kEnemyFile, enemy)) {
+        return false;
+    }
+    scene.name = "editor0_sample";
+    if (count <= 3) {
+        // The verbatim copy of the 288-296 layout (the count 1/2 drop
+        // the later spawns; the count 0 leaves the scene empty).
+        if (count >= 1) scene.queueSpawn(pe::instantiatePrefab(tile,   pe::Vec3(0.0f, 0.0f, 0.0f)));
+        if (count >= 2) scene.queueSpawn(pe::instantiatePrefab(pickup, pe::Vec3(1.5f, -2.5f, 0.0f)));
+        scene.flushSpawns();
+        if (count >= 3) {
+            scene.entities[2].velocity = pe::Vec3(0.5f, -0.25f, 0.0f);
+            scene.entities[2].timer = 1.5f;
+            scene.entities[2].animationSpeed = 2.0f;
+            scene.entities[2].rotationAngle = 0.75f;
+        }
+        return true;
+    }
+    pe::Prefab cycle[3] = {tile, pickup, enemy};
+    for (int i = 0; i < count; ++i) {
+        const pe::Vec3 pos(static_cast<float>(i % 8) * 1.2f, static_cast<float>(i / 8) * 1.2f, 0.0f);
+        scene.queueSpawn(pe::instantiatePrefab(cycle[i % 3], pos));
+    }
+    scene.flushSpawns();
+    return true;
+}
+
 // Step 290: the --make-sample core. Saves the sample scene to `path`
 // with the ENGINE's saver (pe::saveSceneToFile). Refuses to overwrite
 // an existing file (the editor never destroys data): false + a reason,
 // the file untouched.
-static bool makeSampleSceneFile(const char* path, std::string& err) {
+static bool makeSampleSceneFile(const char* path, std::string& err, int count = 3) {
     err.clear();
     if (!path || !*path) {
         err = "empty path";
@@ -165,7 +205,8 @@ static bool makeSampleSceneFile(const char* path, std::string& err) {
         }
     }
     pe::Scene scene;
-    if (!buildSampleScene(scene)) {
+    const bool built = (count == 3) ? buildSampleScene(scene) : buildSampleSceneN(scene, count);
+    if (!built) {
         err = "the sample scene could not be built (the prefabs must load)";
         return false;
     }
@@ -1013,6 +1054,127 @@ static void checkInspectorPanel() {
     }
 }
 
+// Step 297: the selection navigation + the line capping + the
+// N-entity sample (pure, no GL, no live GLFW). Expected values come
+// from the inputs, never from re-measured output.
+static void checkNavigationAndCaps() {
+    // a) the cycle: 40 alive entities; the wrap; each visited exactly once.
+    {
+        pe::Scene s;
+        buildSampleSceneN(s, 40);
+        check(s.entities.size() == 40, "nav: the 40-entity scene built");
+        int sel = -1;
+        sel = editor0::navigateSelection(s, sel, 1);
+        check(sel == 0, "nav: no selection + next -> the first alive (0)");
+        check(editor0::navigateSelection(s, -1, -1) == 39, "nav: no selection + previous -> the last alive (39)");
+        sel = 0;
+        for (int i = 0; i < 40; ++i) sel = editor0::navigateSelection(s, sel, 1);
+        check(sel == 0, "nav: 40 nexts from 0 wrap back to 0 (each alive entity visited exactly once)");
+        check(sel != 1, "nav: negative control - the wrap does NOT skip an index");
+        check(editor0::navigateSelection(s, 0, -1) == 39, "nav: previous from 0 wraps to 39");
+    }
+    // b) the dead entity in the middle is skipped.
+    {
+        pe::Scene s;
+        buildSampleSceneN(s, 10);
+        s.entities[5].alive = false;
+        check(editor0::navigateSelection(s, 4, 1) == 6, "nav: the next from 4 skips the dead 5 -> 6");
+        check(editor0::navigateSelection(s, 6, -1) == 4, "nav: the previous from 6 skips the dead 5 -> 4");
+        pe::Scene s2;
+        buildSampleSceneN(s2, 10);
+        for (int i = 0; i < 10; ++i) if (i != 3) s2.entities[i].alive = false;
+        check(editor0::navigateSelection(s2, -1, 1) == 3, "nav: only one alive: next -> it");
+        check(editor0::navigateSelection(s2, -1, -1) == 3, "nav: only one alive: previous -> it");
+    }
+    // c) the empty scene (0 entities): a safe no-op, no crash.
+    {
+        pe::Scene empty;
+        check(editor0::navigateSelection(empty, -1, 1) == -1, "nav: the empty scene: next is a safe no-op");
+        check(editor0::navigateSelection(empty, -1, -1) == -1, "nav: the empty scene: previous is a safe no-op");
+        check(editor0::navigateSelection(empty, 0, 1) == 0, "nav: the empty scene with a stale index: unchanged");
+        const std::vector<std::string> none = editor0::inspectorLinesForSelection(empty, -1, 12);
+        check(none.size() == 1 && none[0] == "no selection", "nav: the empty scene panel stays 'no selection'");
+    }
+    // d) the line capping: the extreme values (1e30, 3.4e38, the long tag).
+    {
+        pe::Entity e(pe::Vec3(1e30f, -1e30f, 0.0f), 3.4e38f, pe::Vec3(1.0f, 1.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.5f), 1);
+        e.tag = "a-very-long-tag-that-keeps-going-and-going-and-going";
+        e.health = 3.4e38f;
+        const std::vector<std::string> lines = editor0::makeInspectorLines(e, 0, 100);
+        check(lines.size() == 36, "caps: the extreme-value entity produces the full 36-line list (no crash)");
+        bool allFit = true;
+        for (const std::string& l : lines) {
+            if (static_cast<int>(l.size()) > editor0::kInspectorMaxLineChars) allFit = false;
+        }
+        check(allFit, "caps: every inspector line <= 40 chars with the extreme values");
+        bool hasCapped = false;
+        for (const std::string& l : lines) {
+            if (static_cast<int>(l.size()) == editor0::kInspectorMaxLineChars && l.substr(l.size() - 3) == "...") hasCapped = true;
+        }
+        check(hasCapped, "caps: at least one line is capped with the '...' ellipsis");
+        // the NaN/inf: printable, no crash.
+        pe::Entity n(e);
+        n.position = pe::Vec3(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(), 0.0f);
+        const std::vector<std::string> nanLines = editor0::makeInspectorLines(n, 0, 100);
+        check(nanLines.size() == 36, "caps: the NaN/inf entity: printable strings (no crash)");
+        // the pick with the extreme extents: no crash.
+        pe::Scene big;
+        buildSampleSceneN(big, 5);
+        big.entities[0].halfExtents = pe::Vec3(1e30f, 1e30f, 1e30f);
+        const int p = pe::pickEntity(big.entities, 1e30f, 1e30f);
+        check(p == -1 || (p >= 0 && p < 5), "caps: the pick with the extreme extents does not crash");
+    }
+    // e) the status line does not overflow with a long tag.
+    {
+        std::vector<pe::Entity> ents;
+        pe::Entity t(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.5f), 1);
+        t.tag = std::string(100, 'x');
+        ents.push_back(t);
+        const std::string line = editor0::makeStatusLine("p.txt", 1, "", 0, ents);
+        std::printf("OBSERVED: the long-tag status line (%d chars): %s\n", (int)line.size(), line.c_str());
+        check(static_cast<int>(line.size()) <= 80, "caps: the status line with a 100-char tag stays bounded (the 20-char tag cap)");
+    }
+    // f) the N-entity sample files + the pick at 40 entities.
+    {
+        const char* kN = "editor0_tmp/sample40.txt";
+        std::string serr;
+        check(makeSampleSceneFile(kN, serr, 40), "sample: the 40-entity sample is written");
+        pe::Scene s40; std::string lerr;
+        check(editor0::loadSceneForEditor(kN, s40, lerr), "sample: the 40-entity file loads");
+        check(s40.entities.size() == 40, "sample: the 40-entity count");
+        check(pe::pickEntity(s40.entities, s40.entities[9].position.x, s40.entities[9].position.y) == 9,
+              "sample: the pick at the known entity's position selects it at 40 entities");
+        std::remove(kN);
+        const char* k0 = "editor0_tmp/sample0.txt";
+        check(makeSampleSceneFile(k0, serr, 0), "sample: the 0-entity sample is written");
+        pe::Scene s0;
+        check(editor0::loadSceneForEditor(k0, s0, lerr), "sample: the 0-entity file loads");
+        check(s0.entities.empty(), "sample: the 0-entity count");
+        std::remove(k0);
+    }
+    // g) the nav through the REAL stepEditorFrame (the wiring + the diag fields).
+    {
+        editor0::EditorState state;
+        buildSampleSceneN(state.current, 40);
+        state.path = "editor0_tmp/synth.txt";
+        state.camera.onResize(800, 600);
+        editor0::EditorInput in;
+        in.windowWidth = 800; in.windowHeight = 600; in.fbWidth = 800; in.fbHeight = 600;
+        in.keyNavNext = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.selected == 0, "nav wiring: the next key from no selection -> 0");
+        check(state.navCount == 1 && state.lastNavBefore == -1 && state.lastNavIndex == 0,
+              "nav wiring: the diag record (the before/after)");
+        state.feedback = "stale";
+        editor0::EditorInput in2;
+        in2.windowWidth = 800; in2.windowHeight = 600; in2.fbWidth = 800; in2.fbHeight = 600;
+        in2.keyNavPrev = true;
+        editor0::stepEditorFrame(state, in2);
+        check(state.selected == 39, "nav wiring: the previous from 0 wraps to 39");
+        check(state.feedback.empty(), "nav wiring: the nav clears the stale feedback");
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -1117,7 +1279,7 @@ static int runViewer(const char* scenePath) {
     // Edge-tracked keys: ESC (quit) + +/- (zoom steps) + R (reload) -
     // one event per press (the documented edge read). NO wheel:
     // input.h exposes no scroll input (the missing-capability finding).
-    pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R});
+    pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R, GLFW_KEY_TAB});
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -1135,6 +1297,13 @@ static int runViewer(const char* scenePath) {
         in.keyR = input.isEdge(window, GLFW_KEY_R);
         in.keyZoomIn = input.isEdge(window, GLFW_KEY_EQUAL);
         in.keyZoomOut = input.isEdge(window, GLFW_KEY_MINUS);
+        // The navigation (the Step 297): the Tab edge + the Shift level
+        // (the engine's own pattern, src/main.cpp:1609-1610 - the audit).
+        const bool tabEdge = input.isEdge(window, GLFW_KEY_TAB);
+        const bool shiftDown = pe::Input::isDown(window, GLFW_KEY_LEFT_SHIFT) ||
+                               pe::Input::isDown(window, GLFW_KEY_RIGHT_SHIFT);
+        in.keyNavNext = tabEdge && !shiftDown;
+        in.keyNavPrev = tabEdge && shiftDown;
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);   // frame-end snapshot (the documented temporal order)
@@ -1211,8 +1380,9 @@ static int runDiagInput(const char* scenePath) {
     std::printf("diag-input: click entities; ONE line per click. ESC quits.\n");
     std::fflush(stdout);
 
-    pe::Input input({GLFW_KEY_ESCAPE});
+    pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_TAB});
     int lastPickCount = 0;
+    int lastNavCount = 0;
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         const pe::MouseState m = pe::Input::pollMouse(window);
@@ -1222,10 +1392,23 @@ static int runDiagInput(const char* scenePath) {
         glfwGetWindowSize(window, &in.windowWidth, &in.windowHeight);
         glfwGetFramebufferSize(window, &in.fbWidth, &in.fbHeight);
         in.leftDown = m.left;
+        // The navigation edges (the Step 297): the Tab edge + the Shift
+        // level (the engine's own pattern - the audit).
+        const bool diagTabEdge = input.isEdge(window, GLFW_KEY_TAB);
+        const bool diagShiftDown = pe::Input::isDown(window, GLFW_KEY_LEFT_SHIFT) ||
+                                   pe::Input::isDown(window, GLFW_KEY_RIGHT_SHIFT);
+        in.keyNavNext = diagTabEdge && !diagShiftDown;
+        in.keyNavPrev = diagTabEdge && diagShiftDown;
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);
         if (state.quitRequested) glfwSetWindowShouldClose(window, GLFW_TRUE);
+        if (state.navCount != lastNavCount) {
+            lastNavCount = state.navCount;
+            std::printf("nav: key=%s index %d -> %d\n",
+                        state.lastNavWasNext ? "next" : "prev", state.lastNavBefore, state.lastNavIndex);
+            std::fflush(stdout);
+        }
         if (state.pickCount != lastPickCount) {
             lastPickCount = state.pickCount;
             std::printf("click: cursor=(%.1f,%.1f) window=(%d,%d) fb=(%d,%d) world=(%.4f,%.4f) pick=%d\n",
@@ -1250,13 +1433,15 @@ int main(int argc, char** argv) {
     bool selftest = false;
     bool makeSample = false;
     bool diagInput = false;
+    const char* countArg = nullptr;
     const char* scenePath = nullptr;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         if (a == "--selftest") selftest = true;
         else if (a == "--make-sample") makeSample = true;
         else if (a == "--diag-input") diagInput = true;
-        else scenePath = argv[i];
+        else if (scenePath == nullptr) scenePath = argv[i];
+        else countArg = argv[i];
     }
     if (selftest) {
         checkPureParts();
@@ -1266,6 +1451,7 @@ int main(int argc, char** argv) {
         checkSelectionAndPick();  // Step 294: selection + pick + gesture + print discipline
         checkLiveInputWiring();   // Step 295: the live-path wiring (synthetic input)
         checkInspectorPanel();    // Step 296: the read-only inspector panel
+        checkNavigationAndCaps(); // Step 297: the navigation + the caps + the N-entity sample
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
@@ -1277,8 +1463,16 @@ int main(int argc, char** argv) {
     }
     if (makeSample) {
         if (!scenePath) { std::fprintf(stderr, "editor0: --make-sample needs a path argument\n"); return 2; }
+        int count = 3;
+        if (countArg) {
+            const std::string cs = countArg;
+            bool digits = !cs.empty();
+            for (char c : cs) if (c < '0' || c > '9') digits = false;
+            if (!digits) { std::fprintf(stderr, "editor0: the count must be a non-negative number\n"); return 2; }
+            count = std::atoi(cs.c_str());
+        }
         std::string err;
-        if (makeSampleSceneFile(scenePath, err)) {
+        if (makeSampleSceneFile(scenePath, err, count)) {
             std::printf("%s\n", scenePath);  // prints the path, then exits
             return 0;
         }

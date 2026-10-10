@@ -212,8 +212,10 @@ inline std::string makeStatusLine(const std::string& path, std::size_t count,
         return s;
     }
     if (selected >= 0 && selected < static_cast<int>(entities.size())) {
+        std::string selTag = entities[static_cast<std::size_t>(selected)].tag;
+        if (selTag.size() > 20) selTag = selTag.substr(0, 20) + "...";  // the status bound (the Step 297)
         s += " | selected " + std::to_string(selected) + " ("
-             + entities[static_cast<std::size_t>(selected)].tag + ")";
+             + selTag + ")";
     } else {
         s += " | no selection";   // the Step 295 startup/empty state
     }
@@ -233,6 +235,41 @@ inline std::string makeStatusLine(const std::string& path, std::size_t count,
 // convert the cursor by the window/framebuffer ratio before any pan
 // or pick.
 
+// The selection navigation (the Step 297; pure): the next (+1) or the
+// previous (-1) ALIVE entity in index order, WRAPPING; no current
+// selection -> the first (next) / the last (previous) alive; no alive
+// entities -> the current unchanged (a safe no-op; nothing crashes).
+// The dead entities are skipped. Testable with any scene.
+inline int navigateSelection(const pe::Scene& scene, int current, int direction) {
+    const int n = static_cast<int>(scene.entities.size());
+    if (n == 0) {
+        return current;  // the empty scene: a safe no-op
+    }
+    int start;
+    if (current < 0 || current >= n) {
+        start = (direction >= 0) ? 0 : n - 1;  // no selection: the first / the last
+    } else {
+        start = current + ((direction >= 0) ? 1 : -1);
+    }
+    for (int step = 0; step < n; ++step) {
+        // The scan direction matches: the next walks FORWARD, the
+        // previous walks BACKWARD (the wrap is always non-negative).
+        const int idx = (direction >= 0)
+                            ? (((start + step) % n) + n) % n
+                            : (((start - step) % n) + n) % n;
+        if (scene.entities[static_cast<std::size_t>(idx)].alive) {
+            return idx;
+        }
+    }
+    return current;  // no alive entities: nothing happens
+}
+
+// The inspector line cap (the Step 297; documented): the extreme
+// values (a 3.4e38 float at 4 decimals = 44 chars, a 100-char tag)
+// are capped with a trailing "..." so no inspector line runs past
+// this bound.
+inline constexpr int kInspectorMaxLineChars = 40;
+
 // The per-frame editor input (plain data, no GLFW): main.cpp fills it
 // from the real input each frame.
 struct EditorInput {
@@ -244,6 +281,8 @@ struct EditorInput {
     bool keyZoomIn = false;                 // the +/- edge (zoom in)
     bool keyZoomOut = false;                // the -/_ edge (zoom out)
     bool keyEsc = false;                    // the ESC edge (quit)
+    bool keyNavNext = false;                // the Tab edge WITHOUT Shift (the next, the Step 297)
+    bool keyNavPrev = false;                // the Tab edge WITH Shift (the previous, the Step 297)
 };
 
 // The editor-owned state (everything the per-frame update touches).
@@ -263,6 +302,11 @@ struct EditorState {
     int pickCount = 0;                  // how many CLICK picks happened
     int lastPickIndex = -2;             // the last click's pick result
     float lastClickWorldX = 0.0f, lastClickWorldY = 0.0f;  // the converted world point
+    // The navigation diag fields (the Step 297):
+    int navCount = 0;                   // how many navigation key presses fired
+    int lastNavBefore = -2;             // the selection before the last nav
+    int lastNavIndex = -2;              // the selection after the last nav
+    bool lastNavWasNext = false;        // the last nav's direction
 };
 
 // The window->framebuffer ratio conversion (the Step 295 fix): the
@@ -320,6 +364,22 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
         state.feedback = makeReloadFeedback(ok, state.path, state.current.entities.size(), err);
         state.status = makeStatusLine(state.path, state.current.entities.size(),
                                       std::string(), state.selected, state.current.entities);
+    }
+    // The selection navigation (the Step 297): the next/previous keys
+    // cycle among the ALIVE entities, wrapping; no selection -> the
+    // first (next) / the last (previous) alive; the empty scene is a
+    // safe no-op. The nav is an event: the stale feedback clears.
+    if (in.keyNavNext || in.keyNavPrev) {
+        const int before = state.selected;
+        state.selected = navigateSelection(state.current, state.selected,
+                                           in.keyNavNext ? 1 : -1);
+        state.status = makeStatusLine(state.path, state.current.entities.size(),
+                                      std::string(), state.selected, state.current.entities);
+        state.feedback.clear();
+        ++state.navCount;
+        state.lastNavBefore = before;
+        state.lastNavIndex = state.selected;
+        state.lastNavWasNext = in.keyNavNext;
     }
     // The pointer: the gesture classification. The threshold is in
     // WINDOW pixels (the same space the press was captured in); the
@@ -443,6 +503,13 @@ inline std::vector<std::string> makeInspectorLines(const pe::Entity& e, int inde
     all.push_back("parentIndex " + std::to_string(e.parentIndex));
     all.push_back("animSpeed " + f4(e.animationSpeed));
     all.push_back("clip " + e.currentClipName);
+    // The inspector line cap (the Step 297): the extreme values are
+    // truncated with the documented "..." rule before the overflow.
+    for (std::string& l : all) {
+        if (static_cast<int>(l.size()) > kInspectorMaxLineChars) {
+            l = l.substr(0, static_cast<std::size_t>(kInspectorMaxLineChars) - 3) + "...";
+        }
+    }
     if (maxLines > 0 && static_cast<int>(all.size()) > maxLines) {
         const int overflow = static_cast<int>(all.size()) - (maxLines - 1);
         all.resize(maxLines - 1);
