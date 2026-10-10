@@ -222,6 +222,19 @@ inline std::string makeStatusLine(const std::string& path, std::size_t count,
     return s;
 }
 
+// The status line WITH the modified marker (the Step 300): the same
+// 5-param line + " | modified" when the scene has unsaved edits (the
+// marker reflects EditorState::modified; err still takes precedence).
+inline std::string makeStatusLine(const std::string& path, std::size_t count,
+                                  const std::string& err,
+                                  int selected,
+                                  const std::vector<pe::Entity>& entities,
+                                  bool modified) {
+    std::string s = makeStatusLine(path, count, err, selected, entities);
+    if (modified) s += " | modified";
+    return s;
+}
+
 // --- Step 295: the per-frame editor update (the live-path wiring,
 // GLFW-free: plain data in) ---
 // COORDINATE TRUTH (the Step 295 audit, grep-verified 2026-10-09): the
@@ -340,6 +353,12 @@ struct EditorInput {
     bool keyNavNext = false;                // the Tab edge WITHOUT Shift (the next, the Step 297)
     bool keyNavPrev = false;                // the Tab edge WITH Shift (the previous, the Step 297)
     bool keySave = false;                   // the Ctrl+S edge (the save-as, the Step 299)
+    bool keyUp = false;                     // the ArrowUp edge (the nudge, the Step 300)
+    bool keyDown = false;                   // the ArrowDown edge (the nudge, the Step 300)
+    bool keyLeft = false;                   // the ArrowLeft edge (the nudge, the Step 300)
+    bool keyRight = false;                  // the ArrowRight edge (the nudge, the Step 300)
+    bool shiftDown = false;                 // the Shift LEVEL (the coarse nudge, the Step 300)
+    std::string savePathOverride;           // non-empty: Ctrl+S targets THIS exact path (the Step 300 test/diag hook; empty in the live viewer)
 };
 
 // The editor-owned state (everything the per-frame update touches).
@@ -368,6 +387,15 @@ struct EditorState {
     int saveCounter = 1;                // the next free _edit<N> number
     int saveCount = 0;                  // how many saves happened (the diag)
     std::string lastSavePath;           // the last saved path
+    // The nudge + the modified state (the Step 300):
+    bool modified = false;              // set by an applied nudge; cleared by a successful save/reload
+    long long frameCount = 0;           // the stepEditorFrame call count (the guard window)
+    bool pendingDiscard = false;        // the R guard's pending confirmation
+    long long pendingDeadlineFrame = 0; // the guard window expires AFTER this frame
+    int nudgeCount = 0;                 // the applied nudges (the diag)
+    float lastNudgeDx = 0.0f, lastNudgeDy = 0.0f;  // the last applied nudge delta
+    float lastNudgeBeforeX = 0.0f, lastNudgeBeforeY = 0.0f;  // the position before it (the diag)
+    const char* lastNudgeKey = "";      // "up"/"down"/"left"/"right" (the diag)
 };
 
 // The window->framebuffer ratio conversion (the Step 295 fix): the
@@ -396,6 +424,47 @@ inline std::string makeReloadFeedback(bool ok, const std::string& path,
     return "reload failed: " + reason;
 }
 
+// --- Step 300: the nudge + the modified state (editor-owned; pure) ---
+// The documented nudge step (EDITOR-OWNED; WORLD space - the delta is
+// added to the position directly, independent of pan/zoom): 0.1 per
+// arrow press, the Shift LEVEL = 1.0. The guard window (FRAMES chosen
+// over key events, documented): the second R within 120
+// stepEditorFrame calls discards; any other key or a failed action
+// clears; past the window it expires silently.
+inline constexpr float kEditorNudgeStep = 0.1f;
+inline constexpr float kEditorNudgeStepBig = 1.0f;
+inline constexpr long long kEditorDiscardWindowFrames = 120;
+// The exact guard message (exact-string tested).
+inline constexpr const char* kEditorUnsavedMsg = "unsaved changes: press R again to discard";
+
+// Nudgeable selection: in range AND alive (the pick/nav alive rule).
+inline bool selectionNudgeable(const pe::Scene& scene, int selected) {
+    return selected >= 0 && selected < static_cast<int>(scene.entities.size())
+           && scene.entities[static_cast<std::size_t>(selected)].alive;
+}
+
+// Apply ONE nudge from the arrow edges (pure, testable): up +y, down
+// -y, right +x, left -x. ONLY the selected entity's position changes;
+// no-selection / dead / no-arrow is a safe no-op (false). The caller
+// sets the modified flag.
+inline bool nudgeSelected(pe::Scene& scene, int selected, bool shiftDown,
+                          bool keyUp, bool keyDown, bool keyLeft, bool keyRight,
+                          float& outDx, float& outDy) {
+    outDx = 0.0f;
+    outDy = 0.0f;
+    if (!selectionNudgeable(scene, selected)) return false;
+    const float step = shiftDown ? kEditorNudgeStepBig : kEditorNudgeStep;
+    if (keyUp)         outDy += step;
+    else if (keyDown)  outDy -= step;
+    else if (keyRight) outDx += step;
+    else if (keyLeft)  outDx -= step;
+    else return false;
+    pe::Entity& e = scene.entities[static_cast<std::size_t>(selected)];
+    e.position.x += outDx;
+    e.position.y += outDy;
+    return true;
+}
+
 // The per-frame editor update (the Step 295 extraction; editor-owned,
 // GLFW-free): the cursor is given in WINDOW coordinates and converted
 // to FRAMEBUFFER pixels by the ratio BEFORE any pan or pick. Pure: no
@@ -405,7 +474,7 @@ inline std::string makeReloadFeedback(bool ok, const std::string& path,
 inline bool pointInPanelRect(float px, float py, bool panelActive, float halfW, float halfH,
                              int fbWidth, int fbHeight);
 
-inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
+inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
     // The cursor in FRAMEBUFFER pixels (the ratio conversion).
     const float fbX = windowToFbX(in.cursorX, in.windowWidth, in.fbWidth);
     const float fbY = windowToFbY(in.cursorY, in.windowHeight, in.fbHeight);
@@ -419,10 +488,21 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
     if (in.keyZoomOut) state.zoom = clampedZoom(state.zoom / 1.25f);
     // The reload (R): through reloadForEditor (the selection lifecycle);
     // the transient feedback lasts until the next event.
-    if (in.keyR) {
+    if (in.keyR && state.modified && !state.pendingDiscard) {
+        // The reload guard (the Step 300): unsaved edits - the FIRST R
+        // does NOT reload; it asks (the window: 120 frames, documented).
+        state.pendingDiscard = true;
+        state.pendingDeadlineFrame = state.frameCount + kEditorDiscardWindowFrames;
+        state.feedback = kEditorUnsavedMsg;
+    } else if (in.keyR) {
+        // The plain reload path (unmodified, or the SECOND R within the
+        // window - the discard). The pending is consumed; a FAILED
+        // reload keeps the edits (the failed-action rule).
+        state.pendingDiscard = false;
         std::string err;
         const bool ok = reloadForEditor(state.path, state.current, state.selected, err);
         state.feedback = makeReloadFeedback(ok, state.path, state.current.entities.size(), err);
+        if (ok) state.modified = false;  // the successful reload clears the flag (a failed one keeps it)
         state.status = makeStatusLine(state.path, state.current.entities.size(),
                                       std::string(), state.selected, state.current.entities);
     }
@@ -442,6 +522,26 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
         state.lastNavIndex = state.selected;
         state.lastNavWasNext = in.keyNavNext;
     }
+    // The nudge (the Step 300): the arrow edges move the SELECTED
+    // entity in WORLD space (0.1; Shift = 1.0), pan/zoom-independent.
+    // No selection (or dead/stale) is a safe no-op; the applied nudge
+    // sets `modified` (the inspector re-reads the scene next draw).
+    if (in.keyUp || in.keyDown || in.keyLeft || in.keyRight) {
+        if (selectionNudgeable(state.current, state.selected)) {
+            const pe::Entity& sel = state.current.entities[static_cast<std::size_t>(state.selected)];
+            state.lastNudgeBeforeX = sel.position.x;
+            state.lastNudgeBeforeY = sel.position.y;
+        }
+        float ndx = 0.0f, ndy = 0.0f;
+        if (nudgeSelected(state.current, state.selected, in.shiftDown,
+                          in.keyUp, in.keyDown, in.keyLeft, in.keyRight, ndx, ndy)) {
+            state.modified = true;
+            ++state.nudgeCount;
+            state.lastNudgeDx = ndx;
+            state.lastNudgeDy = ndy;
+            state.lastNudgeKey = in.keyUp ? "up" : in.keyDown ? "down" : in.keyLeft ? "left" : "right";
+        }
+    }
     // The save-as (the Step 299): Ctrl+S -> the first free
     // savedata/<base>_edit<N>.txt (a NEW path; NEVER the source). The
     // counter advances only on success; the existing-destination
@@ -452,14 +552,17 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
         std::string target;
         bool saved = false;
         int n = state.saveCounter;
-        for (int attempt = 0; attempt < 1000; ++attempt, ++n) {
-            target = makeSaveAsPath(state.path, n);
+        const bool hookSave = !in.savePathOverride.empty();  // the Step 300 test/diag hook: the exact target path
+        for (int attempt = 0; attempt < (hookSave ? 1 : 1000); ++attempt) {
+            if (!hookSave) n = state.saveCounter + attempt;  // the scan walks the free names; the hook stays fixed
+            target = hookSave ? in.savePathOverride : makeSaveAsPath(state.path, n);
             if (saveAsForEditor(target, state.current, saveErr, state.path)) { saved = true; break; }
             if (saveErr.rfind("refusing to overwrite", 0) != 0) break;  // a non-refusal failure: stop
         }
         if (saved) {
-            state.saveCounter = n + 1;  // the next free name (the break skips the loop's ++n)
+            if (in.savePathOverride.empty()) state.saveCounter = n + 1;  // the next free name (the break skips the scan advance; the hook path never moves it)
             state.feedback = makeSaveFeedback(true, target, state.current.entities.size(), "");
+            state.modified = false;  // the successful save clears the modified flag (the Step 300; a failed save keeps it)
             ++state.saveCount;
             state.lastSavePath = target;
         } else {
@@ -524,6 +627,25 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
         }
         state.dragging = false;
     }
+}
+
+// The per-frame editor update (the Step 300 wrapper): the frame
+// counter + the pending-window expiry, the inner body, then the tail:
+// any non-R key edge clears the pending; the status is rebuilt WITH
+// the " | modified" marker. Frames = stepEditorFrame calls.
+inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
+    ++state.frameCount;
+    if (state.pendingDiscard && state.frameCount > state.pendingDeadlineFrame) {
+        state.pendingDiscard = false;  // the 120-frame window expired silently
+    }
+    stepEditorFrameInner(state, in);
+    if (in.keyEsc || in.keyZoomIn || in.keyZoomOut || in.keyNavNext || in.keyNavPrev
+        || in.keyUp || in.keyDown || in.keyLeft || in.keyRight || in.keySave) {
+        state.pendingDiscard = false;  // any other key clears the pending (the Step 300 rule; R is excluded)
+    }
+    state.status = makeStatusLine(state.path, state.current.entities.size(),
+                                  std::string(), state.selected, state.current.entities,
+                                  state.modified);
 }
 
 // --- Step 296: the read-only inspector (pure: no GL, no GLFW) ---

@@ -20,7 +20,9 @@
  *                                     On load/reload failure the error
  *                                     text is shown and the editor
  *                                     keeps running (the scene is
- *                                     untouched). NO saving of any kind.
+ *                                     untouched). Ctrl+S = save-as (a
+ *                                     NEW _editN file); arrows nudge
+ *                                     the selection (0.1, Shift 1.0).
  *
  * Consumes ONLY documented engine APIs: Entity (src/entity.h),
  * loadPrefab/instantiatePrefab (src/prefab.h), Scene (src/scene.h),
@@ -116,6 +118,13 @@ static const char* kPickupFile = "consumers/level_pipeline/prefab_pickup.txt";
 static const char* kEnemyFile  = "consumers/level_pipeline/prefab_enemy.txt";
 static const char* kTempScene  = "editor0_tmp/rt_scene.txt";  // temp: a NEW file, never a source
 static const char* kMissing    = "editor0_tmp/no_such_scene_zz.txt";
+// The editor's edge-tracked keys (the Step 300 audit; editor-owned):
+// isEdge reports false for untracked keys (input.h:326-333), so the
+// registration IS the wiring; the Shift/Ctrl LEVELS need none.
+static const int kEditorKeys[] = {GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R,
+                                  GLFW_KEY_TAB, GLFW_KEY_S,
+                                  GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT};
+static const std::size_t kEditorKeyCount = sizeof(kEditorKeys) / sizeof(kEditorKeys[0]);
 
 static void readTextFile(const char* name, std::string& out) {
     std::ifstream f(name, std::ios::binary);
@@ -1273,6 +1282,285 @@ static void checkSaveAs() {
     }
 }
 
+// Step 300: the nudge + the modified state + the save integration
+// (pure, no GL, no live GLFW). Expected values from the step (0.1,
+// Shift 1.0) and the press count, tol 1e-4 (the 4dp format).
+static void checkNudgeAndModified() {
+    // a) no selection: a safe no-op (the scene unchanged, no flag).
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        const pe::Scene before = state.current;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        std::string diff;
+        check(sceneUnchanged(before, state.current, diff), "nudge: no selection - the scene is unchanged (safe no-op)");
+        check(!state.modified, "nudge: no selection sets NO modified flag");
+    }
+    // b) the sums: 2 right + 1 Shift+up on entity 0; ONLY that entity moves.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        const pe::Scene before = state.current;
+        state.selected = 0;
+        const float x0 = before.entities[0].position.x;
+        const float y0 = before.entities[0].position.y;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);  // 2 right: +0.2
+        in.keyRight = false;
+        in.shiftDown = true;
+        in.keyUp = true;
+        editor0::stepEditorFrame(state, in);  // Shift+up: +1.0
+        check(floatEqT(state.current.entities[0].position.x, x0 + 2.0f * editor0::kEditorNudgeStep, 1e-4f),
+              "nudge: 2 right presses move x by the computed sum (+0.2, tol 1e-4)");
+        check(floatEqT(state.current.entities[0].position.y, y0 + editor0::kEditorNudgeStepBig, 1e-4f),
+              "nudge: 1 Shift+up moves y by the computed sum (+1.0, tol 1e-4)");
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.2f, 1e-4f)
+              && floatEqT(state.current.entities[0].position.y, y0 + 1.0f, 1e-4f),
+              "nudge: negative control - the up nudge did NOT touch x (the wrong axis caught)");
+        std::string diff;
+        check(entityFieldMatches(before.entities[1], state.current.entities[1], diff)
+              && entityFieldMatches(before.entities[2], state.current.entities[2], diff),
+              "nudge: negative control - entities 1 and 2 unchanged field by field (the wrong entity caught)");
+        check(state.modified, "nudge: the applied nudge sets the modified flag");
+        check(state.nudgeCount == 3, "nudge: the diag count is 3");
+        check(state.status.find(" | modified") != std::string::npos,
+              "nudge: the status line shows the modified marker");
+        const std::vector<std::string> lines = editor0::inspectorLinesForSelection(state.current, 0, 100);
+        const std::string wantX = "pos.x " + editor0::f4(state.current.entities[0].position.x);
+        bool found = false;
+        for (const std::string& l : lines) if (l == wantX) found = true;
+        check(found, "nudge: the inspector shows the nudged pos.x at once (the saver 4dp value)");
+    }
+    // c) the save integration: nudge -> Ctrl+S -> the saved file holds
+    //    the edited positions (tol 1e-4) with every other field exact;
+    //    the SOURCE bytes identical; the flag cleared.
+    {
+        std::remove("savedata/nudge_src_edit1.txt");
+        std::remove("savedata/nudge_src_edit2.txt");
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = "editor0_tmp/nudge_src.txt";
+        std::string err;
+        check(pe::saveSceneToFile(state.current, state.path), "nudge/save: the source file written (the test setup)");
+        std::string srcBefore;
+        readTextFile(state.path.c_str(), srcBefore);
+        state.camera.onResize(800, 600);
+        state.selected = 1;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.modified, "nudge/save: the nudge set the flag");
+        in.keyRight = false;
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);  // Ctrl+S -> savedata/nudge_src_edit1.txt
+        check(state.feedback == "saved savedata/nudge_src_edit1.txt (3 entities)",
+              "nudge/save: the exact saved feedback (the derived path)");
+        check(!state.modified, "nudge/save: the successful save CLEARS the modified flag");
+        pe::Scene loaded;
+        check(editor0::loadSceneForEditor("savedata/nudge_src_edit1.txt", loaded, err), "nudge/save: the saved file loads");
+        check(loaded.entities.size() == 3, "nudge/save: the loaded count is 3");
+        bool posOk = true;
+        for (std::size_t i = 0; i < 3; ++i) {
+            if (!floatEqT(loaded.entities[i].position.x, state.current.entities[i].position.x, 1e-4f)
+                || !floatEqT(loaded.entities[i].position.y, state.current.entities[i].position.y, 1e-4f)
+                || !floatEqT(loaded.entities[i].position.z, state.current.entities[i].position.z, 1e-4f)) posOk = false;
+        }
+        check(posOk, "nudge/save: the loaded positions match the edited ones (tol 1e-4)");
+        std::string diff;
+        bool fieldsOk = loaded.name == state.current.name;
+        for (std::size_t i = 0; fieldsOk && i < 3; ++i) fieldsOk = entityFieldMatches(state.current.entities[i], loaded.entities[i], diff);
+        check(fieldsOk, "nudge/save: every other field round-trips exact (all 24 checks per entity)");
+        std::string srcAfter;
+        readTextFile(state.path.c_str(), srcAfter);
+        check(!srcBefore.empty() && srcBefore == srcAfter, "nudge/save: the SOURCE file bytes are identical before and after");
+        check(state.saveCounter == 2, "nudge/save: the counter advanced to the next free name");
+        std::remove("savedata/nudge_src_edit1.txt");
+        std::remove(state.path.c_str());
+    }
+    // d) the FAILED save keeps the flag (the source refusal through the
+    //    real step function via the savePathOverride hook); a success clears it.
+    {
+        std::remove("editor0_tmp/nudge_ok.txt");
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = "editor0_tmp/nudge_fail.txt";
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.modified, "nudge/save: the flag set (the failed-save case)");
+        in.keyRight = false;
+        in.savePathOverride = state.path;  // the SOURCE: refused
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.feedback.rfind("save failed: refusing to save over the loaded source", 0) == 0,
+              "nudge/save: the refused save's feedback (the hook path)");
+        check(state.modified, "nudge/save: the FAILED save KEEPS the modified flag");
+        editor0::EditorInput in2;
+        in2.savePathOverride = "editor0_tmp/nudge_ok.txt";
+        in2.keySave = true;
+        editor0::stepEditorFrame(state, in2);
+        check(state.feedback == "saved editor0_tmp/nudge_ok.txt (3 entities)", "nudge/save: the hook save succeeds");
+        check(!state.modified, "nudge/save: the successful save clears the flag (the hook path)");
+        std::remove("editor0_tmp/nudge_ok.txt");
+    }
+    // e) the key registration (the audit): the editor's tracked list
+    //    HAS all four arrows (isEdge reports false for untracked keys,
+    //    input.h:326-333 - the registration IS the wiring).
+    {
+        bool up = false, down = false, left = false, right = false;
+        for (std::size_t i = 0; i < kEditorKeyCount; ++i) {
+            if (kEditorKeys[i] == GLFW_KEY_UP) up = true;
+            if (kEditorKeys[i] == GLFW_KEY_DOWN) down = true;
+            if (kEditorKeys[i] == GLFW_KEY_LEFT) left = true;
+            if (kEditorKeys[i] == GLFW_KEY_RIGHT) right = true;
+        }
+        check(up && down && left && right, "keys: the editor's tracked list registers all four arrows");
+        check(kEditorKeyCount == 10, "keys: the editor's tracked list is the documented 10 keys");
+    }
+}
+
+// Step 300: the reload guard (the modified flag vs R). The rule: the
+// second R within 120 frames discards; any other key clears; the
+// window expires; a failed action clears and keeps the edits.
+static void checkReloadGuard() {
+    // a) the first R with edits: NO reload + the exact message; the
+    //    second R (within the window) discards and reloads.
+    {
+        const char* kSrc = "editor0_tmp/guard_src.txt";
+        std::string err;
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        check(pe::saveSceneToFile(state.current, kSrc), "guard: the source file written (the test setup)");
+        state.camera.onResize(800, 600);
+        state.selected = 2;
+        const float x0 = state.current.entities[2].position.x;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        check(floatEqT(state.current.entities[2].position.x, x0 + 0.1f, 1e-4f) && state.modified,
+              "guard: the nudge applied (x +0.1, the flag set)");
+        in.keyRight = false;
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);  // the FIRST R
+        check(state.feedback == editor0::kEditorUnsavedMsg, "guard: the first R shows the exact unsaved message (no reload)");
+        check(state.modified && state.pendingDiscard, "guard: the flag stays and the pending confirmation is set");
+        check(floatEqT(state.current.entities[2].position.x, x0 + 0.1f, 1e-4f), "guard: the first R does NOT reload (the edit survives)");
+        in.keyR = false;
+        editor0::stepEditorFrame(state, in);  // an idle frame inside the window
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);  // the SECOND R within the window
+        check(state.feedback.rfind("reloaded ", 0) == 0, "guard: the second R discards and reloads (the reloaded feedback)");
+        check(!state.modified && state.selected == -1, "guard: the discard reload cleared the flag and the selection");
+        check(floatEqT(state.current.entities[2].position.x, x0, 1e-4f), "guard: the reload restored the file position (the edit discarded)");
+        in.keyR = false;
+        std::remove(kSrc);
+    }
+    // b) any other key edge clears the pending confirmation.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = "editor0_tmp/guard_b.txt";
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.pendingDiscard, "guard: the pending set (the other-key case)");
+        in.keyR = false;
+        in.keyNavNext = true;  // Tab: any other key clears the pending
+        editor0::stepEditorFrame(state, in);
+        check(!state.pendingDiscard, "guard: another key edge CLEARS the pending confirmation");
+        in.keyNavNext = false;
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);  // R again: a FRESH guard
+        check(state.feedback == editor0::kEditorUnsavedMsg && state.modified,
+              "guard: after the clear, R asks again (the edits are NOT discarded)");
+        in.keyR = false;
+    }
+    // c) the window expires after 120 frames; the next R is a fresh guard.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = "editor0_tmp/guard_c.txt";
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        const float x0 = state.current.entities[0].position.x;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.pendingDiscard, "guard: the pending set (the expiry case)");
+        in.keyR = false;
+        editor0::EditorInput idle;
+        for (int i = 0; i < 121; ++i) editor0::stepEditorFrame(state, idle);  // past the window
+        check(!state.pendingDiscard, "guard: the pending EXPIRED after 120 frames");
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.feedback == editor0::kEditorUnsavedMsg, "guard: after the expiry R asks again (no reload)");
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.1f, 1e-4f), "guard: the edit still survives after the expiry");
+        in.keyR = false;
+    }
+    // d) the inclusive boundary: an R exactly on the 120th frame after
+    //    the guard still discards ("within the next 120 frames").
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = "editor0_tmp/guard_d.txt";
+        check(pe::saveSceneToFile(state.current, "editor0_tmp/guard_d.txt"), "guard: the boundary source file written (the test setup)");
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyR = false;
+        editor0::EditorInput idle;
+        for (int i = 0; i < 119; ++i) editor0::stepEditorFrame(state, idle);
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);  // the 120th frame after the guard
+        check(state.feedback.rfind("reloaded ", 0) == 0, "guard: an R on the 120th frame after the guard still discards (the inclusive window)");
+        check(!state.modified, "guard: the boundary discard reloaded (the flag cleared)");
+        in.keyR = false;
+        std::remove("editor0_tmp/guard_d.txt");
+    }
+    // e) a failed reload during a discard keeps the edits and clears
+    //    the pending (the "failed action" rule).
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kMissing;  // the reload will fail
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        state.modified = true;  // unsaved edits in memory
+        editor0::EditorInput in;
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.pendingDiscard, "guard: the pending set (the failed-reload case)");
+        in.keyR = false;
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.feedback.rfind("reload failed: ", 0) == 0, "guard: the discard reload FAILED (the missing file)");
+        check(state.modified, "guard: the failed reload KEEPS the modified flag (the edits survive)");
+        check(!state.pendingDiscard, "guard: the failed action CLEARS the pending confirmation");
+        in.keyR = false;
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -1331,9 +1619,9 @@ static void checkHiddenWindowFrame() {
 // Steps 289-291: the window viewer. Loads ONCE through the editor
 // boundary, draws every frame. On load/reload failure the error text
 // is on screen and the editor keeps running (the scene is untouched).
-// NO saving of any kind.
+// Saving: Ctrl+S = the save-as (the Step 299/300: a NEW path; never the source).
 // Controls: left-drag = pan, +/- = zoom (clamped 0.25..4.0), R =
-// reload the current path, ESC = quit.
+// reload the current path, ESC = quit, arrows = nudge (Shift = 1.0), Ctrl+S = save-as.
 static int runViewer(const char* scenePath) {
     if (!glfwInit()) { std::fprintf(stderr, "editor0: glfwInit failed\n"); return 1; }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -1377,7 +1665,7 @@ static int runViewer(const char* scenePath) {
     // Edge-tracked keys: ESC (quit) + +/- (zoom steps) + R (reload) -
     // one event per press (the documented edge read). NO wheel:
     // input.h exposes no scroll input (the missing-capability finding).
-    pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R, GLFW_KEY_TAB, GLFW_KEY_S});
+    pe::Input input(std::vector<int>(kEditorKeys, kEditorKeys + kEditorKeyCount));  // the Step 300 list (the arrows registered - the audit)
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -1408,6 +1696,12 @@ static int runViewer(const char* scenePath) {
         const bool ctrlDown = pe::Input::isDown(window, GLFW_KEY_LEFT_CONTROL) ||
                               pe::Input::isDown(window, GLFW_KEY_RIGHT_CONTROL);
         in.keySave = sEdge && ctrlDown;
+        // The nudge (the Step 300): the arrow EDGES + the Shift LEVEL.
+        in.keyUp = input.isEdge(window, GLFW_KEY_UP);
+        in.keyDown = input.isEdge(window, GLFW_KEY_DOWN);
+        in.keyLeft = input.isEdge(window, GLFW_KEY_LEFT);
+        in.keyRight = input.isEdge(window, GLFW_KEY_RIGHT);
+        in.shiftDown = shiftDown;
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);   // frame-end snapshot (the documented temporal order)
@@ -1481,10 +1775,10 @@ static int runDiagInput(const char* scenePath) {
     state.status = editor0::makeStatusLine(scenePath, state.current.entities.size(),
                                            ok ? std::string() : err, state.selected, state.current.entities);
     if (!ok) editor0::reportMessage(std::cerr, state.status);
-    std::printf("diag-input: click entities; ONE line per click. ESC quits.\n");
+    std::printf("diag-input: click entities; ONE line per click. Arrows nudge the selection (Shift = 1.0). ESC quits.\n");
     std::fflush(stdout);
 
-    pe::Input input({GLFW_KEY_ESCAPE, GLFW_KEY_TAB});
+    pe::Input input(std::vector<int>(kEditorKeys, kEditorKeys + kEditorKeyCount));  // the full list (the Step 300: the arrows for the nudge lines)
     int lastPickCount = 0;
     int lastNavCount = 0;
     while (!glfwWindowShouldClose(window)) {
@@ -1503,10 +1797,29 @@ static int runDiagInput(const char* scenePath) {
                                    pe::Input::isDown(window, GLFW_KEY_RIGHT_SHIFT);
         in.keyNavNext = diagTabEdge && !diagShiftDown;
         in.keyNavPrev = diagTabEdge && diagShiftDown;
+        // The nudge edges + the Shift level (the Step 300 diag).
+        in.keyUp = input.isEdge(window, GLFW_KEY_UP);
+        in.keyDown = input.isEdge(window, GLFW_KEY_DOWN);
+        in.keyLeft = input.isEdge(window, GLFW_KEY_LEFT);
+        in.keyRight = input.isEdge(window, GLFW_KEY_RIGHT);
+        in.shiftDown = diagShiftDown;
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);
         if (state.quitRequested) glfwSetWindowShouldClose(window, GLFW_TRUE);
+        if (in.keyUp || in.keyDown || in.keyLeft || in.keyRight) {
+            // ONE line per nudge key press (the key, the index, before -> after, the flag).
+            const char* nk = in.keyUp ? "up" : in.keyDown ? "down" : in.keyLeft ? "left" : "right";
+            if (state.selected >= 0 && state.selected < static_cast<int>(state.current.entities.size())) {
+                const pe::Entity& se = state.current.entities[static_cast<std::size_t>(state.selected)];
+                std::printf("nudge: key=%s selected=%d pos=(%.4f,%.4f) -> (%.4f,%.4f) modified=%s\n",
+                            nk, state.selected, state.lastNudgeBeforeX, state.lastNudgeBeforeY,
+                            se.position.x, se.position.y, state.modified ? "true" : "false");
+            } else {
+                std::printf("nudge: key=%s selected=none modified=%s\n", nk, state.modified ? "true" : "false");
+            }
+            std::fflush(stdout);
+        }
         if (state.navCount != lastNavCount) {
             lastNavCount = state.navCount;
             std::printf("nav: key=%s index %d -> %d\n",
@@ -1557,6 +1870,8 @@ int main(int argc, char** argv) {
         checkInspectorPanel();    // Step 296: the read-only inspector panel
         checkNavigationAndCaps(); // Step 297: the navigation + the caps + the N-entity sample
         checkSaveAs();            // Step 299: the save-as (the round-trip + the refusals)
+        checkNudgeAndModified();  // Step 300: the nudge + the modified state + the save integration
+        checkReloadGuard();       // Step 300: the modified-flag reload guard
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
@@ -1592,6 +1907,7 @@ int main(int argc, char** argv) {
     std::printf("PureEditor0: no mode given. Usage:\n"
                 "  PureEditor0 --selftest          headless checks (+ one hidden-window GL frame)\n"
                 "  PureEditor0 --make-sample <p>   write the 3-prefab sample scene to <p> (refuses to overwrite)\n"
-                "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, R = reload, ESC = quit)\n");
+                "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, R = reload, arrows = nudge,\n"
+                "                                  Shift = 1.0, Ctrl+S = save-as, ESC = quit)\n");
     return 2;
 }
