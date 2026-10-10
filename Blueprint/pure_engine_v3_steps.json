@@ -3310,6 +3310,17 @@
    "depends_on": [
     296
    ]
+  },
+  {
+   "id": 298,
+   "name": "TOOLS: editor0 slice classification - closed-slice summary (docs only)",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT (all five checks PASS): git status -sb = '## main...origin/main' + ' M assets/hostile_default.txt' + '?? Testing/'; git remote -v = the SSH alias (matches); ssh -T = authenticated (exit 1 normal, judged by the message); git fetch origin exit 0, local HEAD 2021cca == origin/main; git push --dry-run exit 0 ('Everything up-to-date'); the stash list EMPTY. Reloaded: HEAD 2021cca, highest 297 (262 entries, no dups), Tools phase OPEN (V3:1734), v4/v5/v6 FROZEN (V3:481/783/1499), v7 not open - gate TRUE. Human feedback: Step 297 complete ~2021cca; the panel/select PASS photos recorded; the optional Tab retest NOT RUN (the placeholder unfilled - recorded as not run). DOCS ONLY (no code, no features): the FINDINGS classification table (the 26 Editor-0/Tools entries 288-297, one class each): 17 existing capability, 6 fixed defect (3/6/9/18/21/25 - all editor-side, NO engine defect; the fix commits cited: a532f41, e799b90, 6ae05f5, 95b81a8, f47f1aa, b1ca958), 2 missing capability (7 the camera zoom API, 8 the wheel/scroll input), 1 cosmetic (26's polish: the big bitmap font + the crowded top status line - not scheduled unless the human asks); DEFERRED (named, not this phase): the panel scroll + the visibility toggle, the 2000-entity stress, the second mutation (the scroll clamp), the save-as (option C), the gizmos. The closed-slice summary in V3 ('Editor-0 option B slice CLOSED (288-297): what works / what is out / honest limits'): the load, the pan/zoom (the window->fb ratio), the pick, the inspector, the Tab nav, the sample N, the rotation axis-per-mode, src/ still read-only for tools; NOT implemented (listed only): the panel scroll, the 2000-entity stress, the save-as, the gizmos, the retained UI, engine changes; the honest limits: the slice CONFIRMED by Cyril, the optional Tab retest NOT RUN, the polish finding cosmetic, the missing capabilities = engine work for a later version. Gates (sanity): cmake --build build --config Release exit 0; ctest -C Release exit 0 5/5 100%; alive x3 exit 0; git diff --check exit 0 clean; git diff --stat -- src/ exit 0 EMPTY. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "notes": "Docs only; no src/, test, or tool-code changes. FINDINGS.md gained the Step 298 classification table (the 26 entries, one class each). V3 gained the closed-slice summary. The board top moved to 298 and the main row gained the 298 clause. README gained the slice-closed clause. The optional Tab retest: NOT RUN (the placeholder unfilled). The next lane is the HUMAN's choice (the save-as option C / more editor / pause / vertical-slices docs) - NOT recommended, NOT started. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "TOOLS-298",
+   "depends_on": [
+    297
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

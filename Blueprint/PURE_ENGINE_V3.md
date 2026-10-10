@@ -2384,6 +2384,55 @@ draft): the raw Tab/Shift assumption, the panel scroll/toggle
 clamp). THE FIRST WAS FOLLOWED; the second's extras are NOT
 implemented - a candidate for a later step if the human confirms.
 
+### Editor-0 option B slice CLOSED (288-297) - what works / what is out / honest limits
+
+**What works (all verified; the visual confirmations from Cyril's
+photos/hands-on runs):**
+- load: loadSceneForEditor (strict, replace-only-on-success, the
+  reason-coded errors; the hostile loads all clean rejects - no
+  crash/hang/huge allocation)
+- pan/zoom: mouse-drag pan (the cameraPanDelta formula) + +/- zoom
+  (clamped 0.25-4.0, editor-documented); the window->fb ratio
+  conversion (the cursor coordinates fixed for display scaling - the
+  reported no-selection live defect found and fixed)
+- pick: the zoomed pick (screenToWorldAtZoom + the documented
+  pe::pickEntity); the dead skipped; the highest depth wins (the
+  observed order recorded, not asserted)
+- inspector: the 36-line read-only panel (the 24 saver fields in the
+  4dp saver style, the 40-char cap with '...', the +N more overflow,
+  no selection -> 'no selection'; a click inside the panel keeps the
+  selection; UI space, immune to pan/zoom)
+- Tab nav: Tab = the next, Shift+Tab = the previous (wrapping, the
+  dead skipped, the empty scene a safe no-op; the keys documented via
+  the audit)
+- sample N: --make-sample <path> [count] (0..10000; the count 3 = the
+  original layout; the grid for larger; refuses to overwrite)
+- diagnostics: --diag-input (ONE line per click + one per nav press);
+  the print discipline (ONE report per failed load - CONFIRMED by
+  Cyril: 1 line)
+- rotation axis-per-mode: rotationAngle is ONE field; z-spin in the
+  2D path (renderer.h:591), yaw about +Y in the 3D path
+  (renderer.h:732-734/:777) - the Direction Spec corrected
+- src/ still read-only for tools (git diff --stat -- src/ empty at
+  EVERY step; 7 steps, no engine change)
+
+**What is out (NOT started / later):**
+- panel scroll + the visibility toggle (the 297 prompt's second
+  version - a candidate if the human confirms)
+- the 2000-entity stress + the second mutation (the scroll clamp)
+- save-as (option C; the write-safety rule applies: an editor save
+  writes a NEW file)
+- gizmos, retained UI, engine changes - the freezes stand
+
+**Honest limits:**
+- the visual confirmations: the 288-297 slice CONFIRMED (Cyril);
+  the optional Tab retest: NOT RUN (the placeholder unfilled)
+- the polish finding: the big bitmap font + the crowded top status
+  line (cosmetic; not scheduled unless the human asks)
+- the missing capabilities: the camera zoom API, the wheel/scroll
+  input (engine work for a later version, opened docs-first from
+  the classified findings if the human chooses)
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

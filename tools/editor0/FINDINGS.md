@@ -499,6 +499,48 @@ findings if the human chooses.
 - **status:** recorded (the visual confirmations: CONFIRMED; the
   polish: a candidate for a later cosmetic pass, not scheduled).
 
+## Step 298 classification - the Editor-0 / Tools slice (288-297), CLOSED
+
+Format: id | class | evidence (the fix commits cited for the fixed
+defects). The optional Tab retest: NOT RUN (the placeholder unfilled).
+
+| id | class |
+|---|---|
+| 1 loader bare false, no reason code | **existing capability** (the doc-gap; the editor's probe compensates) |
+| 2 per-consumer fixture-copy duplication | **existing capability** (maintainability) |
+| 3 unqualified Scene& (C2061) | **fixed defect** (editor-side, Step 288, commit a532f41) |
+| 4 the renderer asset probe's implicit repo-root dependency | **existing capability** (the doc-gap) |
+| 5 drawWorld's mandatory colliding flags | **existing capability** (documented) |
+| 6 the wide GL-consumer include set | **fixed defect** (editor-side, Step 289, commit e799b90) |
+| 7 the camera zoom API | **missing capability** (engine work for a later version) |
+| 8 the wheel/scroll input | **missing capability** (engine work for a later version) |
+| 9 unqualified Vec3/Mat4 + the header self-containment | **fixed defect** (editor-side, Step 290, commit 6ae05f5) |
+| 10 the hostile-load outcomes (all clean rejects) | **existing capability** |
+| 11 the directory classification + the ifstream inconsistency | **existing capability** (the doc-gap) |
+| 12 the mutation nuance (the probe's early return) | **existing capability** |
+| 13 the zoomed pick composition | **existing capability** |
+| 14 the role-group highlight | **existing capability** (+ the per-entity-color parameter = a missing-capability note) |
+| 15 the observed overlap pick order | **existing capability** (not asserted as a contract) |
+| 16 the dead-entity skip | **existing capability** |
+| 17 the print discipline (one report per attempt) | **existing capability** (CONFIRMED by Cyril: 1 line) |
+| 18 the coordinate-space ratio defect | **fixed defect** (editor-side, Step 295, commit 95b81a8) |
+| 19 the human PASS on the live select | **existing capability** (the confirmation) |
+| 20 the inspector panel | **existing capability** |
+| 21 the panel-rect fixed-extent defect | **fixed defect** (editor-side, Step 296, commit f47f1aa) |
+| 22 the rotation-axis truth (the Direction Spec correction) | **existing capability** (the correction landed, Step 296, commit 8506a21) |
+| 23 the stash/lock incident + recovery | **existing capability** (recovered) |
+| 24 the key audit (Tab = next, Shift+Tab = previous) | **existing capability** |
+| 25 the nav scan-direction defect | **fixed defect** (editor-side, Step 297, commit b1ca958) |
+| 26 the 296 visual CONFIRMED + the polish | **existing capability** (the confirmation) + **cosmetic** (the polish: the big font + the crowded status - not scheduled unless the human asks) |
+
+TALLY: 26 entries = 17 existing capability, 6 fixed defect (3/6/9/
+18/21/25 - all editor-side, no engine defect), 2 missing capability
+(7 the camera zoom API, 8 the wheel/scroll input), 1 cosmetic
+(the polish in 26). DEFERRED (named, not this phase - from the open
+board/V3 notes): the panel scroll + the visibility toggle, the
+2000-entity stress, the second mutation (the scroll clamp), the
+save-as (option C), the gizmos.
+
 ## Entry 13
 - **what:** the engine's pickEntityAtScreen has NO zoom knowledge (it
   converts with the camera's stored half-extents), so a pick at
