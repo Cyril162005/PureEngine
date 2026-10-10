@@ -2433,6 +2433,41 @@ photos/hands-on runs):**
   input (engine work for a later version, opened docs-first from
   the classified findings if the human chooses)
 
+### Phase Tools consumer: editor0 option C (Step 299) - step 1 of at most 4, COMPLETE
+
+Tools/Editor consumer step; no engine version opened, v4/v5/v6 stay
+frozen. THE SAVE-AS landed (commit `ae4d516`) - the editor's FIRST
+write path: saveAsForEditor(path, const pe::Scene&, err, sourcePath
+= '') wraps the frozen pe::saveSceneToFile (scene.h:381, the
+explicit-path + rename-overwrite contract) with the WRITE-SAFETY
+refusals (the V3 option C brief): an empty path, the loaded SOURCE
+path, and an EXISTING destination are REFUSED (the file untouched);
+a NEW file path ONLY - the source is NEVER overwritten and the
+round-trip is proven BEFORE any overwrite is even considered. THE
+TRIGGER: Ctrl+S (the S edge + the Ctrl level - the engine-proven
+combo pattern, src/main.cpp:1609-1610; no text-input widget needed).
+THE TARGET: a derived NEW path savedata/<base>_edit<N>.txt
+(makeSaveAsPath - the basename + _edit<N>, the first free N via the
+auto-incrementing counter; deterministic, no clock). The status
+feedback 'saved <file> (<N> entities)' / 'save failed: <reason>'
+(makeSaveFeedback, exact-string tested). The counter bug (the break
+skipped the loop's increment) was caught by the test and fixed.
+--selftest: 167 checks green - the round-trip (save -> load ->
+field-exact, all 24 checks per entity; save -> load -> save
+BYTE-IDENTICAL, the 276 pattern), the refusals (the refused file
+unchanged), the exact strings, the derived paths, the Ctrl+S trigger
+through the REAL stepEditorFrame, the negative control (a broken
+compare caught: health), and every 288-298 check unchanged.
+MUTATION: the source refusal SKIPPED -> the refusal test FAILED -
+NON-VACUOUS; restored by pathspec; git diff --stat -- src/ EMPTY.
+GATES against ae4d516: cmake --build build --config Release exit 0;
+ctest -C Release: the first run 4/5 (PureEditor0 'Not Run' - the
+transient post-link AV-scan lock, the link succeeded; the re-run
+after a 10s wait) 5/5 100% (10.54s; the PureEditor0 duration 1.11s -
+under the 40s guard); alive x3 exit 0; git diff --check clean.
+FINDINGS: 28 entries (Entry 28: the save-as = existing capability).
+Visual confirmation: the save-as feedback line on screen PENDING.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

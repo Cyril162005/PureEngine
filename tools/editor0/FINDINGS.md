@@ -499,6 +499,30 @@ findings if the human chooses.
 - **status:** recorded (the visual confirmations: CONFIRMED; the
   polish: a candidate for a later cosmetic pass, not scheduled).
 
+## Entry 28
+- **what:** the save-as (the Step 299; the editor's FIRST write
+  path): saveAsForEditor wraps the frozen pe::saveSceneToFile
+  (scene.h:381) with the write-safety refusals (an empty path, the
+  loaded SOURCE path, an EXISTING destination - the file untouched);
+  the trigger is Ctrl+S (the S edge + the Ctrl level - the
+  engine-proven combo pattern, main.cpp:1609-1610); the target is a
+  derived NEW path savedata/<base>_edit<N>.txt (makeSaveAsPath,
+  deterministic, no clock) with an auto-incrementing counter (the
+  next free name); the status feedback 'saved <file> (<N> entities)'
+  / 'save failed: <reason>' (exact-string tested). The round-trip is
+  PROVEN: save -> load -> field-exact (all 24 checks per entity) and
+  save -> load -> save BYTE-IDENTICAL (the 276 pattern).
+- **evidence:** 167 selftest checks green; the counter bug (the
+  break skipped the loop's increment - the counter stayed at the
+  saved N) caught by the test and fixed (n + 1); the MUTATION (the
+  source refusal skipped) made 'save-as: the source path refused'
+  FAIL - NON-VACUOUS.
+- **class:** existing capability (the engine's save/load contracts
+  proven; the editor's write path landed with the refusals; the
+  counter bug was an editor-side defect found and fixed in-step by
+  the test).
+- **status:** recorded (the write path landed; verified).
+
 ## Step 298 classification - the Editor-0 / Tools slice (288-297), CLOSED
 
 Format: id | class | evidence (the fix commits cited for the fixed
