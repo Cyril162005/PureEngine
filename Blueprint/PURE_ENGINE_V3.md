@@ -2726,6 +2726,15 @@ same shape as the 296 recovery. The legend LINES (for the record):
 'arrows nudge Shift=1.0' / 'Tab cycle, PgDn panel' / 'R reload,
 Ctrl+S save' / 'Ctrl+Z/Y undo/redo' / 'ESC quit'.
 
+RECOVERED (the Step 305 resume, 2026-10-11): the lock cleared and the
+HUMAN rebuilt + verified (the verbatim evidence: 'Rebuild PureEditor0
+succeeded after lock cleared'; 'PureEditor0.exe --selftest -> all
+checks passed (includes scroll + help legend lines)'; 'ctest -C
+Release -> 5/5, 100% (PureEditor0 Passed 0.35s)'). The agent
+reproduced the selftest + alive x3 + the diff checks - all green. The
+tracker 305 flipped stopped -> completed; the DOCS-305 commit marks
+it. The legend visual stays PENDING.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

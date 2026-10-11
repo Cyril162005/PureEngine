@@ -864,3 +864,21 @@ the key injection - docs-first version opens only).
   selftest (349 PASS / 0 FAIL must hold), ctest 5/5, alive x3, the
   diff checks, then the DOCS-305 record (the tracker/V3/board/README)
   - the same shape as the 296 recovery.
+
+## Entry 41
+- **what:** the Step 305 RECOVERY: the lock cleared and the HUMAN
+  rebuilt and verified. The human evidence, VERBATIM: 'Rebuild
+  PureEditor0 succeeded after lock cleared'; 'PureEditor0.exe
+  --selftest -> all checks passed (includes scroll + help legend
+  lines)'; 'ctest -C Release -> 5/5, 100% (PureEditor0 Passed
+  0.35s)'. The agent reproduced: the selftest all checks passed,
+  alive x3 (all three True), git diff --check clean,
+  git diff --stat -- src/ EMPTY.
+- **evidence:** the prompt text (the three quoted lines); the
+  reproduced selftest run; the tracker entry 305 flipped
+  stopped -> completed.
+- **class:** existing capability (the environment lock resolved by
+  the human; the committed 43eef8d code needed no change).
+- **status:** recorded; the 305 gates are GREEN (the human-proven +
+  the reproduced); the legend visual (the 5 bottom lines on screen)
+  stays PENDING.
