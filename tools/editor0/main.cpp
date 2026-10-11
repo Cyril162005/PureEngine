@@ -125,7 +125,8 @@ static const char* kMissing    = "editor0_tmp/no_such_scene_zz.txt";
 // registration IS the wiring; the Shift/Ctrl LEVELS need none.
 static const int kEditorKeys[] = {GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R,
                                   GLFW_KEY_TAB, GLFW_KEY_S, GLFW_KEY_Z, GLFW_KEY_Y,
-                                  GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT};
+                                  GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT,
+                                  GLFW_KEY_PAGE_UP, GLFW_KEY_PAGE_DOWN};
 static const std::size_t kEditorKeyCount = sizeof(kEditorKeys) / sizeof(kEditorKeys[0]);
 
 static void readTextFile(const char* name, std::string& out) {
@@ -1424,7 +1425,7 @@ static void checkNudgeAndModified() {
             if (kEditorKeys[i] == GLFW_KEY_RIGHT) right = true;
         }
         check(up && down && left && right, "keys: the editor's tracked list registers all four arrows");
-        check(kEditorKeyCount == 12, "keys: the editor's tracked list is the documented 12 keys (the Step 301 adds Z, Y)");
+        check(kEditorKeyCount == 14, "keys: the editor's tracked list is the documented 14 keys (the Step 301 adds Z, Y; the Step 304 adds PgUp/PgDn)");
     }
 }
 
@@ -1994,6 +1995,160 @@ static void checkPathSwitch() {
     }
 }
 
+// Step 304: the inspector panel scroll (pure, no GL, no live GLFW).
+// Expected values from the 36-line list and the window 12. The wheel
+// is NOT available in the engine (the recorded missing capability) -
+// PgUp/PgDn are the documented substitute.
+static void checkPanelScroll() {
+    // a) the clamp (pure): the range, the negatives, the degenerate cases.
+    check(editor0::clampedPanelScroll(-5, 36, 12) == 0, "scroll: a negative offset clamps to 0");
+    check(editor0::clampedPanelScroll(100, 36, 12) == 24, "scroll: a large offset clamps to total-visible (24)");
+    check(editor0::clampedPanelScroll(7, 36, 12) == 7, "scroll: an in-range offset is unchanged");
+    check(editor0::clampedPanelScroll(0, 36, 12) == 0, "scroll: 0 stays 0");
+    check(editor0::clampedPanelScroll(5, 0, 12) == 0, "scroll: a non-positive total clamps to 0 (no selection)");
+    check(editor0::clampedPanelScroll(5, 3, 12) == 0, "scroll: a total smaller than the window clamps to 0");
+    check(editor0::clampedPanelScroll(3, 36, 0) == 0, "scroll: a non-positive window clamps to 0");
+    // b) the scrolled window (pure): the 36-line entity.
+    {
+        pe::Entity e(pe::Vec3(3.0f, 3.0f, 0.0f), 0.5f, pe::Vec3(0.6f, 0.6f, 1.0f), pe::Vec3(0.3f, 0.3f, 0.5f), 4);
+        e.alive = true;
+        e.roleId = 2;
+        e.depth = 2;
+        e.health = 50.0f;
+        e.timer = 1.5f;
+        e.velocity = pe::Vec3(0.5f, -0.25f, 0.0f);
+        e.tag = "enemy";
+        e.currentClipName = "walk_left";
+        pe::Scene scene;
+        scene.name = "scroll_sample";
+        scene.queueSpawn(e);
+        scene.flushSpawns();
+        const std::vector<std::string> full = editor0::makeInspectorLines(scene.entities[0], 0, 0);
+        check(full.size() == 36, "scroll: the uncapped list is 36 lines");
+        const std::vector<std::string> top = editor0::inspectorLinesScrolled(scene, 0, 0, editor0::kEditorPanelLines);
+        check(top.size() == 12, "scroll: the window is exactly 12 lines (the panel geometry)");
+        check(top[11] == "+25 more", "scroll: at scroll 0 the last line is the 296-identical '+25 more' hint");
+        check(top[0] == full[0], "scroll: the top window starts at the first line");
+        const std::vector<std::string> mid = editor0::inspectorLinesScrolled(scene, 0, 12, editor0::kEditorPanelLines);
+        check(mid.size() == 12 && mid[0] == full[12], "scroll: the offset 12 window starts at the 13th field (the slicing)");
+        check(mid == std::vector<std::string>(full.begin() + 12, full.begin() + 24), "scroll: the offset window is the exact slice");
+        const std::vector<std::string> tail = editor0::inspectorLinesScrolled(scene, 0, 24, editor0::kEditorPanelLines);
+        check(tail.size() == 12 && tail[11] == full[35], "scroll: the bottom window ends at the last line (no hint)");
+        const std::vector<std::string> clamped = editor0::inspectorLinesScrolled(scene, 0, 100, editor0::kEditorPanelLines);
+        check(clamped == tail, "scroll: an over-large offset clamps to the bottom window");
+        const std::vector<std::string> none = editor0::inspectorLinesScrolled(scene, -1, 5, editor0::kEditorPanelLines);
+        check(none.size() == 1 && none[0] == "no selection", "scroll: no selection -> the one 'no selection' line");
+    }
+    // c) through the real stepEditorFrame: the scroll moves, clamps,
+    //    and the empty selection is a safe no-op.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.windowWidth = 800; in.windowHeight = 600; in.fbWidth = 800; in.fbHeight = 600;
+        in.keyPanelDown = true;
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        check(state.panelScroll == 3, "scroll: 3 PageDown presses = offset 3");
+        in.keyPanelDown = false;
+        in.keyPanelUp = true;
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        check(state.panelScroll == 0, "scroll: PageUp clamps at 0 (5 ups from 3)");
+        editor0::stepEditorFrame(state, in);
+        check(state.panelScroll == 0, "scroll: PageUp at 0 is a safe no-op");
+        in.keyPanelUp = false;
+        in.keyPanelDown = true;
+        for (int i = 0; i < 100; ++i) editor0::stepEditorFrame(state, in);
+        check(state.panelScroll == 24, "scroll: 100 downs clamp to total-visible (24)");
+        in.keyPanelDown = false;
+    }
+    // d) the empty selection: the scroll is a no-op and resets to 0.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        editor0::EditorInput in;
+        in.windowWidth = 800; in.windowHeight = 600; in.fbWidth = 800; in.fbHeight = 600;
+        in.keyPanelDown = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.panelScroll == 0, "scroll: no selection - the scroll is a safe no-op (stays 0)");
+        in.keyPanelDown = false;
+        // a scroll then the empty-space click clears BOTH.
+        state.selected = 0;
+        in.keyPanelDown = true;
+        editor0::stepEditorFrame(state, in);  // scroll to 1 (a selection exists now)
+        check(state.panelScroll == 1, "scroll: the offset 1 with a selection");
+        in.keyPanelDown = false;
+        in.cursorX = 400.0f; in.cursorY = 500.0f;  // the empty space (the 296 control point)
+        in.leftDown = true;
+        editor0::stepEditorFrame(state, in);
+        in.leftDown = false;
+        editor0::stepEditorFrame(state, in);
+        check(state.selected == -1 && state.panelScroll == 0, "scroll: the empty-space clear resets the panel view");
+    }
+    // e) the nav press restarts the panel view.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        editor0::EditorInput in;
+        in.windowWidth = 800; in.windowHeight = 600; in.fbWidth = 800; in.fbHeight = 600;
+        in.keyNavNext = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyNavNext = false;
+        state.selected = 0;
+        in.keyPanelDown = true;
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        in.keyPanelDown = false;
+        check(state.panelScroll == 2, "scroll: the offset 2 before the nav");
+        in.keyNavNext = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyNavNext = false;
+        check(state.selected == 1 && state.panelScroll == 0, "scroll: the nav restarts the panel view");
+    }
+    // f) the reload restarts the panel view (the 301 discard-reload path).
+    {
+        const char* kSrc = "editor0_tmp/pscroll_reload.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "scroll/reload: the source written (the test setup)");
+        check(editor0::loadSceneForEditor(kSrc, state.current, err), "scroll/reload: the load");
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.windowWidth = 800; in.windowHeight = 600; in.fbWidth = 800; in.fbHeight = 600;
+        in.keyPanelDown = true;
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        in.keyPanelDown = false;
+        check(state.panelScroll == 2, "scroll/reload: the offset 2");
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);   // not modified: the plain reload
+        in.keyR = false;
+        check(state.selected == -1 && state.panelScroll == 0, "scroll/reload: the reload restarts the panel view");
+        std::remove(kSrc);
+    }
+    // g) the registration: the tracked list has PgUp and PgDn (14 keys).
+    {
+        bool up = false, down = false;
+        for (std::size_t i = 0; i < kEditorKeyCount; ++i) {
+            if (kEditorKeys[i] == GLFW_KEY_PAGE_UP) up = true;
+            if (kEditorKeys[i] == GLFW_KEY_PAGE_DOWN) down = true;
+        }
+        check(up && down, "scroll: the editor's tracked list registers PgUp/PgDn");
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -2054,7 +2209,7 @@ static void checkHiddenWindowFrame() {
 // is on screen and the editor keeps running (the scene is untouched).
 // Saving: Ctrl+S = the save-as (the Step 299/300: a NEW path; never the source).
 // Controls: left-drag = pan, +/- = zoom (clamped 0.25..4.0), R =
-// reload the current path, ESC = quit, arrows = nudge (Shift = 1.0), Ctrl+S = save-as, Ctrl+Z/Ctrl+Y = undo/redo.
+// reload the current path, ESC = quit, arrows = nudge (Shift = 1.0), Ctrl+S = save-as, Ctrl+Z/Ctrl+Y = undo/redo, PgUp/PgDn = panel scroll.
 static int runViewer(const char* scenePath) {
     if (!glfwInit()) { std::fprintf(stderr, "editor0: glfwInit failed\n"); return 1; }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -2141,6 +2296,9 @@ static int runViewer(const char* scenePath) {
         const bool zEdge = input.isEdge(window, GLFW_KEY_Z);
         const bool yEdge = input.isEdge(window, GLFW_KEY_Y);
         editor0::undoRedoKeys(zEdge, yEdge, ctrlDown, shiftDown, in.keyUndo, in.keyRedo);
+        // The panel scroll (the Step 304): the PageUp/PageDown edges.
+        in.keyPanelUp = input.isEdge(window, GLFW_KEY_PAGE_UP);
+        in.keyPanelDown = input.isEdge(window, GLFW_KEY_PAGE_DOWN);
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);   // frame-end snapshot (the documented temporal order)
@@ -2162,7 +2320,7 @@ static int runViewer(const char* scenePath) {
         // in the composed projection; neither is used here). The panel
         // never edits.
         {
-            const std::vector<std::string> lines = editor0::inspectorLinesForSelection(state.current, state.selected, 12);
+            const std::vector<std::string> lines = editor0::inspectorLinesScrolled(state.current, state.selected, state.panelScroll, editor0::kEditorPanelLines);
             float y = 3.6f;
             for (const std::string& l : lines) {
                 renderer.drawTextString(l, -5.8f, y, state.camera.projection(), pe::TextAlign::Left);
@@ -2250,6 +2408,8 @@ static int runDiagInput(const char* scenePath) {
         const bool diagCtrlDown = pe::Input::isDown(window, GLFW_KEY_LEFT_CONTROL) ||
                                   pe::Input::isDown(window, GLFW_KEY_RIGHT_CONTROL);
         editor0::undoRedoKeys(diagZEdge, diagYEdge, diagCtrlDown, diagShiftDown, in.keyUndo, in.keyRedo);
+        in.keyPanelUp = input.isEdge(window, GLFW_KEY_PAGE_UP);
+        in.keyPanelDown = input.isEdge(window, GLFW_KEY_PAGE_DOWN);
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);
@@ -2330,6 +2490,7 @@ int main(int argc, char** argv) {
         checkReloadGuard();       // Step 300: the modified-flag reload guard
         checkUndoRedo();          // Step 301: the bounded undo/redo
         checkPathSwitch();        // Step 303: the path-switch-after-save
+        checkPanelScroll();       // Step 304: the inspector panel scroll
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
@@ -2366,6 +2527,7 @@ int main(int argc, char** argv) {
                 "  PureEditor0 --selftest          headless checks (+ one hidden-window GL frame)\n"
                 "  PureEditor0 --make-sample <p>   write the 3-prefab sample scene to <p> (refuses to overwrite)\n"
                 "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, R = reload, arrows = nudge,\n"
-                "                                  Shift = 1.0, Ctrl+S = save-as (the editor then follows the saved file), Ctrl+Z/Ctrl+Y = undo/redo, ESC = quit)\n");
+                "                                  Shift = 1.0, Ctrl+S = save-as (the editor then follows the saved file), Ctrl+Z/Ctrl+Y = undo/redo, ESC = quit)\n"
+                "                                  PgUp/PgDn = scroll the inspector panel)\n");
     return 2;
 }

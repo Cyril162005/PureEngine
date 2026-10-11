@@ -373,6 +373,8 @@ struct EditorInput {
     bool shiftDown = false;                 // the Shift LEVEL (the coarse nudge, the Step 300)
     bool keyUndo = false;                   // the Ctrl+Z edge (the undo, the Step 301)
     bool keyRedo = false;                   // the Ctrl+Y / Ctrl+Shift+Z edge (the redo, the Step 301)
+    bool keyPanelUp = false;                // the PageUp edge (the panel scroll up, the Step 304)
+    bool keyPanelDown = false;              // the PageDown edge (the panel scroll down, the Step 304)
     std::string savePathOverride;           // non-empty: Ctrl+S targets THIS exact path (the Step 300 test/diag hook; empty in the live viewer)
 };
 
@@ -429,6 +431,7 @@ struct EditorState {
     int lastUndoIndex = -2;             // the affected entity (the diag)
     float lastUndoFromX = 0.0f, lastUndoFromY = 0.0f;  // the position before the op (the diag)
     float lastUndoToX = 0.0f, lastUndoToY = 0.0f;      // the position after it (the diag)
+    int panelScroll = 0;                // the inspector's visible-window offset (the Step 304; clamped)
 };
 
 // The window->framebuffer ratio conversion (the Step 295 fix): the
@@ -596,6 +599,12 @@ inline bool applyRedo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
 // pointInPanelRect (declared below, the Step 296 section).
 inline bool pointInPanelRect(float px, float py, bool panelActive, float halfW, float halfH,
                              int fbWidth, int fbHeight);
+// The Step 304 forward declarations (the frame body uses them; the
+// definitions live in the Step 296/304 sections below).
+inline std::vector<std::string> makeInspectorLines(const pe::Entity& e, int index, int maxLines);
+inline int clampedPanelScroll(int scroll, int total, int visible);
+inline std::vector<std::string> inspectorLinesScrolled(const pe::Scene& scene, int selected, int scroll, int visible);
+inline constexpr int kEditorPanelLines = 12;  // the visible-window size (the panel-rect geometry)
 
 inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
     // The cursor in FRAMEBUFFER pixels (the ratio conversion).
@@ -629,6 +638,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
             state.modified = false;  // the successful reload clears the flag (a failed one keeps it)
             state.baseline = capturePositions(state.current);  // the new baseline (the Step 301)
             state.undoStack.clear();  // the indices go stale after a structural change
+            state.panelScroll = 0;    // the reload restarts the panel view (the Step 304)
             state.redoStack.clear();
         }
         state.status = makeStatusLine(state.path, state.current.entities.size(),
@@ -645,6 +655,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
         state.status = makeStatusLine(state.path, state.current.entities.size(),
                                       std::string(), state.selected, state.current.entities);
         state.feedback.clear();
+        state.panelScroll = 0;   // a nav press restarts the panel view (the Step 304)
         ++state.navCount;
         state.lastNavBefore = before;
         state.lastNavIndex = state.selected;
@@ -699,6 +710,22 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
             state.lastUndoToY = ty;
             state.feedback = std::string(undoOp ? "undone entity " : "redone entity ") + std::to_string(idx);
         }
+    }
+    // The panel scroll (the Step 304): PgUp/PgDn move the visible
+    // window of the inspector lines (1 line per press, clamped); an
+    // empty selection clamps it to 0 (a safe no-op). The selection
+    // changes below (the pick and the nav) and a successful reload
+    // reset it. The wheel is NOT available in the engine (the recorded
+    // missing capability) - the keys are the documented substitute.
+    if (in.keyPanelUp || in.keyPanelDown) {
+        int total = 0;
+        if (selectionNudgeable(state.current, state.selected)) {
+            total = static_cast<int>(makeInspectorLines(
+                state.current.entities[static_cast<std::size_t>(state.selected)], state.selected, 0).size());
+        }
+        state.panelScroll = (total == 0)
+            ? 0
+            : clampedPanelScroll(state.panelScroll + (in.keyPanelDown ? 1 : -1), total, kEditorPanelLines);
     }
     // The save-as (the Step 299): Ctrl+S -> the first free
     // savedata/<base>_edit<N>.txt (a NEW path; NEVER the source). The
@@ -775,6 +802,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
                 state.status = makeStatusLine(state.path, state.current.entities.size(),
                                               std::string(), state.selected, state.current.entities);
                 state.feedback.clear();  // the next event: the feedback clears
+                state.panelScroll = 0;   // a new selection restarts the panel view (the Step 304)
                 // The diag/testability record (the last click).
                 const pe::Vec3 clickWorld = screenToWorldAtZoom(fbX, fbY, in.fbWidth, in.fbHeight,
                                                                 state.camera.halfExtentX(), state.camera.halfExtentY(),
@@ -895,6 +923,48 @@ inline std::vector<std::string> inspectorLinesForSelection(const pe::Scene& scen
         return std::vector<std::string>{ "no selection" };
     }
     return makeInspectorLines(scene.entities[static_cast<std::size_t>(selected)], selected, maxLines);
+}
+
+// --- Step 304: the panel scroll (editor-owned; pure) ---
+// (kEditorPanelLines is defined above the frame functions - the body needs it.)
+
+// Clamp a panel scroll offset to [0, total - visible] (a pure helper):
+// a non-positive total (no selection) clamps to 0; a total smaller
+// than the window clamps to 0 (nothing to scroll).
+inline int clampedPanelScroll(int scroll, int total, int visible) {
+    if (total <= 0 || visible <= 0) return 0;
+    const int maxScroll = (total > visible) ? total - visible : 0;
+    if (scroll < 0) return 0;
+    if (scroll > maxScroll) return maxScroll;
+    return scroll;
+}
+
+// The SCROLLED inspector window (the Step 304; pure): the FULL line
+// list for the selection, sliced [scroll, scroll+visible), with the
+// Step 296 compatibility: at scroll 0 with an overflow, the LAST line
+// is the same "+N more" hint the capped list shows (the discoverability
+// of the overflow is kept; PgDn reveals the rest). The returned window
+// is exactly `visible` lines when a selection exists (the panel-rect
+// geometry holds). No selection / OOB -> the one 'no selection' line.
+inline std::vector<std::string> inspectorLinesScrolled(const pe::Scene& scene,
+                                                       int selected, int scroll, int visible) {
+    if (selected < 0 || selected >= static_cast<int>(scene.entities.size())) {
+        return std::vector<std::string>{ "no selection" };
+    }
+    const std::vector<std::string> full =
+        makeInspectorLines(scene.entities[static_cast<std::size_t>(selected)], selected, 0);
+    const int off = clampedPanelScroll(scroll, static_cast<int>(full.size()), visible);
+    std::vector<std::string> window;
+    if (visible > 0) {
+        const int end = (off + visible < static_cast<int>(full.size())) ? off + visible : static_cast<int>(full.size());
+        for (int i = off; i < end; ++i) window.push_back(full[static_cast<std::size_t>(i)]);
+        if (off == 0 && static_cast<int>(full.size()) > visible && visible > 0
+            && static_cast<int>(window.size()) == visible) {
+            const int overflow = static_cast<int>(full.size()) - (visible - 1);
+            window[static_cast<std::size_t>(visible - 1)] = "+" + std::to_string(overflow) + " more";
+        }
+    }
+    return window;
 }
 
 // The inspector panel's click rect (the Step 296 contract): the
