@@ -294,6 +294,19 @@ inline std::string makeSaveAsPath(const std::string& sourcePath, int n) {
     if (slash != std::string::npos) base = base.substr(slash + 1);
     const std::size_t dot = base.find_last_of('.');
     if (dot != std::string::npos && dot > 0) base = base.substr(0, dot);
+    // The flat naming rule (the Step 303, documented): a basename that
+    // ends with _edit<digits> loses that suffix before the new _edit<N>
+    // is appended, so the repeated saves continue sample_scene_edit1
+    // -> edit2 -> edit3 (bounded names) instead of nesting
+    // (edit1_edit1_edit1...). A strip that would empty the base, or a
+    // non-digit tail, is skipped (the full name is kept).
+    const std::size_t mark = base.rfind("_edit");
+    if (mark != std::string::npos && mark > 0) {
+        const std::string tail = base.substr(mark + 5);
+        bool digits = !tail.empty();
+        for (char c : tail) if (c < '0' || c > '9') digits = false;
+        if (digits) base = base.substr(0, mark);
+    }
     return "savedata/" + base + "_edit" + std::to_string(n) + ".txt";
 }
 
@@ -711,6 +724,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
             state.baseline = capturePositions(state.current);  // the saved positions are the new baseline (the Step 301; the stacks survive a save)
             ++state.saveCount;
             state.lastSavePath = target;
+            state.path = target;  // the path switch (the Step 303, authorized): the loaded/source path becomes the NEW saved file (a failed save NEVER switches; the stacks are kept - the scene objects are unchanged; the reload still clears them)
         } else {
             state.feedback = makeSaveFeedback(false, target, state.current.entities.size(), saveErr);
         }

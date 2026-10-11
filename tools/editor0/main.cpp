@@ -1378,11 +1378,11 @@ static void checkNudgeAndModified() {
         for (std::size_t i = 0; fieldsOk && i < 3; ++i) fieldsOk = entityFieldMatches(state.current.entities[i], loaded.entities[i], diff);
         check(fieldsOk, "nudge/save: every other field round-trips exact (all 24 checks per entity)");
         std::string srcAfter;
-        readTextFile(state.path.c_str(), srcAfter);
+        readTextFile("editor0_tmp/nudge_src.txt", srcAfter);  // the LITERAL source (the path switched to the saved file - the Step 303)
         check(!srcBefore.empty() && srcBefore == srcAfter, "nudge/save: the SOURCE file bytes are identical before and after");
         check(state.saveCounter == 2, "nudge/save: the counter advanced to the next free name");
         std::remove("savedata/nudge_src_edit1.txt");
-        std::remove(state.path.c_str());
+        std::remove("editor0_tmp/nudge_src.txt");  // the ORIGINAL source (the path switched to the saved file - the Step 303)
     }
     // d) the FAILED save keeps the flag (the source refusal through the
     //    real step function via the savePathOverride hook); a success clears it.
@@ -1713,6 +1713,7 @@ static void checkUndoRedo() {
     //    redo re-sets it; a save re-baselines; undo after a save sets
     //    it again (the state differs from the NEW baseline).
     {
+        std::remove("savedata/undo_base_edit1.txt");  // the idempotency (the Step 303)
         const char* kSrc = "editor0_tmp/undo_base.txt";
         editor0::EditorState state;
         buildSampleScene(state.current);
@@ -1748,6 +1749,7 @@ static void checkUndoRedo() {
         editor0::stepEditorFrame(state, in);
         in.keyUndo = false;
         check(!state.modified, "undo/modified: the undo back to the saved baseline clears it");
+        std::remove("savedata/undo_base_edit1.txt");  // the derived file (the path switched - the Step 303)
         std::remove(kSrc);
     }
     // g) a successful reload clears BOTH stacks (the indices go stale).
@@ -1802,6 +1804,193 @@ static void checkUndoRedo() {
             if (kEditorKeys[i] == GLFW_KEY_Y) y = true;
         }
         check(z && y, "keys: the editor's tracked list registers Z and Y");
+    }
+}
+
+// Step 303: the path-switch-after-save (authorized). On a SUCCESSFUL
+// save-as the loaded/source path becomes the NEW saved file; a failed
+// save changes NOTHING (the negative control). The flat naming rule:
+// _edit1 -> _edit2 (no nesting). The undo/redo stacks are KEPT on the
+// switch (the reload still clears them). The ORIGINAL file bytes are
+// never touched by the editor.
+static void checkPathSwitch() {
+    // a) the success updates the path + the baseline; the status shows
+    //    the new path; the counter advances.
+    {
+        std::remove("savedata/ps_src_edit1.txt");  // the idempotency: a prior run's leftover (the Step 303)
+        std::remove("savedata/ps_src_edit2.txt");
+        const char* kSrc = "editor0_tmp/ps_src.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "pathswitch: the source written (the test setup)");
+        std::string srcBefore;
+        readTextFile(kSrc, srcBefore);
+        check(editor0::loadSceneForEditor(kSrc, state.current, err), "pathswitch: the load");
+        state.baseline = editor0::capturePositions(state.current);  // the live path
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        check(state.modified, "pathswitch: the nudge set the flag");
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);   // Ctrl+S -> savedata/ps_src_edit1.txt
+        in.keySave = false;
+        check(state.feedback == "saved savedata/ps_src_edit1.txt (3 entities)", "pathswitch: the exact saved feedback");
+        check(state.path == "savedata/ps_src_edit1.txt", "pathswitch: the SUCCESS switched the loaded path to the NEW file");
+        check(!state.modified, "pathswitch: the baseline = that save (the flag cleared)");
+        check(state.status.find("savedata/ps_src_edit1.txt") != std::string::npos,
+              "pathswitch: the status line reports the NEW path");
+        check(state.saveCounter == 2, "pathswitch: the counter advanced");
+        std::remove("savedata/ps_src_edit1.txt");
+        std::remove("editor0_tmp/ps_src.txt");
+    }
+    // b) a FAILED save changes NOTHING: the path, the baseline, the
+    //    stacks; the refuse-source now protects the CURRENT path.
+    {
+        // The setup mirrors (a) up to the switched path.
+        std::remove("savedata/ps_fail_edit1.txt");  // the idempotency
+        std::remove("savedata/ps_fail_edit2.txt");
+        const char* kSrc = "editor0_tmp/ps_fail.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "pathswitch/fail: the source written (the test setup)");
+        check(editor0::loadSceneForEditor(kSrc, state.current, err), "pathswitch/fail: the load");
+        state.baseline = editor0::capturePositions(state.current);
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);   // success: the path switched
+        in.keySave = false;
+        const std::string switchedPath = state.path;
+        check(switchedPath == "savedata/ps_fail_edit1.txt", "pathswitch/fail: the setup saved + switched");
+        // One more nudge: the flag is TRUE going into the failures (a
+        // stronger negative control: a failed save must NOT re-baseline
+        // and clear it).
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        check(state.modified, "pathswitch/fail: the flag is set before the failures");
+        // The negative control: the override = the CURRENT path -> the
+        // source refusal (it protects the CURRENT loaded path).
+        in.savePathOverride = switchedPath;
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);
+        in.keySave = false;
+        check(state.feedback.rfind("save failed: refusing to save over the loaded source", 0) == 0,
+              "pathswitch/fail: the source refusal protects the CURRENT (switched) path");
+        check(state.path == switchedPath, "pathswitch/fail: the refused save did NOT change the path");
+        // A second failure: the override = the ORIGINAL source (an
+        // EXISTING file) - refused, nothing changes.
+        const std::vector<pe::Vec3> baselineBefore = state.baseline;
+        const std::size_t undoSize = state.undoStack.size();
+        in.savePathOverride = kSrc;
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);
+        in.keySave = false;
+        check(state.feedback.rfind("save failed: refusing to overwrite an existing file", 0) == 0,
+              "pathswitch/fail: the ORIGINAL source is still protected (the existing-file refusal)");
+        check(state.path == switchedPath, "pathswitch/fail: negative control - the FAILED save did NOT update the path");
+        check(state.baseline.size() == baselineBefore.size() && state.modified == true,
+              "pathswitch/fail: the failed save did NOT touch the baseline (the flag still shows the edits)");
+        check(state.undoStack.size() == undoSize, "pathswitch/fail: the failed save did NOT touch the stacks");
+        // cleanup for the (b) state
+        std::remove("savedata/ps_fail_edit1.txt");
+        std::remove(kSrc);
+    }
+    // c) the second save creates a FURTHER NEW file under the flat
+    //    rule (_edit2, not _edit1_edit1); the ORIGINAL bytes unchanged.
+    {
+        std::remove("savedata/ps_second_edit1.txt");  // the idempotency
+        std::remove("savedata/ps_second_edit2.txt");
+        const char* kSrc = "editor0_tmp/ps_second.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "pathswitch/second: the source written (the test setup)");
+        std::string srcBefore;
+        readTextFile(kSrc, srcBefore);
+        check(editor0::loadSceneForEditor(kSrc, state.current, err), "pathswitch/second: the load");
+        state.baseline = editor0::capturePositions(state.current);
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);   // save 1 -> ps_second_edit1.txt
+        check(state.path == "savedata/ps_second_edit1.txt", "pathswitch/second: the first switch");
+        editor0::stepEditorFrame(state, in);   // save 2 (the key still down) -> ps_second_edit2.txt
+        in.keySave = false;
+        check(state.feedback == "saved savedata/ps_second_edit2.txt (3 entities)",
+              "pathswitch/second: the FLAT rule - the second save is _edit2 (no nesting)");
+        check(state.path == "savedata/ps_second_edit2.txt", "pathswitch/second: the path followed to _edit2");
+        std::string srcAfter;
+        readTextFile(kSrc, srcAfter);
+        check(!srcBefore.empty() && srcBefore == srcAfter, "pathswitch/second: the ORIGINAL file bytes unchanged");
+        std::remove("savedata/ps_second_edit1.txt");
+        std::remove("savedata/ps_second_edit2.txt");
+        std::remove(kSrc);
+    }
+    // d) the stacks are KEPT on the switch: the undo after the save
+    //    re-sets the flag honestly (the state differs from the NEW
+    //    baseline); the redo re-clears it.
+    {
+        std::remove("savedata/ps_undo_edit1.txt");  // the idempotency
+        const char* kSrc = "editor0_tmp/ps_undo.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "pathswitch/undo: the source written (the test setup)");
+        check(editor0::loadSceneForEditor(kSrc, state.current, err), "pathswitch/undo: the load");
+        state.baseline = editor0::capturePositions(state.current);
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);   // saved + switched; the flag cleared
+        in.keySave = false;
+        check(!state.modified && state.undoStack.size() == 1, "pathswitch/undo: saved (the flag cleared); the stack KEPT");
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyUndo = false;
+        check(state.modified, "pathswitch/undo: the undo after the save honestly RE-SETS the flag (vs the NEW baseline)");
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRedo = false;
+        check(!state.modified, "pathswitch/undo: the redo re-clears it (back to the saved baseline)");
+        std::remove("savedata/ps_undo_edit1.txt");
+        std::remove(kSrc);
+    }
+    // e) the flat naming rule (pure): the strip cases + the skips.
+    {
+        check(editor0::makeSaveAsPath("savedata/sample_scene_edit1.txt", 2) == "savedata/sample_scene_edit2.txt",
+              "pathswitch/naming: _edit1 + 2 -> _edit2 (the flat rule, no nesting)");
+        check(editor0::makeSaveAsPath("savedata/x_edit12.txt", 3) == "savedata/x_edit3.txt",
+              "pathswitch/naming: a multi-digit _edit12 strips fully");
+        check(editor0::makeSaveAsPath("savedata/my_edit.txt", 1) == "savedata/my_edit_edit1.txt",
+              "pathswitch/naming: an EMPTY digit tail (_edit.) is NOT stripped");
+        check(editor0::makeSaveAsPath("savedata/edit1.txt", 2) == "savedata/edit1_edit2.txt",
+              "pathswitch/naming: a strip that would empty the base is skipped");
+        check(editor0::makeSaveAsPath("savedata/a_edit1x.txt", 2) == "savedata/a_edit1x_edit2.txt",
+              "pathswitch/naming: a non-digit tail (_edit1x) is NOT stripped");
+        check(editor0::makeSaveAsPath("sample_scene.txt", 1) == "savedata/sample_scene_edit1.txt",
+              "pathswitch/naming: a plain base is unchanged (the 299 rule)");
     }
 }
 
@@ -2140,6 +2329,7 @@ int main(int argc, char** argv) {
         checkNudgeAndModified();  // Step 300: the nudge + the modified state + the save integration
         checkReloadGuard();       // Step 300: the modified-flag reload guard
         checkUndoRedo();          // Step 301: the bounded undo/redo
+        checkPathSwitch();        // Step 303: the path-switch-after-save
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
@@ -2176,6 +2366,6 @@ int main(int argc, char** argv) {
                 "  PureEditor0 --selftest          headless checks (+ one hidden-window GL frame)\n"
                 "  PureEditor0 --make-sample <p>   write the 3-prefab sample scene to <p> (refuses to overwrite)\n"
                 "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, R = reload, arrows = nudge,\n"
-                "                                  Shift = 1.0, Ctrl+S = save-as, Ctrl+Z/Ctrl+Y = undo/redo, ESC = quit)\n");
+                "                                  Shift = 1.0, Ctrl+S = save-as (the editor then follows the saved file), Ctrl+Z/Ctrl+Y = undo/redo, ESC = quit)\n");
     return 2;
 }
