@@ -3332,6 +3332,17 @@
    "depends_on": [
     298
    ]
+  },
+  {
+   "id": 300,
+   "name": "TOOLS: editor0 option C step 2 - nudge + modified state + reload guard (consumer, no engine change)",
+   "status": "completed",
+   "definition_of_done": "The arrows nudge the selected entity in WORLD space (0.1, Shift = 1.0; up +y, down -y, right +x, left -x; no selection a safe no-op; only the selected entity changes; the inspector shows the new values at once); the modified flag (set by an applied nudge, cleared by a successful save-as and by a successful reload) shows the ' | modified' status marker; the R guard (the chosen rule, documented: the FIRST R while modified does not reload - it shows 'unsaved changes: press R again to discard'; the SECOND R within 120 stepEditorFrame frames discards and reloads; any other key edge or a failed action clears the pending confirmation; past the window it expires silently); the save-as after nudging writes the edited scene (a NEW savedata/_editN path; the source NEVER overwritten; a successful save clears the flag, a failed save keeps it); --diag-input prints one line per nudge key press (key, selection index, position before -> after, modified flag). All tests headless (no GL, no live GLFW). Engine src/ read-only.",
+   "notes": "Editor-side only; no src/ or test changes. The KEY AUDIT FIRST: pe::Input registers the edge-tracked list at construction (input.h:300-333; an untracked key reports NO edge) and the game registers the arrows (src/main.cpp:872), so the editor list gained UP/DOWN/LEFT/RIGHT (kEditorKeys, 10 keys, selftest-checked); the Shift LEVEL read is the engine-proven static-isDown pattern (src/main.cpp:1609-1610). The implementation: nudgeSelected (pure) + the modified flag + the 6-param makeStatusLine marker + the R guard in the new stepEditorFrame wrapper (the frame counter + the expiry + the any-other-key clear + the marker rebuild) + the savePathOverride test hook (the failed-save-keeps-flag rule exercised through the REAL step function). The selftest: 241 PASS / 0 FAIL lines (the Step 300 functions add 49 checks: the nudge sums tol 1e-4, the wrong-axis and wrong-entity negative controls, the field-by-field unchanged compare, the save round-trip with the SOURCE bytes identical, the exact guard message, the 120-frame expiry + the inclusive boundary, the failed-save/failed-reload rules). MUTATION: the modified-flag guard on R removed -> 8 guard checks FAILED NON-VACUOUS; restored by pathspec; git diff --stat -- src/ EMPTY. GATES against 38c40de: cmake --build build --config Release exit 0; ctest -C Release 5/5 100% (23.41s; the PureEditor0 duration 1.42s - under the 40s guard); alive x3 (all three True); git diff --check exit 0 clean. SIZE: the first measurement was net +463 (over the 450 cap) - 25 comment lines trimmed with no behavior or test change, net +438, disclosed; 2 files, 40277 + 104181 bytes. The human feedback (the 299 Ctrl+S paste) arrived as the UNFILLED template placeholder = not run; the 299 save-as and the 300 nudge visual confirmations stay PENDING. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "TOOLS-300",
+   "depends_on": [
+    299
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

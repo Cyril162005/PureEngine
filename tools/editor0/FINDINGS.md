@@ -642,3 +642,44 @@ save-as (option C), the gizmos.
   existed in the editor).
 - **status:** recorded (the discipline made explicit + tested; no
   behavior change).
+
+## Entry 29
+- **what:** the Step 300 human feedback, VERBATIM: `<PASTE your Ctrl+S
+  result: filenames made, source unchanged True/False, status line
+  text, or "not run">` - the template placeholder arrived UNFILLED,
+  i.e. the "not run" branch: the Step 299 save-as visual confirmation
+  was NOT provided.
+- **evidence:** the prompt text (pasted unmodified); no filenames, no
+  True/False, no status line text.
+- **class:** existing capability (nothing to fix; the save-as code and
+  its 299 selftest checks are unchanged and green this step).
+- **status:** recorded; the 299 save-as visual confirmation stays
+  PENDING (the final-report commands cover it again).
+
+## Entry 30
+- **what:** the arrow keys were NOT registered in the editor's
+  edge-tracked list (the consumer's ctor list is the registration -
+  the same shape as the 297 Tab finding): pe::Input::isEdge returns
+  false for untracked keys, so the nudge edges did not exist until the
+  editor added them.
+- **evidence:** src/input.h:300-333 (the ctor + the untracked-false
+  rule); src/main.cpp:870-881 (the GAME registers UP/DOWN - arrows are
+  registrable); the editor list grew ESC/+/-/R/Tab/S + UP/DOWN/LEFT/
+  RIGHT (kEditorKeys, 10 keys, selftest-checked).
+- **class:** existing capability (the registration pattern works as
+  documented; adding keys is a small editor-owned change).
+- **status:** recorded, fixed editor-side (the arrows registered).
+
+## Entry 31
+- **what:** GLFW offers no programmatic key-event injection, so the
+  mapping from a PHYSICAL key press to the EditorInput nudge edges
+  cannot be proven by an automated test - only the registration (the
+  kEditorKeys introspection) and the manual --diag-input run witness
+  the live path.
+- **evidence:** src/input.h (glfwGetKey polling only; no injection
+  API); the selftest keys check ("the editor's tracked list registers
+  all four arrows"); the --diag-input nudge line for the manual proof.
+- **class:** missing capability (a test-harness/GLFW-level gap, NOT an
+  engine defect; the engine's polling contract is unchanged).
+- **status:** recorded; the live proof is Cyril's --diag-input run
+  (the final-report commands).

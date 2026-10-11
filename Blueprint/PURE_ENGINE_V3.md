@@ -2468,6 +2468,56 @@ under the 40s guard); alive x3 exit 0; git diff --check clean.
 FINDINGS: 28 entries (Entry 28: the save-as = existing capability).
 Visual confirmation: the save-as feedback line on screen PENDING.
 
+### Phase Tools consumer: editor0 option C (Step 300) - step 2 of at most 4, COMPLETE
+
+Consumer step; engine src/ untouched (git diff --stat -- src/ EMPTY).
+THE KEY AUDIT FIRST: pe::Input registers the edge-tracked key list at
+construction (src/input.h:300-333; an untracked key reports NO edge)
+and the game itself registers the arrows (src/main.cpp:872), so the
+editor's list gained the four arrows (kEditorKeys: ESC, +/=, -/_, R,
+Tab, S + UP/DOWN/LEFT/RIGHT = 10 keys, introspection-checked); the
+Shift LEVEL read is the engine-proven static-isDown pattern. FINAL
+KEYS: the arrows = the nudge edges, Shift = the coarse step,
+R/Tab/S/ESC/+/-= unchanged. THE NUDGE: nudgeSelected (pure,
+editor-owned) moves the SELECTED entity in WORLD space 0.1
+(Shift 1.0): up +y, down -y, right +x, left -x - independent of
+pan/zoom; no selection/dead/stale = a safe no-op; ONLY the selected
+entity's position changes; the inspector re-reads the scene so the
+new values show at once. THE MODIFIED STATE: set by an applied nudge;
+cleared by a successful save-as and by a successful reload; the
+status line gains the ' | modified' marker (the 6-param
+makeStatusLine). THE RELOAD GUARD (the chosen rule, documented): the
+FIRST R while modified does NOT reload - it shows exactly 'unsaved
+changes: press R again to discard'; a SECOND R within 120
+stepEditorFrame calls (FRAMES chosen over key events) discards and
+reloads; ANY OTHER KEY EDGE or a failed action clears the pending
+confirmation; past the window it expires silently (the next R asks
+again). SAVE INTEGRATION: Ctrl+S after nudging writes the EDITED
+scene to the next free savedata/<base>_editN.txt (the write-safety
+refusals unchanged; the source NEVER overwritten); a successful save
+clears the flag, a failed save keeps it (the savePathOverride test
+hook exercises the refusals through the REAL step function).
+--diag-input prints ONE line per nudge key press (key, selected
+index, position before -> after, modified flag); GLFW has no
+programmatic key injection, so the live mapping is proven by the
+registration introspection + Cyril's manual --diag-input run
+(FINDINGS Entry 31). --selftest: 241 PASS / 0 FAIL lines (the Step
+300 functions add 49 checks: the nudge sums tol 1e-4, the wrong-axis
++ wrong-entity negative controls, the field-by-field unchanged
+compare, the save round-trip with the SOURCE bytes identical, the
+exact guard message, the 120-frame expiry + the inclusive boundary,
+the failed-save/failed-reload rules). MUTATION: the modified-flag
+guard on R removed -> 8 guard checks FAILED NON-VACUOUS; restored by
+pathspec; git diff --stat -- src/ EMPTY. GATES against 38c40de:
+cmake --build build --config Release exit 0; ctest -C Release 5/5
+100% (23.41s; the PureEditor0 duration 1.42s - under the 40s guard);
+alive x3 (all three True); git diff --check exit 0 clean. SIZE: the
+first measurement net +463 EXCEEDED the 450 cap - 25 comment lines
+trimmed (no behavior or test change), net +438, disclosed; 2 files.
+The human feedback (the 299 Ctrl+S paste) arrived UNFILLED (the
+template placeholder) = not run; the 299 save-as and the 300 nudge
+visual confirmations stay PENDING. FINDINGS: entries 29-31.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
