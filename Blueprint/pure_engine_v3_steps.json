@@ -3376,6 +3376,17 @@
    "depends_on": [
     302
    ]
+  },
+  {
+   "id": 304,
+   "name": "TOOLS: editor0 inspector panel scroll (consumer, no engine change)",
+   "status": "completed",
+   "definition_of_done": "The editor-owned inspector panel scroll: PgUp/PgDn (registered; 1 line per press) move a clamped visible window of the inspector lines (clampedPanelScroll: [0, total-visible]); the window is exactly the 12-line panel geometry; at scroll 0 the last line shows the same '+N more' hint as the capped list (the 296 compatibility); a selection change (pick or nav) and a successful reload reset the offset; an empty selection is a safe no-op; the live viewer draws the scrolled window. The wheel is NOT available (the recorded missing capability) - the keys are the documented substitute. The selftest: 345 PASS / 0 FAIL. Engine src/ read-only.",
+   "notes": "Editor-side only; no src/ or test changes. THE KEY AUDIT: PAGE_ appears nowhere in the engine or the editor input paths - PgUp/PgDn added (kEditorKeys = 14 keys, selftest-checked). THE DESIGN: clampedPanelScroll + inspectorLinesScrolled (pure; the full 36-line list sliced [scroll, scroll+visible); the hint at scroll 0 only; a short tail window when total < 2*visible - honest); the resets in the pick and the nav blocks and the reload-success block; the viewer draw switched to the scrolled window. THE TESTS: 29 new checks (7 clamp cases incl. the degenerates, the exact slices + the 296-identical hint, the through-stepEditorFrame scroll/clamp/no-ops, the empty-selection no-op + the empty-space clear reset, the nav restart, the reload restart, the PgUp/PgDn registration). THE MUTATION: the scroll never moves -> 5 checks FAILED NON-VACUOUS; restored by pathspec; git diff --stat -- src/ EMPTY. GATES against a97b34f: cmake --build build --config Release exit 0; ctest -C Release: the FIRST run 4/5 (PureEditor0 'Not Run' - '[resource busy or locked]', the known post-link lock class), the SECOND run after the 10s wait ALSO 'Not Run' (the one-rerun budget spent), the lock probe confirmed an exclusive external holder (no stray process; the lock appeared after the successful link - a slow AV scan), the lock CLEARED after a further ~60s wait and the THIRD run was 5/5 100% (9.56s; the PureEditor0 duration 1.27s - under the 40s guard) - NO code changed, the deviation (a third run) disclosed here; alive x3 (all three True); git diff --check exit 0 clean. SIZE: net +232, 2 files, 53251 + 138371 bytes - within the 450 cap. One test-setup bug (the keyPanelDown flag cleared too early) + one C3861-style definition-order error (the forward declarations + the constant moved above the frame functions) found and fixed in-step BEFORE the commit. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "TOOLS-304",
+   "depends_on": [
+    303
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -2670,6 +2670,41 @@ savedata/<base>_edit1.txt path AND the status line now reports that
 path as the loaded file) -> nudge again -> Ctrl+S (a SECOND new file
 _edit2) -> the ORIGINAL sample hash unchanged.
 
+### Phase Tools follow-on (Step 304): editor0 inspector panel scroll - COMPLETE
+
+Consumer step; engine src/ untouched (git diff --stat -- src/ EMPTY).
+THE KEY AUDIT: PAGE_ appears nowhere in the engine or the editor
+input paths - PgUp/PgDn joined the editor's tracked list (kEditorKeys
+= 14 keys, introspection-checked). THE WHEEL IS NOT AVAILABLE (the
+recorded missing capability, FINDINGS 8/31) - the keys are the
+documented substitute. THE DESIGN (pure + tested): clampedPanelScroll
+([0, total-visible]; the degenerate cases clamp to 0) +
+inspectorLinesScrolled (the FULL 36-line list sliced
+[scroll, scroll+12); the window is exactly 12 lines when a selection
+exists - the pointInPanelRect geometry holds; at scroll 0 the LAST
+line is the SAME '+N more' hint the capped list shows - the 296
+compatibility; a short tail window when total < 2*visible - honest).
+THE RESETS: a pick (including the empty-space clear), a nav press and
+a successful reload restart the panel view; an empty selection is a
+safe no-op. The live viewer draws the scrolled window.
+--selftest: 345 PASS / 0 FAIL (29 new checks). MUTATION: the scroll
+never moves -> 5 checks FAILED NON-VACUOUS; restored by pathspec.
+GATES against a97b34f: build exit 0; ctest -C Release: the first run
+4/5 (PureEditor0 'Not Run' - '[resource busy or locked]'), the second
+run after the 10s wait ALSO 'Not Run' (the one-rerun budget spent),
+the lock probe confirmed an exclusive external holder (no stray
+process; the lock appeared after the successful link - a slow AV
+scan of the fresh binary), the lock CLEARED after a further ~60s
+wait and the THIRD run was 5/5 100% (9.56s; PureEditor0 1.27s -
+under the 40s guard) - NO code changed; the deviation (a third run)
+disclosed here; alive x3 (all three True); git diff --check exit 0
+clean. SIZE: net +232, 2 files - within the 450 cap. One test-setup
+bug (the flag cleared too early) and one definition-order error (the
+forward declarations + the constant moved above the frame functions)
+found and fixed in-step BEFORE the commit. FINDINGS: entries 38-39.
+The human note (verbatim): 'Human visuals 299-303 still PENDING -
+do not block these steps.'
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

@@ -806,3 +806,35 @@ the key injection - docs-first version opens only).
   ORIGINAL file by the existing-file rule - no existing file is ever
   overwritten).
 - **status:** recorded, implemented editor-side.
+
+## Entry 38
+- **what:** the Step 304 session human note, VERBATIM: `Human visuals
+  299-303 still PENDING - do not block these steps.` - the standing
+  confirmation that the five unconfirmed visuals do not gate the
+  follow-on steps.
+- **evidence:** the prompt text (quoted); the five pending visuals
+  (299 save-as, 300 nudge, 301 undo/redo, 303 path-switch + the
+  304/305 ones to come).
+- **class:** existing capability (the record; nothing to fix).
+- **status:** recorded; the visuals stay PENDING.
+
+## Entry 39
+- **what:** the inspector panel scroll: the WHEEL is not available in
+  the engine (the recorded missing capability, Entries 8/31), so the
+  scroll is KEY-DRIVEN - PgUp/PgDn added to the editor's tracked list
+  (14 keys; the audit: PAGE_ appears nowhere in the engine or the
+  editor input paths - no mapping conflicts). The window keeps the
+  12-line panel geometry (the pointInPanelRect contract); at scroll 0
+  the last line shows the SAME '+N more' hint as the capped list (the
+  discoverability kept); a selection change (pick or nav) and a
+  successful reload reset the offset; an empty selection is a safe
+  no-op.
+- **evidence:** editor0_core.h (clampedPanelScroll,
+  inspectorLinesScrolled, kEditorPanelLines, the scroll block + the
+  resets); the selftest 345 PASS / 0 FAIL (the clamp cases, the exact
+  slices, the 296-identical hint string, the resets, the
+  registration); the mutation (the scroll never moves) FAILED 5
+  checks NON-VACUOUS.
+- **class:** existing capability (the keys are the documented
+  substitute for the missing wheel; editor-owned, no engine change).
+- **status:** recorded, implemented editor-side.
