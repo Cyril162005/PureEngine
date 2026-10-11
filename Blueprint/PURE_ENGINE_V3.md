@@ -2566,6 +2566,67 @@ UNFILLED = not run; the 299 + 300 visual confirmations stay PENDING;
 the 301 visual (nudge, Ctrl+Z, Ctrl+Y, the inspector matches; Ctrl+S
 still a new file only) PENDING. FINDINGS: entries 32-34.
 
+### Editor-0 option C slice CLOSED (299-301) - what works / what is out / honest limits
+
+**What works (all editor-owned; engine src/ untouched across 299-301,
+git diff --stat -- src/ empty at EVERY step; the verification = the
+selftest + the non-vacuous mutations; the human visuals PENDING):**
+- save-as: Ctrl+S -> a NEW file savedata/<base>_editN.txt (the
+  auto-increment counter, the first free name); the write-safety
+  refusals (an empty path, the loaded SOURCE, an EXISTING destination
+  - the refused file untouched); the round-trip proven (save->load->
+  save byte-identical, the 276 pattern); the exact feedback strings
+- nudge: the arrows move the SELECTED entity in WORLD space (0.1,
+  Shift = 1.0), pan/zoom-independent; no selection/dead/stale = a
+  safe no-op; ONLY the selected entity changes; the inspector shows
+  the new values at once
+- modified state: the honest baseline rule (a position baseline
+  captured at every successful load/save; the flag = the positions
+  differ from it); the ' | modified' status marker
+- R guard: the first R while modified asks (the exact message, no
+  reload); the second R within 120 frames discards and reloads; any
+  other key edge or a failed action clears the pending; the window
+  expires silently
+- bounded undo/redo: Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z; positions only;
+  one entry per applied nudge; the cap 32 (the oldest falls off); a
+  new nudge clears the redo branch; the stacks clear on a successful
+  reload and survive a save; undo/redo NEVER touch files
+- diagnostics: --diag-input prints ONE line per click, per nav press,
+  per nudge press and per applied undo/redo
+- the selftest: 280 PASS / 0 FAIL lines; the CTest PureEditor0
+  ~1.1s (the 40s guard); the per-step mutations all NON-VACUOUS
+  (299: the source refusal skipped; 300: the modified-flag guard on R
+  removed - 8 FAILs; 301: the undo always no-op - 13 FAILs)
+
+**What is out (named, NOT implemented; each needs a human-authorized
+later step):**
+- saving OVER the source or an existing file (the write-safety rule
+  stands; a rule change is human-only)
+- path-switch-after-save: after Ctrl+S the editor keeps the ORIGINAL
+  path as the reload source; switching the working file to the saved
+  _editN file is not implemented
+- multi-field editing: positions only - no other field is editable;
+  no gizmos / drag-to-move
+- the 297 deferred extras: the panel scroll + the visibility toggle,
+  the 2000-entity stress, a second mutation per step
+- the engine-side missing capabilities (docs-first version opens
+  only): the camera zoom API, the wheel/scroll input, the
+  programmatic key injection (a test-harness gap)
+
+**Honest limits:**
+- the live key mappings are proven by the registration introspection
+  + the synthetic stepEditorFrame tests; the PHYSICAL keystrokes are
+  witnessed only by --diag-input runs (GLFW has no injection)
+- the undo model is position-only by design: a future multi-field
+  edit would need a generalized entry (a named deferred item, not
+  started)
+- the human visual confirmations for 299, 300 AND 301 are ALL still
+  PENDING (the three unfilled placeholders, FINDINGS 29/32/35); the
+  commands were provided in the final reports
+- the option-C slice used 3 of at most 4 steps; the phase Tools stays
+  OPEN - the next lane is the human's choice (the slice close is NOT
+  a phase close)
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

@@ -3354,6 +3354,17 @@
    "depends_on": [
     300
    ]
+  },
+  {
+   "id": 302,
+   "name": "TOOLS: editor0 option C step 4 - classify and close the option-C slice (docs only, no code)",
+   "status": "completed",
+   "definition_of_done": "The option-C slice (299-301) classified and CLOSED like Step 298 did for option B: the FINDINGS inventory (28-34) with one class per entry, the V3 closed-slice section (what works / what is out / honest limits), the DEFERRED named list (not implemented), the board + README step range. NO editor features, NO engine changes, NO Step 303. Gates sanity: build, ctest 5/5, alive x3, src/ EMPTY.",
+   "notes": "Docs only; no src/, no tests, no editor features. THE CLASSIFICATION (FINDINGS 28-34): 7 entries = 6 existing capability, 1 missing capability (31: no programmatic key injection in GLFW - a test-harness gap, NOT an engine defect), 0 engine defect; the in-step fixed defects stay as recorded (the 299 counter bug, commit ae4d516). The slice verification stands on the selftest (280 PASS / 0 FAIL lines) + the three NON-VACUOUS mutations (299 the source refusal, 300 the R guard - 8 FAILs, 301 the undo no-op - 13 FAILs); the human visual confirmations for 299, 300 AND 301 are ALL NOT RUN (the three unfilled placeholders, Entries 29/32/35 - recorded verbatim). WHAT WORKS: the save-as (NEW file only, the refusals, the round-trip byte-identical), the nudge (0.1 / Shift 1.0, world-space), the modified state (the honest baseline rule), the R guard (120 frames), the bounded undo/redo (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z, the cap 32, the redo cleared, the stacks cleared on reload, never touching files), --diag-input (click/nav/nudge/undo lines). WHAT IS OUT (named, each needs a human-authorized later step): saving over the source or an existing file, path-switch-after-save, multi-field editing, gizmos/drag-to-move, the panel scroll + the visibility toggle, the 2000-entity stress, a second mutation per step, the engine-side missing capabilities (the camera zoom API, the wheel/scroll, the key injection - docs-first only). HONEST LIMITS: the live key mappings witnessed only by --diag-input; the position-only undo by design. The slice used 3 of at most 4 steps; the phase Tools stays OPEN - the next lane is the human's choice (the slice close is NOT a phase close). Gates sanity: cmake --build build --config Release exit 0; ctest -C Release 5/5 (see the gates line in V3); alive x3; git diff --stat -- src/ EMPTY. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "DOCS-302",
+   "depends_on": [
+    301
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

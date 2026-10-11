@@ -723,3 +723,48 @@ save-as (option C), the gizmos.
 - **class:** existing capability (a compile-time rule; no engine
   issue).
 - **status:** recorded, fixed editor-side.
+
+## Entry 35
+- **what:** the Step 302 human feedback, VERBATIM: `Step 301 ~1bf97b4.
+  Visual nudge/undo/redo: <PASS / notes / not run>.` - the template
+  options pasted UNFILLED, i.e. the "not run" branch: the Step 301
+  undo/redo visual confirmation was NOT provided.
+- **evidence:** the prompt text (the placeholder unmodified); no PASS,
+  no notes.
+- **class:** existing capability (nothing to fix; the 301 code and its
+  checks are unchanged and green this step).
+- **status:** recorded; the 299 save-as, the 300 nudge AND the 301
+  undo/redo visual confirmations ALL stay PENDING (the commands were
+  provided in the 299/300/301 final reports).
+
+## Step 302 classification - the Editor-0 option C slice (299-301), CLOSED
+
+Format: id | class | evidence (the fix commits cited). The human
+visual confirmations for 299, 300 and 301: ALL NOT RUN (the three
+unfilled placeholders, Entries 29/32/35) - the selftest + the
+mutation evidence are the recorded verification.
+
+| id | class |
+|---|---|
+| 28 the save-as (the editor's first write path) | **existing capability** (+ the counter bug = a fixed defect editor-side, Step 299, commit ae4d516, caught by the test) |
+| 29 the 300 human feedback (the unfilled placeholder) | **existing capability** (the record; the 299 visual PENDING) |
+| 30 the arrow-key registration (the editor list) | **existing capability** (fixed editor-side, Step 300, commit 38c40de) |
+| 31 no programmatic key injection (GLFW) | **missing capability** (a test-harness gap, NOT an engine defect; the live proof = --diag-input) |
+| 32 the 301 human feedback (the unfilled placeholder) | **existing capability** (the record; the 300 visual PENDING) |
+| 33 the Z/Y key registration (the editor list) | **existing capability** (fixed editor-side, Step 301, commit 6937fb9) |
+| 34 the UndoEntry definition order (C2065) | **existing capability** (a compile-time rule, fixed editor-side, Step 301, commit 6937fb9) |
+
+TALLY: 7 entries (28-34) = 6 existing capability, 1 missing
+capability (31, the test-harness key injection), 0 engine defect.
+The in-step fixed defects already recorded stay as recorded (the 299
+counter bug, commit ae4d516; the 300/301 test-setup fixes were not
+findings entries - they were caught by the selftest before each
+commit). DEFERRED (named, NOT implemented, each needs a
+human-authorized later step): saving OVER the source or an existing
+file (the write-safety rule stands), path-switch-after-save (the
+editor keeps the ORIGINAL path as the reload source after Ctrl+S),
+multi-field editing (positions only), gizmos / drag-to-move, the
+panel scroll + the visibility toggle (the 297 extras), the
+2000-entity stress, a second mutation per step, the engine-side
+missing capabilities (the camera zoom API, the wheel/scroll input,
+the key injection - docs-first version opens only).
