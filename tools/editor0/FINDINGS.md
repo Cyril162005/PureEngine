@@ -908,3 +908,27 @@ editing (positions only), gizmos / drag-to-move, the panel
 scroll-by-wheel (needs the engine wheel input - docs-first), the
 engine camera zoom API, the 2000-entity stress, MCP / object pools /
 ImGui / ECS / glTF / networking (the freezes stand).
+
+## Entry 42
+- **what:** the Step 307 visual checklist arrived with EVERY row an
+  UNFILLED placeholder (the template pasted back unmodified). The
+  rows, VERBATIM: '1 legend visible: <PASS/FAIL/not tried + what he
+  saw>' / '2 nudge + modified marker (300): <...>' / '3 undo/redo:
+  <...>' / '4 R once guard (300): <...>' / '5 R twice reload (300):
+  <...>' / '6 Ctrl+S new _edit1 file (299): <...>' / '7 second Ctrl+S
+  _edit2 flat naming (301): <...>' / '8 new file becomes the loaded
+  scene (303): <...>' / '9 PgUp/PgDn inspector scroll (304): <...>' /
+  '10 panel click keeps selection, empty click clears: <...>' /
+  'source file hash unchanged: <True/False>; saved file position vs
+  inspector value: <matches/differs/not compared>.' Per the step rule
+  ('exactly as reported'; 'do not mark anything CONFIRMED that the
+  rows do not support'): the visuals for 299, 300, 301, 303, 304 and
+  305 are ALL **NOT TRIED**; no PASS is recorded; no FAIL exists (no
+  observation was provided); nothing is marked CONFIRMED.
+- **evidence:** the prompt text (the 12 placeholder rows); the
+  recorded verification remains the selftest (349 PASS / 0 FAIL), the
+  non-vacuous mutations and the human's 305 ctest run (5/5, 0.35s).
+- **class:** existing capability (the record; nothing to fix; the
+  code is unchanged this step).
+- **status:** recorded; the NOT-TRIED status stands until a filled
+  checklist arrives.

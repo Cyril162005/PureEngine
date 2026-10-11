@@ -3409,6 +3409,17 @@
    "depends_on": [
     305
    ]
+  },
+  {
+   "id": 307,
+   "name": "TOOLS: the recommended pause + the visual status (docs only, no code)",
+   "status": "completed",
+   "definition_of_done": "The visual-confirmation status of steps 299-305 set EXACTLY as reported: the 307 checklist arrived with EVERY row an unfilled placeholder -> ALL NOT TRIED (FINDINGS 42; nothing marked CONFIRMED). The Tools recommended pause recorded in V3: Editor-0 is a COMPLETE tools milestone (load, pan/zoom, pick, inspect, scroll, nudge, modified, R guard, undo/redo, save-as, path switch, legend); further Tools steps only on measured need or Cyril's explicit authorization. The phase stays OPEN. Docs only: no code, src/ EMPTY, the edit tool for docs. Gates: build, ctest 5/5, alive x3, git diff --check.",
+   "notes": "Docs only; no src/, no tests, no editor features. THE VISUAL STATUS (FINDINGS 42, verbatim): the 12 checklist rows all unfilled placeholders ('1 legend visible: <PASS/FAIL/not tried + what he saw>' ... 'source file hash unchanged: <True/False>; saved file position vs inspector value: <matches/differs/not compared>.') -> 299, 300, 301, 303, 304, 305 ALL NOT TRIED; no PASS, no FAIL, nothing CONFIRMED; the recorded verification stands on the selftest (349 PASS / 0 FAIL), the non-vacuous mutations and the human's 305 ctest run (5/5, 0.35s). THE RECOMMENDED PAUSE (V3): the tools milestone is COMPLETE (the option-B slice 288-297, the option-C slice 299-301, the path switch 303, the scroll 304, the legend 305, the classifications 298/302/306); further Tools steps only on measured need or Cyril's explicit authorization of a named item; the honest limits named (no entity create/delete, no play mode, no typed edits, no wheel zoom, no per-entity highlight, no drag-to-move, no multi-field editing); the Tools phase stays OPEN (a close is human-only). GATES: cmake --build build --config Release exit 0; ctest -C Release 5/5 100%; alive x3 (all three True); git diff --check exit 0 clean; git diff --stat -- src/ EMPTY. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "DOCS-307",
+   "depends_on": [
+    306
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

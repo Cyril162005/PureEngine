@@ -2780,6 +2780,33 @@ later step):**
   the mutations + the human's 305 ctest run
 - the Tools phase stays OPEN - the next lane is the human's choice
 
+### Tools recommended pause (Step 307, docs only) - a complete tools milestone; the phase stays OPEN
+
+Editor-0 is now a COMPLETE tools milestone across option B, option C
+and the follow-ons (288-306): load (strict, reason-coded), pan/zoom
+(the ratio fix), pick, inspect (the 36-line panel), scroll
+(PgUp/PgDn), nudge (0.1 / Shift 1.0), the modified state (the honest
+baseline), the R guard (120 frames), bounded undo/redo (the cap 32),
+save-as (a NEW file only, the path switch, the flat _editN naming)
+and the always-on key legend - all editor-owned, engine src/
+untouched at EVERY step, the selftest 349 PASS / 0 FAIL and every
+code step's mutation NON-VACUOUS.
+THE VISUAL CONFIRMATIONS: all six step visuals (299-305) are NOT
+TRIED as of this step (the 307 checklist arrived with every row an
+unfilled placeholder - FINDINGS 42); the recorded verification is the
+selftest + the mutations + the human's 305 ctest run (5/5, 0.35s).
+THE RECOMMENDED PAUSE (docs only; NOT a phase close - a phase close
+is a human-only decision): the milestone is COMPLETE; further Tools
+steps happen only on MEASURED NEED (a superlinear breach, a
+consumer-blocking gap) or Cyril's EXPLICIT authorization of a named
+item.
+HONEST LIMITS (what the editor still cannot do): no entity
+create/delete, no play mode, no typed edits (the engine has no
+text-input widget), no wheel zoom (no engine wheel input), no
+per-entity highlight (the role-group coloring only), no drag-to-move,
+no multi-field editing. The deferred lists stand (the option-B, the
+option-C and the mini-slice sections above).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
