@@ -22,7 +22,9 @@
  *                                     keeps running (the scene is
  *                                     untouched). Ctrl+S = save-as (a
  *                                     NEW _editN file); arrows nudge
- *                                     the selection (0.1, Shift 1.0).
+ *                                     the selection (0.1, Shift 1.0);
+ *                                     Ctrl+Z/Ctrl+Y = undo/redo (the
+ *                                     positions only; never files).
  *
  * Consumes ONLY documented engine APIs: Entity (src/entity.h),
  * loadPrefab/instantiatePrefab (src/prefab.h), Scene (src/scene.h),
@@ -122,7 +124,7 @@ static const char* kMissing    = "editor0_tmp/no_such_scene_zz.txt";
 // isEdge reports false for untracked keys (input.h:326-333), so the
 // registration IS the wiring; the Shift/Ctrl LEVELS need none.
 static const int kEditorKeys[] = {GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R,
-                                  GLFW_KEY_TAB, GLFW_KEY_S,
+                                  GLFW_KEY_TAB, GLFW_KEY_S, GLFW_KEY_Z, GLFW_KEY_Y,
                                   GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT};
 static const std::size_t kEditorKeyCount = sizeof(kEditorKeys) / sizeof(kEditorKeys[0]);
 
@@ -1422,7 +1424,7 @@ static void checkNudgeAndModified() {
             if (kEditorKeys[i] == GLFW_KEY_RIGHT) right = true;
         }
         check(up && down && left && right, "keys: the editor's tracked list registers all four arrows");
-        check(kEditorKeyCount == 10, "keys: the editor's tracked list is the documented 10 keys");
+        check(kEditorKeyCount == 12, "keys: the editor's tracked list is the documented 12 keys (the Step 301 adds Z, Y)");
     }
 }
 
@@ -1561,6 +1563,248 @@ static void checkReloadGuard() {
     }
 }
 
+// Step 301: the bounded undo/redo (pure, no GL, no live GLFW).
+// Expected values from the nudge step (0.1) and the press counts,
+// tol 1e-4. Undo/redo NEVER touch files (the byte compare).
+static void checkUndoRedo() {
+    // a) N nudges -> undo restores the exact prior pos; redo re-applies;
+    //    the empty stacks are safe no-ops.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        const float x0 = state.current.entities[0].position.x;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);  // 3 right: x0 + 0.3
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.3f, 1e-4f), "undo: 3 nudges = x0+0.3");
+        in.keyRight = false;
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.2f, 1e-4f), "undo: the 1st undo restores x0+0.2 (exact prior pos, tol 1e-4)");
+        editor0::stepEditorFrame(state, in);
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.1f, 1e-4f), "undo: the 2nd undo restores x0+0.1");
+        editor0::stepEditorFrame(state, in);
+        check(floatEqT(state.current.entities[0].position.x, x0, 1e-4f), "undo: the 3rd undo restores x0 (the baseline)");
+        editor0::stepEditorFrame(state, in);
+        check(floatEqT(state.current.entities[0].position.x, x0, 1e-4f) && state.undoStack.empty(),
+              "undo: the 4th undo is a safe no-op (the empty stack)");
+        in.keyUndo = false;
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.1f, 1e-4f), "redo: the 1st redo re-applies x0+0.1");
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.3f, 1e-4f), "redo: the 3rd redo re-applies x0+0.3");
+        editor0::stepEditorFrame(state, in);
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.3f, 1e-4f) && state.redoStack.empty(),
+              "redo: the 4th redo is a safe no-op (the empty stack)");
+        // the wrong-entity negative control: only entity 0 ever moved.
+        std::string diff;
+        check(state.lastUndoIndex == 0, "undo: the diag names the affected entity (0)");
+    }
+    // b) the wrong-entity negative control: the undo touches ONLY the
+    //    entry's entity; entities 1/2 stay field-identical.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        const pe::Scene before = state.current;
+        state.selected = 2;
+        editor0::EditorInput in;
+        in.keyUp = true;
+        editor0::stepEditorFrame(state, in);   // nudge entity 2 up
+        in.keyUp = false;
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);   // undo -> entity 2 back
+        in.keyUndo = false;
+        std::string diff;
+        check(entityFieldMatches(before.entities[2], state.current.entities[2], diff),
+              "undo: negative control - the undone entity is field-exact again");
+        check(entityFieldMatches(before.entities[0], state.current.entities[0], diff)
+              && entityFieldMatches(before.entities[1], state.current.entities[1], diff),
+              "undo: negative control - the OTHER entities are untouched (the wrong entity fails)");
+    }
+    // c) the cap 32: the 33rd nudge evicts the oldest entry (the first
+    //    nudge is lost); the stacks cannot grow past the cap.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        const float x0 = state.current.entities[0].position.x;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        for (int i = 0; i < 33; ++i) editor0::stepEditorFrame(state, in);  // 33 nudges
+        check(floatEqT(state.current.entities[0].position.x, x0 + 3.3f, 1e-4f), "undo/cap: 33 nudges = x0+3.3");
+        check(state.undoStack.size() == editor0::kEditorUndoCap, "undo/cap: the stack holds exactly the cap (32)");
+        in.keyRight = false;
+        in.keyUndo = true;
+        for (int i = 0; i < 32; ++i) editor0::stepEditorFrame(state, in);  // 32 undos
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.1f, 1e-4f),
+              "undo/cap: 32 undos restore x0+0.1 (the FIRST nudge fell off the cap)");
+        editor0::stepEditorFrame(state, in);  // the 33rd undo: the empty stack
+        check(floatEqT(state.current.entities[0].position.x, x0 + 0.1f, 1e-4f) && state.undoStack.empty(),
+              "undo/cap: the 33rd undo is a no-op (the evicted entry is gone)");
+        in.keyUndo = false;
+        in.keyRedo = true;
+        for (int i = 0; i < 32; ++i) editor0::stepEditorFrame(state, in);
+        check(floatEqT(state.current.entities[0].position.x, x0 + 3.3f, 1e-4f), "undo/cap: 32 redos re-apply to x0+3.3");
+        editor0::stepEditorFrame(state, in);
+        check(state.redoStack.empty(), "undo/cap: the redo stack drains to empty");
+        in.keyRedo = false;
+    }
+    // d) a new nudge CLEARS the redo branch.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        const float x0 = state.current.entities[0].position.x;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);   // +0.1
+        in.keyRight = false;
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);   // undo (the redo branch holds 1)
+        in.keyUndo = false;
+        in.keyLeft = true;
+        editor0::stepEditorFrame(state, in);   // a NEW nudge (left: -0.1)
+        in.keyLeft = false;
+        check(floatEqT(state.current.entities[0].position.x, x0 - 0.1f, 1e-4f), "undo: the new nudge lands at x0-0.1");
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);   // redo: CLEARED -> a no-op
+        in.keyRedo = false;
+        check(floatEqT(state.current.entities[0].position.x, x0 - 0.1f, 1e-4f) && state.redoStack.empty(),
+              "undo: the redo was CLEARED by the new nudge (the redo is a no-op)");
+    }
+    // e) undo/redo NEVER write files: the SOURCE bytes identical
+    //    through nudge/undo/redo sequences.
+    {
+        const char* kSrc = "editor0_tmp/undo_src.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "undo/files: the source written (the test setup)");
+        std::string srcBefore;
+        readTextFile(kSrc, srcBefore);
+        state.camera.onResize(800, 600);
+        state.selected = 1;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyUndo = false;
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRedo = false;
+        std::string srcAfter;
+        readTextFile(kSrc, srcAfter);
+        check(!srcBefore.empty() && srcBefore == srcAfter, "undo/files: the SOURCE bytes identical through nudge/undo/redo");
+        std::remove(kSrc);
+    }
+    // f) the honest modified flag: undo back to the baseline CLEARS it;
+    //    redo re-sets it; a save re-baselines; undo after a save sets
+    //    it again (the state differs from the NEW baseline).
+    {
+        const char* kSrc = "editor0_tmp/undo_base.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "undo/modified: the source written (the test setup)");
+        check(editor0::loadSceneForEditor(kSrc, state.current, err), "undo/modified: the load");
+        state.baseline = editor0::capturePositions(state.current);  // the live path: the baseline at load
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.modified, "undo/modified: the nudge sets it (the state differs from the baseline)");
+        in.keyRight = false;
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyUndo = false;
+        check(!state.modified, "undo/modified: the undo back to the baseline CLEARS it (honest)");
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRedo = false;
+        check(state.modified, "undo/modified: the redo re-sets it");
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);   // Ctrl+S: saved, re-baselined
+        in.keySave = false;
+        check(!state.modified, "undo/modified: the successful save clears it (the new baseline)");
+        in.keyLeft = true;
+        editor0::stepEditorFrame(state, in);   // nudge left: back to the OLD position != the NEW baseline
+        in.keyLeft = false;
+        check(state.modified, "undo/modified: a nudge after the save sets it (differs from the NEW baseline)");
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyUndo = false;
+        check(!state.modified, "undo/modified: the undo back to the saved baseline clears it");
+        std::remove(kSrc);
+    }
+    // g) a successful reload clears BOTH stacks (the indices go stale).
+    {
+        const char* kSrc = "editor0_tmp/undo_reload.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "undo/reload: the source written (the test setup)");
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        const float x0 = state.current.entities[0].position.x;
+        editor0::EditorInput in;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRight = false;
+        check(state.undoStack.size() == 1, "undo/reload: the stack holds the nudge");
+        in.keyR = true;
+        editor0::stepEditorFrame(state, in);   // the FIRST R: the guard asks
+        editor0::stepEditorFrame(state, in);   // the SECOND R (the same synthetic edge): discards + reloads
+        in.keyR = false;
+        check(!state.modified && state.undoStack.empty() && state.redoStack.empty(),
+              "undo/reload: the successful reload clears BOTH stacks");
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRedo = false;
+        check(floatEqT(state.current.entities[0].position.x, x0, 1e-4f),
+              "undo/reload: the redo after the reload is a no-op (the file position)");
+        std::remove(kSrc);
+    }
+    // h) the key mapping (pure): Ctrl+Z undo; Ctrl+Y and Ctrl+Shift+Z
+    //    redo; without the Ctrl LEVEL: a safe no-op.
+    {
+        bool u = false, r = false;
+        editor0::undoRedoKeys(true, false, true, false, u, r);
+        check(u && !r, "keys: Ctrl+Z = undo");
+        editor0::undoRedoKeys(false, true, true, false, u, r);
+        check(!u && r, "keys: Ctrl+Y = redo");
+        editor0::undoRedoKeys(true, false, true, true, u, r);
+        check(!u && r, "keys: Ctrl+Shift+Z = redo (the documented alternative)");
+        editor0::undoRedoKeys(true, false, false, false, u, r);
+        check(!u && !r, "keys: negative control - plain Z (no Ctrl) is a no-op");
+        editor0::undoRedoKeys(false, true, false, true, u, r);
+        check(!u && !r, "keys: negative control - plain Y (no Ctrl) is a no-op");
+    }
+    // i) the registration: the tracked list has Z and Y (12 keys).
+    {
+        bool z = false, y = false;
+        for (std::size_t i = 0; i < kEditorKeyCount; ++i) {
+            if (kEditorKeys[i] == GLFW_KEY_Z) z = true;
+            if (kEditorKeys[i] == GLFW_KEY_Y) y = true;
+        }
+        check(z && y, "keys: the editor's tracked list registers Z and Y");
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -1621,7 +1865,7 @@ static void checkHiddenWindowFrame() {
 // is on screen and the editor keeps running (the scene is untouched).
 // Saving: Ctrl+S = the save-as (the Step 299/300: a NEW path; never the source).
 // Controls: left-drag = pan, +/- = zoom (clamped 0.25..4.0), R =
-// reload the current path, ESC = quit, arrows = nudge (Shift = 1.0), Ctrl+S = save-as.
+// reload the current path, ESC = quit, arrows = nudge (Shift = 1.0), Ctrl+S = save-as, Ctrl+Z/Ctrl+Y = undo/redo.
 static int runViewer(const char* scenePath) {
     if (!glfwInit()) { std::fprintf(stderr, "editor0: glfwInit failed\n"); return 1; }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -1661,6 +1905,7 @@ static int runViewer(const char* scenePath) {
     state.status = editor0::makeStatusLine(scenePath, state.current.entities.size(),
                                            ok ? std::string() : err, state.selected, state.current.entities);
     if (!ok) editor0::reportMessage(std::cerr, state.status);  // ONE report per attempt
+    state.baseline = editor0::capturePositions(state.current);  // the modified baseline (the Step 301)
 
     // Edge-tracked keys: ESC (quit) + +/- (zoom steps) + R (reload) -
     // one event per press (the documented edge read). NO wheel:
@@ -1702,6 +1947,11 @@ static int runViewer(const char* scenePath) {
         in.keyLeft = input.isEdge(window, GLFW_KEY_LEFT);
         in.keyRight = input.isEdge(window, GLFW_KEY_RIGHT);
         in.shiftDown = shiftDown;
+        // The undo/redo (the Step 301): the Z/Y edges + the Ctrl/Shift
+        // levels already read above.
+        const bool zEdge = input.isEdge(window, GLFW_KEY_Z);
+        const bool yEdge = input.isEdge(window, GLFW_KEY_Y);
+        editor0::undoRedoKeys(zEdge, yEdge, ctrlDown, shiftDown, in.keyUndo, in.keyRedo);
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);   // frame-end snapshot (the documented temporal order)
@@ -1775,12 +2025,14 @@ static int runDiagInput(const char* scenePath) {
     state.status = editor0::makeStatusLine(scenePath, state.current.entities.size(),
                                            ok ? std::string() : err, state.selected, state.current.entities);
     if (!ok) editor0::reportMessage(std::cerr, state.status);
-    std::printf("diag-input: click entities; ONE line per click. Arrows nudge the selection (Shift = 1.0). ESC quits.\n");
+    state.baseline = editor0::capturePositions(state.current);  // the modified baseline (the Step 301)
+    std::printf("diag-input: click entities; ONE line per click. Arrows nudge (Shift = 1.0); Ctrl+Z/Ctrl+Y undo/redo. ESC quits.\n");
     std::fflush(stdout);
 
     pe::Input input(std::vector<int>(kEditorKeys, kEditorKeys + kEditorKeyCount));  // the full list (the Step 300: the arrows for the nudge lines)
     int lastPickCount = 0;
     int lastNavCount = 0;
+    int lastUndoCount = 0;
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         const pe::MouseState m = pe::Input::pollMouse(window);
@@ -1803,6 +2055,12 @@ static int runDiagInput(const char* scenePath) {
         in.keyLeft = input.isEdge(window, GLFW_KEY_LEFT);
         in.keyRight = input.isEdge(window, GLFW_KEY_RIGHT);
         in.shiftDown = diagShiftDown;
+        // The undo/redo edges (the Step 301 diag).
+        const bool diagZEdge = input.isEdge(window, GLFW_KEY_Z);
+        const bool diagYEdge = input.isEdge(window, GLFW_KEY_Y);
+        const bool diagCtrlDown = pe::Input::isDown(window, GLFW_KEY_LEFT_CONTROL) ||
+                                  pe::Input::isDown(window, GLFW_KEY_RIGHT_CONTROL);
+        editor0::undoRedoKeys(diagZEdge, diagYEdge, diagCtrlDown, diagShiftDown, in.keyUndo, in.keyRedo);
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);
@@ -1818,6 +2076,15 @@ static int runDiagInput(const char* scenePath) {
             } else {
                 std::printf("nudge: key=%s selected=none modified=%s\n", nk, state.modified ? "true" : "false");
             }
+            std::fflush(stdout);
+        }
+        if (state.undoCount != lastUndoCount) {
+            lastUndoCount = state.undoCount;
+            // ONE line per applied undo/redo (the Step 301 diag).
+            std::printf("%s: index %d pos (%.4f,%.4f) -> (%.4f,%.4f) modified=%s\n",
+                        state.lastUndoWasUndo ? "undo" : "redo", state.lastUndoIndex,
+                        state.lastUndoFromX, state.lastUndoFromY, state.lastUndoToX, state.lastUndoToY,
+                        state.modified ? "true" : "false");
             std::fflush(stdout);
         }
         if (state.navCount != lastNavCount) {
@@ -1872,6 +2139,7 @@ int main(int argc, char** argv) {
         checkSaveAs();            // Step 299: the save-as (the round-trip + the refusals)
         checkNudgeAndModified();  // Step 300: the nudge + the modified state + the save integration
         checkReloadGuard();       // Step 300: the modified-flag reload guard
+        checkUndoRedo();          // Step 301: the bounded undo/redo
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
@@ -1908,6 +2176,6 @@ int main(int argc, char** argv) {
                 "  PureEditor0 --selftest          headless checks (+ one hidden-window GL frame)\n"
                 "  PureEditor0 --make-sample <p>   write the 3-prefab sample scene to <p> (refuses to overwrite)\n"
                 "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, R = reload, arrows = nudge,\n"
-                "                                  Shift = 1.0, Ctrl+S = save-as, ESC = quit)\n");
+                "                                  Shift = 1.0, Ctrl+S = save-as, Ctrl+Z/Ctrl+Y = undo/redo, ESC = quit)\n");
     return 2;
 }

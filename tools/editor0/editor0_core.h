@@ -358,7 +358,18 @@ struct EditorInput {
     bool keyLeft = false;                   // the ArrowLeft edge (the nudge, the Step 300)
     bool keyRight = false;                  // the ArrowRight edge (the nudge, the Step 300)
     bool shiftDown = false;                 // the Shift LEVEL (the coarse nudge, the Step 300)
+    bool keyUndo = false;                   // the Ctrl+Z edge (the undo, the Step 301)
+    bool keyRedo = false;                   // the Ctrl+Y / Ctrl+Shift+Z edge (the redo, the Step 301)
     std::string savePathOverride;           // non-empty: Ctrl+S targets THIS exact path (the Step 300 test/diag hook; empty in the live viewer)
+};
+
+// The undo entry (the Step 301): one applied nudge - the entity index
+// and the position before/after. Defined BEFORE EditorState (the
+// state holds the undo/redo stacks).
+struct UndoEntry {
+    int index = -1;
+    pe::Vec3 before;
+    pe::Vec3 after;
 };
 
 // The editor-owned state (everything the per-frame update touches).
@@ -396,6 +407,15 @@ struct EditorState {
     float lastNudgeDx = 0.0f, lastNudgeDy = 0.0f;  // the last applied nudge delta
     float lastNudgeBeforeX = 0.0f, lastNudgeBeforeY = 0.0f;  // the position before it (the diag)
     const char* lastNudgeKey = "";      // "up"/"down"/"left"/"right" (the diag)
+    // The undo/redo (the Step 301):
+    std::vector<pe::Vec3> baseline;     // the positions at the last successful save/load (the modified truth)
+    std::vector<UndoEntry> undoStack;   // the applied nudges, the newest back (the cap 32)
+    std::vector<UndoEntry> redoStack;   // the undone nudges, the newest back
+    int undoCount = 0;                  // the applied undos + redos (the diag)
+    bool lastUndoWasUndo = false;       // the last applied op's direction (the diag)
+    int lastUndoIndex = -2;             // the affected entity (the diag)
+    float lastUndoFromX = 0.0f, lastUndoFromY = 0.0f;  // the position before the op (the diag)
+    float lastUndoToX = 0.0f, lastUndoToY = 0.0f;      // the position after it (the diag)
 };
 
 // The window->framebuffer ratio conversion (the Step 295 fix): the
@@ -465,6 +485,96 @@ inline bool nudgeSelected(pe::Scene& scene, int selected, bool shiftDown,
     return true;
 }
 
+// --- Step 301: the bounded undo/redo (editor-owned; pure) ---
+// The model (documented): each APPLIED nudge pushes ONE entry
+// {entity index, position before, position after} on the undo stack;
+// undo pops the newest entry and restores the BEFORE position (the
+// entry moves to the redo stack); redo pops it back. ONLY positions
+// are undoable (the nudge is the only editor mutation). The cap: the
+// oldest entry falls off at kEditorUndoCap; a new nudge CLEARS the
+// redo branch. The stacks clear on a successful reload (the indices
+// go stale) and SURVIVE a save. Undo/redo NEVER touch files.
+// (UndoEntry lives above EditorState - the state holds the stacks.)
+inline constexpr std::size_t kEditorUndoCap = 32;
+
+// The key mapping (the Step 301; pure): Ctrl+Z = undo, Ctrl+Y = redo,
+// Ctrl+Shift+Z = redo (the documented alternative). Without the Ctrl
+// LEVEL: a safe no-op.
+inline void undoRedoKeys(bool zEdge, bool yEdge, bool ctrlDown, bool shiftDown,
+                         bool& outUndo, bool& outRedo) {
+    outUndo = zEdge && ctrlDown && !shiftDown;
+    outRedo = (yEdge && ctrlDown) || (zEdge && ctrlDown && shiftDown);
+}
+
+// The position baseline (the modified truth, the Step 301): captured
+// at every successful load and save; `modified` = the current
+// positions differ from it (honest after undo/redo, not just "a
+// nudge happened").
+inline std::vector<pe::Vec3> capturePositions(const pe::Scene& scene) {
+    std::vector<pe::Vec3> out;
+    out.reserve(scene.entities.size());
+    for (const pe::Entity& e : scene.entities) out.push_back(e.position);
+    return out;
+}
+inline bool positionsDiffer(const pe::Scene& scene, const std::vector<pe::Vec3>& baseline) {
+    if (baseline.size() != scene.entities.size()) return !scene.entities.empty();
+    for (std::size_t i = 0; i < baseline.size(); ++i) {
+        if (scene.entities[i].position.x != baseline[i].x
+            || scene.entities[i].position.y != baseline[i].y
+            || scene.entities[i].position.z != baseline[i].z) return true;
+    }
+    return false;
+}
+
+// Apply one undo: pop the newest entry, restore the BEFORE position,
+// push the entry to the redo stack. out: the affected index and the
+// from -> to positions (the diag). An empty stack or a stale index is
+// a safe no-op (false).
+inline bool applyUndo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
+                      std::vector<UndoEntry>& redoStack,
+                      int& outIndex, float& outFromX, float& outFromY,
+                      float& outToX, float& outToY) {
+    if (undoStack.empty()) return false;
+    const UndoEntry e = undoStack.back();
+    if (e.index < 0 || e.index >= static_cast<int>(scene.entities.size())) {
+        undoStack.pop_back();  // a stale entry: dropped, not applied
+        return false;
+    }
+    pe::Entity& ent = scene.entities[static_cast<std::size_t>(e.index)];
+    outFromX = ent.position.x;
+    outFromY = ent.position.y;
+    ent.position = e.before;
+    outToX = e.before.x;
+    outToY = e.before.y;
+    outIndex = e.index;
+    undoStack.pop_back();
+    redoStack.push_back(e);
+    return true;
+}
+// Apply one redo (the mirror): pop the newest redo entry, restore the
+// AFTER position, push it back to the undo stack.
+inline bool applyRedo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
+                      std::vector<UndoEntry>& redoStack,
+                      int& outIndex, float& outFromX, float& outFromY,
+                      float& outToX, float& outToY) {
+    if (redoStack.empty()) return false;
+    const UndoEntry e = redoStack.back();
+    if (e.index < 0 || e.index >= static_cast<int>(scene.entities.size())) {
+        redoStack.pop_back();
+        return false;
+    }
+    pe::Entity& ent = scene.entities[static_cast<std::size_t>(e.index)];
+    outFromX = ent.position.x;
+    outFromY = ent.position.y;
+    ent.position = e.after;
+    outToX = e.after.x;
+    outToY = e.after.y;
+    outIndex = e.index;
+    redoStack.pop_back();
+    undoStack.push_back(e);
+    return true;
+}
+
 // The per-frame editor update (the Step 295 extraction; editor-owned,
 // GLFW-free): the cursor is given in WINDOW coordinates and converted
 // to FRAMEBUFFER pixels by the ratio BEFORE any pan or pick. Pure: no
@@ -502,7 +612,12 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
         std::string err;
         const bool ok = reloadForEditor(state.path, state.current, state.selected, err);
         state.feedback = makeReloadFeedback(ok, state.path, state.current.entities.size(), err);
-        if (ok) state.modified = false;  // the successful reload clears the flag (a failed one keeps it)
+        if (ok) {
+            state.modified = false;  // the successful reload clears the flag (a failed one keeps it)
+            state.baseline = capturePositions(state.current);  // the new baseline (the Step 301)
+            state.undoStack.clear();  // the indices go stale after a structural change
+            state.redoStack.clear();
+        }
         state.status = makeStatusLine(state.path, state.current.entities.size(),
                                       std::string(), state.selected, state.current.entities);
     }
@@ -527,19 +642,49 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
     // No selection (or dead/stale) is a safe no-op; the applied nudge
     // sets `modified` (the inspector re-reads the scene next draw).
     if (in.keyUp || in.keyDown || in.keyLeft || in.keyRight) {
+        pe::Vec3 nudgeBefore(0.0f, 0.0f, 0.0f);
         if (selectionNudgeable(state.current, state.selected)) {
             const pe::Entity& sel = state.current.entities[static_cast<std::size_t>(state.selected)];
             state.lastNudgeBeforeX = sel.position.x;
             state.lastNudgeBeforeY = sel.position.y;
+            nudgeBefore = sel.position;
         }
         float ndx = 0.0f, ndy = 0.0f;
         if (nudgeSelected(state.current, state.selected, in.shiftDown,
                           in.keyUp, in.keyDown, in.keyLeft, in.keyRight, ndx, ndy)) {
-            state.modified = true;
+            state.modified = positionsDiffer(state.current, state.baseline);  // the honest rule (the Step 301)
+            state.redoStack.clear();  // a new nudge clears the redo branch
+            const pe::Entity& nudged = state.current.entities[static_cast<std::size_t>(state.selected)];
+            state.undoStack.push_back(UndoEntry{state.selected, nudgeBefore, nudged.position});
+            if (state.undoStack.size() > kEditorUndoCap) state.undoStack.erase(state.undoStack.begin());  // the cap: the oldest falls off
             ++state.nudgeCount;
             state.lastNudgeDx = ndx;
             state.lastNudgeDy = ndy;
             state.lastNudgeKey = in.keyUp ? "up" : in.keyDown ? "down" : in.keyLeft ? "left" : "right";
+        }
+    }
+    // The undo/redo (the Step 301): Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z)
+    // via undoRedoKeys. An empty stack is a safe no-op; the op targets
+    // the ENTRY's entity (not necessarily the selection). Undo/redo
+    // NEVER touch files. The honest modified recompute: the flag is
+    // true only while the positions differ from the baseline.
+    if (in.keyUndo || in.keyRedo) {
+        int idx = -1;
+        float fx = 0.0f, fy = 0.0f, tx = 0.0f, ty = 0.0f;
+        const bool undoOp = in.keyUndo;  // if BOTH edges (not possible live), the undo wins
+        const bool applied = undoOp
+            ? applyUndo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty)
+            : applyRedo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty);
+        if (applied) {
+            state.modified = positionsDiffer(state.current, state.baseline);
+            ++state.undoCount;
+            state.lastUndoWasUndo = undoOp;
+            state.lastUndoIndex = idx;
+            state.lastUndoFromX = fx;
+            state.lastUndoFromY = fy;
+            state.lastUndoToX = tx;
+            state.lastUndoToY = ty;
+            state.feedback = std::string(undoOp ? "undone entity " : "redone entity ") + std::to_string(idx);
         }
     }
     // The save-as (the Step 299): Ctrl+S -> the first free
@@ -563,6 +708,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
             if (in.savePathOverride.empty()) state.saveCounter = n + 1;  // the next free name (the break skips the scan advance; the hook path never moves it)
             state.feedback = makeSaveFeedback(true, target, state.current.entities.size(), "");
             state.modified = false;  // the successful save clears the modified flag (the Step 300; a failed save keeps it)
+            state.baseline = capturePositions(state.current);  // the saved positions are the new baseline (the Step 301; the stacks survive a save)
             ++state.saveCount;
             state.lastSavePath = target;
         } else {
