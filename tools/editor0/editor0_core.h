@@ -926,8 +926,24 @@ inline std::vector<std::string> inspectorLinesForSelection(const pe::Scene& scen
 }
 
 // --- Step 304: the panel scroll (editor-owned; pure) ---
-// (kEditorPanelLines is defined above the frame functions - the body needs it.)
 
+// --- Step 305: the always-on key legend (editor-owned; pure) ---
+// The compact bottom overlay: FIVE short lines (the documented form
+// of the 'one overlay line' brief - the 12x9 font fits ~22 chars per
+// line, so one long line would clip at the screen edge). Each line is
+// <= 22 chars; the tokens cover the live keys: the nudge (with the
+// Shift coarse step), the Tab cycle, the panel scroll, the R reload
+// (the guard), the Ctrl+S save-as, the Ctrl+Z/Y undo/redo and the ESC
+// quit. Always-on (no toggle key - the simplest honest form).
+inline std::vector<std::string> makeHelpLines() {
+    std::vector<std::string> lines;
+    lines.push_back("arrows nudge Shift=1.0");
+    lines.push_back("Tab cycle, PgDn panel");
+    lines.push_back("R reload, Ctrl+S save");
+    lines.push_back("Ctrl+Z/Y undo/redo");
+    lines.push_back("ESC quit");
+    return lines;
+}
 // Clamp a panel scroll offset to [0, total - visible] (a pure helper):
 // a non-positive total (no selection) clamps to 0; a total smaller
 // than the window clamps to 0 (nothing to scroll).

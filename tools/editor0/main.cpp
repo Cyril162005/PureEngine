@@ -2149,6 +2149,47 @@ static void checkPanelScroll() {
     }
 }
 
+// Step 305: the always-on key legend (pure). Expected values: the 5
+// documented lines, each <= 22 chars (the 12x9 font fit), every
+// required token present.
+static void checkHelpLegend() {
+    const std::vector<std::string> lines = editor0::makeHelpLines();
+    check(lines.size() == 5, "help: the legend is exactly 5 short lines");
+    const char* expected[5] = {
+        "arrows nudge Shift=1.0",
+        "Tab cycle, PgDn panel",
+        "R reload, Ctrl+S save",
+        "Ctrl+Z/Y undo/redo",
+        "ESC quit",
+    };
+    int exactFails = 0;
+    for (int i = 0; i < 5; ++i) {
+        if (lines[static_cast<std::size_t>(i)] != expected[i]) {
+            ++exactFails;
+            std::printf("FAIL: help line %d: [%s] != [%s]\n", i,
+                        lines[static_cast<std::size_t>(i)].c_str(), expected[i]);
+        }
+    }
+    check(exactFails == 0, "help: all 5 lines exact (the documented compact form)");
+    int tooLong = 0;
+    for (const std::string& l : lines) {
+        if (static_cast<int>(l.size()) > 22) ++tooLong;
+    }
+    check(tooLong == 0, "help: every line <= 22 chars (the 12x9 font fit)");
+    // the required-token coverage (the prompt's list).
+    std::string joined;
+    for (const std::string& l : lines) joined += l + "\n";
+    const char* tokens[9] = {"nudge", "Shift=1.0", "Tab", "PgDn", "R reload", "Ctrl+S", "Ctrl+Z", "undo", "ESC"};
+    int missing = 0;
+    for (int i = 0; i < 9; ++i) {
+        if (joined.find(tokens[i]) == std::string::npos) {
+            ++missing;
+            std::printf("FAIL: help token missing: [%s]\n", tokens[i]);
+        }
+    }
+    check(missing == 0, "help: every required token is present (nudge/Shift/Tab/PgDn/R/Ctrl+S/Ctrl+Z/undo/ESC)");
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -2197,6 +2238,14 @@ static void checkHiddenWindowFrame() {
             py -= 0.42f;
         }
         glfwSwapBuffers(window);
+        {   // the always-on key legend (the Step 305): the same GL text path.
+            const std::vector<std::string> help = editor0::makeHelpLines();
+            float hy = -2.4f;
+            for (const std::string& l : help) {
+                renderer.drawTextString(l, -5.8f, hy, camera.projection(), pe::TextAlign::Left);
+                hy -= 0.42f;
+            }
+        }
         const GLenum glErr2 = glGetError();
         check(glErr2 == GL_NO_ERROR, "panel: glGetError() == 0 after the panel draw");
     }
@@ -2314,6 +2363,17 @@ static int runViewer(const char* scenePath) {
         // highlights). Nothing selected (-1): all yellow.
         renderer.drawAABBs(proj, state.camera.view(), state.current.entities,
                            (state.selected >= 0) ? state.current.entities[static_cast<std::size_t>(state.selected)].roleId : -1);
+        // The always-on key legend (the Step 305): the compact bottom
+        // overlay in UI space (the unzoomed projection - immune to
+        // pan/zoom); each line <= 22 chars (the 12x9 font fit).
+        {
+            const std::vector<std::string> help = editor0::makeHelpLines();
+            float hy = -2.4f;
+            for (const std::string& l : help) {
+                renderer.drawTextString(l, -5.8f, hy, state.camera.projection(), pe::TextAlign::Left);
+                hy -= 0.42f;
+            }
+        }
         // The inspector panel (the Step 296 read-only inspector): the
         // lines in UI space with the UNZOOMED base projection - immune
         // to pan and zoom (the pan lives in the view matrix, the zoom
@@ -2491,6 +2551,7 @@ int main(int argc, char** argv) {
         checkUndoRedo();          // Step 301: the bounded undo/redo
         checkPathSwitch();        // Step 303: the path-switch-after-save
         checkPanelScroll();       // Step 304: the inspector panel scroll
+        checkHelpLegend();        // Step 305: the always-on key legend
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
