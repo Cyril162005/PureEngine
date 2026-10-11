@@ -3343,6 +3343,17 @@
    "depends_on": [
     299
    ]
+  },
+  {
+   "id": 301,
+   "name": "TOOLS: editor0 option C step 3 - bounded undo/redo (consumer, no engine change)",
+   "status": "completed",
+   "definition_of_done": "The bounded undo/redo (editor-owned only): every applied nudge pushes one entry (the entity index, the position before, the position after) on the undo stack; Ctrl+Z pops and restores the before position (the entry moves to the redo stack); Ctrl+Y or Ctrl+Shift+Z re-applies; the cap 32 (the oldest entry falls off); a new nudge clears the redo branch; an empty stack is a safe no-op; the stacks clear on a successful reload and survive a save; undo/redo NEVER touch files; the modified flag is honest (true only while the positions differ from the baseline captured at every successful load and save). The selftest: 280 PASS / 0 FAIL lines. Engine src/ read-only.",
+   "notes": "Editor-side only; no src/ or test changes. THE KEY AUDIT FIRST: Z and Y were unregistered (the consumer ctor-list rule, input.h:300-333) - added to the editor list (12 keys, selftest-checked); Ctrl+Shift+Z accepted as the documented redo alternative; the Ctrl LEVEL = the engine-proven static isDown. THE MODEL: only positions are undoable (the nudge is the only editor mutation); applyUndo/applyRedo are pure helpers; the executor sits between the nudge and the save blocks in stepEditorFrameInner; the baseline (capturePositions) attaches at the initial loads (main.cpp), at every successful reload and at every successful save (the stacks survive a save; the undo after a save honestly re-sets the flag when the state differs from the NEW baseline). --diag-input prints ONE line per applied undo/redo (the direction, the index, the position before -> after, the flag). THE MUTATION: applyUndo made to always no-op -> 13 undo-dependent checks FAILED NON-VACUOUS; restored by pathspec; git diff --stat -- src/ EMPTY. GATES against 6937fb9: cmake --build build --config Release exit 0; ctest -C Release 5/5 100% (12.99s; the PureEditor0 duration 1.10s - under the 40s guard); alive x3 (all three True); git diff --check exit 0 clean. SIZE: net +414, 2 files, 47856 + 118362 bytes - within the 450 cap. Two defects found by the run and fixed in-step BEFORE the commit (a test-setup bug: the 301 (g) missing the second R edge; a C2065 UndoEntry definition-order error fixed by moving the struct above EditorState - FINDINGS Entry 34). The human feedback (the 300 visual paste) arrived as the UNFILLED template options = not run; the 299 + 300 visual confirmations stay PENDING; the 301 visual (nudge, Ctrl+Z, Ctrl+Y, the inspector matches; Ctrl+S still a new file only) PENDING. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "TOOLS-301",
+   "depends_on": [
+    300
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

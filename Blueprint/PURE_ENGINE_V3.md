@@ -2518,6 +2518,54 @@ The human feedback (the 299 Ctrl+S paste) arrived UNFILLED (the
 template placeholder) = not run; the 299 save-as and the 300 nudge
 visual confirmations stay PENDING. FINDINGS: entries 29-31.
 
+### Phase Tools consumer: editor0 option C (Step 301) - step 3 of at most 4, COMPLETE
+
+Consumer step; engine src/ untouched (git diff --stat -- src/ EMPTY).
+THE KEY AUDIT FIRST: Z and Y were NOT registered in the editor's
+tracked list (input.h:300-333; the consumer ctor-list rule) - they
+joined (kEditorKeys = 12 keys, introspection-checked); the Ctrl LEVEL
+is the engine-proven static isDown. FINAL KEYS: Ctrl+Z = undo,
+Ctrl+Y = redo, Ctrl+Shift+Z = redo (the documented alternative);
+plain Z/Y without Ctrl = a safe no-op. THE MODEL (documented): only
+POSITIONS are undoable (the nudge is the only editor mutation); each
+applied nudge pushes ONE UndoEntry {index, before, after} on the undo
+stack (the cap 32 - the oldest falls off; a new nudge CLEARS the redo
+branch); undo pops the newest entry and restores the before position
+(the entry moves to the redo stack); redo mirrors. The stacks clear
+on a successful reload (stale indices) and SURVIVE a save. Undo/redo
+NEVER touch files (byte-compare proven). THE HONEST MODIFIED FLAG: a
+position baseline (capturePositions) is captured at the initial
+loads, at every successful reload and at every successful save;
+`modified` = the current positions differ from it - so the undo back
+to the baseline CLEARS the flag and the redo re-sets it, and an undo
+after a save honestly re-sets it when the state differs from the NEW
+baseline (the save re-baselines; the stacks survive). THE ATTACH
+POINTS (all editor-owned, no engine change): the stack push in the
+nudge block, the applyUndo/applyRedo executor between the nudge and
+the save blocks in stepEditorFrameInner, the baseline captures in the
+reload/save paths and in main.cpp's two initial loads.
+--diag-input prints ONE line per applied undo/redo (the direction,
+the index, the position before -> after, the flag).
+--selftest: 280 PASS / 0 FAIL lines (39 new checks: the exact
+restores, the redo chains, the cap boundary (33 nudges -> 32 undos ->
+the first nudge lost), the redo cleared on a new nudge, the
+wrong-entity negative control, the source bytes identical through
+nudge/undo/redo, the modified honesty both directions, the
+reload-clears-both-stacks, the pure key mapping + negative controls,
+the Z/Y registration). MUTATION: applyUndo always no-op -> 13
+undo-dependent checks FAILED NON-VACUOUS; restored by pathspec.
+GATES against 6937fb9: cmake --build build --config Release exit 0;
+ctest -C Release 5/5 100% (12.99s; the PureEditor0 duration 1.10s -
+under the 40s guard); alive x3 (all three True); git diff --check
+exit 0 clean. SIZE: net +414, 2 files - within the 450 cap. Two
+defects found by the run and fixed in-step BEFORE the commit: a
+test-setup bug (the 301 (g) missing the second R edge) and a C2065
+UndoEntry definition-order error (the struct moved above EditorState;
+FINDINGS Entry 34). The human feedback (the 300 visual paste) arrived
+UNFILLED = not run; the 299 + 300 visual confirmations stay PENDING;
+the 301 visual (nudge, Ctrl+Z, Ctrl+Y, the inspector matches; Ctrl+S
+still a new file only) PENDING. FINDINGS: entries 32-34.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

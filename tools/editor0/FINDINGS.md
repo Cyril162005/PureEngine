@@ -683,3 +683,43 @@ save-as (option C), the gizmos.
   engine defect; the engine's polling contract is unchanged).
 - **status:** recorded; the live proof is Cyril's --diag-input run
   (the final-report commands).
+
+## Entry 32
+- **what:** the Step 301 human feedback, VERBATIM: `Step 300 ~d7d3302.
+  Visual check: <PASS / notes / not run>.` - the template options
+  pasted UNFILLED, i.e. the "not run" branch: the Step 300 nudge
+  visual confirmation was NOT provided.
+- **evidence:** the prompt text (the placeholder unmodified); no PASS,
+  no notes.
+- **class:** existing capability (nothing to fix; the 300 code and its
+  checks are unchanged and green this step).
+- **status:** recorded; the 299 save-as AND the 300 nudge visual
+  confirmations stay PENDING (the final-report commands cover both).
+
+## Entry 33
+- **what:** the Z and Y keys were NOT registered in the editor's
+  edge-tracked list (the consumer's ctor list is the registration -
+  the same shape as Entries 30/297): pe::Input::isEdge returns false
+  for untracked keys, so Ctrl+Z / Ctrl+Y had no edges until the
+  editor added them.
+- **evidence:** src/input.h:300-333 (the ctor + the untracked-false
+  rule); the editor list grew to 12 keys (ESC/+/-/R/Tab/S + the four
+  arrows + Z + Y, selftest-checked); the Ctrl LEVEL is the
+  engine-proven static isDown.
+- **class:** existing capability (the registration pattern works as
+  documented; a small editor-owned change).
+- **status:** recorded, fixed editor-side (Z and Y registered).
+
+## Entry 34
+- **what:** the definition-order rule: EditorState holds
+  std::vector<UndoEntry>, so UndoEntry must be defined BEFORE the
+  state struct - the first layout had it after and the build FAILED
+  (C2065 'UndoEntry': undeclared identifier + vector template
+  cascades).
+- **evidence:** the first Step 301 build exit 1 (the C2065 at
+  editor0_core.h(403) + the C2923/C2976/C2662 cascades); the fix
+  moved the struct above EditorState, the rebuild exit 0. The same
+  class as Entry 3 (the editor author owns ordering/qualification).
+- **class:** existing capability (a compile-time rule; no engine
+  issue).
+- **status:** recorded, fixed editor-side.
