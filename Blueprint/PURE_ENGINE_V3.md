@@ -2705,6 +2705,27 @@ found and fixed in-step BEFORE the commit. FINDINGS: entries 38-39.
 The human note (verbatim): 'Human visuals 299-303 still PENDING -
 do not block these steps.'
 
+### PHASE TOOLS STOP NOTE (Step 305, 2026-10-11): the 296-class lock returned - STOP at the 305 gates
+
+TOOLS-305 (43eef8d) is COMMITTED: the always-on key legend (5 compact
+bottom lines, every live key token, GL-proven; net +77; the selftest
+349 PASS / 0 FAIL). The mutation (a legend line dropped) FAILED 3
+checks NON-VACUOUS and was restored by pathspec. THE RESTORE +
+REBUILD then hit LNK1104 (cannot open PureEditor0.exe) and the lock
+PERSISTED: read OK, write BLOCKED, delete BLOCKED, no stray process -
+the 296-class exclusive external holder (FINDINGS Entry 40). ~7
+minutes of waits did not clear it (the 304 lock had cleared in ~70 s).
+THE GATES FOR 305 ARE BLOCKED; NO DOCS-305 record; Step 306 NOT
+started (the next-steps rule: only if green AND pushed - the gates
+are not green). THE RECOVERY (the human): clear the lock (resmon ->
+CPU -> Associated Handles -> search 'PureEditor0', or delete
+build/Release/PureEditor0.exe and rebuild), then: the build, the
+selftest (349 PASS / 0 FAIL must hold), ctest 5/5, alive x3, the diff
+checks, then the DOCS-305 record (the tracker/V3/board/README) - the
+same shape as the 296 recovery. The legend LINES (for the record):
+'arrows nudge Shift=1.0' / 'Tab cycle, PgDn panel' / 'R reload,
+Ctrl+S save' / 'Ctrl+Z/Y undo/redo' / 'ESC quit'.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

@@ -838,3 +838,29 @@ the key injection - docs-first version opens only).
 - **class:** existing capability (the keys are the documented
   substitute for the missing wheel; editor-owned, no engine change).
 - **status:** recorded, implemented editor-side.
+
+## Entry 40
+- **what:** the Step 305 STOP: after the TOOLS-305 implementation
+  commit (43eef8d) and the NON-VACUOUS mutation (a legend line dropped
+  -> 3 checks FAILED), the RESTORE + REBUILD hit LNK1104 (cannot open
+  PureEditor0.exe) and the lock PERSISTED: read OK, write BLOCKED,
+  delete BLOCKED, no stray PureEditor0 process - the 296-class
+  exclusive external holder (an AV scan or a stuck sync/index/copy
+  tool), invisible to the non-elevated shell. ~7 minutes of waits
+  (10/60/120/180 s) did not clear it; the 304 lock had cleared in
+  ~70 s. The formal gates for 305 are BLOCKED (the rebuild fails; the
+  exe cannot start under ctest).
+- **evidence:** the build output (LINK : fatal error LNK1104, twice);
+  the probes (READ_OK / WRITE_BLOCKED / DELETE_BLOCKED / no stray
+  process); the 296 precedent (the human cleared it by deleting and
+  rebuilding; resmon -> CPU -> Associated Handles -> search
+  'PureEditor0' identifies the holder).
+- **class:** existing capability (the environment lock, not a code or
+  engine issue; the committed 43eef8d tree is clean and its selftest
+  was 349 PASS / 0 FAIL before the mutation).
+- **status:** STOP recorded per the protocol; the RECOVERY (the
+  human): clear the lock (resmon/Associated Handles, or delete
+  build/Release/PureEditor0.exe and rebuild), then: the build, the
+  selftest (349 PASS / 0 FAIL must hold), ctest 5/5, alive x3, the
+  diff checks, then the DOCS-305 record (the tracker/V3/board/README)
+  - the same shape as the 296 recovery.
