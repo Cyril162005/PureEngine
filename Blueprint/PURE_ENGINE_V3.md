@@ -2627,6 +2627,49 @@ later step):**
   OPEN - the next lane is the human's choice (the slice close is NOT
   a phase close)
 
+### Phase Tools follow-on (Step 303): editor0 path-switch-after-save - AUTHORIZED, COMPLETE
+
+Consumer step; engine src/ untouched (git diff --stat -- src/ EMPTY).
+THE HUMAN AUTHORIZATION (verbatim): 'option C closed at 302
+~a828992. Path-switch authorized. Visuals for 299-301 still PENDING
+(do not block this step).' THE 302 DEFERRED ITEM RESOLVED (FINDINGS
+Entries 36-37). THE INSPECT: the save block's success branch set
+state.lastSavePath but never state.path - the switch attaches exactly
+there. THE DESIGN (documented + tested): on a SUCCESSFUL save-as the
+loaded/source path becomes the NEW saved file; a FAILED save changes
+NOTHING (the path, the baseline, the stacks - the flag held TRUE
+going in as the stronger negative control). THE FLAT NAMING RULE
+(chosen over nesting): makeSaveAsPath strips a trailing
+_edit<digits> suffix before appending the new _edit<N> - sample_
+scene.txt -> _edit1 -> _edit2 (bounded names; a strip that would
+empty the base or a non-digit tail is skipped; the 299 double-save
+test's exact strings stay green). THE WRITE-SAFETY PRESERVED: the
+CURRENT loaded path is refused by the source rule (it follows the
+switch); the ORIGINAL file stays protected by the existing-file rule
+- no existing file is ever overwritten. THE UNDO/REDO STACKS ARE
+KEPT on the switch (the scene objects are unchanged, the indices stay
+valid; the undo after the save honestly re-sets the flag vs the NEW
+baseline; a reload still clears them). --selftest: 315 PASS / 0 FAIL
+(35 new checks: the success updates the path + baseline + status +
+counter; the failed-save negative controls; the source refusal now
+protecting the CURRENT path; the ORIGINAL bytes unchanged; the second
+save under the flat rule; the undo/redo across the switch; 6 pure
+naming cases). MUTATION: the path updated even on a failed save ->
+6 checks FAILED NON-VACUOUS; restored by pathspec. GATES against
+4e9644e: cmake --build build --config Release exit 0; ctest -C
+Release 5/5 100% (11.10s; the PureEditor0 duration 0.46s - under the
+40s guard); alive x3 (all three True); git diff --check exit 0 clean.
+SIZE: net +204, 2 files - within the 450 cap. Two test adjustments
+were REQUIRED by the new semantics (the 300 (c) source-byte check now
+reads the LITERAL source path; the cleanups) and the idempotency
+pre-removals (a leftover savedata file auto-advanced the scan - caught
+by running the selftest twice, fixed before the commit). The
+verification commands for Cyril (updated for the switch):
+open the sample -> nudge -> Ctrl+S (the status shows the saved
+savedata/<base>_edit1.txt path AND the status line now reports that
+path as the loaded file) -> nudge again -> Ctrl+S (a SECOND new file
+_edit2) -> the ORIGINAL sample hash unchanged.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

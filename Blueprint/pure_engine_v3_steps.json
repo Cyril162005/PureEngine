@@ -3365,6 +3365,17 @@
    "depends_on": [
     301
    ]
+  },
+  {
+   "id": 303,
+   "name": "TOOLS: editor0 path-switch-after-save (authorized; consumer, no engine change)",
+   "status": "completed",
+   "definition_of_done": "On a SUCCESSFUL save-as ONLY: the editor's loaded/source path becomes the NEW saved file (a failed save changes NOTHING - the path, the baseline, the stacks); the status still reports 'saved ...'; the baseline = that save (the flag clears); the next Ctrl+S derives from the NEW base under the FLAT naming rule (a trailing _edit<digits> suffix is stripped before the new _edit<N> is appended: sample_scene.txt -> _edit1 -> _edit2, no nesting; a strip that would empty the base or a non-digit tail is skipped); the refuse-overwrite of the CURRENT loaded path still holds (the ORIGINAL file stays protected by the existing-file rule); the undo/redo stacks are KEPT on the switch (the reload still clears them) - documented and tested. The selftest: 315 PASS / 0 FAIL. Engine src/ read-only.",
+   "notes": "Editor-side only; no src/ or test changes. THE HUMAN AUTHORIZATION (verbatim): 'option C closed at 302 ~a828992. Path-switch authorized. Visuals for 299-301 still PENDING (do not block this step).' - the 302 deferred item resolved (FINDINGS Entries 36-37). THE INSPECT (step 1): the save block's success branch set state.lastSavePath but never state.path - the switch attaches exactly there (one line); the baseline capture already existed. THE DESIGN: the FLAT naming rule (bounded names; it also keeps the 299 double-save test's exact strings green: saveas_live_edit1 -> edit2); the stacks KEPT (the scene objects are unchanged, the indices stay valid; the undo after the save honestly re-sets the flag vs the NEW baseline; the reload still clears the stacks); the write-safety preserved (the CURRENT path = the source refusal; the ORIGINAL = the existing-file refusal - no existing file is ever overwritten). THE TESTS: 35 new checks (the success updates the path + the baseline + the status + the counter; the failed-save negative controls with the flag held TRUE going in; the source refusal now protecting the CURRENT path; the ORIGINAL bytes unchanged; the second save under the flat rule; the undo/redo across the switch; the 6 pure naming cases). THE MUTATION: the path updated even on a failed save (if (true) on the success branch) -> 6 checks FAILED NON-VACUOUS; restored by pathspec; git diff --stat -- src/ EMPTY. GATES against 4e9644e: cmake --build build --config Release exit 0; ctest -C Release 5/5 100% (11.10s; the PureEditor0 duration 0.46s - under the 40s guard); alive x3 (all three True); git diff --check exit 0 clean. SIZE: net +204, 2 files, 48969 + 129341 bytes - within the 450 cap. Two test adjustments were REQUIRED by the new semantics (the 300 (c) source-byte check reads the LITERAL source path; the cleanups) + the idempotency pre-removals (the leftover savedata files from a prior run auto-advanced the scan - caught by running the selftest twice, fixed before the commit). GATES COMMANDS: cmake --build build --config Release (exit 0); ctest -C Release (5/5). hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "TOOLS-303",
+   "depends_on": [
+    302
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

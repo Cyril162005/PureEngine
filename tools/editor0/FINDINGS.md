@@ -768,3 +768,41 @@ panel scroll + the visibility toggle (the 297 extras), the
 2000-entity stress, a second mutation per step, the engine-side
 missing capabilities (the camera zoom API, the wheel/scroll input,
 the key injection - docs-first version opens only).
+
+## Entry 36
+- **what:** the Step 303 human feedback, VERBATIM: `option C closed
+  at 302 ~a828992. Path-switch authorized. Visuals for 299-301 still
+  PENDING (do not block this step).` - FILLED this time: the
+  EXPLICIT AUTHORIZATION for the path-switch-after-save (the 302
+  deferred item) and the confirmation that the three visuals stay
+  pending without blocking.
+- **evidence:** the prompt text (quoted); the 302 deferred list
+  (FINDINGS/the V3 closed-slice section) named path-switch-after-save
+  as out.
+- **class:** existing capability (the record + the authorization; the
+  change is editor-owned, no engine surface).
+- **status:** recorded; the authorization implemented this step (the
+  success-branch switch + the flat naming rule); the 299/300/301
+  visuals stay PENDING.
+
+## Entry 37
+- **what:** the deferred item path-switch-after-save RESOLVED: after
+  a SUCCESSFUL Ctrl+S the editor's loaded/source path now becomes the
+  saved file; a FAILED save changes NOTHING (the path, the baseline,
+  the stacks - the negative controls). The naming needed a decision:
+  the NESTED rule (sample_scene_edit1_edit1.txt, unbounded growth)
+  vs the FLAT rule - the FLAT rule chosen and documented (a trailing
+  _edit<digits> suffix is stripped before the new _edit<N> is
+  appended; a strip that would empty the base or a non-digit tail is
+  skipped).
+- **evidence:** editor0_core.h (the success-branch switch; the flat
+  strip in makeSaveAsPath); the selftest 315 PASS / 0 FAIL (the path
+  + baseline + status updates, the failed-save negative controls,
+  the flat-rule unit cases, the stacks kept across the switch, the
+  ORIGINAL bytes unchanged); the mutation (the path updated even on a
+  failed save) FAILED 6 checks NON-VACUOUS.
+- **class:** existing capability (editor-owned; the write-safety
+  preserved: the CURRENT path refused by the source rule, the
+  ORIGINAL file by the existing-file rule - no existing file is ever
+  overwritten).
+- **status:** recorded, implemented editor-side.
