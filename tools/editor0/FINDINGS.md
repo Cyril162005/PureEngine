@@ -882,3 +882,29 @@ the key injection - docs-first version opens only).
 - **status:** recorded; the 305 gates are GREEN (the human-proven +
   the reproduced); the legend visual (the 5 bottom lines on screen)
   stays PENDING.
+
+## Step 306 classification - the Editor-0 tools mini-slice (304-305), CLOSED
+
+Format: id | class | evidence. The standing human note (the 304
+session, verbatim): 'Human visuals 299-303 still PENDING - do not
+block these steps.' The 305 recovery evidence (verbatim, Entry 41):
+the rebuild succeeded; the selftest all checks passed; ctest 5/5 100%
+(PureEditor0 0.35s).
+
+| id | class |
+|---|---|
+| 38 the standing human note (the visuals pending, not blocking) | **existing capability** (the record) |
+| 39 the panel scroll (the PgUp/PgDn substitute for the missing wheel) | **existing capability** (editor-owned; the wheel stays a missing capability, FINDINGS 8/31) |
+| 40 the 296-class lock (the 305 STOP) | **existing capability** (the environment; recovered - the human cleared it) |
+| 41 the recovery (the human evidence + the reproduced gates) | **existing capability** (the confirmation; no code change) |
+
+TALLY: 4 entries (38-41) = 4 existing capability, 0 missing
+capability, 0 engine defect. The slice verification: the selftest 349
+PASS / 0 FAIL (29 scroll checks + 15 legend checks) + two NON-VACUOUS
+mutations (304: the scroll never moves - 5 FAILs; 305: a legend line
+dropped - 3 FAILs). DEFERRED (named, NOT implemented, each needs a
+human-authorized later step): saving over the source, multi-field
+editing (positions only), gizmos / drag-to-move, the panel
+scroll-by-wheel (needs the engine wheel input - docs-first), the
+engine camera zoom API, the 2000-entity stress, MCP / object pools /
+ImGui / ECS / glTF / networking (the freezes stand).

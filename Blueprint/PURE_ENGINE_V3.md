@@ -2735,6 +2735,51 @@ reproduced the selftest + alive x3 + the diff checks - all green. The
 tracker 305 flipped stopped -> completed; the DOCS-305 commit marks
 it. The legend visual stays PENDING.
 
+### Editor-0 tools mini-slice (304-305) CLOSED - what works / what is out / honest limits
+
+**What works (all editor-owned; engine src/ untouched; the
+verification = the selftest 349 PASS / 0 FAIL + two NON-VACUOUS
+mutations; the 305 gates human-proven and reproduced):**
+- inspector scroll: PgUp/PgDn (registered, 1 line per press) move a
+  clamped visible window of the 36 inspector lines
+  (clampedPanelScroll: [0, total-visible]; the window is exactly the
+  12-line panel geometry so pointInPanelRect holds); at scroll 0 the
+  last line is the SAME '+N more' hint the capped list shows (the 296
+  compatibility); a pick (incl. the empty-space clear), a nav press
+  and a successful reload reset the offset; an empty selection is a
+  safe no-op; the wheel is NOT available (the recorded missing
+  capability) - the keys are the documented substitute
+- key legend: the always-on compact bottom overlay - FIVE lines (each
+  <= 22 chars, the 12x9 font fit; the documented adaptation of the
+  'one line' brief): 'arrows nudge Shift=1.0' / 'Tab cycle, PgDn
+  panel' / 'R reload, Ctrl+S save' / 'Ctrl+Z/Y undo/redo' / 'ESC
+  quit' - every required token, GL-proven in the hidden-window frame
+- the 305 lock incident handled by the protocol: the STOP recorded
+  (the tracker stopped + the V3 STOP note + FINDINGS 40), then the
+  RECOVERY (the human cleared the lock + verified; the agent
+  reproduced the gates) and the flip to completed (FINDINGS 41)
+
+**What is out (named, NOT implemented; each needs a human-authorized
+later step):**
+- saving OVER the source or an existing file (the write-safety rule
+  stands; the path-switch-after-save landed at 303)
+- multi-field editing (positions only), gizmos / drag-to-move
+- the scroll-by-wheel (needs the engine wheel input), the camera zoom
+  API - the missing capabilities, docs-first version opens only
+- MCP / object pools / ImGui / ECS / glTF / networking - the freezes
+  stand
+
+**Honest limits:**
+- the live key mappings are witnessed by --diag-input and the human
+  runs; the PHYSICAL keystrokes are not programmatically injectable
+  (GLFW)
+- the 2000-entity stress and a second mutation per step remain
+  deferred (the 297 extras)
+- the human visuals for 299-305 ALL stay PENDING (the standing
+  'do not block' note); the recorded verification is the selftest +
+  the mutations + the human's 305 ctest run
+- the Tools phase stays OPEN - the next lane is the human's choice
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

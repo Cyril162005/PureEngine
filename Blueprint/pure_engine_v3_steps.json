@@ -3398,6 +3398,17 @@
    "depends_on": [
     304
    ]
+  },
+  {
+   "id": 306,
+   "name": "TOOLS: classify the editor tools mini-slice 304-305 (docs only, no code)",
+   "status": "completed",
+   "definition_of_done": "The tools mini-slice (304-305) classified and CLOSED like Steps 298/302: the FINDINGS inventory (38-41) with one class per entry, the V3 mini-slice closed section (what works / what is out / honest limits), the DEFERRED named list, the board + README. NO editor features, NO engine changes, NO Step 307. Gates sanity: build, ctest 5/5, alive x3, src/ EMPTY.",
+   "notes": "Docs only; no src/, no tests, no editor features. THE CLASSIFICATION (FINDINGS 38-41): 4 entries = 4 existing capability, 0 missing capability, 0 engine defect; the lock incident (40) recovered by the human (41, the verbatim evidence: the rebuild, the selftest all checks passed, ctest 5/5 100% PureEditor0 0.35s). WHAT WORKS: the inspector scroll (PgUp/PgDn, the clamped 12-line window, the 296-identical '+N more' hint at scroll 0, the resets on pick/nav/reload, the empty selection a safe no-op) and the always-on key legend (5 compact lines <= 22 chars, every required token, GL-proven). WHAT IS OUT (named, each needs a human-authorized later step): saving over the source, multi-field editing, gizmos/drag-to-move, the scroll-by-wheel (needs the engine wheel input), the camera zoom API, MCP / object pools / ImGui / ECS / glTF / networking (the freezes stand). HONEST LIMITS: the live key mappings witnessed by --diag-input and the human runs; the visuals 299-305 stay PENDING (the standing 'do not block' note). The verification: the selftest 349 PASS / 0 FAIL + two NON-VACUOUS mutations (304: 5 FAILs; 305: 3 FAILs). GATES SANITY: cmake --build build --config Release exit 0; ctest -C Release 5/5 100%; alive x3 (all three True); git diff --stat -- src/ EMPTY. Tools stays OPEN - the next lane is the human's choice. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "DOCS-306",
+   "depends_on": [
+    305
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
