@@ -126,7 +126,8 @@ static const char* kMissing    = "editor0_tmp/no_such_scene_zz.txt";
 static const int kEditorKeys[] = {GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R,
                                   GLFW_KEY_TAB, GLFW_KEY_S, GLFW_KEY_Z, GLFW_KEY_Y,
                                   GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT,
-                                  GLFW_KEY_PAGE_UP, GLFW_KEY_PAGE_DOWN, GLFW_KEY_DELETE};
+                                  GLFW_KEY_PAGE_UP, GLFW_KEY_PAGE_DOWN, GLFW_KEY_DELETE,
+                                  GLFW_KEY_N, GLFW_KEY_RIGHT_BRACKET, GLFW_KEY_LEFT_BRACKET};
 static const std::size_t kEditorKeyCount = sizeof(kEditorKeys) / sizeof(kEditorKeys[0]);
 
 static void readTextFile(const char* name, std::string& out) {
@@ -1425,7 +1426,7 @@ static void checkNudgeAndModified() {
             if (kEditorKeys[i] == GLFW_KEY_RIGHT) right = true;
         }
         check(up && down && left && right, "keys: the editor's tracked list registers all four arrows");
-        check(kEditorKeyCount == 15, "keys: the editor's tracked list is the documented 15 keys (the Step 309 adds Delete)");
+        check(kEditorKeyCount == 18, "keys: the editor's tracked list is the documented 18 keys (the Step 310 adds N, ], [)");
     }
 }
 
@@ -2401,6 +2402,302 @@ static void checkEntityDelete() {
     }
 }
 
+// Step 310: the entity create (pure; the values from enemy.txt + the camera).
+static void checkEntityCreate() {
+    // a) the listing.
+    {
+        const std::vector<std::string> list = editor0::listPrefabFiles();
+        check(!list.empty(), "create: the prefab list is non-empty (assets/prefabs resolves from the ctest CWD)");
+        bool hasEnemy = false;
+        bool sorted = true;
+        for (std::size_t i = 0; i < list.size(); ++i) {
+            if (list[i] == "enemy.txt") hasEnemy = true;
+            if (i > 0 && list[i - 1] > list[i]) sorted = false;
+        }
+        check(hasEnemy && sorted, "create: the list contains enemy.txt and is sorted");
+    }
+    // b) the create: index old-count, the file fields, the view center.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.camera.follow(pe::Vec3(2.0f, 1.0f, 0.0f));   // a NON-zero view center
+        state.path = "editor0_tmp/create_src.txt";
+        std::string err;
+        check(pe::saveSceneToFile(state.current, state.path), "create: the source written (the test setup)");
+        state.baseline = editor0::capturePositions(state.current);
+        state.baselineAlive = editor0::captureAliveFlags(state.current);
+        const pe::Scene before = state.current;
+        state.prefabFiles.push_back("enemy.txt");
+        state.prefabIndex = 0;
+        editor0::EditorInput in;
+        in.keyCreate = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyCreate = false;
+        check(state.current.entities.size() == 4, "create: the count grew by exactly one");
+        check(state.lastCreateIndex == 3 && state.selected == 3, "create: the new entity at index 3 IS the selection");
+        const pe::Entity& e = state.current.entities[3];
+        pe::Prefab p;
+        check(pe::loadPrefab("enemy.txt", p), "create: the prefab loads (the expected-values source)");
+        const bool fieldsOk = e.scale.x == p.scale.x && e.halfExtents.x == p.halfExtents.x
+            && e.tint.x == p.tint.x && e.textureId == p.textureId && e.depth == p.depth
+            && e.roleId == p.roleId && floatEq(e.moveSpeed, p.moveSpeed)
+            && floatEq(e.gravityScale, p.gravityScale) && e.isStatic == p.isStatic
+            && floatEq(e.health, p.health) && floatEq(e.coyoteTime, p.coyoteTime)
+            && floatEq(e.jumpImpulse, p.jumpImpulse) && floatEq(e.maxFallSpeed, p.maxFallSpeed)
+            && e.cols == p.cols && e.rows == p.rows && e.tag == p.tag
+            && e.currentClipName == p.currentClipName;
+        check(fieldsOk, "create: every prefab-config field equals the file (enemy.txt)");
+        check(floatEq(e.position.x, 2.0f) && floatEq(e.position.y, 1.0f) && e.position.z == 0.0f,
+              "create: the position = the view center (the camera (2,1); zoom-independent)");
+        check(e.alive, "create: the entity is alive");
+        check(state.modified, "create: the modified flag is set");
+        check(editor0::aliveCount(state.current) == 4, "create: the visible count is 4");
+        check(state.feedback == "created enemy.txt at index 3", "create: the feedback names the prefab and the index");
+        check(state.status.find("prefab 1/1: enemy.txt") != std::string::npos,
+              "create: the status line shows the prefab name and index");
+        std::remove(state.path.c_str());
+    }
+    // c) two creates: two independent entities.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.prefabFiles.push_back("enemy.txt");
+        editor0::EditorInput in;
+        in.keyCreate = true;
+        editor0::stepEditorFrame(state, in);
+        editor0::stepEditorFrame(state, in);
+        in.keyCreate = false;
+        check(state.current.entities.size() == 5, "create: two creates -> 5 entities");
+        state.current.entities[3].position.x += 5.0f;   // modify the first
+        check(floatEq(state.current.entities[4].position.x, 0.0f),
+              "create: negative control - the second entity is independent (not the same object)");
+    }
+    // d) the undo kills, the redo revives; the honesty both ways.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.baseline = editor0::capturePositions(state.current);
+        state.baselineAlive = editor0::captureAliveFlags(state.current);
+        state.prefabFiles.push_back("enemy.txt");
+        editor0::EditorInput in;
+        in.keyCreate = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyCreate = false;
+        const pe::Entity created = state.current.entities[3];   // the snapshot
+        check(state.modified, "create/undo: the created state is modified");
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyUndo = false;
+        check(state.current.entities[3].alive == false, "create/undo: the entity is KILLED (the alive flag, never erasure)");
+        check(state.current.entities.size() == 4, "create/undo: the vector kept the index (the erasure never happened)");
+        check(editor0::aliveCount(state.current) == 3, "create/undo: the visible count back to 3");
+        check(!state.modified, "create/undo: back to the clean state -> NOT modified (honest)");
+        check(state.selected == -1, "create/undo: the selection cleared (it named a dead entity)");
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRedo = false;
+        check(state.current.entities[3].alive == true, "create/redo: the entity is REVIVED at the same index");
+        std::string diff;
+        check(entityFieldMatches(created, state.current.entities[3], diff),
+              "create/redo: the revived entity has the SAME fields (a wrong-index revive fails)");
+        check(state.modified, "create/redo: the revived state is modified again");
+        check(state.selected == 3, "create/redo: the selection returns to the revived entity");
+    }
+    // e) the mixed stack: create, nudge, delete, undo x3, redo x3.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.prefabFiles.push_back("enemy.txt");
+        editor0::EditorInput in;
+        in.keyCreate = true;
+        editor0::stepEditorFrame(state, in);       // create -> index 3, selected
+        const float createdX = state.current.entities[3].position.x;
+        in.keyCreate = false;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);       // nudge the CREATED entity right
+        in.keyRight = false;
+        in.keyDelete = true;
+        editor0::stepEditorFrame(state, in);       // delete it (the selection = 3)
+        in.keyDelete = false;
+        check(editor0::aliveCount(state.current) == 3, "delete/mixed: the created entity deleted");
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);       // undo the delete
+        check(state.current.entities[3].alive == true, "delete/mixed: the 1st undo revives the created entity");
+        editor0::stepEditorFrame(state, in);       // undo the nudge
+        check(floatEq(state.current.entities[3].position.x, createdX),
+              "delete/mixed: the 2nd undo removes the nudge (back to the created position)");
+        editor0::stepEditorFrame(state, in);       // undo the create
+        in.keyUndo = false;
+        check(state.current.entities[3].alive == false, "delete/mixed: the 3rd undo kills the created entity");
+        check(editor0::aliveCount(state.current) == 3, "delete/mixed: the visible count 3");
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);       // redo the create
+        check(state.current.entities[3].alive == true, "delete/mixed: the 1st redo revives");
+        editor0::stepEditorFrame(state, in);       // redo the nudge
+        editor0::stepEditorFrame(state, in);       // redo the delete
+        in.keyRedo = false;
+        check(state.current.entities[3].alive == false, "delete/mixed: the final redo re-deletes");
+        check(editor0::aliveCount(state.current) == 3, "delete/mixed: the end scene (3 visible)");
+    }
+    // f) save-as then load: the round-trip; an undone create omitted.
+    {
+        std::remove("savedata/create_rt_edit1.txt");
+        std::remove("savedata/create_rt_edit2.txt");
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.camera.follow(pe::Vec3(1.5f, -2.0f, 0.0f));
+        state.path = "editor0_tmp/create_rt.txt";
+        std::string err;
+        check(pe::saveSceneToFile(state.current, state.path), "create/rt: the source written (the test setup)");
+        state.baseline = editor0::capturePositions(state.current);
+        state.baselineAlive = editor0::captureAliveFlags(state.current);
+        state.prefabFiles.push_back("enemy.txt");
+        editor0::EditorInput in;
+        in.keyCreate = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyCreate = false;
+        const pe::Entity created = state.current.entities[3];
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);
+        in.keySave = false;
+        pe::Scene loaded;
+        check(editor0::loadSceneForEditor(state.path, loaded, err), "create/rt: the saved file loads");
+        check(loaded.entities.size() == 4, "create/rt: the saved file contains the created-and-alive entity");
+        check(floatEqT(loaded.entities[3].position.x, created.position.x, 1e-4f)
+              && floatEqT(loaded.entities[3].position.y, created.position.y, 1e-4f),
+              "create/rt: the created position round-trips (tol 1e-4)");
+        std::string diff;
+        check(entityFieldMatches(created, loaded.entities[3], diff),
+              "create/rt: the created entity's other fields are exact");
+        // an undone create is omitted:
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyUndo = false;
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);
+        in.keySave = false;
+        pe::Scene loaded2;
+        check(editor0::loadSceneForEditor(state.path, loaded2, err), "create/rt: the post-undo save loads");
+        check(loaded2.entities.size() == 3, "create/rt: the undone create is OMITTED from the file");
+        std::remove("savedata/create_rt_edit1.txt");
+        std::remove("savedata/create_rt_edit2.txt");
+        std::remove(state.path.c_str());
+    }
+    // g) the empty prefab list: a safe no-op with the reason.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        const pe::Scene before = state.current;
+        editor0::EditorInput in;
+        in.keyCreate = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyCreate = false;
+        std::string diff;
+        check(sceneUnchanged(before, state.current, diff) && !state.modified && state.undoStack.empty(),
+              "create: an empty prefab list - nothing changes, no crash");
+        check(state.feedback == "create: no prefab files found in assets/prefabs/",
+              "create: the status shows the reason");
+    }
+    // h) a malformed prefab file: nothing changes.
+    {
+        const char* kBad = "editor0_tmp/bad_prefab_test.txt";
+        writeRawFile(kBad, "garbage without a header\nname=x\n");
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        const pe::Scene before = state.current;
+        editor0::EditorInput in;
+        in.keyCreate = true;
+        // create directly with the malformed name (the list is the UI source;
+        // the create path accepts any name the engine can resolve).
+        state.prefabFiles.push_back(kBad);
+        editor0::stepEditorFrame(state, in);
+        in.keyCreate = false;
+        std::string diff;
+        check(sceneUnchanged(before, state.current, diff) && state.undoStack.empty(),
+              "create: a malformed prefab file - the scene unchanged, nothing pushed");
+        check(state.feedback.rfind("create failed: ", 0) == 0, "create: the malformed file shows the failure reason");
+        std::remove(kBad);
+    }
+    // i) the cycle wraps in both directions.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.prefabFiles.push_back("a_one.txt");
+        state.prefabFiles.push_back("b_two.txt");
+        editor0::EditorInput in;
+        in.keyPrefabNext = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.prefabIndex == 1, "cycle: the next -> 1");
+        editor0::stepEditorFrame(state, in);
+        check(state.prefabIndex == 0, "cycle: the next from 1 wraps to 0");
+        in.keyPrefabNext = false;
+        in.keyPrefabPrev = true;
+        editor0::stepEditorFrame(state, in);
+        check(state.prefabIndex == 1, "cycle: the previous from 0 wraps to 1");
+        editor0::stepEditorFrame(state, in);
+        in.keyPrefabPrev = false;
+        check(state.prefabIndex == 0, "cycle: the previous -> 0");
+        check(state.prefabCycleCount == 4, "cycle: the diag count is 4");
+        check(state.status.find("prefab 1/2: a_one.txt") != std::string::npos,
+              "cycle: the status shows the index and the name");
+    }
+    // j) the source bytes identical through create/undo/redo.
+    {
+        const char* kSrc = "editor0_tmp/create_bytes.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "create/files: the source written (the test setup)");
+        std::string srcBefore;
+        readTextFile(kSrc, srcBefore);
+        state.camera.onResize(800, 600);
+        state.prefabFiles.push_back("enemy.txt");
+        editor0::EditorInput in;
+        in.keyCreate = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyCreate = false;
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyUndo = false;
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRedo = false;
+        std::string srcAfter;
+        readTextFile(kSrc, srcAfter);
+        check(!srcBefore.empty() && srcBefore == srcAfter, "create/files: the SOURCE bytes identical through create/undo/redo");
+        std::remove(kSrc);
+    }
+    // k) the stack bound: 33 creates -> the cap 32.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        state.prefabFiles.push_back("enemy.txt");
+        editor0::EditorInput in;
+        in.keyCreate = true;
+        for (int i = 0; i < 33; ++i) editor0::stepEditorFrame(state, in);
+        in.keyCreate = false;
+        check(state.undoStack.size() == editor0::kEditorUndoCap, "create/cap: 33 creates -> the stack holds the cap (32)");
+        check(editor0::aliveCount(state.current) == 36, "create/cap: the visible count is 3+33 = 36");
+    }
+    // l) the keys: the tracked list has N, ] and [ (18 keys).
+    {
+        bool n = false, rb = false, lb = false;
+        for (std::size_t i = 0; i < kEditorKeyCount; ++i) {
+            if (kEditorKeys[i] == GLFW_KEY_N) n = true;
+            if (kEditorKeys[i] == GLFW_KEY_RIGHT_BRACKET) rb = true;
+            if (kEditorKeys[i] == GLFW_KEY_LEFT_BRACKET) lb = true;
+        }
+        check(n && rb && lb, "create: the editor's tracked list registers N, ] and [");
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -2469,7 +2766,7 @@ static void checkHiddenWindowFrame() {
 // is on screen and the editor keeps running (the scene is untouched).
 // Saving: Ctrl+S = the save-as (the Step 299/300: a NEW path; never the source).
 // Controls: left-drag = pan, +/- = zoom (clamped 0.25..4.0), R =
-// reload the current path, ESC = quit, arrows = nudge (Shift = 1.0), Ctrl+S = save-as, Ctrl+Z/Ctrl+Y = undo/redo, PgUp/PgDn = panel scroll, Delete = remove the selection.
+// reload the current path, ESC = quit, arrows = nudge (Shift = 1.0), Ctrl+S = save-as, Ctrl+Z/Ctrl+Y = undo/redo, PgUp/PgDn = panel scroll, Delete = remove the selection, N = create ([/ ] cycle the prefab).
 static int runViewer(const char* scenePath) {
     if (!glfwInit()) { std::fprintf(stderr, "editor0: glfwInit failed\n"); return 1; }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -2511,6 +2808,7 @@ static int runViewer(const char* scenePath) {
     if (!ok) editor0::reportMessage(std::cerr, state.status);  // ONE report per attempt
     state.baseline = editor0::capturePositions(state.current);  // the modified baseline (the Step 301)
     state.baselineAlive = editor0::captureAliveFlags(state.current);  // the Step 309: the alive flags
+    state.prefabFiles = editor0::listPrefabFiles();  // the create list (the Step 310)
 
     // Edge-tracked keys: ESC (quit) + +/- (zoom steps) + R (reload) -
     // one event per press (the documented edge read). NO wheel:
@@ -2557,10 +2855,17 @@ static int runViewer(const char* scenePath) {
         const bool zEdge = input.isEdge(window, GLFW_KEY_Z);
         const bool yEdge = input.isEdge(window, GLFW_KEY_Y);
         editor0::undoRedoKeys(zEdge, yEdge, ctrlDown, shiftDown, in.keyUndo, in.keyRedo);
-        // The panel scroll (the Step 304) + the delete (the Step 309).
+        // The panel scroll (the Step 304) + the delete (the Step 309)
+        // + the create (the Step 310).
         in.keyPanelUp = input.isEdge(window, GLFW_KEY_PAGE_UP);
         in.keyPanelDown = input.isEdge(window, GLFW_KEY_PAGE_DOWN);
         in.keyDelete = input.isEdge(window, GLFW_KEY_DELETE);
+        in.keyCreate = input.isEdge(window, GLFW_KEY_N);
+        in.keyPrefabNext = input.isEdge(window, GLFW_KEY_RIGHT_BRACKET);
+        in.keyPrefabPrev = input.isEdge(window, GLFW_KEY_LEFT_BRACKET);
+        in.keyCreate = input.isEdge(window, GLFW_KEY_N);
+        in.keyPrefabNext = input.isEdge(window, GLFW_KEY_RIGHT_BRACKET);
+        in.keyPrefabPrev = input.isEdge(window, GLFW_KEY_LEFT_BRACKET);
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);   // frame-end snapshot (the documented temporal order)
@@ -2647,7 +2952,8 @@ static int runDiagInput(const char* scenePath) {
     if (!ok) editor0::reportMessage(std::cerr, state.status);
     state.baseline = editor0::capturePositions(state.current);  // the modified baseline (the Step 301)
     state.baselineAlive = editor0::captureAliveFlags(state.current);  // the Step 309: the alive flags
-    std::printf("diag-input: click entities; ONE line per click. Arrows nudge (Shift = 1.0); Ctrl+Z/Ctrl+Y undo/redo. ESC quits.\n");
+    state.prefabFiles = editor0::listPrefabFiles();  // the create list (the Step 310)
+    std::printf("diag-input: click entities; ONE line per click. Arrows nudge (Shift = 1.0); Ctrl+Z/Ctrl+Y undo/redo. Delete removes. N creates ([/ ] cycle the prefab). ESC quits.\n");
     std::fflush(stdout);
 
     pe::Input input(std::vector<int>(kEditorKeys, kEditorKeys + kEditorKeyCount));  // the full list (the Step 300: the arrows for the nudge lines)
@@ -2655,6 +2961,8 @@ static int runDiagInput(const char* scenePath) {
     int lastNavCount = 0;
     int lastUndoCount = 0;
     int lastDeleteCount = 0;
+    int lastCreateCount = 0;
+    int lastCycleCount = 0;
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         const pe::MouseState m = pe::Input::pollMouse(window);
@@ -2690,6 +2998,26 @@ static int runDiagInput(const char* scenePath) {
         editor0::stepEditorFrame(state, in);
         input.update(window);
         if (state.quitRequested) glfwSetWindowShouldClose(window, GLFW_TRUE);
+        if (state.createCount != lastCreateCount) {
+            lastCreateCount = state.createCount;
+            // ONE line per create (the Step 310).
+            const pe::Entity& ce = state.current.entities[static_cast<std::size_t>(state.lastCreateIndex)];
+            std::printf("create: prefab=%s index=%d pos=(%.4f,%.4f) count %d->%d modified=%s\n",
+                        state.lastCreatePrefab.c_str(), state.lastCreateIndex,
+                        ce.position.x, ce.position.y,
+                        state.lastCreateCountBefore, state.lastCreateCountAfter,
+                        state.modified ? "true" : "false");
+            std::fflush(stdout);
+        }
+        if (state.prefabCycleCount != lastCycleCount) {
+            lastCycleCount = state.prefabCycleCount;
+            // ONE line per prefab cycle (the Step 310).
+            std::printf("prefab-cycle: index %d of %d%s\n", state.lastPrefabCycleIndex,
+                        static_cast<int>(state.prefabFiles.size()),
+                        state.prefabFiles.empty() ? ""
+                            : (" (" + state.prefabFiles[static_cast<std::size_t>(state.lastPrefabCycleIndex)] + ")").c_str());
+            std::fflush(stdout);
+        }
         if (state.deleteCount != lastDeleteCount) {
             lastDeleteCount = state.deleteCount;
             // ONE line per delete (the Step 309 diag).
@@ -2717,6 +3045,11 @@ static int runDiagInput(const char* scenePath) {
             // delete form since the Step 309).
             if (state.lastUndoWasDelete) {
                 std::printf("%s: index %d delete count %d->%d modified=%s\n",
+                            state.lastUndoWasUndo ? "undo" : "redo", state.lastUndoIndex,
+                            state.lastUndoCountBefore, state.lastUndoCountAfter,
+                            state.modified ? "true" : "false");
+            } else if (state.lastUndoWasCreate) {
+                std::printf("%s: index %d create count %d->%d modified=%s\n",
                             state.lastUndoWasUndo ? "undo" : "redo", state.lastUndoIndex,
                             state.lastUndoCountBefore, state.lastUndoCountAfter,
                             state.modified ? "true" : "false");
@@ -2786,6 +3119,7 @@ int main(int argc, char** argv) {
         checkPanelScroll();       // Step 304: the inspector panel scroll
         checkHelpLegend();        // Step 305: the always-on key legend
         checkEntityDelete();      // Step 309: the entity delete + the typed undo
+        checkEntityCreate();      // Step 310: the entity create + the prefab cycle
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
@@ -2824,6 +3158,6 @@ int main(int argc, char** argv) {
                 "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, R = reload, arrows = nudge,\n"
                 "                                  Shift = 1.0, Ctrl+S = save-as (the editor then follows the saved file), Ctrl+Z/Ctrl+Y = undo/redo, ESC = quit)\n"
                 "                                  PgUp/PgDn = scroll the inspector panel, Delete = remove\n"
-                "                                  the selected entity)\n");
+                "                                  the selected entity, N = create ([/ ] cycle the prefab))\n");
     return 2;
 }

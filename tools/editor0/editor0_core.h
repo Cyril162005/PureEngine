@@ -16,6 +16,8 @@
 #ifndef EDITOR0_CORE_H
 #define EDITOR0_CORE_H
 
+#include <algorithm>
+#include <filesystem>
 #include <cstdio>
 #include <fstream>
 #include <string>
@@ -376,6 +378,9 @@ struct EditorInput {
     bool keyPanelUp = false;                // the PageUp edge (the panel scroll up, the Step 304)
     bool keyPanelDown = false;              // the PageDown edge (the panel scroll down, the Step 304)
     bool keyDelete = false;                 // the Delete edge (the entity delete, the Step 309)
+    bool keyCreate = false;                 // the N edge (the create, the Step 310)
+    bool keyPrefabNext = false;             // the ] edge (the next prefab, the Step 310)
+    bool keyPrefabPrev = false;             // the [ edge (the previous prefab, the Step 310)
     std::string savePathOverride;           // non-empty: Ctrl+S targets THIS exact path (the Step 300 test/diag hook; empty in the live viewer)
 };
 
@@ -385,6 +390,7 @@ struct EditorInput {
 struct UndoEntry {
     int index = -1;
     bool isDelete = false;   // false = a nudge (the position delta); true = a delete (the alive flip, the Step 309)
+    bool isCreate = false;   // true = a create (the Step 310): the undo kills the entity, the redo revives it
     pe::Vec3 before;
     pe::Vec3 after;
 };
@@ -443,6 +449,17 @@ struct EditorState {
     bool lastUndoWasDelete = false;     // the last applied undo/redo was a delete-restore (the diag)
     int lastUndoCountBefore = 0;        // the visible count before the undo/redo (the diag)
     int lastUndoCountAfter = 0;         // the visible count after it (the diag)
+    bool lastUndoWasCreate = false;     // the last applied undo/redo was a create-kill (the diag)
+    // The create + the prefab cycle (the Step 310):
+    std::vector<std::string> prefabFiles;   // the found prefab files (sorted; empty = none)
+    int prefabIndex = 0;                // the current prefab in the list
+    int createCount = 0;                // the applied creates (the diag)
+    int lastCreateIndex = -2;           // the created entity (the diag)
+    std::string lastCreatePrefab;       // the created prefab name (the diag)
+    int lastCreateCountBefore = 0;      // the visible count before the create (the diag)
+    int lastCreateCountAfter = 0;       // the visible count after it (the diag)
+    int prefabCycleCount = 0;           // the prefab-cycle presses (the diag)
+    int lastPrefabCycleIndex = -2;      // the index after the last cycle (the diag)
 };
 
 // The window->framebuffer ratio conversion (the Step 295 fix): the
@@ -557,24 +574,62 @@ inline int aliveCount(const pe::Scene& scene) {
     for (const pe::Entity& e : scene.entities) if (e.alive) ++n;
     return n;
 }
-// The honest differ (the Step 309): the positions AND the alive flags
-// vs the baseline. An empty alive baseline (the older test setups
-// capture positions only) falls back to the position-only compare; a
-// size mismatch = edited (no usable baseline).
+// The honest differ (the Step 309; the growth-aware 310 form): the
+// positions AND the alive flags; the entities BEYOND the baseline
+// count as edited only while ALIVE (created-and-undone = clean).
 inline bool sceneDiffers(const pe::Scene& scene, const std::vector<pe::Vec3>& baseline,
                          const std::vector<char>& aliveBaseline) {
     if (scene.entities.empty()) return false;
-    if (baseline.size() != scene.entities.size()) return true;
-    const bool useAlive = !aliveBaseline.empty() && aliveBaseline.size() == scene.entities.size();
-    for (std::size_t i = 0; i < baseline.size(); ++i) {
+    const std::size_t common = (baseline.size() < scene.entities.size())
+        ? baseline.size() : scene.entities.size();
+    for (std::size_t i = common; i < scene.entities.size(); ++i) {
+        if (scene.entities[i].alive) return true;   // a created-and-alive entity = edited
+    }
+    for (std::size_t i = 0; i < common; ++i) {
         if (scene.entities[i].position.x != baseline[i].x
             || scene.entities[i].position.y != baseline[i].y
             || scene.entities[i].position.z != baseline[i].z) return true;
-        if (useAlive && (scene.entities[i].alive ? (char)1 : (char)0) != aliveBaseline[i]) return true;
+        if (i < aliveBaseline.size()
+            && (scene.entities[i].alive ? (char)1 : (char)0) != aliveBaseline[i]) return true;
     }
     return false;
 }
 
+// --- Step 310: the entity create ---
+// The listing mirrors the engine probe (prefab.h:71-73): the first
+// existing assets/prefabs candidate; its *.txt sorted.
+inline std::vector<std::string> listPrefabFiles() {
+    std::vector<std::string> out;
+    const char* dirs[3] = {"assets/prefabs", "../assets/prefabs", "../../assets/prefabs"};
+    std::error_code ec;
+    for (const char* d : dirs) {
+        std::filesystem::directory_iterator it(std::filesystem::path(d), ec);
+        if (ec) { ec.clear(); continue; }
+        std::filesystem::directory_iterator end;
+        for (; it != end; it.increment(ec)) {
+            if (ec) break;
+            if (it->is_regular_file(ec) && it->path().extension() == ".txt") {
+                out.push_back(it->path().filename().string());
+            }
+        }
+        ec.clear();
+        if (!out.empty()) { std::sort(out.begin(), out.end()); return out; }
+    }
+    return out;
+}
+// The create (the Step 310): loadPrefab -> instantiatePrefab at the
+// view center -> queueSpawn + flushSpawns (scene.h:73/:81) -> the
+// entity at index old-count. -1 = nothing changed.
+inline int createEntityFromPrefab(pe::Scene& scene, const std::string& prefabName,
+                                  const pe::Vec3& worldCenter) {
+    pe::Prefab p;
+    if (!pe::loadPrefab(prefabName, p)) return -1;
+    const std::size_t newIndex = scene.entities.size();
+    scene.queueSpawn(pe::instantiatePrefab(p, worldCenter));
+    scene.flushSpawns();
+    if (scene.entities.size() != newIndex + 1) return -1;
+    return static_cast<int>(newIndex);
+}
 // Apply one undo: pop the newest entry, restore the BEFORE position,
 // push the entry to the redo stack. out: the affected index and the
 // from -> to positions (the diag). An empty stack or a stale index is
@@ -582,7 +637,7 @@ inline bool sceneDiffers(const pe::Scene& scene, const std::vector<pe::Vec3>& ba
 inline bool applyUndo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
                       std::vector<UndoEntry>& redoStack,
                       int& outIndex, float& outFromX, float& outFromY,
-                      float& outToX, float& outToY, bool& outWasDelete) {
+                      float& outToX, float& outToY, bool& outWasDelete, bool& outWasCreate) {
     if (undoStack.empty()) return false;
     const UndoEntry e = undoStack.back();
     if (e.index < 0 || e.index >= static_cast<int>(scene.entities.size())) {
@@ -591,15 +646,23 @@ inline bool applyUndo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
     }
     pe::Entity& ent = scene.entities[static_cast<std::size_t>(e.index)];
     outWasDelete = e.isDelete;
+    outWasCreate = e.isCreate;
     if (e.isDelete) {
         // The delete-undo: the entity returns (the alive flip; the
-        // vector order never changed - entity.h:183-189 - so every
-        // serialized field is still at its original index).
+        // order never changed - every field is at its original index).
         outFromX = 0.0f;
         outFromY = 0.0f;
         outToX = 0.0f;
         outToY = 0.0f;
         ent.alive = true;
+    } else if (e.isCreate) {
+        // The create-undo: the entity is KILLED (the index + the
+        // fields stay for the redo).
+        outFromX = 0.0f;
+        outFromY = 0.0f;
+        outToX = 0.0f;
+        outToY = 0.0f;
+        ent.alive = false;
     } else {
         outFromX = ent.position.x;
         outFromY = ent.position.y;
@@ -617,7 +680,7 @@ inline bool applyUndo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
 inline bool applyRedo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
                       std::vector<UndoEntry>& redoStack,
                       int& outIndex, float& outFromX, float& outFromY,
-                      float& outToX, float& outToY, bool& outWasDelete) {
+                      float& outToX, float& outToY, bool& outWasDelete, bool& outWasCreate) {
     if (redoStack.empty()) return false;
     const UndoEntry e = redoStack.back();
     if (e.index < 0 || e.index >= static_cast<int>(scene.entities.size())) {
@@ -626,6 +689,7 @@ inline bool applyRedo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
     }
     pe::Entity& ent = scene.entities[static_cast<std::size_t>(e.index)];
     outWasDelete = e.isDelete;
+    outWasCreate = e.isCreate;
     if (e.isDelete) {
         // The delete-redo: the entity is removed again (the alive flip).
         outFromX = 0.0f;
@@ -633,6 +697,12 @@ inline bool applyRedo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
         outToX = 0.0f;
         outToY = 0.0f;
         ent.alive = false;
+    } else if (e.isCreate) {
+        outFromX = 0.0f;   // the create-redo: REVIVED (same index + fields)
+        outFromY = 0.0f;
+        outToX = 0.0f;
+        outToY = 0.0f;
+        ent.alive = true;
     } else {
         outFromX = ent.position.x;
         outFromY = ent.position.y;
@@ -735,7 +805,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
             state.modified = sceneDiffers(state.current, state.baseline, state.baselineAlive);  // the honest rule (the Step 301; the alive flags count since the Step 309)
             state.redoStack.clear();  // a new nudge clears the redo branch
             const pe::Entity& nudged = state.current.entities[static_cast<std::size_t>(state.selected)];
-            state.undoStack.push_back(UndoEntry{state.selected, false, nudgeBefore, nudged.position});  // a nudge entry (the Step 309 typed form)
+            state.undoStack.push_back(UndoEntry{state.selected, false, false, nudgeBefore, nudged.position});  // a nudge entry (the typed form)
             if (state.undoStack.size() > kEditorUndoCap) state.undoStack.erase(state.undoStack.begin());  // the cap: the oldest falls off
             ++state.nudgeCount;
             state.lastNudgeDx = ndx;
@@ -752,16 +822,18 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
         int idx = -1;
         float fx = 0.0f, fy = 0.0f, tx = 0.0f, ty = 0.0f;
         bool wasDelete = false;
+        bool wasCreate = false;
         const int countBefore = aliveCount(state.current);
         const bool undoOp = in.keyUndo;  // if BOTH edges (not possible live), the undo wins
         const bool applied = undoOp
-            ? applyUndo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty, wasDelete)
-            : applyRedo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty, wasDelete);
+            ? applyUndo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty, wasDelete, wasCreate)
+            : applyRedo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty, wasDelete, wasCreate);
         if (applied) {
             state.modified = sceneDiffers(state.current, state.baseline, state.baselineAlive);
             ++state.undoCount;
             state.lastUndoWasUndo = undoOp;
             state.lastUndoWasDelete = wasDelete;
+            state.lastUndoWasCreate = wasCreate;
             state.lastUndoIndex = idx;
             state.lastUndoFromX = fx;
             state.lastUndoFromY = fy;
@@ -770,6 +842,8 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
             state.lastUndoCountBefore = countBefore;
             state.lastUndoCountAfter = aliveCount(state.current);
             state.feedback = std::string(undoOp ? "undone entity " : "redone entity ") + std::to_string(idx);
+            if (wasCreate && undoOp && state.selected == idx) state.selected = -1;   // the create-undo: the selection named the killed entity
+            if (wasCreate && !undoOp) state.selected = idx;   // the create-redo: the revived entity is selected again
         }
     }
     // The delete (the Step 309): the DELETE key removes the selected
@@ -786,7 +860,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
             const int aliveBefore = aliveCount(state.current);
             state.current.entities[static_cast<std::size_t>(idx)].alive = false;
             state.redoStack.clear();  // a new command clears the redo branch
-            state.undoStack.push_back(UndoEntry{idx, true, pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(0.0f, 0.0f, 0.0f)});
+            state.undoStack.push_back(UndoEntry{idx, true, false, pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(0.0f, 0.0f, 0.0f)});  // a delete entry
             if (state.undoStack.size() > kEditorUndoCap) state.undoStack.erase(state.undoStack.begin());
             state.selected = -1;  // the selection is cleared after a delete (documented)
             state.modified = sceneDiffers(state.current, state.baseline, state.baselineAlive);
@@ -795,6 +869,44 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
             state.lastDeleteCountBefore = aliveBefore;
             state.lastDeleteCountAfter = aliveCount(state.current);
             state.feedback = "deleted entity " + std::to_string(idx);
+        }
+    }
+    // The create (the Step 310): N instantiates the CURRENT prefab
+    // ([ / ] cycle it) at the VIEW CENTER; undoable; no list / a bad
+    // file: the status reason.
+    if (in.keyCreate || in.keyPrefabNext || in.keyPrefabPrev) {
+        const int listN = static_cast<int>(state.prefabFiles.size());
+        if (!in.keyCreate) {
+            // The prefab cycle: wrap in both directions.
+            if (listN > 0) {
+                const int step = in.keyPrefabNext ? 1 : -1;
+                state.prefabIndex = ((state.prefabIndex + step) % listN + listN) % listN;
+                ++state.prefabCycleCount;
+                state.lastPrefabCycleIndex = state.prefabIndex;
+            }
+        } else if (listN == 0) {
+            state.feedback = "create: no prefab files found in assets/prefabs/";
+        } else {
+            const std::string name = state.prefabFiles[static_cast<std::size_t>(state.prefabIndex)];
+            const int aliveBefore = aliveCount(state.current);
+            const pe::Vec3 camPos = state.camera.getPosition();
+            const int idx = createEntityFromPrefab(state.current, name,
+                                                   pe::Vec3(camPos.x, camPos.y, 0.0f));
+            if (idx < 0) {
+                state.feedback = "create failed: " + name + " (missing or malformed)";
+            } else {
+                state.redoStack.clear();  // a new command clears the redo branch
+                state.undoStack.push_back(UndoEntry{idx, false, true, pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(0.0f, 0.0f, 0.0f)});
+                if (state.undoStack.size() > kEditorUndoCap) state.undoStack.erase(state.undoStack.begin());
+                state.selected = idx;   // the new entity becomes the selection
+                state.modified = sceneDiffers(state.current, state.baseline, state.baselineAlive);
+                ++state.createCount;
+                state.lastCreateIndex = idx;
+                state.lastCreatePrefab = name;
+                state.lastCreateCountBefore = aliveBefore;
+                state.lastCreateCountAfter = aliveCount(state.current);
+                state.feedback = "created " + name + " at index " + std::to_string(idx);
+            }
         }
     }
     // The panel scroll (the Step 304): PgUp/PgDn move the visible
@@ -921,6 +1033,11 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
     state.status = makeStatusLine(state.path, aliveCount(state.current),
                                   std::string(), state.selected, state.current.entities,
                                   state.modified);
+    if (!state.prefabFiles.empty()) {
+        state.status += " | prefab " + std::to_string(state.prefabIndex + 1) + "/"
+                        + std::to_string(state.prefabFiles.size()) + ": "
+                        + state.prefabFiles[static_cast<std::size_t>(state.prefabIndex)];
+    }
 }
 
 // --- Step 296: the read-only inspector (pure: no GL, no GLFW) ---
