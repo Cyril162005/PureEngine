@@ -24,6 +24,7 @@
 
 #include "../../src/scene.h"
 #include "../../src/camera.h"
+#include "../../src/simulation.h"
 
 namespace editor0 {
 
@@ -381,9 +382,26 @@ struct EditorInput {
     bool keyCreate = false;                 // the N edge (the create, the Step 310)
     bool keyPrefabNext = false;             // the ] edge (the next prefab, the Step 310)
     bool keyPrefabPrev = false;             // the [ edge (the previous prefab, the Step 310)
+    bool keyViewToggle = false;             // the V edge (the 2D/3D view toggle, the Step 311)
+    bool keyPlayToggle = false;             // the P edge (the play enter/exit, the Step 311)
+    bool keyMesh0 = false;                  // the 0 edge (the selected meshId = 0, the Step 311)
+    bool keyMesh1 = false;                  // the 1 edge (the selected meshId = 1, the Step 311)
+    bool keyMesh2 = false;                  // the 2 edge (the selected meshId = 2, the Step 311)
     std::string savePathOverride;           // non-empty: Ctrl+S targets THIS exact path (the Step 300 test/diag hook; empty in the live viewer)
 };
 
+// --- Step 311: the play foundation (editor-owned) ---
+// The snapshot of the fields the play tick mutates (the positions,
+// the velocities, the rotation angles) plus alive. Captured on the
+// play ENTER, restored field-exact on the EXIT - the edit session is
+// safe and the source file is never written by play.
+inline constexpr float kEditorPlayDt = 1.0f / 60.0f;   // the fixed play step
+struct PlaySnapshot {
+    std::vector<pe::Vec3> positions;
+    std::vector<pe::Vec3> velocities;
+    std::vector<float> rotationAngles;
+    std::vector<char> alive;
+};
 // The undo entry (the Step 301): one applied nudge - the entity index
 // and the position before/after. Defined BEFORE EditorState (the
 // state holds the undo/redo stacks).
@@ -460,6 +478,11 @@ struct EditorState {
     int lastCreateCountAfter = 0;       // the visible count after it (the diag)
     int prefabCycleCount = 0;           // the prefab-cycle presses (the diag)
     int lastPrefabCycleIndex = -2;      // the index after the last cycle (the diag)
+    // The dual view + the play (the Step 311):
+    bool view3D = false;                // false = the ortho 2D view (the default); true = the perspective 3D
+    bool playing = false;               // true while the play mode ticks the scene
+    PlaySnapshot playSnapshot;          // the captured state (the play enter)
+    int meshKeyCount = 0;               // the meshId key applications (the diag)
 };
 
 // The window->framebuffer ratio conversion (the Step 295 fix): the
@@ -629,6 +652,59 @@ inline int createEntityFromPrefab(pe::Scene& scene, const std::string& prefabNam
     if (scene.entities.size() != newIndex + 1) return -1;
     return static_cast<int>(newIndex);
 }
+// --- Step 311: the dual view + the play + the meshId keys ---
+// The play snapshot (capture/restore, field-exact) and the fixed-dt
+// tick: ONLY the existing simulation functions run
+// (advanceRotations + applyPhysics, simulation.h:69/:117) on the
+// in-memory scene. No arcade rules, no win/lose, no file writes.
+inline PlaySnapshot capturePlaySnapshot(const pe::Scene& scene) {
+    PlaySnapshot s;
+    s.positions.reserve(scene.entities.size());
+    s.velocities.reserve(scene.entities.size());
+    s.rotationAngles.reserve(scene.entities.size());
+    s.alive.reserve(scene.entities.size());
+    for (const pe::Entity& e : scene.entities) {
+        s.positions.push_back(e.position);
+        s.velocities.push_back(e.velocity);
+        s.rotationAngles.push_back(e.rotationAngle);
+        s.alive.push_back(e.alive ? (char)1 : (char)0);
+    }
+    return s;
+}
+inline void restorePlaySnapshot(pe::Scene& scene, const PlaySnapshot& s) {
+    if (s.positions.size() != scene.entities.size()) return;  // a stale snapshot: no-op
+    for (std::size_t i = 0; i < scene.entities.size(); ++i) {
+        scene.entities[i].position = s.positions[i];
+        scene.entities[i].velocity = s.velocities[i];
+        scene.entities[i].rotationAngle = s.rotationAngles[i];
+        scene.entities[i].alive = (s.alive[i] != 0);
+    }
+}
+inline void playTick(pe::Scene& scene, float dt) {
+    pe::advanceRotations(scene.entities, dt);   // simulation.h:69
+    pe::applyPhysics(scene.entities, dt);       // simulation.h:117
+}
+// The view toggle: the perspective mode for 3D (the camera view
+// becomes lookAt(eye, lookTarget, up) - camera.h:137-139); the ortho
+// mode restores the byte-identical 2D path (camera.h:130-136 - the
+// 2D state does not alias the 3D fields).
+inline constexpr float kEditorFovY = 3.14159265f / 3.0f;   // 60 degrees
+inline constexpr float kEditorNearZ = 0.1f;
+inline constexpr float kEditorFarZ = 100.0f;
+inline void applyViewMode(pe::Camera& camera, bool view3D) {
+    if (view3D) camera.setPerspective(kEditorFovY, kEditorNearZ, kEditorFarZ);   // camera.h:225
+    else camera.setOrthographicMode();   // camera.h:232
+}
+// The meshId keys: 0 = 2D-only, 1 = the cube, 2 = the pyramid (the
+// engine built-ins, renderer.h:784-785; the unregistered ids fall
+// back to the cube). The meshId is NOT serialized by the scene saver
+// (no meshId in scene.h) - an editor-session property (documented).
+inline bool applyMeshKey(pe::Scene& scene, int selected, int meshId) {
+    if (selected < 0 || selected >= static_cast<int>(scene.entities.size())) return false;
+    if (!scene.entities[static_cast<std::size_t>(selected)].alive) return false;
+    scene.entities[static_cast<std::size_t>(selected)].meshId = meshId;
+    return true;
+}
 // Apply one undo: pop the newest entry, restore the BEFORE position,
 // push the entry to the redo stack. out: the affected index and the
 // from -> to positions (the diag). An empty stack or a stale index is
@@ -734,6 +810,45 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
     // The cursor in FRAMEBUFFER pixels (the ratio conversion).
     const float fbX = windowToFbX(in.cursorX, in.windowWidth, in.fbWidth);
     const float fbY = windowToFbY(in.cursorY, in.windowHeight, in.fbHeight);
+
+    // PLAYING (the Step 311): the edit ops are DISABLED (documented
+    // no-ops - the nudges, the deletes, the creates, the undo/redo and
+    // the saves are all skipped); the frame ticks the simulation with
+    // the fixed dt on the in-memory scene; P (or ESC) exits and
+    // restores the snapshot field-exact. The source file is never
+    // written by play.
+    if (state.playing) {
+        playTick(state.current, kEditorPlayDt);
+        if (in.keyPlayToggle || in.keyEsc) {
+            restorePlaySnapshot(state.current, state.playSnapshot);
+            state.playing = false;
+            state.feedback = "play stopped (the scene restored)";
+            if (in.keyEsc) state.quitRequested = true;
+        }
+        return;
+    }
+    if (in.keyPlayToggle) {
+        state.playSnapshot = capturePlaySnapshot(state.current);
+        state.playing = true;
+        state.feedback = "play started (P stops; the edits are disabled)";
+        return;
+    }
+    // The view toggle (the Step 311): V swaps the 2D ortho path and
+    // the 3D perspective path (the camera isolation, camera.h:130-136).
+    if (in.keyViewToggle) {
+        state.view3D = !state.view3D;
+        applyViewMode(state.camera, state.view3D);
+    }
+    // The meshId keys (the Step 311): 0/1/2 set the SELECTED entity's
+    // meshId (0 = 2D-only). NOT serialized (documented) - the meshId
+    // edits do not set the modified flag (it tracks the persisted
+    // state only).
+    if (in.keyMesh0 || in.keyMesh1 || in.keyMesh2) {
+        const int meshId = in.keyMesh0 ? 0 : (in.keyMesh1 ? 1 : 2);
+        if (applyMeshKey(state.current, state.selected, meshId)) {
+            ++state.meshKeyCount;
+        }
+    }
 
     // The key edges: quit first.
     if (in.keyEsc) {
@@ -1036,6 +1151,8 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
                         + std::to_string(state.prefabFiles.size()) + ": "
                         + state.prefabFiles[static_cast<std::size_t>(state.prefabIndex)];
     }
+    state.status += state.view3D ? " | VIEW:3D" : " | VIEW:2D";
+    if (state.playing) state.status += " | PLAYING";
 }
 
 // --- Step 296: the read-only inspector (pure: no GL, no GLFW) ---

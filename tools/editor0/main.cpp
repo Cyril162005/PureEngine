@@ -127,7 +127,8 @@ static const int kEditorKeys[] = {GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINU
                                   GLFW_KEY_TAB, GLFW_KEY_S, GLFW_KEY_Z, GLFW_KEY_Y,
                                   GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT,
                                   GLFW_KEY_PAGE_UP, GLFW_KEY_PAGE_DOWN, GLFW_KEY_DELETE,
-                                  GLFW_KEY_N, GLFW_KEY_RIGHT_BRACKET, GLFW_KEY_LEFT_BRACKET};
+                                  GLFW_KEY_N, GLFW_KEY_RIGHT_BRACKET, GLFW_KEY_LEFT_BRACKET,
+                                  GLFW_KEY_V, GLFW_KEY_P, GLFW_KEY_0, GLFW_KEY_1, GLFW_KEY_2};
 static const std::size_t kEditorKeyCount = sizeof(kEditorKeys) / sizeof(kEditorKeys[0]);
 
 static void readTextFile(const char* name, std::string& out) {
@@ -1426,7 +1427,7 @@ static void checkNudgeAndModified() {
             if (kEditorKeys[i] == GLFW_KEY_RIGHT) right = true;
         }
         check(up && down && left && right, "keys: the editor's tracked list registers all four arrows");
-        check(kEditorKeyCount == 18, "keys: the editor's tracked list is the documented 18 keys (the Step 310 adds N, ], [)");
+        check(kEditorKeyCount == 23, "keys: the editor's tracked list is the documented 23 keys (the Step 311 adds V, P, 0, 1, 2)");
     }
 }
 
@@ -2863,9 +2864,11 @@ static int runViewer(const char* scenePath) {
         in.keyCreate = input.isEdge(window, GLFW_KEY_N);
         in.keyPrefabNext = input.isEdge(window, GLFW_KEY_RIGHT_BRACKET);
         in.keyPrefabPrev = input.isEdge(window, GLFW_KEY_LEFT_BRACKET);
-        in.keyCreate = input.isEdge(window, GLFW_KEY_N);
-        in.keyPrefabNext = input.isEdge(window, GLFW_KEY_RIGHT_BRACKET);
-        in.keyPrefabPrev = input.isEdge(window, GLFW_KEY_LEFT_BRACKET);
+        in.keyViewToggle = input.isEdge(window, GLFW_KEY_V);
+        in.keyPlayToggle = input.isEdge(window, GLFW_KEY_P);
+        in.keyMesh0 = input.isEdge(window, GLFW_KEY_0);
+        in.keyMesh1 = input.isEdge(window, GLFW_KEY_1);
+        in.keyMesh2 = input.isEdge(window, GLFW_KEY_2);
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);   // frame-end snapshot (the documented temporal order)
@@ -2873,8 +2876,27 @@ static int runViewer(const char* scenePath) {
 
         renderer.clear(0.0f, 0.0f, 0.0f);
         const std::vector<char> colliding = pe::flagsForCount(state.current.entities.size());
-        const pe::Mat4 proj = editor0::zoomedProjection(state.zoom, state.camera.projection());
-        renderer.drawWorld(proj, state.camera.view(), state.current.entities, colliding);
+        const pe::Mat4 proj = state.view3D
+            ? state.camera.projection()
+            : editor0::zoomedProjection(state.zoom, state.camera.projection());
+        if (state.view3D) {
+            // The 3D mode (the Step 311): the perspective projection +
+            // the lookAt view; ONLY the meshId!=0 entities draw (the
+            // engine skips the 2D-only ones itself, renderer.h:765-766);
+            // the FIRST 3D draw carries the proven clearDepth=true (the
+            // Step 249 contract). The meshId==0 entities are NOT drawn
+            // in 3D (the documented choice - the mixed pipelines would
+            // double-draw the meshed entities). The AABB wireframes
+            // still draw (the selection highlight visible in both modes).
+            bool first3d = true;
+            for (pe::Entity& e : state.current.entities) {
+                if (!e.alive || e.meshId == 0) continue;
+                renderer.drawEntity3D(e, state.camera.view(), state.camera.projection(), first3d);
+                first3d = false;
+            }
+        } else {
+            renderer.drawWorld(proj, state.camera.view(), state.current.entities, colliding);
+        }
         // The highlight: the selected entity's ROLE GROUP draws orange
         // (the engine's playerRoleId parameter - no engine change; the
         // sample's roles are distinct so exactly the selected entity
@@ -2994,6 +3016,14 @@ static int runDiagInput(const char* scenePath) {
         in.keyPanelUp = input.isEdge(window, GLFW_KEY_PAGE_UP);
         in.keyPanelDown = input.isEdge(window, GLFW_KEY_PAGE_DOWN);
         in.keyDelete = input.isEdge(window, GLFW_KEY_DELETE);
+        in.keyCreate = input.isEdge(window, GLFW_KEY_N);
+        in.keyPrefabNext = input.isEdge(window, GLFW_KEY_RIGHT_BRACKET);
+        in.keyPrefabPrev = input.isEdge(window, GLFW_KEY_LEFT_BRACKET);
+        in.keyViewToggle = input.isEdge(window, GLFW_KEY_V);
+        in.keyPlayToggle = input.isEdge(window, GLFW_KEY_P);
+        in.keyMesh0 = input.isEdge(window, GLFW_KEY_0);
+        in.keyMesh1 = input.isEdge(window, GLFW_KEY_1);
+        in.keyMesh2 = input.isEdge(window, GLFW_KEY_2);
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);
@@ -3077,8 +3107,27 @@ static int runDiagInput(const char* scenePath) {
         }
         renderer.clear(0.0f, 0.0f, 0.0f);
         const std::vector<char> colliding = pe::flagsForCount(state.current.entities.size());
-        const pe::Mat4 proj = editor0::zoomedProjection(state.zoom, state.camera.projection());
-        renderer.drawWorld(proj, state.camera.view(), state.current.entities, colliding);
+        const pe::Mat4 proj = state.view3D
+            ? state.camera.projection()
+            : editor0::zoomedProjection(state.zoom, state.camera.projection());
+        if (state.view3D) {
+            // The 3D mode (the Step 311): the perspective projection +
+            // the lookAt view; ONLY the meshId!=0 entities draw (the
+            // engine skips the 2D-only ones itself, renderer.h:765-766);
+            // the FIRST 3D draw carries the proven clearDepth=true (the
+            // Step 249 contract). The meshId==0 entities are NOT drawn
+            // in 3D (the documented choice - the mixed pipelines would
+            // double-draw the meshed entities). The AABB wireframes
+            // still draw (the selection highlight visible in both modes).
+            bool first3d = true;
+            for (pe::Entity& e : state.current.entities) {
+                if (!e.alive || e.meshId == 0) continue;
+                renderer.drawEntity3D(e, state.camera.view(), state.camera.projection(), first3d);
+                first3d = false;
+            }
+        } else {
+            renderer.drawWorld(proj, state.camera.view(), state.current.entities, colliding);
+        }
         renderer.drawAABBs(proj, state.camera.view(), state.current.entities, -1);
         const std::string& line = state.feedback.empty() ? state.status : state.feedback;
         renderer.drawTextString(line, -5.8f, 4.1f, proj, pe::TextAlign::Left);
