@@ -2699,6 +2699,129 @@ static void checkEntityCreate() {
     }
 }
 
+// Step 311: the dual view + the play + the meshId keys (pure, no GL,
+// no live GLFW). The mode flag, the honest baseline across the play,
+// the snapshot restore field-exact, the edit-op lock, the meshId
+// non-serialization (documented).
+static void checkDualViewPlay() {
+    // a) the mode toggle + the status strings.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        editor0::EditorInput in;
+        in.keyViewToggle = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyViewToggle = false;
+        check(state.view3D, "view: V enters the 3D mode");
+        check(state.status.find("VIEW:3D") != std::string::npos, "view: the status shows VIEW:3D");
+        editor0::stepEditorFrame(state, in);   // V again (the edge is still set - one toggle per call)
+        check(!state.view3D, "view: V toggles back to 2D");
+        check(state.status.find("VIEW:2D") != std::string::npos, "view: the status shows VIEW:2D");
+    }
+    // b) the meshId keys: 0/1/2 set the selected entity's meshId; NOT
+    //    serialized (documented - the save-as loses it).
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyMesh2 = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyMesh2 = false;
+        check(state.current.entities[0].meshId == 2, "mesh: the key 2 sets meshId 2 (the pyramid)");
+        in.keyMesh1 = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyMesh1 = false;
+        check(state.current.entities[0].meshId == 1, "mesh: the key 1 sets meshId 1 (the cube)");
+        in.keyMesh0 = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyMesh0 = false;
+        check(state.current.entities[0].meshId == 0, "mesh: the key 0 sets meshId 0 (2D-only)");
+        check(!state.modified, "mesh: the meshId edits do NOT set the modified flag (not serialized)");
+        // the save-as then load: the meshId does NOT round-trip (the honest gap).
+        state.path = "editor0_tmp/mesh_src.txt";
+        std::string err;
+        check(pe::saveSceneToFile(state.current, state.path), "mesh: the source written (the test setup)");
+        state.current.entities[0].meshId = 2;   // an editor-session meshId
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);
+        in.keySave = false;
+        pe::Scene loaded;
+        check(editor0::loadSceneForEditor("savedata/mesh_src_edit1.txt", loaded, err), "mesh: the saved file loads");
+        check(loaded.entities[0].meshId == 0, "mesh: the meshId does NOT round-trip (not serialized - documented)");
+        std::remove("savedata/mesh_src_edit1.txt");
+        std::remove("editor0_tmp/mesh_src.txt");
+    }
+    // c) the play: the snapshot, the tick, the field-exact restore.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.current.entities[2].rotationSpeed = 1.5f;    // the tick will advance it
+        state.current.entities[1].velocity = pe::Vec3(0.0f, -3.0f, 0.0f);
+        state.current.entities[1].gravityScale = 1.0f;     // the physics will move it
+        state.path = "editor0_tmp/play_src.txt";
+        std::string err;
+        check(pe::saveSceneToFile(state.current, state.path), "play: the source written (the test setup)");
+        std::string srcBefore;
+        readTextFile(state.path.c_str(), srcBefore);
+        state.camera.onResize(800, 600);
+        editor0::EditorInput in;
+        in.keyPlayToggle = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyPlayToggle = false;
+        check(state.playing, "play: P enters the play mode");
+        check(state.feedback == "play started (P stops; the edits are disabled)", "play: the enter feedback");
+        // the edits are DISABLED while playing:
+        const pe::Scene atPlayStart = state.current;
+        state.selected = 0;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);   // a nudge attempt: a no-op
+        in.keyRight = false;
+        in.keyDelete = true;
+        editor0::stepEditorFrame(state, in);   // a delete attempt: a no-op
+        in.keyDelete = false;
+        check(editor0::aliveCount(state.current) == 3, "play: the delete attempt is a no-op");
+        // the tick advanced the rotations and the physics:
+        check(state.current.entities[2].rotationAngle != atPlayStart.entities[2].rotationAngle,
+              "play: the tick advanced the rotation (advanceRotations)");
+        // P exits: the field-exact restore.
+        in.keyPlayToggle = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyPlayToggle = false;
+        check(!state.playing, "play: P exits the play mode");
+        check(state.feedback == "play stopped (the scene restored)", "play: the exit feedback");
+        std::string diff;
+        bool restored = true;
+        for (std::size_t i = 0; restored && i < 3; ++i) {
+            restored = floatEq(state.current.entities[i].position.x, atPlayStart.entities[i].position.x)
+                && floatEq(state.current.entities[i].position.y, atPlayStart.entities[i].position.y)
+                && state.current.entities[i].velocity.x == atPlayStart.entities[i].velocity.x
+                && state.current.entities[i].velocity.y == atPlayStart.entities[i].velocity.y
+                && floatEq(state.current.entities[i].rotationAngle, atPlayStart.entities[i].rotationAngle)
+                && state.current.entities[i].alive == atPlayStart.entities[i].alive;
+        }
+        check(restored, "play: the exit restored the snapshot FIELD-EXACT (a broken restore fails)");
+        check(!state.modified, "play: the restored state matches the clean baseline");
+        std::string srcAfter;
+        readTextFile(state.path.c_str(), srcAfter);
+        check(!srcBefore.empty() && srcBefore == srcAfter, "play: the SOURCE bytes identical (never written by play)");
+        std::remove(state.path.c_str());
+    }
+    // d) the keys: the tracked list has V, P, 0, 1, 2 (23 keys).
+    {
+        bool v = false, p = false, k0 = false, k1 = false, k2 = false;
+        for (std::size_t i = 0; i < kEditorKeyCount; ++i) {
+            if (kEditorKeys[i] == GLFW_KEY_V) v = true;
+            if (kEditorKeys[i] == GLFW_KEY_P) p = true;
+            if (kEditorKeys[i] == GLFW_KEY_0) k0 = true;
+            if (kEditorKeys[i] == GLFW_KEY_1) k1 = true;
+            if (kEditorKeys[i] == GLFW_KEY_2) k2 = true;
+        }
+        check(v && p && k0 && k1 && k2, "keys: the editor's tracked list registers V, P, 0, 1, 2");
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -3169,6 +3292,7 @@ int main(int argc, char** argv) {
         checkHelpLegend();        // Step 305: the always-on key legend
         checkEntityDelete();      // Step 309: the entity delete + the typed undo
         checkEntityCreate();      // Step 310: the entity create + the prefab cycle
+        checkDualViewPlay();      // Step 311: the dual view + the play + the meshId keys
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
