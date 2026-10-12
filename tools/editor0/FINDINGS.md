@@ -1011,3 +1011,60 @@ ImGui / ECS / glTF / networking (the freezes stand).
   was already correct and documented; the wiring is editor-owned, no
   engine change).
 - **status:** recorded, implemented editor-side.
+
+## Entry 47
+- **what:** the entity CREATE (the editor's first scene-growing
+  command): N instantiates the CURRENT prefab (the [/ ] keys cycle
+  the editor-owned listing) at the VIEW CENTER in world space (the
+  camera position - zoom-independent by the conversion formula). The
+  create appends a NEW index (the engine APIs: loadPrefab prefab.h:
+  103-177 -> instantiatePrefab prefab.h:181-205 -> queueSpawn +
+  flushSpawns scene.h:73/:81 - the new index = the old count, the
+  vector GROWS); the undo KILLS it (the alive flag, never erasure -
+  the index and the fields stay); the redo REVIVES it at the same
+  index with the same fields; the saved file contains the
+  created-and-alive entities and omits the dead ones (the saver's
+  dead-skip, scene.h:419-420). The create is an undoable command on
+  the same bounded stack, in order with the nudges and the deletes.
+  The listing mirrors the engine probe (prefab.h:71-73: the first
+  existing dir among assets/prefabs/, ../assets/prefabs/,
+  ../../assets/prefabs/ - from the ctest CWD the FIRST resolves to
+  the bundled copy). The keys: N, ], [ - NONE registered before
+  (the consumer ctor-list rule) - all three added (18 keys).
+  The modified flag is honest across creates (the growth-aware
+  sceneDiffers: the entities BEYOND the baseline count as edited only
+  while ALIVE - a created-and-undone entity is the clean state).
+- **evidence:** editor0_core.h (listPrefabFiles, createEntityFromPrefab,
+  the typed UndoEntry isCreate, the create block, the growth-aware
+  sceneDiffers); the selftest 441 PASS / 0 FAIL (56 new checks: the
+  listing, the field-exact create from enemy.txt, the two-creates
+  independence, the undo/redo round, the mixed sequences, the
+  save-as round-trip + the omitted undone create, the empty-list and
+  malformed no-ops, the cycle wrap, the source bytes, the cap);
+  the mutation (the redo of a create does not revive) FAILED 3 checks
+  NON-VACUOUS.
+- **class:** existing capability (the engine's prefab + spawn APIs
+  were already correct and documented; the wiring is editor-owned, no
+  engine change).
+- **status:** recorded, implemented editor-side.
+
+## Entry 48 (the process findings)
+- **what:** three environment/process lessons from this step:
+  (1) the git checkouts REWRITE the mixed-ending files to the
+  config's CRLF conversion (the multi-line edit-tool anchors die
+  after any checkout - the one-shot .ps1 route with the explicit
+  CRLF/LF handling is the working substitute); (2) a PowerShell
+  function that uses Write-Output for logging AND returns a value
+  POLLUTES the return with the log lines (the 309/310 corruption:
+  the log strings were concatenated INTO the file content - the
+  fix: the script-level $script:raw variable, the functions return
+  nothing); (3) the std::remove of a just-created file can LOSE to
+  a transient AV lock (the idempotency pre-removes must cover a
+  RANGE of derived names, and the asserts should read the ACTUAL
+  saved path (the switched state.path) instead of a hard-coded one).
+- **evidence:** the 310 in-step failures (the C4430/C2059 corruption
+  at main.cpp(1) - repaired by stripping to the first /** header with
+  the modifications intact; the 3 non-deterministic (b) failures).
+- **class:** existing capability (the tooling/process notes; no
+  engine or editor-code defect).
+- **status:** recorded; the practices adopted this step.

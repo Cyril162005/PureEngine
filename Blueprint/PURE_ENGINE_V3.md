@@ -2957,6 +2957,52 @@ non-deterministic run-2 failures). The human visual line (308)
 arrived UNFILLED; the NOT-TRIED status stands (FINDINGS 43).
 FINDINGS: entries 44-46.
 
+### Phase Tools follow-on (Step 310): editor0 entity create - COMPLETE (entity editing, step 2 of at most 3)
+
+Consumer step; engine src/ untouched (git diff --stat -- src/ EMPTY).
+THE INSPECT (the evidence): loadPrefab (prefab.h:103-177 - the
+3-candidate probe :71-73, the CWD bare fallback :113, the header
+check :135, the partial parse warn+skip) -> instantiatePrefab
+(prefab.h:181-205 - the 17 config fields + the position + alive=true)
+-> queueSpawn/flushSpawns (scene.h:73/:81 - the new index = the old
+count, the vector GROWS). THE KEY AUDIT: N, ] and [ were NOT
+registered - all three added (kEditorKeys = 18 keys, selftest-
+checked); no conflicts with R/Tab/arrows/Delete/PgUp/PgDn/+/-/Ctrl+
+S/Z/Y/ESC. FINAL KEYS: N = create the current prefab at the view
+center, ] = the next prefab, [ = the previous prefab (wrapping; the
+index + the name in the status line: ' | prefab <i>/<n>: <name>').
+THE CREATE SEMANTICS (evidence-cited): the create appends a NEW
+index (the vector grows); the undo KILLS it via the alive flag
+(never erasure - the index and the fields stay); the redo REVIVES it
+at the same index with the same fields; the saved file contains the
+created-and-alive entities and omits the dead ones (scene.h:419-420).
+The listing is editor-owned (std::filesystem, mirroring the engine
+probe, sorted; empty = the create is a no-op with the status reason;
+a missing/malformed file = loadPrefab warns without throwing - the
+status reason, nothing changes). The created position = the VIEW
+CENTER in world space = the camera position (zoom-independent by the
+conversion formula: the screen center maps to the camera position).
+THE HONESTY FIX: sceneDiffers is now growth-aware - the entities
+BEYOND the baseline count as edited only while ALIVE (a created-and-
+undone entity is the clean state again). --diag-input: one line per
+create (the prefab, the index, the position, the count before ->
+after, the flag), one per prefab cycle, and the create forms in the
+undo/redo lines. --selftest: 441 PASS / 0 FAIL (56 new checks).
+MUTATION: the redo of a create does not revive -> 3 checks FAILED
+NON-VACUOUS; restored by pathspec. GATES against 7792b59+18c1f1f:
+cmake --build build --config Release exit 0; ctest -C Release 5/5
+100% (14.01s; the PureEditor0 duration 0.57s - under the 40s guard);
+alive x3 (all three True); git diff --check exit 0 clean. SIZE: the
+first impl commit measured net +451 (1 OVER the 450 cap) - a 2-line
+trim commit (18c1f1f) brought the step to +449, DISCLOSED; 2 files.
+THE IN-STEP PROCESS FINDINGS (FINDINGS 48): the git checkouts
+rewrite the mixed endings to CRLF (the .ps1 route for the multi-line
+edits); a PowerShell Write-Output+return function POLLUTED the file
+content (repaired by stripping to the first /** header with the
+modifications intact); the std::remove vs the AV-lock race (the
+range pre-removes + the actual-path asserts). The human visuals
+299-309 stay NOT TRIED (the standing note). FINDINGS: entries 47-48.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
