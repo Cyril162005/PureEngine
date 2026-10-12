@@ -3453,6 +3453,17 @@
    "depends_on": [
     309
    ]
+  },
+  {
+   "id": 311,
+   "name": "TOOLS: editor0 dual-view + 3D draw + meshId keys + play foundation - STOPPED at the gates (the 296-class lock)",
+   "status": "stopped",
+   "definition_of_done": "The dual view (V: the 2D ortho path byte-identical / the 3D perspective path with drawEntity3D + the proven depth-clear + the AABB wireframes), the meshId keys (0/1/2 on the selection; NOT serialized - documented), the play foundation (P: the snapshot captured, the fixed-dt tick via advanceRotations+applyPhysics only, the edits disabled while playing, the field-exact restore on exit, the source never written), the status VIEW:2D/VIEW:3D/PLAYING. COMMITTED: TOOLS-311 45e7be1 (the code) + d593c8d (the tests) - the tests UNVERIFIED. THE GATES ARE BLOCKED by the 296-class lock (LNK1104; write+delete blocked, ~12 min of waits). THE RECOVERY (the human): clear the lock, then build + selftest (~455 checks) + the mutation (the play-restore broken -> FAIL) + ctest 5/5 + alive x3 + the diff checks, then the DOCS-311 record (the tracker stopped -> completed).",
+   "notes": "Editor-side only; no src/ changes. THE INSPECT (evidence): drawEntity3D renderer.h:763-819 (meshId==0 skipped by the engine itself :765-766; meshId 1 = the cube, 2 = the pyramid built-in; the unregistered -> the cube fallback; a registered mesh samples textureId); the camera view() lookAt(eye,lookTarget,up) in the perspective mode (camera.h:137-139, the 2D state isolated :130-136, the eye default (0,0,5) :358, setPerspective(fovY,nearZ,farZ) :225, setOrthographicMode :232); the meshId NOT serialized (no meshId in scene.h - the honest gap recorded, the test asserts the non-round-trip); the play tick = advanceRotations (simulation.h:69) + applyPhysics (:117) only (no arcade rules). THE KEYS: V, P, 0, 1, 2 - none registered -> added (23 keys). THE 3D MODE CHOICE: the meshId==0 entities are NOT drawn in 3D (the mixed pipelines would double-draw the meshed entities - documented); the AABB wireframes still draw (the selection highlight in both modes). THE MUTATION: NOT RUN (the lock blocked the build) - the recovery runs it (the play-restore broken -> the restore test must FAIL). THE LOCK: LNK1104 x2, the probes STILL_LOCKED/DELETE_BLOCKED across ~12 min (the 296-class; the 304 lock cleared in ~70s, this one did not) - the STOP per the protocol (FINDINGS 49). The .kilo/ worktrees observed, NOT touched. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "TOOLS-311",
+   "depends_on": [
+    310
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

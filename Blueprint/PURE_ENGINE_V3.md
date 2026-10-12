@@ -3003,6 +3003,36 @@ modifications intact); the std::remove vs the AV-lock race (the
 range pre-removes + the actual-path asserts). The human visuals
 299-309 stay NOT TRIED (the standing note). FINDINGS: entries 47-48.
 
+### PHASE TOOLS STOP NOTE (Step 311, 2026-10-12): the 296-class lock returned - STOP at the 311 gates
+
+THE PACK (the dual-viewport + the 3D draw + the inspector mesh + the
+play foundation) is CODED AND COMMITTED: TOOLS-311 45e7be1 (the code)
++ d593c8d (the tests) - but the BUILD is blocked by the 296-class
+exclusive lock on PureEditor0.exe (LNK1104; write + delete blocked,
+read OK, no stray process; ~12 minutes of waits did not clear it -
+FINDINGS 49). THE GATES ARE UNRUN; the tests are UNVERIFIED; the
+mutation is NOT RUN. WHAT IS IN THE COMMIT: the V toggle (the 2D
+ortho path byte-identical / the 3D perspective path: drawEntity3D
+per meshId!=0 entity with the FIRST carrying clearDepth=true, the
+meshId==0 entities not drawn in 3D - documented, the AABB wireframes
+still draw), the meshId keys 0/1/2 (the engine built-ins cube/
+pyramid; NOT serialized - documented, the test asserts the
+non-round-trip), the play foundation (P: the snapshot of the
+positions/velocities/rotationAngles/alive, the fixed-dt 1/60 tick
+via advanceRotations + applyPhysics ONLY, the edit ops disabled
+while playing, the field-exact restore on exit, the source never
+written), the status VIEW:2D/VIEW:3D/PLAYING. THE RECOVERY (the
+human): clear the lock (resmon/Associated Handles, or delete +
+rebuild), then: the build, the selftest (~455 checks), THE MUTATION
+(the play-restore broken -> the restore test must FAIL; restore by
+pathspec), ctest 5/5, alive x3, the diff checks, then the DOCS-311
+record (the tracker 311 stopped -> completed, this section updated,
+the board, the README). One compile pass BEFORE the lock confirmed
+the core edits compile (the C2039 setPerspectiveMode -> the actual
+setPerspective(fovY, nearZ, farZ) camera.h:225 fixed; the proj
+scoping in the two draw loops fixed); the FINAL compile+link state
+is UNKNOWN (the lock hit at the link).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

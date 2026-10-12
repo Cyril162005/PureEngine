@@ -1068,3 +1068,31 @@ ImGui / ECS / glTF / networking (the freezes stand).
 - **class:** existing capability (the tooling/process notes; no
   engine or editor-code defect).
 - **status:** recorded; the practices adopted this step.
+
+## Entry 49
+- **what:** the Step 311 STOP: the pack's code (the dual view, the 3D
+  draw, the meshId keys, the play foundation) and its tests are
+  COMMITTED (TOOLS-311 45e7be1 + the tests d593c8d), but the BUILD is
+  blocked by the 296-class exclusive lock on PureEditor0.exe (LNK1104;
+  write + delete blocked, read OK, no stray process) - ~12 minutes of
+  waits (70/120/150/240 s) did not clear it. The gates (the build +
+  the selftest + the mutation + ctest) are UNRUN; the tests are
+  UNVERIFIED. One compile pass BEFORE the lock confirmed the core
+  edits compile (the C2039 setPerspectiveMode -> the actual setter
+  setPerspective(fovY, nearZ, farZ) camera.h:225 fixed; the proj
+  scoping in the two draw loops fixed) - the FINAL compile+link state
+  is UNKNOWN.
+- **evidence:** the LNK1104 build outputs (x2); the probes
+  (STILL_LOCKED / DELETE_BLOCKED x2 across ~12 min); the 296/305
+  precedents.
+- **class:** existing capability (the environment lock; not a code
+  issue).
+- **status:** STOP recorded per the protocol. THE RECOVERY (the
+  human): clear the lock (resmon/Associated Handles, or delete
+  build/Release/PureEditor0.exe and rebuild), then: the build (the
+  compile errors, if any, are fixed editor-side), the selftest (441
+  + the new ~14 = ~455 checks must pass - fix any test bug editor-
+  side), THE MUTATION (the play-restore broken -> the restore test
+  FAILS; restore by pathspec), ctest 5/5, alive x3, the diff checks,
+  then the DOCS-311 record (the tracker 311 stopped -> completed,
+  V3, the board, the README).
