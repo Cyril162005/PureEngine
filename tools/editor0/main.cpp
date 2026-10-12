@@ -2715,7 +2715,9 @@ static void checkDualViewPlay() {
         in.keyViewToggle = false;
         check(state.view3D, "view: V enters the 3D mode");
         check(state.status.find("VIEW:3D") != std::string::npos, "view: the status shows VIEW:3D");
-        editor0::stepEditorFrame(state, in);   // V again (the edge is still set - one toggle per call)
+        in.keyViewToggle = true;
+        editor0::stepEditorFrame(state, in);   // V again: a REAL second edge
+        in.keyViewToggle = false;
         check(!state.view3D, "view: V toggles back to 2D");
         check(state.status.find("VIEW:2D") != std::string::npos, "view: the status shows VIEW:2D");
     }
