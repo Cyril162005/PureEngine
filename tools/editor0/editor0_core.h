@@ -375,6 +375,7 @@ struct EditorInput {
     bool keyRedo = false;                   // the Ctrl+Y / Ctrl+Shift+Z edge (the redo, the Step 301)
     bool keyPanelUp = false;                // the PageUp edge (the panel scroll up, the Step 304)
     bool keyPanelDown = false;              // the PageDown edge (the panel scroll down, the Step 304)
+    bool keyDelete = false;                 // the Delete edge (the entity delete, the Step 309)
     std::string savePathOverride;           // non-empty: Ctrl+S targets THIS exact path (the Step 300 test/diag hook; empty in the live viewer)
 };
 
@@ -383,6 +384,7 @@ struct EditorInput {
 // state holds the undo/redo stacks).
 struct UndoEntry {
     int index = -1;
+    bool isDelete = false;   // false = a nudge (the position delta); true = a delete (the alive flip, the Step 309)
     pe::Vec3 before;
     pe::Vec3 after;
 };
@@ -432,6 +434,15 @@ struct EditorState {
     float lastUndoFromX = 0.0f, lastUndoFromY = 0.0f;  // the position before the op (the diag)
     float lastUndoToX = 0.0f, lastUndoToY = 0.0f;      // the position after it (the diag)
     int panelScroll = 0;                // the inspector's visible-window offset (the Step 304; clamped)
+    // The delete + the typed undo/redo (the Step 309):
+    std::vector<char> baselineAlive;    // the alive flags at the last successful save/load (the modified truth)
+    int deleteCount = 0;                // the applied deletes (the diag)
+    int lastDeleteIndex = -2;           // the deleted entity (the diag)
+    int lastDeleteCountBefore = 0;      // the visible count before the delete (the diag)
+    int lastDeleteCountAfter = 0;       // the visible count after it (the diag)
+    bool lastUndoWasDelete = false;     // the last applied undo/redo was a delete-restore (the diag)
+    int lastUndoCountBefore = 0;        // the visible count before the undo/redo (the diag)
+    int lastUndoCountAfter = 0;         // the visible count after it (the diag)
 };
 
 // The window->framebuffer ratio conversion (the Step 295 fix): the
@@ -532,12 +543,34 @@ inline std::vector<pe::Vec3> capturePositions(const pe::Scene& scene) {
     for (const pe::Entity& e : scene.entities) out.push_back(e.position);
     return out;
 }
-inline bool positionsDiffer(const pe::Scene& scene, const std::vector<pe::Vec3>& baseline) {
-    if (baseline.size() != scene.entities.size()) return !scene.entities.empty();
+inline std::vector<char> captureAliveFlags(const pe::Scene& scene) {
+    std::vector<char> out;
+    out.reserve(scene.entities.size());
+    for (const pe::Entity& e : scene.entities) out.push_back(e.alive ? (char)1 : (char)0);
+    return out;
+}
+// The visible (alive) entity count (the Step 309 diag): the kills
+// never erase (entity.h:183-189), so the vector size is NOT the
+// visible count.
+inline int aliveCount(const pe::Scene& scene) {
+    int n = 0;
+    for (const pe::Entity& e : scene.entities) if (e.alive) ++n;
+    return n;
+}
+// The honest differ (the Step 309): the positions AND the alive flags
+// vs the baseline. An empty alive baseline (the older test setups
+// capture positions only) falls back to the position-only compare; a
+// size mismatch = edited (no usable baseline).
+inline bool sceneDiffers(const pe::Scene& scene, const std::vector<pe::Vec3>& baseline,
+                         const std::vector<char>& aliveBaseline) {
+    if (scene.entities.empty()) return false;
+    if (baseline.size() != scene.entities.size()) return true;
+    const bool useAlive = !aliveBaseline.empty() && aliveBaseline.size() == scene.entities.size();
     for (std::size_t i = 0; i < baseline.size(); ++i) {
         if (scene.entities[i].position.x != baseline[i].x
             || scene.entities[i].position.y != baseline[i].y
             || scene.entities[i].position.z != baseline[i].z) return true;
+        if (useAlive && (scene.entities[i].alive ? (char)1 : (char)0) != aliveBaseline[i]) return true;
     }
     return false;
 }
@@ -549,7 +582,7 @@ inline bool positionsDiffer(const pe::Scene& scene, const std::vector<pe::Vec3>&
 inline bool applyUndo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
                       std::vector<UndoEntry>& redoStack,
                       int& outIndex, float& outFromX, float& outFromY,
-                      float& outToX, float& outToY) {
+                      float& outToX, float& outToY, bool& outWasDelete) {
     if (undoStack.empty()) return false;
     const UndoEntry e = undoStack.back();
     if (e.index < 0 || e.index >= static_cast<int>(scene.entities.size())) {
@@ -557,11 +590,23 @@ inline bool applyUndo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
         return false;
     }
     pe::Entity& ent = scene.entities[static_cast<std::size_t>(e.index)];
-    outFromX = ent.position.x;
-    outFromY = ent.position.y;
-    ent.position = e.before;
-    outToX = e.before.x;
-    outToY = e.before.y;
+    outWasDelete = e.isDelete;
+    if (e.isDelete) {
+        // The delete-undo: the entity returns (the alive flip; the
+        // vector order never changed - entity.h:183-189 - so every
+        // serialized field is still at its original index).
+        outFromX = 0.0f;
+        outFromY = 0.0f;
+        outToX = 0.0f;
+        outToY = 0.0f;
+        ent.alive = true;
+    } else {
+        outFromX = ent.position.x;
+        outFromY = ent.position.y;
+        ent.position = e.before;
+        outToX = e.before.x;
+        outToY = e.before.y;
+    }
     outIndex = e.index;
     undoStack.pop_back();
     redoStack.push_back(e);
@@ -572,7 +617,7 @@ inline bool applyUndo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
 inline bool applyRedo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
                       std::vector<UndoEntry>& redoStack,
                       int& outIndex, float& outFromX, float& outFromY,
-                      float& outToX, float& outToY) {
+                      float& outToX, float& outToY, bool& outWasDelete) {
     if (redoStack.empty()) return false;
     const UndoEntry e = redoStack.back();
     if (e.index < 0 || e.index >= static_cast<int>(scene.entities.size())) {
@@ -580,11 +625,21 @@ inline bool applyRedo(pe::Scene& scene, std::vector<UndoEntry>& undoStack,
         return false;
     }
     pe::Entity& ent = scene.entities[static_cast<std::size_t>(e.index)];
-    outFromX = ent.position.x;
-    outFromY = ent.position.y;
-    ent.position = e.after;
-    outToX = e.after.x;
-    outToY = e.after.y;
+    outWasDelete = e.isDelete;
+    if (e.isDelete) {
+        // The delete-redo: the entity is removed again (the alive flip).
+        outFromX = 0.0f;
+        outFromY = 0.0f;
+        outToX = 0.0f;
+        outToY = 0.0f;
+        ent.alive = false;
+    } else {
+        outFromX = ent.position.x;
+        outFromY = ent.position.y;
+        ent.position = e.after;
+        outToX = e.after.x;
+        outToY = e.after.y;
+    }
     outIndex = e.index;
     redoStack.pop_back();
     undoStack.push_back(e);
@@ -633,15 +688,16 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
         state.pendingDiscard = false;
         std::string err;
         const bool ok = reloadForEditor(state.path, state.current, state.selected, err);
-        state.feedback = makeReloadFeedback(ok, state.path, state.current.entities.size(), err);
+        state.feedback = makeReloadFeedback(ok, state.path, aliveCount(state.current), err);
         if (ok) {
             state.modified = false;  // the successful reload clears the flag (a failed one keeps it)
             state.baseline = capturePositions(state.current);  // the new baseline (the Step 301)
+            state.baselineAlive = captureAliveFlags(state.current);  // the Step 309: the alive flags are part of the baseline
             state.undoStack.clear();  // the indices go stale after a structural change
             state.panelScroll = 0;    // the reload restarts the panel view (the Step 304)
             state.redoStack.clear();
         }
-        state.status = makeStatusLine(state.path, state.current.entities.size(),
+        state.status = makeStatusLine(state.path, aliveCount(state.current),
                                       std::string(), state.selected, state.current.entities);
     }
     // The selection navigation (the Step 297): the next/previous keys
@@ -652,7 +708,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
         const int before = state.selected;
         state.selected = navigateSelection(state.current, state.selected,
                                            in.keyNavNext ? 1 : -1);
-        state.status = makeStatusLine(state.path, state.current.entities.size(),
+        state.status = makeStatusLine(state.path, aliveCount(state.current),
                                       std::string(), state.selected, state.current.entities);
         state.feedback.clear();
         state.panelScroll = 0;   // a nav press restarts the panel view (the Step 304)
@@ -676,10 +732,10 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
         float ndx = 0.0f, ndy = 0.0f;
         if (nudgeSelected(state.current, state.selected, in.shiftDown,
                           in.keyUp, in.keyDown, in.keyLeft, in.keyRight, ndx, ndy)) {
-            state.modified = positionsDiffer(state.current, state.baseline);  // the honest rule (the Step 301)
+            state.modified = sceneDiffers(state.current, state.baseline, state.baselineAlive);  // the honest rule (the Step 301; the alive flags count since the Step 309)
             state.redoStack.clear();  // a new nudge clears the redo branch
             const pe::Entity& nudged = state.current.entities[static_cast<std::size_t>(state.selected)];
-            state.undoStack.push_back(UndoEntry{state.selected, nudgeBefore, nudged.position});
+            state.undoStack.push_back(UndoEntry{state.selected, false, nudgeBefore, nudged.position});  // a nudge entry (the Step 309 typed form)
             if (state.undoStack.size() > kEditorUndoCap) state.undoStack.erase(state.undoStack.begin());  // the cap: the oldest falls off
             ++state.nudgeCount;
             state.lastNudgeDx = ndx;
@@ -695,20 +751,50 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
     if (in.keyUndo || in.keyRedo) {
         int idx = -1;
         float fx = 0.0f, fy = 0.0f, tx = 0.0f, ty = 0.0f;
+        bool wasDelete = false;
+        const int countBefore = aliveCount(state.current);
         const bool undoOp = in.keyUndo;  // if BOTH edges (not possible live), the undo wins
         const bool applied = undoOp
-            ? applyUndo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty)
-            : applyRedo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty);
+            ? applyUndo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty, wasDelete)
+            : applyRedo(state.current, state.undoStack, state.redoStack, idx, fx, fy, tx, ty, wasDelete);
         if (applied) {
-            state.modified = positionsDiffer(state.current, state.baseline);
+            state.modified = sceneDiffers(state.current, state.baseline, state.baselineAlive);
             ++state.undoCount;
             state.lastUndoWasUndo = undoOp;
+            state.lastUndoWasDelete = wasDelete;
             state.lastUndoIndex = idx;
             state.lastUndoFromX = fx;
             state.lastUndoFromY = fy;
             state.lastUndoToX = tx;
             state.lastUndoToY = ty;
+            state.lastUndoCountBefore = countBefore;
+            state.lastUndoCountAfter = aliveCount(state.current);
             state.feedback = std::string(undoOp ? "undone entity " : "redone entity ") + std::to_string(idx);
+        }
+    }
+    // The delete (the Step 309): the DELETE key removes the selected
+    // entity via the ALIVE FLAG (entity.h:183-189: kills never erase -
+    // the indices stay stable; the saver drops dead entities on save,
+    // scene.h:419-420). No selection = a safe no-op. The selection is
+    // CLEARED after a delete (the index names a dead entity). The
+    // delete is an undoable command on the SAME bounded stack as the
+    // nudges, in order with them; the redo re-deletes; the honest
+    // modified recompute includes the alive flags.
+    if (in.keyDelete) {
+        if (selectionNudgeable(state.current, state.selected)) {
+            const int idx = state.selected;
+            const int aliveBefore = aliveCount(state.current);
+            state.current.entities[static_cast<std::size_t>(idx)].alive = false;
+            state.redoStack.clear();  // a new command clears the redo branch
+            state.undoStack.push_back(UndoEntry{idx, true, pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(0.0f, 0.0f, 0.0f)});
+            if (state.undoStack.size() > kEditorUndoCap) state.undoStack.erase(state.undoStack.begin());
+            state.selected = -1;  // the selection is cleared after a delete (documented)
+            state.modified = sceneDiffers(state.current, state.baseline, state.baselineAlive);
+            ++state.deleteCount;
+            state.lastDeleteIndex = idx;
+            state.lastDeleteCountBefore = aliveBefore;
+            state.lastDeleteCountAfter = aliveCount(state.current);
+            state.feedback = "deleted entity " + std::to_string(idx);
         }
     }
     // The panel scroll (the Step 304): PgUp/PgDn move the visible
@@ -746,16 +832,17 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
         }
         if (saved) {
             if (in.savePathOverride.empty()) state.saveCounter = n + 1;  // the next free name (the break skips the scan advance; the hook path never moves it)
-            state.feedback = makeSaveFeedback(true, target, state.current.entities.size(), "");
+            state.feedback = makeSaveFeedback(true, target, aliveCount(state.current), "");
             state.modified = false;  // the successful save clears the modified flag (the Step 300; a failed save keeps it)
             state.baseline = capturePositions(state.current);  // the saved positions are the new baseline (the Step 301; the stacks survive a save)
+            state.baselineAlive = captureAliveFlags(state.current);  // the Step 309: the alive flags are part of the baseline
             ++state.saveCount;
             state.lastSavePath = target;
             state.path = target;  // the path switch (the Step 303, authorized): the loaded/source path becomes the NEW saved file (a failed save NEVER switches; the stacks are kept - the scene objects are unchanged; the reload still clears them)
         } else {
             state.feedback = makeSaveFeedback(false, target, state.current.entities.size(), saveErr);
         }
-        state.status = makeStatusLine(state.path, state.current.entities.size(),
+        state.status = makeStatusLine(state.path, aliveCount(state.current),
                                       std::string(), state.selected, state.current.entities);
     }
     // The pointer: the gesture classification. The threshold is in
@@ -799,7 +886,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
                                                           in.fbWidth, in.fbHeight,
                                                           state.camera.halfExtentX(), state.camera.halfExtentY(),
                                                           state.zoom, state.camera.getPosition());
-                state.status = makeStatusLine(state.path, state.current.entities.size(),
+                state.status = makeStatusLine(state.path, aliveCount(state.current),
                                               std::string(), state.selected, state.current.entities);
                 state.feedback.clear();  // the next event: the feedback clears
                 state.panelScroll = 0;   // a new selection restarts the panel view (the Step 304)
@@ -831,7 +918,7 @@ inline void stepEditorFrame(EditorState& state, const EditorInput& in) {
         || in.keyUp || in.keyDown || in.keyLeft || in.keyRight || in.keySave) {
         state.pendingDiscard = false;  // any other key clears the pending (the Step 300 rule; R is excluded)
     }
-    state.status = makeStatusLine(state.path, state.current.entities.size(),
+    state.status = makeStatusLine(state.path, aliveCount(state.current),
                                   std::string(), state.selected, state.current.entities,
                                   state.modified);
 }

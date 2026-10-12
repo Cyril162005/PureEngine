@@ -126,7 +126,7 @@ static const char* kMissing    = "editor0_tmp/no_such_scene_zz.txt";
 static const int kEditorKeys[] = {GLFW_KEY_ESCAPE, GLFW_KEY_EQUAL, GLFW_KEY_MINUS, GLFW_KEY_R,
                                   GLFW_KEY_TAB, GLFW_KEY_S, GLFW_KEY_Z, GLFW_KEY_Y,
                                   GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT,
-                                  GLFW_KEY_PAGE_UP, GLFW_KEY_PAGE_DOWN};
+                                  GLFW_KEY_PAGE_UP, GLFW_KEY_PAGE_DOWN, GLFW_KEY_DELETE};
 static const std::size_t kEditorKeyCount = sizeof(kEditorKeys) / sizeof(kEditorKeys[0]);
 
 static void readTextFile(const char* name, std::string& out) {
@@ -1425,7 +1425,7 @@ static void checkNudgeAndModified() {
             if (kEditorKeys[i] == GLFW_KEY_RIGHT) right = true;
         }
         check(up && down && left && right, "keys: the editor's tracked list registers all four arrows");
-        check(kEditorKeyCount == 14, "keys: the editor's tracked list is the documented 14 keys (the Step 301 adds Z, Y; the Step 304 adds PgUp/PgDn)");
+        check(kEditorKeyCount == 15, "keys: the editor's tracked list is the documented 15 keys (the Step 309 adds Delete)");
     }
 }
 
@@ -2190,6 +2190,217 @@ static void checkHelpLegend() {
     check(missing == 0, "help: every required token is present (nudge/Shift/Tab/PgDn/R/Ctrl+S/Ctrl+Z/undo/ESC)");
 }
 
+// Step 309: the entity delete (pure, no GL, no live GLFW). The
+// semantics: the ALIVE-FLAG kill (entity.h:183-189 - kills never
+// erase, the indices stay stable; the saver drops dead entities on
+// save, scene.h:419-420). The delete is an undoable command on the
+// same bounded stack as the nudges, in order with them; the redo
+// re-deletes; the modified flag is honest vs the position+alive
+// baseline.
+static void checkEntityDelete() {
+    // a) delete then save-as then load: N-1 entities, none equal to
+    //    the deleted one; the selection cleared; the flag set.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        std::remove("savedata/del_src_edit1.txt");  // the idempotency pre-removes (the AV-lock-safe range)
+        std::remove("savedata/del_src_edit2.txt");
+        std::remove("savedata/del_src_edit3.txt");
+        state.path = "editor0_tmp/del_src.txt";
+        std::string err;
+        check(pe::saveSceneToFile(state.current, state.path), "delete: the source written (the test setup)");
+        state.camera.onResize(800, 600);
+        state.baseline = editor0::capturePositions(state.current);
+        state.baselineAlive = editor0::captureAliveFlags(state.current);
+        const pe::Scene before = state.current;
+        const std::string deletedTag = before.entities[2].tag;
+        state.selected = 2;   // the enemy
+        editor0::EditorInput in;
+        in.keyDelete = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyDelete = false;
+        check(state.current.entities[2].alive == false, "delete: the selected entity is dead (the alive flag)");
+        check(state.current.entities[0].alive && state.current.entities[1].alive,
+              "delete: negative control - ONLY the selected index was killed");
+        check(state.selected == -1, "delete: the selection is cleared");
+        check(state.modified, "delete: the modified flag is set");
+        check(editor0::aliveCount(state.current) == 2, "delete: the visible count is 2");
+        check(state.feedback == "deleted entity 2", "delete: the feedback names the index");
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);
+        in.keySave = false;
+        check(state.feedback.rfind("saved savedata/del_src_edit", 0) == 0
+              && state.feedback.find("(2 entities)") != std::string::npos,
+              "delete: the saved feedback reports the VISIBLE count (2; the flat name)");
+        check(!state.modified, "delete: the successful save cleared the flag (the baseline = that save)");
+        pe::Scene loaded;
+        check(editor0::loadSceneForEditor(state.path, loaded, err), "delete: the saved file loads (from the switched path)");
+        check(loaded.entities.size() == 2, "delete: the saved file has N-1 entities (the dead one is NOT saved)");
+        bool foundDeleted = false;
+        for (const pe::Entity& e : loaded.entities) if (e.tag == deletedTag) foundDeleted = true;
+        check(!foundDeleted, "delete: none of the loaded entities equals the deleted one (the tag)");
+        std::string diff;
+        check(entityFieldMatches(before.entities[0], loaded.entities[0], diff)
+              && entityFieldMatches(before.entities[1], loaded.entities[1], diff),
+              "delete: the survivors are field-exact in the file");
+        std::remove("savedata/del_src_edit1.txt");
+        std::remove(state.path.c_str());
+    }
+    // b) the undo restores the entity at the original index with every
+    //    serialized field; the wrong-index negative control; a later
+    //    save-as then load round-trips field-exact; the honest flag.
+    {
+        std::remove("savedata/del_undo_edit1.txt");  // the idempotency pre-removes
+        std::remove("savedata/del_undo_edit2.txt");
+        std::remove("savedata/del_undo_edit3.txt");
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = "editor0_tmp/del_undo_src.txt";
+        std::string err;
+        check(pe::saveSceneToFile(state.current, state.path), "delete/undo: the source written (the test setup)");
+        state.camera.onResize(800, 600);
+        state.baseline = editor0::capturePositions(state.current);
+        state.baselineAlive = editor0::captureAliveFlags(state.current);
+        const pe::Scene before = state.current;
+        state.selected = 1;   // the pickup
+        editor0::EditorInput in;
+        in.keyDelete = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyDelete = false;
+        check(state.current.entities[1].alive == false, "delete/undo: the entity deleted");
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyUndo = false;
+        check(state.current.entities[1].alive == true, "delete/undo: the entity is RESTORED (alive)");
+        std::string diff;
+        check(entityFieldMatches(before.entities[1], state.current.entities[1], diff),
+              "delete/undo: every serialized field is restored at the original index");
+        check(entityFieldMatches(before.entities[0], state.current.entities[0], diff)
+              && entityFieldMatches(before.entities[2], state.current.entities[2], diff),
+              "delete/undo: negative control - the OTHER entities untouched (a wrong-index restore fails)");
+        check(!state.modified, "delete/undo: back to the clean state -> NOT modified (honest)");
+        check(editor0::aliveCount(state.current) == 3, "delete/undo: the visible count back to 3");
+        in.keySave = true;
+        editor0::stepEditorFrame(state, in);
+        in.keySave = false;
+        pe::Scene loaded;
+        check(editor0::loadSceneForEditor(state.path, loaded, err), "delete/undo: the post-undo save loads (from the switched path)");
+        check(loaded.entities.size() == 3, "delete/undo: the post-undo save has all 3 entities");
+        bool allExact = loaded.name == before.name;
+        for (std::size_t i = 0; allExact && i < 3; ++i) allExact = entityFieldMatches(before.entities[i], loaded.entities[i], diff);
+        check(allExact, "delete/undo: the restored entity round-trips field-exact (save-as then load)");
+        std::remove("savedata/del_undo_edit1.txt");
+        std::remove("savedata/del_undo_edit2.txt");
+        std::remove("savedata/del_undo_edit3.txt");
+        std::remove("editor0_tmp/del_undo_src.txt");
+    }
+    // c) the mixed sequences: delete, nudge(another), undo, undo,
+    //    redo, redo - the stack order holds across the kinds.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.camera.onResize(800, 600);
+        const pe::Scene before = state.current;
+        state.selected = 2;
+        editor0::EditorInput in;
+        in.keyDelete = true;
+        editor0::stepEditorFrame(state, in);   // delete the enemy
+        in.keyDelete = false;
+        state.selected = 0;
+        in.keyRight = true;
+        editor0::stepEditorFrame(state, in);   // nudge the tile right
+        in.keyRight = false;
+        check(state.current.entities[0].position.x == before.entities[0].position.x + 0.1f
+              && state.current.entities[2].alive == false,
+              "delete/mixed: the delete + the nudge applied");
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);   // undo the nudge
+        check(floatEq(state.current.entities[0].position.x, before.entities[0].position.x)
+              && state.current.entities[2].alive == false,
+              "delete/mixed: the 1st undo removes the nudge (the delete stays)");
+        editor0::stepEditorFrame(state, in);   // undo the delete
+        in.keyUndo = false;
+        check(state.current.entities[2].alive == true, "delete/mixed: the 2nd undo restores the entity");
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);   // redo the delete
+        check(state.current.entities[2].alive == false
+              && state.current.entities[0].position.x == before.entities[0].position.x,
+              "delete/mixed: the 1st redo re-deletes");
+        editor0::stepEditorFrame(state, in);   // redo the nudge
+        in.keyRedo = false;
+        check(floatEq(state.current.entities[0].position.x, before.entities[0].position.x + 0.1f)
+              && state.current.entities[2].alive == false,
+              "delete/mixed: the 2nd redo re-applies the nudge (the expected end scene)");
+    }
+    // d) delete with no selection changes nothing.
+    {
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        const pe::Scene before = state.current;
+        editor0::EditorInput in;
+        in.keyDelete = true;
+        editor0::stepEditorFrame(state, in);
+        std::string diff;
+        check(sceneUnchanged(before, state.current, diff) && !state.modified && state.undoStack.empty(),
+              "delete: no selection - a safe no-op (the scene, the flag, the stack)");
+    }
+    // e) the source bytes identical through delete/undo sequences.
+    {
+        const char* kSrc = "editor0_tmp/del_bytes.txt";
+        editor0::EditorState state;
+        buildSampleScene(state.current);
+        state.path = kSrc;
+        std::string err;
+        check(pe::saveSceneToFile(state.current, kSrc), "delete/files: the source written (the test setup)");
+        std::string srcBefore;
+        readTextFile(kSrc, srcBefore);
+        state.camera.onResize(800, 600);
+        state.selected = 0;
+        editor0::EditorInput in;
+        in.keyDelete = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyDelete = false;
+        in.keyUndo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyUndo = false;
+        in.keyRedo = true;
+        editor0::stepEditorFrame(state, in);
+        in.keyRedo = false;
+        std::string srcAfter;
+        readTextFile(kSrc, srcAfter);
+        check(!srcBefore.empty() && srcBefore == srcAfter, "delete/files: the SOURCE bytes identical through delete/undo/redo");
+        std::remove(kSrc);
+    }
+    // f) the stack bound holds with the delete commands (40 entities).
+    {
+        editor0::EditorState state;
+        buildSampleSceneN(state.current, 40);
+        state.camera.onResize(800, 600);
+        editor0::EditorInput in;
+        in.keyDelete = true;
+        for (int i = 0; i < 33; ++i) {
+            state.selected = i;   // a fresh live selection per delete
+            editor0::stepEditorFrame(state, in);
+        }
+        in.keyDelete = false;
+        check(state.undoStack.size() == editor0::kEditorUndoCap, "delete/cap: 33 deletes -> the stack holds the cap (32)");
+        check(editor0::aliveCount(state.current) == 7, "delete/cap: the visible count is 40-33 = 7");
+        in.keyUndo = true;
+        for (int i = 0; i < 32; ++i) editor0::stepEditorFrame(state, in);
+        check(editor0::aliveCount(state.current) == 39, "delete/cap: 32 undos restore all but the evicted first delete");
+        editor0::stepEditorFrame(state, in);
+        check(editor0::aliveCount(state.current) == 39 && state.undoStack.empty(),
+              "delete/cap: the 33rd undo is a no-op (the evicted entry is gone)");
+        in.keyUndo = false;
+    }
+    // g) the keys: the tracked list has Delete (15 keys).
+    {
+        bool del = false;
+        for (std::size_t i = 0; i < kEditorKeyCount; ++i) if (kEditorKeys[i] == GLFW_KEY_DELETE) del = true;
+        check(del, "delete: the editor's tracked list registers the Delete key");
+    }
+}
+
 // Step 289: ONE hidden-window frame with a loaded scene (real GL, no
 // visible window). Asserts glGetError() == 0 after the frame and that
 // the one-iteration loop exits cleanly (control returns here).
@@ -2258,7 +2469,7 @@ static void checkHiddenWindowFrame() {
 // is on screen and the editor keeps running (the scene is untouched).
 // Saving: Ctrl+S = the save-as (the Step 299/300: a NEW path; never the source).
 // Controls: left-drag = pan, +/- = zoom (clamped 0.25..4.0), R =
-// reload the current path, ESC = quit, arrows = nudge (Shift = 1.0), Ctrl+S = save-as, Ctrl+Z/Ctrl+Y = undo/redo, PgUp/PgDn = panel scroll.
+// reload the current path, ESC = quit, arrows = nudge (Shift = 1.0), Ctrl+S = save-as, Ctrl+Z/Ctrl+Y = undo/redo, PgUp/PgDn = panel scroll, Delete = remove the selection.
 static int runViewer(const char* scenePath) {
     if (!glfwInit()) { std::fprintf(stderr, "editor0: glfwInit failed\n"); return 1; }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -2299,6 +2510,7 @@ static int runViewer(const char* scenePath) {
                                            ok ? std::string() : err, state.selected, state.current.entities);
     if (!ok) editor0::reportMessage(std::cerr, state.status);  // ONE report per attempt
     state.baseline = editor0::capturePositions(state.current);  // the modified baseline (the Step 301)
+    state.baselineAlive = editor0::captureAliveFlags(state.current);  // the Step 309: the alive flags
 
     // Edge-tracked keys: ESC (quit) + +/- (zoom steps) + R (reload) -
     // one event per press (the documented edge read). NO wheel:
@@ -2345,9 +2557,10 @@ static int runViewer(const char* scenePath) {
         const bool zEdge = input.isEdge(window, GLFW_KEY_Z);
         const bool yEdge = input.isEdge(window, GLFW_KEY_Y);
         editor0::undoRedoKeys(zEdge, yEdge, ctrlDown, shiftDown, in.keyUndo, in.keyRedo);
-        // The panel scroll (the Step 304): the PageUp/PageDown edges.
+        // The panel scroll (the Step 304) + the delete (the Step 309).
         in.keyPanelUp = input.isEdge(window, GLFW_KEY_PAGE_UP);
         in.keyPanelDown = input.isEdge(window, GLFW_KEY_PAGE_DOWN);
+        in.keyDelete = input.isEdge(window, GLFW_KEY_DELETE);
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);   // frame-end snapshot (the documented temporal order)
@@ -2433,6 +2646,7 @@ static int runDiagInput(const char* scenePath) {
                                            ok ? std::string() : err, state.selected, state.current.entities);
     if (!ok) editor0::reportMessage(std::cerr, state.status);
     state.baseline = editor0::capturePositions(state.current);  // the modified baseline (the Step 301)
+    state.baselineAlive = editor0::captureAliveFlags(state.current);  // the Step 309: the alive flags
     std::printf("diag-input: click entities; ONE line per click. Arrows nudge (Shift = 1.0); Ctrl+Z/Ctrl+Y undo/redo. ESC quits.\n");
     std::fflush(stdout);
 
@@ -2440,6 +2654,7 @@ static int runDiagInput(const char* scenePath) {
     int lastPickCount = 0;
     int lastNavCount = 0;
     int lastUndoCount = 0;
+    int lastDeleteCount = 0;
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         const pe::MouseState m = pe::Input::pollMouse(window);
@@ -2470,10 +2685,19 @@ static int runDiagInput(const char* scenePath) {
         editor0::undoRedoKeys(diagZEdge, diagYEdge, diagCtrlDown, diagShiftDown, in.keyUndo, in.keyRedo);
         in.keyPanelUp = input.isEdge(window, GLFW_KEY_PAGE_UP);
         in.keyPanelDown = input.isEdge(window, GLFW_KEY_PAGE_DOWN);
+        in.keyDelete = input.isEdge(window, GLFW_KEY_DELETE);
         in.keyEsc = input.isEdge(window, GLFW_KEY_ESCAPE);
         editor0::stepEditorFrame(state, in);
         input.update(window);
         if (state.quitRequested) glfwSetWindowShouldClose(window, GLFW_TRUE);
+        if (state.deleteCount != lastDeleteCount) {
+            lastDeleteCount = state.deleteCount;
+            // ONE line per delete (the Step 309 diag).
+            std::printf("delete: key=Delete selected=%d count %d->%d modified=%s\n",
+                        state.lastDeleteIndex, state.lastDeleteCountBefore, state.lastDeleteCountAfter,
+                        state.modified ? "true" : "false");
+            std::fflush(stdout);
+        }
         if (in.keyUp || in.keyDown || in.keyLeft || in.keyRight) {
             // ONE line per nudge key press (the key, the index, before -> after, the flag).
             const char* nk = in.keyUp ? "up" : in.keyDown ? "down" : in.keyLeft ? "left" : "right";
@@ -2489,11 +2713,20 @@ static int runDiagInput(const char* scenePath) {
         }
         if (state.undoCount != lastUndoCount) {
             lastUndoCount = state.undoCount;
-            // ONE line per applied undo/redo (the Step 301 diag).
-            std::printf("%s: index %d pos (%.4f,%.4f) -> (%.4f,%.4f) modified=%s\n",
-                        state.lastUndoWasUndo ? "undo" : "redo", state.lastUndoIndex,
-                        state.lastUndoFromX, state.lastUndoFromY, state.lastUndoToX, state.lastUndoToY,
-                        state.modified ? "true" : "false");
+            // ONE line per applied undo/redo (the Step 301 diag; the
+            // delete form since the Step 309).
+            if (state.lastUndoWasDelete) {
+                std::printf("%s: index %d delete count %d->%d modified=%s\n",
+                            state.lastUndoWasUndo ? "undo" : "redo", state.lastUndoIndex,
+                            state.lastUndoCountBefore, state.lastUndoCountAfter,
+                            state.modified ? "true" : "false");
+            } else {
+                std::printf("%s: index %d pos (%.4f,%.4f) -> (%.4f,%.4f) count %d->%d modified=%s\n",
+                            state.lastUndoWasUndo ? "undo" : "redo", state.lastUndoIndex,
+                            state.lastUndoFromX, state.lastUndoFromY, state.lastUndoToX, state.lastUndoToY,
+                            state.lastUndoCountBefore, state.lastUndoCountAfter,
+                            state.modified ? "true" : "false");
+            }
             std::fflush(stdout);
         }
         if (state.navCount != lastNavCount) {
@@ -2552,6 +2785,7 @@ int main(int argc, char** argv) {
         checkPathSwitch();        // Step 303: the path-switch-after-save
         checkPanelScroll();       // Step 304: the inspector panel scroll
         checkHelpLegend();        // Step 305: the always-on key legend
+        checkEntityDelete();      // Step 309: the entity delete + the typed undo
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
@@ -2589,6 +2823,7 @@ int main(int argc, char** argv) {
                 "  PureEditor0 --make-sample <p>   write the 3-prefab sample scene to <p> (refuses to overwrite)\n"
                 "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, R = reload, arrows = nudge,\n"
                 "                                  Shift = 1.0, Ctrl+S = save-as (the editor then follows the saved file), Ctrl+Z/Ctrl+Y = undo/redo, ESC = quit)\n"
-                "                                  PgUp/PgDn = scroll the inspector panel)\n");
+                "                                  PgUp/PgDn = scroll the inspector panel, Delete = remove\n"
+                "                                  the selected entity)\n");
     return 2;
 }
