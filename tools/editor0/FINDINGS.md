@@ -1096,3 +1096,26 @@ ImGui / ECS / glTF / networking (the freezes stand).
   FAILS; restore by pathspec), ctest 5/5, alive x3, the diff checks,
   then the DOCS-311 record (the tracker 311 stopped -> completed,
   V3, the board, the README).
+
+## Entry 50
+- **what:** the Step 311 RECOVERY: the lock cleared (the HUMAN rebuilt
+  PureEditor0 - the verbatim evidence: 'Build Release OK after lock
+  clear'; the selftest 2 FAIL only - BOTH the view-toggle harness
+  bug; ctest 4/5 PureEditor0 failed = the STALE exe from the human's
+  run BEFORE the fix). THE DIAGNOSIS: the view-toggle test called the
+  SECOND stepEditorFrame with keyViewToggle = FALSE (no edge -> no
+  toggle) - the SAME harness-bug class as the 310 (g) missing second
+  R edge; the PRODUCT code was correct (the enter-3D checks passed).
+  THE FIX: the second V press now carries a REAL edge (main.cpp, the
+  check (a)). THE POST-FIX GATES (all green): the selftest 462 PASS /
+  0 FAIL (x2 runs); ctest 5/5 100% (10.27s; the PureEditor0 duration
+  0.46s); alive x3 (all three True); git diff --check exit 0 clean;
+  git diff --stat -- src/ EMPTY. THE MUTATION (the deferred
+  play-restore broken) FAILED 1 check NON-VACUOUS ('play: the exit
+  restored the snapshot FIELD-EXACT'); restored by pathspec.
+- **class:** existing capability (a test-harness bug, fixed
+  editor-side; the product code needed no change).
+- **status:** recorded; the 311 gates are GREEN; the tracker 311
+  flipped stopped -> completed. The visuals 299-311 stay NOT TRIED
+  except the human's partial 311 evidence (the build + the selftest +
+  ctest quoted above; the on-screen visuals remain PENDING).

@@ -3032,6 +3032,23 @@ the core edits compile (the C2039 setPerspectiveMode -> the actual
 setPerspective(fovY, nearZ, farZ) camera.h:225 fixed; the proj
 scoping in the two draw loops fixed); the FINAL compile+link state
 is UNKNOWN (the lock hit at the link).
+RECOVERED (the Step 311 gate recovery, 2026-10-12): the lock cleared
+and the HUMAN rebuilt + ran the gates (the verbatim evidence: 'Build
+Release OK after lock clear'; the selftest 2 FAIL only - BOTH the
+view-toggle harness bug; 'ctest 4/5 PureEditor0 failed' = the STALE
+pre-fix exe). THE DIAGNOSIS: the view-toggle test called the SECOND
+stepEditorFrame with keyViewToggle = FALSE (no edge -> no toggle) -
+the 310 (g) harness-bug class; the PRODUCT code was correct. THE FIX
+(commit 206a35c): the second V press carries a REAL edge. THE
+POST-FIX GATES (all green): the selftest 462 PASS / 0 FAIL (x2
+runs); ctest -C Release 5/5 100% (10.27s; the PureEditor0 duration
+0.46s - under the 40s guard); alive x3 (all three True); git diff
+--check exit 0 clean; git diff --stat -- src/ EMPTY. THE MUTATION
+(the deferred play-restore broken) FAILED 1 check NON-VACUOUS
+('play: the exit restored the snapshot FIELD-EXACT'); restored by
+pathspec. The tracker 311 flipped stopped -> completed. The
+on-screen visuals (V 2D<->3D, the meshId keys, P play/stop) stay
+PENDING.
 
 ## Kill criteria
 
