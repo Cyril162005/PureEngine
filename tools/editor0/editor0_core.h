@@ -596,8 +596,7 @@ inline bool sceneDiffers(const pe::Scene& scene, const std::vector<pe::Vec3>& ba
 }
 
 // --- Step 310: the entity create ---
-// The listing mirrors the engine probe (prefab.h:71-73): the first
-// existing assets/prefabs candidate; its *.txt sorted.
+// The listing mirrors the engine probe (prefab.h:71-73): the first existing assets/prefabs candidate; its *.txt sorted.
 inline std::vector<std::string> listPrefabFiles() {
     std::vector<std::string> out;
     const char* dirs[3] = {"assets/prefabs", "../assets/prefabs", "../../assets/prefabs"};
@@ -872,8 +871,7 @@ inline void stepEditorFrameInner(EditorState& state, const EditorInput& in) {
         }
     }
     // The create (the Step 310): N instantiates the CURRENT prefab
-    // ([ / ] cycle it) at the VIEW CENTER; undoable; no list / a bad
-    // file: the status reason.
+    // ([ / ] cycle it) at the VIEW CENTER; undoable; no list / a bad file: the reason.
     if (in.keyCreate || in.keyPrefabNext || in.keyPrefabPrev) {
         const int listN = static_cast<int>(state.prefabFiles.size());
         if (!in.keyCreate) {
