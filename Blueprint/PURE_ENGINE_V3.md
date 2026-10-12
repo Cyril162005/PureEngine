@@ -2807,6 +2807,111 @@ per-entity highlight (the role-group coloring only), no drag-to-move,
 no multi-field editing. The deferred lists stand (the option-B, the
 option-C and the mini-slice sections above).
 
+### Vertical slices (Step 308, docs only) - the 2D and 3D slice workflows, grep-verified
+
+Every claim below cites the current file:line (grep-verified this
+step) or a named test. Status: VERIFIED (exists + tested) / PARTIAL
+(exists but incomplete) / MISSING (nothing exists) / BLOCKED (a named
+freeze - none of the items below are BLOCKED by a freeze; the freezes
+stand at AGENTS.md v1.1 + the per-version frozen lists). Categories
+per the Direction Spec 5-category map (V3, Step 293): 1 Core
+foundation, 2 World + content, 3 Graphics + audio + assets,
+4 Simulation + game systems, 5 Editor + build + distribution.
+
+**a) 2D slice: create project -> create scene -> add entity/sprite ->
+modify -> save -> play/test -> build/package -> export**
+
+| step | what exists today (file:line, test) | status | cat | first capability to close |
+|---|---|---|---|---|
+| create project | NOTHING: no project file/manifest anywhere (the repo root has only the 6 asset-generator PS1s); a "project" is the CMake repo + loose scene .txt files | MISSING | 5 | a project manifest format + a tools-side loader (no freeze) |
+| create scene | pe::saveSceneToFile (src/scene.h:381, the 34-field v2 format, the tmp+rename atomic) + pe::loadSceneFromFile (src/scene.h:459, strict whole-file); the editor boundary loadSceneForEditor (tools/editor0/editor0_core.h:39); the round-trip tests (LevelPipelineConsumer 276; the editor selftest save-as checks) | VERIFIED | 2 + 5 | nothing (works today, headless + in the viewer) |
+| add entity/sprite | engine-side: Scene::queueSpawn (src/scene.h:73) + flushSpawns (src/scene.h:81) + the SceneManager (switchTo src/scene.h:180, removeEntity src/scene.h:213); sprites = the FIXED texture slots the renderer loads at init (renderer.h init fatal set - the 288 finding); the EDITOR has NO add/remove UI (stepEditorFrameInner mutates positions only, editor0_core.h:609) | PARTIAL | 5 (+3 for the texture browsing) | wire the existing create/remove APIs into the editor (tools-side; no freeze) |
+| modify it | positions: the nudge (editor0_core.h:486), the undo/redo (editor0_core.h:549/:572, the cap 32), the inspector (editor0_core.h:864, 36 lines); OTHER fields: MISSING - no typed edits (no text-input widget; the raw material = the console's feedKey, src/console.h:10-15, the key-fed input line) | PARTIAL | 5 | the field-edit UI on the feedKey raw material (tools-side) |
+| save | saveAsForEditor (editor0_core.h:321, the write-safety refusals) + the path switch (the Step 303) + the flat _editN naming (makeSaveAsPath editor0_core.h:291); the round-trip byte-identical (the 299 tests) | VERIFIED | 2 | nothing |
+| play/test | the ENGINE simulates (src/simulation.h:69 advanceRotations, :84 chasePlayer, :117 applyPhysics, :140 scanSceneryCollisions; the arcade loop src/main.cpp); the EDITOR has NO play mode (the viewer loop draws only, tools/editor0/main.cpp runViewer) | PARTIAL | 4 + 5 | an editor play-mode toggle wiring simulation.h into the editor loop (tools-side; no freeze) |
+| build/package | build: CMake (the VS-bundled toolchain; ctest 5/5 every step). package: NOTHING - NO package.ps1 exists (grep-verified; the root PS1s are make_beep/checker/font/music/paddlesheet/textures - asset generators); the release gate is Blueprint/SMOKE_TEST.md (README:14-15) | PARTIAL | 5 | a packaging script (tools-side) |
+| export | NOTHING: no export of any kind (resources.h holds the blob/pack/cache CONTRACT half - the resources_test target; no runtime asset pack/export exists) | MISSING | 5 + 3 | the packaging script first, then an export format decision (human) |
+
+**b) 3D slice: create scene -> import mesh -> place it -> camera ->
+lighting -> save -> play/test -> build/package**
+
+| step | what exists today (file:line, test) | status | cat | first capability to close |
+|---|---|---|---|---|
+| create scene | the same scene format carries the 3D fields (Entity meshId src/entity.h:119, the y position; the 3D done-criteria V3 Step 263); the round-trip tests | VERIFIED | 2 | nothing |
+| import a mesh | loadMeshFromObj (src/mesh3d.h:102): the v/f triangle-soup ONLY - no vn/vt, no quads, no index buffers (src/mesh3d.h:92; the silent vn/vt skip src/mesh3d.h:184); the meshes register at init (renderer.h registerMesh :752, clearRegisteredMeshes :755; the tetra/wedge loaded in main) | PARTIAL | 3 | the loader extension (a material/index-buffer pass) - an engine version item, human-opened |
+| place it | hand-editing the scene .txt today (meshId + the position); the editor cannot place or create | PARTIAL | 5 | the same create/place wiring as the 2D add-entity row |
+| camera | the 3D camera mode EXISTS: the perspective/ortho setters (src/camera.h:228-235), setFov (src/camera.h:264), orbitEye the XZ-plane orbit (src/camera.h:247, the Step 229 fix), rebuildProjection (src/camera.h:273); the debug3d consumer drives it via the console path | VERIFIED (the editor zoom stays the composed screen-center scale, editor0_core.h:114 - the engine has no zoom API) | 3 | nothing for placement; the zoom API stays the recorded missing capability (src/camera.h:290, the halfHeight=4.5 lock) |
+| lighting | the 3D per-face directional lighting on the loaded meshes (the Step 260 inverse-transpose + the Step 261 sizing; renderer.h setLightUniforms :423); the 2D LightingState (src/lighting.h:41, MAX_LIGHTS=4 :44) | VERIFIED (the mutation-caught v4 tests) | 3 | nothing (the world-light editing UI is a later editor item) |
+| save | the same VERIFIED scene round-trip | VERIFIED | 2 | nothing |
+| play/test | the same PARTIAL as the 2D row | PARTIAL | 4 + 5 | the editor play-mode toggle |
+| build/package | the same PARTIAL as the 2D row (CMake yes; no package.ps1) | PARTIAL | 5 | the packaging script |
+
+**The recorded engine gaps (each already classified; none new):**
+- no camera zoom API - src/camera.h:290 (the halfHeight=4.5 lock); the
+  editor composes its own (editor0_core.h:114). cat 3, MISSING.
+- no wheel input - src/input.h:264-273 (MouseState: left+right only).
+  cat 1, MISSING.
+- no per-entity AABB color - renderer.h drawAABBs :1085 colors by
+  roleId only (the editor's role-group trick). cat 3, MISSING.
+- no text-input widget - the raw keys only; the console feedKey
+  (src/console.h:10-15) is the raw material. cat 1 + 5, MISSING.
+- no seedable RNG or noise - src/particles.h:23-28 (std::rand; the
+  in-source note names the day). cat 4, MISSING.
+
+**The dependency graph (text; an arrow = "is needed by"):**
+
+```
+text-input raw material (console.h feedKey) --> editor typed field edits --> multi-field undo entries
+scene create/remove APIs (scene.h:73/:81, :213) --> editor add/remove UI --> 2D+3D scene authoring
+project manifest --> asset browsing paths --> texture/sprite authoring
+project manifest --> packaging manifest --> export
+camera zoom API (engine) --> editor zoom without the composition
+wheel input (engine) --> wheel zoom + wheel scroll (needs the zoom API for zoom)
+per-entity AABB color (engine) --> a true selected-entity highlight
+play mode (simulation.h wiring) --> play/test inside the editor
+mesh loader extension (engine) --> richer 3D asset import
+seedable RNG (engine) --> deterministic procedural content (no current consumer)
+```
+
+**The candidate list (ordered ONLY by dependency and evidence - the
+leaf capabilities first; NOT a preference ranking; NOTHING is chosen
+or opened here - choosing is a human decision):**
+
+1. Entity create/delete wiring in the editor - cat 5, lives in
+   tools/ (the engine APIs exist: scene.h:73/:81, scene.h:213); no
+   freeze touched. Test path: the selftest create/remove round-trip +
+   the save/load field-exact compare.
+2. Editor play mode - cat 4+5, tools/ (simulation.h:69-140 exist); no
+   freeze touched. Test path: the headless simulation-wiring test
+   (the deterministic advanceRotations/applyPhysics steps) + a manual
+   toggle.
+3. Packaging script - cat 5, tools/ (nothing exists - no package.ps1,
+   grep-verified); no freeze touched. Test path: a manifest/paths
+   dry-run check (the SMOKE_TEST.md gate stays the human release
+   gate).
+4. Per-entity AABB color parameter - cat 3, an ENGINE version item
+   (renderer.h:1085 is the frozen v1.1 debug-draw surface; additive
+   opt-in only, the 201/249 precedent). Test path: the debug-draw CI
+   extension (the color contract).
+5. Text-input raw-material adoption - cat 5 (+1), tools/ first (the
+   console feedKey pattern, console.h:10-15); an editor widget needs
+   it. Test path: the headless feed-driven field-edit test.
+6. Camera zoom API - cat 3, an ENGINE version (camera.h:290; the
+   editor's composed zoom stays the fallback). Test path: the camera
+   contract test (the zoom invariant).
+7. Wheel input - cat 1, an ENGINE version (input.h:264-273); feeds
+   the zoom + the scroll. Test path: the input snapshot extension
+   test.
+8. Project manifest + asset browsing - cat 5+3, tools/ (depends on 3
+   for the paths to browse); no freeze touched. Test path: the
+   manifest parse + the directory-scan test.
+9. Mesh loader extension - cat 3, an ENGINE version (mesh3d.h:92/
+   :184; the vn/vt/quads gap). Test path: the mesh3d round-trip CI.
+10. Export - cat 5, tools/ (depends on 3 + 8); the format decision is
+   a human decision. Test path: set by the future step.
+11. Seedable RNG - cat 4, an ENGINE version (particles.h:23-28); no
+    current consumer. Test path: the seeded-determinism test.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

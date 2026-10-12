@@ -3,7 +3,7 @@
 Per-session rows; update your row when you start/stop. Claims need real
 command output behind them (see AGENTS.md reporting expectations).
 Feature history stays in pure_engine_v3_steps.json + PURE_ENGINE_V3.md �
-this board never replaces it. Highest step id: 307 (272 entries, no dups; the 307 entry records the recommended pause + the NOT-TRIED visual status - see the tracker/V3;
+this board never replaces it. Highest step id: 308 (273 entries, no dups; the 308 entry documents the vertical slices 2D+3D (grep-verified) + the dependency-ordered candidate list - see the tracker/V3;
 the former '287 entries' count was stale).
 
 ## Focus (binding for all sessions)

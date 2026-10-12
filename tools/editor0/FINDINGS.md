@@ -932,3 +932,16 @@ ImGui / ECS / glTF / networking (the freezes stand).
   code is unchanged this step).
 - **status:** recorded; the NOT-TRIED status stands until a filled
   checklist arrives.
+
+## Entry 43
+- **what:** the Step 308 human visual line, VERBATIM: `<PASTE your
+  one-line result, e.g. "visuals: all PASS, source unchanged: True" or
+  "visuals: not tried">` - the template pasted back UNFILLED: no PASS
+  rows, no FAIL rows, no "not tried" sentence. Per the 307 ruling the
+  NOT-TRIED status of the 299-305 visuals stands UNCHANGED (nothing
+  marked CONFIRMED, nothing marked FAILED).
+- **evidence:** the prompt text (the unfilled placeholder); FINDINGS
+  42 (the 307 checklist, also all unfilled).
+- **class:** existing capability (the record; nothing to fix; no code
+  this step).
+- **status:** recorded; the NOT-TRIED status stands.

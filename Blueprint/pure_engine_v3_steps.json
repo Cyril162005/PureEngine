@@ -3420,6 +3420,17 @@
    "depends_on": [
     306
    ]
+  },
+  {
+   "id": 308,
+   "name": "TOOLS: vertical slices 2D+3D documented (docs only, no code)",
+   "status": "completed",
+   "definition_of_done": "The V3 'Vertical slices (Step 308)' section (~105 lines): the 2D slice (create project -> create scene -> add entity/sprite -> modify -> save -> play/test -> build/package -> export) and the 3D slice (create scene -> import mesh -> place -> camera -> lighting -> save -> play/test -> build/package) - EVERY row with the grep-verified file:line, a status (VERIFIED/PARTIAL/MISSING; none BLOCKED by a freeze), the category (1-5) and the first capability to close it; the recorded engine gaps re-cited (the camera zoom, the wheel, the per-entity AABB color, the text-input widget, the seedable RNG); the text dependency graph; the candidate list ordered ONLY by dependency and evidence (11 candidates, each with the category, tools/-vs-engine, the freeze touched, the test path) - NOTHING chosen, nothing opened. The human visual line arrived UNFILLED -> the 307 NOT-TRIED status stands (FINDINGS 43). Docs only: no code, src/ EMPTY. Gates: build, ctest 5/5, alive x3, git diff --check.",
+   "notes": "Docs only; no src/, no tests, no editor features. THE KEY GREP-VERIFIED FACTS: NO package.ps1 exists (the root PS1s are the 6 asset generators - the prompt's packaging assumption corrected honestly); the scene create/remove engine APIs exist (scene.h:73/:81/:213) but the editor wires none; the editor play mode is MISSING (simulation.h:69-140 unwired in the editor); the 3D camera mode VERIFIED (camera.h:228-235/:247/:264 - the zoom API still missing, camera.h:290); the 3D lighting VERIFIED (the Step 260/261 path, renderer.h:423; lighting.h:41/:44); the mesh loader PARTIAL (mesh3d.h:102, the v/f-only parser :92/:184); the export MISSING. The candidate list is a dependency-and-evidence ordering, NOT a preference: choosing is a human decision; nothing opened. The visual line (FINDINGS 43, verbatim unfilled) -> the 307 NOT-TRIED status stands unchanged. GATES: cmake --build build --config Release exit 0; ctest -C Release 5/5 100%; alive x3 (all three True); git diff --check exit 0 clean; git diff --stat -- src/ EMPTY. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "DOCS-308",
+   "depends_on": [
+    307
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
