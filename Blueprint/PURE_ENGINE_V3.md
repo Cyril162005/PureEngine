@@ -2823,14 +2823,14 @@ modify -> save -> play/test -> build/package -> export**
 
 | step | what exists today (file:line, test) | status | cat | first capability to close |
 |---|---|---|---|---|
-| create project | NOTHING: no project file/manifest anywhere (the repo root has only the 6 asset-generator PS1s); a "project" is the CMake repo + loose scene .txt files | MISSING | 5 | a project manifest format + a tools-side loader (no freeze) |
+| create project | NOTHING: no project file/manifest anywhere (the root PS1s = the 6 asset generators; CORRECTED 309: scripts/package.ps1 also exists - the packaging row); a "project" is the CMake repo + loose scene .txt files | MISSING | 5 | a project manifest format + a tools-side loader (no freeze) |
 | create scene | pe::saveSceneToFile (src/scene.h:381, the 34-field v2 format, the tmp+rename atomic) + pe::loadSceneFromFile (src/scene.h:459, strict whole-file); the editor boundary loadSceneForEditor (tools/editor0/editor0_core.h:39); the round-trip tests (LevelPipelineConsumer 276; the editor selftest save-as checks) | VERIFIED | 2 + 5 | nothing (works today, headless + in the viewer) |
 | add entity/sprite | engine-side: Scene::queueSpawn (src/scene.h:73) + flushSpawns (src/scene.h:81) + the SceneManager (switchTo src/scene.h:180, removeEntity src/scene.h:213); sprites = the FIXED texture slots the renderer loads at init (renderer.h init fatal set - the 288 finding); the EDITOR has NO add/remove UI (stepEditorFrameInner mutates positions only, editor0_core.h:609) | PARTIAL | 5 (+3 for the texture browsing) | wire the existing create/remove APIs into the editor (tools-side; no freeze) |
 | modify it | positions: the nudge (editor0_core.h:486), the undo/redo (editor0_core.h:549/:572, the cap 32), the inspector (editor0_core.h:864, 36 lines); OTHER fields: MISSING - no typed edits (no text-input widget; the raw material = the console's feedKey, src/console.h:10-15, the key-fed input line) | PARTIAL | 5 | the field-edit UI on the feedKey raw material (tools-side) |
 | save | saveAsForEditor (editor0_core.h:321, the write-safety refusals) + the path switch (the Step 303) + the flat _editN naming (makeSaveAsPath editor0_core.h:291); the round-trip byte-identical (the 299 tests) | VERIFIED | 2 | nothing |
 | play/test | the ENGINE simulates (src/simulation.h:69 advanceRotations, :84 chasePlayer, :117 applyPhysics, :140 scanSceneryCollisions; the arcade loop src/main.cpp); the EDITOR has NO play mode (the viewer loop draws only, tools/editor0/main.cpp runViewer) | PARTIAL | 4 + 5 | an editor play-mode toggle wiring simulation.h into the editor loop (tools-side; no freeze) |
-| build/package | build: CMake (the VS-bundled toolchain; ctest 5/5 every step). package: NOTHING - NO package.ps1 exists (grep-verified; the root PS1s are make_beep/checker/font/music/paddlesheet/textures - asset generators); the release gate is Blueprint/SMOKE_TEST.md (README:14-15) | PARTIAL | 5 | a packaging script (tools-side) |
-| export | NOTHING: no export of any kind (resources.h holds the blob/pack/cache CONTRACT half - the resources_test target; no runtime asset pack/export exists) | MISSING | 5 + 3 | the packaging script first, then an export format decision (human) |
+| build/package | build: CMake (the VS-bundled toolchain; ctest 5/5 every step). package: scripts/package.ps1 EXISTS (git-tracked; CORRECTED 309 - the 308 claim was a NON-RECURSIVE search error, FINDINGS 44): the arcade release ZIP (PureEngine.exe + 18 runtime assets + shaders/ + prefabs/ -> package/PureEngine-0.1.0-win64.zip; the Step 143 dry-run documented); the EDITOR is not packaged; no installer/export | PARTIAL | 5 | packaging the editor itself (the script exists for the arcade) |
+| export | NOTHING: no export of any kind (resources.h holds the blob/pack/cache CONTRACT half - the resources_test target; no runtime asset pack/export exists) | MISSING | 5 + 3 | the packaging EXISTS (scripts/package.ps1, corrected 309); the next capability: an export format decision (human) |
 
 **b) 3D slice: create scene -> import mesh -> place it -> camera ->
 lighting -> save -> play/test -> build/package**
@@ -2844,7 +2844,7 @@ lighting -> save -> play/test -> build/package**
 | lighting | the 3D per-face directional lighting on the loaded meshes (the Step 260 inverse-transpose + the Step 261 sizing; renderer.h setLightUniforms :423); the 2D LightingState (src/lighting.h:41, MAX_LIGHTS=4 :44) | VERIFIED (the mutation-caught v4 tests) | 3 | nothing (the world-light editing UI is a later editor item) |
 | save | the same VERIFIED scene round-trip | VERIFIED | 2 | nothing |
 | play/test | the same PARTIAL as the 2D row | PARTIAL | 4 + 5 | the editor play-mode toggle |
-| build/package | the same PARTIAL as the 2D row (CMake yes; no package.ps1) | PARTIAL | 5 | the packaging script |
+| build/package | the same as the 2D row (CMake yes; scripts/package.ps1 packages the arcade - CORRECTED 309, FINDINGS 44) | PARTIAL | 5 | packaging the editor itself |
 
 **The recorded engine gaps (each already classified; none new):**
 - no camera zoom API - src/camera.h:290 (the halfHeight=4.5 lock); the
@@ -2885,10 +2885,7 @@ or opened here - choosing is a human decision):**
    freeze touched. Test path: the headless simulation-wiring test
    (the deterministic advanceRotations/applyPhysics steps) + a manual
    toggle.
-3. Packaging script - cat 5, tools/ (nothing exists - no package.ps1,
-   grep-verified); no freeze touched. Test path: a manifest/paths
-   dry-run check (the SMOKE_TEST.md gate stays the human release
-   gate).
+3. Packaging the editor - cat 5, tools/ (CORRECTED 309: scripts/package.ps1 EXISTS for the arcade - the FINDINGS 44 correction; the gap: the editor is not in any package); no freeze touched. Test path: a package dry-run check extended to the editor (the SMOKE_TEST.md gate stays the human release gate).
 4. Per-entity AABB color parameter - cat 3, an ENGINE version item
    (renderer.h:1085 is the frozen v1.1 debug-draw surface; additive
    opt-in only, the 201/249 precedent). Test path: the debug-draw CI
@@ -2911,6 +2908,54 @@ or opened here - choosing is a human decision):**
    a human decision. Test path: set by the future step.
 11. Seedable RNG - cat 4, an ENGINE version (particles.h:23-28); no
     current consumer. Test path: the seeded-determinism test.
+
+### Phase Tools follow-on (Step 309): editor0 entity delete - COMPLETE (entity editing, step 1 of at most 3)
+
+Consumer step; engine src/ untouched (git diff --stat -- src/ EMPTY).
+THE DOCS CONTRADICTION RESOLVED FIRST (FINDINGS 44): scripts/package.ps1
+EXISTS and is git-tracked (git ls-files; the recursive search with the
+build/, .git/, .kilo/ and .goose/ exclusions finds exactly one
+main-tree copy, 3911 bytes) - it is the ARCADE release ZIP packager
+(PureEngine.exe + 18 runtime assets + shaders/ + prefabs/ ->
+package/PureEngine-0.1.0-win64.zip, the Step 143 dry-run documented);
+the 308 claim was WRONG (a non-recursive search - the FINDINGS 44
+correction; the 308 rows, the 308 tracker note, the board and the
+README corrected with dated pointers). THE PROCESS FINDING (FINDINGS
+45): .kilo/ and .goose/ hold another tool's worktree copies inside
+the repo directory (southern-catshark 24bec72, zesty-omelet 6013172
+- observed, NOT touched); the standing search rule excludes build/,
+.git/, .kilo/ and .goose/.
+THE DELETE SEMANTICS (the inspect, evidence-cited): the removal uses
+the ALIVE FLAG - entity.h:183-189 ("kills never erase, so indices
+stay stable... and persistence drops it on save") and the saver's
+skip at scene.h:419-420 ("dead entities don't exist in saved state").
+The saved file therefore EXCLUDES the deleted entity; the undo
+restores alive=true at the SAME index with every serialized field
+untouched (the vector order never changed); the redo re-deletes.
+THE KEY AUDIT: Delete was NOT registered (the consumer ctor-list
+rule, input.h:300-333) - added (kEditorKeys = 15 keys, selftest-
+checked). THE IMPLEMENTATION: the typed UndoEntry (isDelete), the
+delete block in stepEditorFrameInner (the alive kill + the stack
+push + the selection cleared + the honest recompute), the
+applyUndo/applyRedo alive branches, captureAliveFlags + aliveCount +
+sceneDiffers (the baseline gained the alive dimension - the modified
+flag is honest across deletes), the visible counts in the status and
+the saved/reloaded feedback strings, --diag-input one line per
+delete/undo/redo (the key, the index, the visible count before ->
+after, the flag). --selftest: 385 PASS / 0 FAIL (36 new checks).
+MUTATION: the delete-undo does not restore -> 8 checks FAILED
+NON-VACUOUS; restored by pathspec. GATES against 56ac346: cmake
+--build build --config Release exit 0; ctest -C Release 5/5 100%
+(18.91s; the PureEditor0 duration 0.95s - under the 40s guard); alive
+x3 (all three True); git diff --check exit 0 clean. SIZE: net +322,
+2 files - within the 450 cap. The in-step defects found by the run
+and fixed BEFORE the commit: the CRLF-restore aftermath (the mixed
+endings defeated the multi-line anchors - the one-shot .ps1 route),
+one missing isDelete field in the nudge push (C2440), and the
+idempotency pre-removes for the AV-lock delete races (the
+non-deterministic run-2 failures). The human visual line (308)
+arrived UNFILLED; the NOT-TRIED status stands (FINDINGS 43).
+FINDINGS: entries 44-46.
 
 ## Kill criteria
 

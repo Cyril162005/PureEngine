@@ -945,3 +945,69 @@ ImGui / ECS / glTF / networking (the freezes stand).
 - **class:** existing capability (the record; nothing to fix; no code
   this step).
 - **status:** recorded; the NOT-TRIED status stands.
+
+## Entry 44
+- **what:** the DOCS CONTRADICTION resolved: Step 308's Vertical
+  slices said "NO package.ps1 exists - packaging is MISSING" while
+  the Direction Spec (293) listed package.ps1 as a verified name and
+  the human reported scripts/package.ps1 as git-tracked. VERIFIED
+  THIS STEP (the search rule applied: build/, .git/, .kilo/ and
+  .goose/ excluded): git ls-files lists scripts/package.ps1; the
+  recursive search finds EXACTLY ONE main-tree copy
+  (D:/PureEngine/scripts/package.ps1, 3911 bytes; the
+  .kilo/worktrees/*/scripts/package.ps1 copies are another tool's
+  worktrees, excluded). THE 308 CLAIM WAS WRONG - the 308 search was
+  NON-RECURSIVE (a root-level dir + Get-ChildItem *.ps1), so it saw
+  only the 6 asset-generator PS1s and missed scripts/. What the
+  script does (read this step): the arcade release ZIP packager
+  (the F-08 re-fix, the Step 143 dry-run documented) - stages
+  PureEngine.exe + 18 runtime assets + shaders/ + prefabs/ into
+  package/PureEngine-0.1.0-win64.zip (v0.1.0).
+- **class:** existing capability (the packaging EXISTS for the arcade
+  game; the remaining gap: the EDITOR is not packaged and there is no
+  installer/export beyond the zip).
+- **status:** recorded; the 308 V3 rows, the 308 tracker note, the
+  board and the README corrected this step with a dated pointer.
+
+## Entry 45 (the process finding)
+- **what:** .kilo/ and .goose/ contain another tool's WORKTREE COPIES
+  inside the repo directory (e.g. .kilo/worktrees/southern-catshark
+  24bec72, .kilo/worktrees/zesty-omelet 6013172, each with a full
+  tree incl. scripts/package.ps1). A naive recursive search hits
+  them and can report DUPLICATE or STALE hits (the copies may lag the
+  main tree). The 308 search missed scripts/package.ps1 while a
+  worktree-aware search would have found several copies.
+- **evidence:** this step's search (the exclusions applied) found one
+  main-tree copy; the .kilo/worktrees paths observed but NOT touched
+  (per the step orders).
+- **class:** existing capability (a search-hygiene/process note, not
+  an engine or editor defect).
+- **status:** recorded; the standing search rule: ALWAYS exclude
+  build/, .git/, .kilo/ and .goose/ and say so in the evidence lines.
+
+## Entry 46
+- **what:** the entity DELETE (the editor's first structural edit):
+  the DELETE key removes the selected entity via the ALIVE FLAG (not
+  vector erasure - the evidence: entity.h:183-189 "kills never erase,
+  so indices stay stable"; the saver DROPS dead entities on save,
+  scene.h:419-420 "dead entities don't exist in saved state"), so the
+  saved file excludes the deleted entity and the undo restores it at
+  the SAME index with every serialized field untouched. The delete is
+  an undoable command on the same bounded stack as the nudges (the
+  typed UndoEntry: isDelete), in order with them; the redo
+  re-deletes; the selection clears after a delete; the modified flag
+  is honest (the baseline gained the alive dimension:
+  captureAliveFlags + sceneDiffers). The key audit: Delete was NOT
+  registered (the consumer ctor-list rule) - added (15 keys).
+- **evidence:** editor0_core.h (the typed UndoEntry, the delete
+  block, applyUndo/applyRedo alive branches, captureAliveFlags/
+  aliveCount/sceneDiffers); the selftest 385 PASS / 0 FAIL (36 new
+  checks: the N-1 saved file, the field-exact restore, the mixed
+  delete/nudge undo/redo sequences, the no-selection no-op, the
+  source bytes, the cap at 40 entities, the wrong-index negative
+  controls); the mutation (the delete-undo does not restore) FAILED 8
+  checks NON-VACUOUS.
+- **class:** existing capability (the engine's alive-flag contract
+  was already correct and documented; the wiring is editor-owned, no
+  engine change).
+- **status:** recorded, implemented editor-side.
