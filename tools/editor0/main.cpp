@@ -40,6 +40,15 @@
  * every friction goes to FINDINGS.md.
  */
 #include <glad/gl.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#undef near   // the Windows macros clobber mat4.h's parameter names
+#undef far
+#include <psapi.h>
+#include <intrin.h>
 #include <GLFW/glfw3.h>
 #include <cstdio>
 #include <cstdlib>
@@ -2699,6 +2708,236 @@ static void checkEntityCreate() {
     }
 }
 
+// --- Step 312: the measurement harness (the machine info + the bench;
+// indicative, this machine, not a budget - the numbers are DATA). The
+// searches excluded build/, .git/, .kilo/ and .goose/. The Windows
+// APIs are editor-side; the pure math lives in editor0_core.h.
+static std::string trimChars(const std::string& s) {
+    const std::size_t a = s.find_first_not_of(" \t\r\n");
+    if (a == std::string::npos) return "";
+    return s.substr(a, s.find_last_not_of(" \t\r\n") - a + 1);
+}
+static std::string cpuBrand() {
+    int regs[12];
+    __cpuid(regs, (int)0x80000000);
+    if ((unsigned)regs[0] < (unsigned)0x80000004) return "UNAVAILABLE";
+    __cpuid(regs + 0, (int)0x80000002);
+    __cpuid(regs + 4, (int)0x80000003);
+    __cpuid(regs + 8, (int)0x80000004);
+    char brand[49];
+    std::memcpy(brand, regs, 48);
+    brand[48] = 0;
+    std::string s(brand);
+    return trimChars(s).empty() ? "UNAVAILABLE" : trimChars(s);
+}
+static unsigned logicalCores() {
+    SYSTEM_INFO si{};
+    GetSystemInfo(&si);
+    return si.dwNumberOfProcessors;
+}
+static unsigned long long totalRamMB() {
+    MEMORYSTATUSEX ms{};
+    ms.dwLength = sizeof(ms);
+    GlobalMemoryStatusEx(&ms);
+    return ms.ullTotalPhys / (1024ULL * 1024ULL);
+}
+static std::string osVersion() {
+    using RtlGetVersionFn = long(WINAPI*)(RTL_OSVERSIONINFOW*);
+    const auto fn = (RtlGetVersionFn)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion");
+    if (!fn) return "UNAVAILABLE";
+    RTL_OSVERSIONINFOW info{};
+    info.dwOSVersionInfoSize = sizeof(info);
+    if (fn(&info) != 0) return "UNAVAILABLE";
+    return std::to_string(info.dwMajorVersion) + "." + std::to_string(info.dwMinorVersion)
+         + "." + std::to_string(info.dwBuildNumber);
+}
+static unsigned long long workingSetBytes() {
+    PROCESS_MEMORY_COUNTERS pmc{};
+    pmc.cb = sizeof(pmc);
+    if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) return 0;
+    return pmc.WorkingSetSize;
+}
+// The shader #version ints from the renderer's shader directory (the
+// same 3-candidate relative probe the engine uses).
+static std::vector<int> shaderGlslVersions() {
+    std::vector<int> out;
+    const char* dirs[3] = {"assets/shaders", "../assets/shaders", "../../assets/shaders"};
+    std::error_code ec;
+    for (const char* d : dirs) {
+        std::filesystem::directory_iterator it(std::filesystem::path(d), ec);
+        if (ec) { ec.clear(); continue; }
+        std::filesystem::directory_iterator end;
+        std::vector<std::string> files;
+        for (; it != end; it.increment(ec)) {
+            if (ec) break;
+            const std::string ext = it->path().extension().string();
+            if (ext == ".vert" || ext == ".frag") files.push_back(it->path().string());
+        }
+        ec.clear();
+        std::sort(files.begin(), files.end());
+        for (const std::string& f : files) {
+            std::ifstream in(f);
+            std::string line;
+            while (std::getline(in, line)) {
+                const std::size_t p = line.find("#version");
+                if (p != std::string::npos) {
+                    const std::size_t d = line.find_first_of("0123456789", p + 8);
+                    if (d != std::string::npos) out.push_back(std::atoi(line.c_str() + d));
+                    break;
+                }
+            }
+        }
+        if (!out.empty()) return out;
+    }
+    return out;
+}
+// The hidden GL window shared by --gl-info and --bench (the selftest's
+// pattern: hidden, 3.3 Core; 800x600 for the realistic bench numbers).
+static GLFWwindow* createHiddenGlWindow(int w, int h) {
+    if (!glfwInit()) return nullptr;
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    GLFWwindow* window = glfwCreateWindow(w, h, "editor0-measure", NULL, NULL);
+    if (!window) { glfwTerminate(); return nullptr; }
+    glfwMakeContextCurrent(window);
+    if (!gladLoadGL(glfwGetProcAddress)) { glfwDestroyWindow(window); glfwTerminate(); return nullptr; }
+    return window;
+}
+static int runGlInfo() {
+    GLFWwindow* window = createHiddenGlWindow(320, 240);
+    if (!window) { std::fprintf(stderr, "gl-info: the hidden GL window failed\n"); return 1; }
+    { pe::WindowGuard guard(window);
+    editor0::GlVersion req{}; req.major = 3; req.minor = 3; req.ok = true;
+    const editor0::GlVersion reported = editor0::parseGlVersion((const char*)glGetString(GL_VERSION));
+    const std::string rendererName = (const char*)glGetString(GL_RENDERER);
+    const std::string vendorName = (const char*)glGetString(GL_VENDOR);
+    const std::string glsl = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
+    GLint maxTex = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTex);
+    const std::vector<int> shaders = shaderGlslVersions();
+    const bool ok = editor0::glCompatible(req.major, req.minor, reported, shaders);
+    std::printf("GL_VERSION: %s\n", (const char*)glGetString(GL_VERSION));
+    std::printf("GL_RENDERER: %s\n", rendererName.c_str());
+    std::printf("GL_VENDOR: %s\n", vendorName.c_str());
+    std::printf("GL_SHADING_LANGUAGE_VERSION: %s\n", glsl.c_str());
+    std::printf("GL_MAX_TEXTURE_SIZE: %d\n", (int)maxTex);
+    std::printf("REQUESTED: %d.%d core\n", req.major, req.minor);
+    std::string shaderList;
+    for (std::size_t i = 0; i < shaders.size(); ++i) {
+        if (i) shaderList += "|";
+        shaderList += std::to_string(shaders[i]);
+    }
+    std::printf("SHADER_GLSL_VERSIONS: %s\n", shaderList.c_str());
+    std::printf("COMPATIBILITY: %s\n", ok ? "COMPATIBLE" : "RISK");
+    }
+    glfwTerminate();
+    return 0;
+}
+static int runBench(const char* scenePath, int frames, bool view3d, const char* outPath) {
+    GLFWwindow* window = createHiddenGlWindow(800, 600);
+    if (!window) { std::fprintf(stderr, "bench: the hidden GL window failed\n"); return 1; }
+    int exitCode = 0;
+    { pe::WindowGuard guard(window);
+    glfwSwapInterval(0);   // untimed frames (no vsync blocking)
+    while (glGetError() != GL_NO_ERROR) {}   // drain the setup errors: the measured frames must be clean
+    int fw = 800, fh = 600;
+    glfwGetFramebufferSize(window, &fw, &fh);
+    glViewport(0, 0, fw, fh);
+    editor0::EditorState state;
+    state.camera.onResize(fw, fh);
+    glViewport(0, 0, fw, fh);
+    std::string err;
+    if (!editor0::loadSceneForEditor(scenePath, state.current, err)) {
+        std::fprintf(stderr, "bench: the load failed: %s\n", err.c_str());
+        glfwDestroyWindow(window); glfwTerminate(); return 1;
+    }
+    if (view3d) {
+        state.camera.setPerspective(editor0::kEditorFovY, editor0::kEditorNearZ, editor0::kEditorFarZ);
+        for (pe::Entity& e : state.current.entities) e.meshId = 1;   // in memory, NEVER saved
+    }
+    pe::Renderer renderer;
+    if (!renderer.init()) { std::fprintf(stderr, "bench: the renderer init failed\n"); glfwDestroyWindow(window); glfwTerminate(); return 1; }
+    const std::vector<char> colliding = pe::flagsForCount(state.current.entities.size());
+    auto drawFrame = [&](bool first3d) {
+        renderer.clear(0.0f, 0.0f, 0.0f);
+        if (view3d) {
+            for (pe::Entity& e : state.current.entities) {
+                if (!e.alive || e.meshId == 0) continue;
+                renderer.drawEntity3D(e, state.camera.view(), state.camera.projection(), first3d);
+                first3d = false;
+            }
+        } else {
+            const pe::Mat4 proj = editor0::zoomedProjection(state.zoom, state.camera.projection());
+            renderer.drawWorld(proj, state.camera.view(), state.current.entities, colliding);
+            renderer.drawAABBs(proj, state.camera.view(), state.current.entities, -1);
+        }
+        glFinish();
+        glfwSwapBuffers(window);
+    };
+    while (glGetError() != GL_NO_ERROR) {}   // drain: the measured frames must be clean
+    for (int i = 0; i < 60; ++i) drawFrame(view3d);   // the warmup (untimed)
+    std::vector<float> samples;
+    samples.reserve((std::size_t)(frames > 0 ? frames : 0));
+    LARGE_INTEGER freq{}, t0{}, t1{};
+    QueryPerformanceFrequency(&freq);
+    for (int i = 0; i < frames; ++i) {
+        QueryPerformanceCounter(&t0);
+        drawFrame(view3d && i == 0);
+        QueryPerformanceCounter(&t1);
+        samples.push_back((float)((t1.QuadPart - t0.QuadPart) * 1000.0 / (double)freq.QuadPart));
+    }
+    // the output (the stdout + the optional CSV): the DATA, not a budget.
+    const char* viewName = view3d ? "3d" : "2d";
+    auto ms4 = [](float v) { char b[32]; std::snprintf(b, sizeof(b), "%.4f", v); return std::string(b); };
+    std::printf("machine,cpu_brand,%s\n", cpuBrand().c_str());
+    std::printf("machine,logical_cores,%u\n", logicalCores());
+    std::printf("machine,total_ram_mb,%llu\n", totalRamMB());
+    std::printf("machine,os_version,%s\n", osVersion().c_str());
+    std::printf("bench,scene,%s\n", scenePath);
+    std::printf("bench,entity_count,%zu\n", state.current.entities.size());
+    std::printf("bench,view,%s\n", viewName);
+    std::printf("bench,frames,%d\n", frames);
+    std::printf("bench,median_ms,%s\n", ms4(editor0::medianOf(samples)).c_str());
+    std::printf("bench,p95_ms,%s\n", ms4(editor0::p95Of(samples)).c_str());
+    std::printf("bench,max_ms,%s\n", ms4(editor0::maxOf(samples)).c_str());
+    std::printf("bench,mean_ms,%s\n", ms4(editor0::meanOf(samples)).c_str());
+    std::printf("bench,rss_working_set_mb,%llu\n", workingSetBytes() / (1024ULL * 1024ULL));
+    const GLenum benchGlErr = glGetError();   // 0 after the last frame (the Step 312 selftest asserts it)
+    std::printf("bench,gl_error,%u\n", (unsigned)benchGlErr);
+    std::printf("bench,draw_calls,UNAVAILABLE\n");
+    std::printf("bench,bytes_uploaded,UNAVAILABLE\n");
+    std::printf("bench,note,indicative this machine not a budget\n");
+    if (outPath && *outPath) {
+        std::ofstream csv(outPath, std::ios::binary | std::ios::trunc);
+        if (!csv) { std::fprintf(stderr, "bench: the CSV open failed: %s\n", outPath); exitCode = 1; }
+        else {
+            csv << editor0::benchCsvLine("machine", "cpu_brand", cpuBrand()) << "\n";
+            csv << editor0::benchCsvLine("machine", "logical_cores", std::to_string(logicalCores())) << "\n";
+            csv << editor0::benchCsvLine("machine", "total_ram_mb", std::to_string(totalRamMB())) << "\n";
+            csv << editor0::benchCsvLine("machine", "os_version", osVersion()) << "\n";
+            csv << editor0::benchCsvLine("bench", "scene", scenePath) << "\n";
+            csv << editor0::benchCsvLine("bench", "entity_count", std::to_string(state.current.entities.size())) << "\n";
+            csv << editor0::benchCsvLine("bench", "view", viewName) << "\n";
+            csv << editor0::benchCsvLine("bench", "frames", std::to_string(frames)) << "\n";
+            csv << editor0::benchCsvLine("bench", "median_ms", ms4(editor0::medianOf(samples))) << "\n";
+            csv << editor0::benchCsvLine("bench", "p95_ms", ms4(editor0::p95Of(samples))) << "\n";
+            csv << editor0::benchCsvLine("bench", "max_ms", ms4(editor0::maxOf(samples))) << "\n";
+            csv << editor0::benchCsvLine("bench", "mean_ms", ms4(editor0::meanOf(samples))) << "\n";
+            csv << editor0::benchCsvLine("bench", "rss_working_set_mb", std::to_string(workingSetBytes() / (1024ULL * 1024ULL))) << "\n";
+            csv << editor0::benchCsvLine("bench", "gl_error", std::to_string((unsigned)benchGlErr)) << "\n";
+            csv << editor0::benchCsvLine("bench", "draw_calls", "UNAVAILABLE") << "\n";
+            csv << editor0::benchCsvLine("bench", "bytes_uploaded", "UNAVAILABLE") << "\n";
+            csv << editor0::benchCsvLine("bench", "note", "indicative this machine not a budget") << "\n";
+        }
+    }
+    renderer.shutdown();
+    }
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    return exitCode;
+}
 // Step 311: the dual view + the play + the meshId keys (pure, no GL,
 // no live GLFW). The mode flag, the honest baseline across the play,
 // the snapshot restore field-exact, the edit-op lock, the meshId
@@ -2821,6 +3060,86 @@ static void checkDualViewPlay() {
             if (kEditorKeys[i] == GLFW_KEY_2) k2 = true;
         }
         check(v && p && k0 && k1 && k2, "keys: the editor's tracked list registers V, P, 0, 1, 2");
+    }
+}
+
+// Step 312: the measurement harness tests (NO timing assertions - the
+// numbers are DATA). The percentiles on the known inputs (1, 2 and 100
+// samples, unsorted), the GL version parser on the synthetic strings,
+// the COMPATIBLE/RISK comparison, the CSV formatting, the negative
+// control (a wrong p95 index would fail).
+static void checkMeasurement() {
+    // a) the percentiles: 1 sample.
+    check(editor0::medianOf({1.0f}) == 1.0f, "measure: the median of 1 sample");
+    check(editor0::p95Of({1.0f}) == 1.0f, "measure: the p95 of 1 sample");
+    check(editor0::meanOf({1.0f}) == 1.0f, "measure: the mean of 1 sample");
+    // b) 2 samples (the even median).
+    check(editor0::medianOf({2.0f, 1.0f}) == 1.5f, "measure: the median of 2 unsorted samples = 1.5");
+    check(editor0::p95Of({1.0f, 2.0f}) == 2.0f, "measure: the p95 of 2 samples = the max (the inclusive index)");
+    // c) 100 samples 1..100 unsorted: the median 50.5, the p95 95, the mean 50.5, the max 100.
+    {
+        std::vector<float> s;
+        for (int i = 100; i >= 1; --i) s.push_back((float)i);   // reversed = unsorted
+        check(editor0::medianOf(s) == 50.5f, "measure: the median of the 100 unsorted samples = 50.5");
+        check(editor0::p95Of(s) == 95.0f, "measure: the p95 of the 100 samples = 95 (index 94; a wrong index fails)");
+        check(editor0::meanOf(s) == 50.5f, "measure: the mean of the 100 samples = 50.5");
+        check(editor0::maxOf(s) == 100.0f, "measure: the max = 100");
+        check(editor0::p95Of(s) != 94.0f, "measure: negative control - the p95 is NOT the index-93 value");
+    }
+    // d) the GL version parser on the synthetic strings.
+    {
+        const editor0::GlVersion a = editor0::parseGlVersion("3.3.0 - Build 10.18.10.4358");
+        check(a.ok && a.major == 3 && a.minor == 3, "measure: the GL parser on the Intel-style string");
+        const editor0::GlVersion b = editor0::parseGlVersion("4.6.0 NVIDIA 551.23");
+        check(b.ok && b.major == 4 && b.minor == 6, "measure: the GL parser on the NVIDIA-style string");
+        const editor0::GlVersion c = editor0::parseGlVersion("not a version");
+        check(!c.ok, "measure: the unparseable string -> ok=false");
+    }
+    // e) the COMPATIBLE/RISK comparison on the synthetic values.
+    {
+        const editor0::GlVersion reported33 = editor0::parseGlVersion("3.3.0 - Build x");
+        const editor0::GlVersion reported46 = editor0::parseGlVersion("4.6.0 NVIDIA");
+        std::vector<int> shaders330 = {330, 330, 330, 330};
+        std::vector<int> shaders450 = {330, 450, 330};
+        check(editor0::glCompatible(3, 3, reported33, shaders330), "measure: the 3.3 requested + the 3.3 reported + the 330 shaders = COMPATIBLE");
+        check(editor0::glCompatible(3, 3, reported46, shaders330), "measure: the 3.3 requested + the 4.6 reported = COMPATIBLE");
+        check(!editor0::glCompatible(4, 6, reported33, shaders330), "measure: the 4.6 requested + the 3.3 reported = RISK");
+        check(!editor0::glCompatible(3, 3, reported33, shaders450), "measure: a shader 450 on the GL 3.3 = RISK");
+        const editor0::GlVersion bad = editor0::parseGlVersion("garbage");
+        check(!editor0::glCompatible(3, 3, bad, shaders330), "measure: the unparseable reported = RISK");
+        check(editor0::glLevelOf(editor0::parseGlVersion("3.3.0 x")) == 330, "measure: the GLSL-convention level of GL 3.3 = 330");
+    }
+    // f) the CSV line formatting.
+    {
+        check(editor0::benchCsvLine("machine", "cpu_brand", "Test CPU") == "machine,cpu_brand,Test CPU",
+              "measure: the CSV line = section,key,value");
+        check(editor0::benchCsvLine("bench", "median_ms", "0.1234") == "bench,median_ms,0.1234",
+              "measure: the CSV numeric line");
+    }
+    // g) the shader #version extraction on the synthetic source.
+    {
+        check(editor0::parseShaderGlsl("#version 330 core\nvoid main() {}\n") == 330, "measure: the shader #version 330 extracted");
+        check(editor0::parseShaderGlsl("no version here\n") == -1, "measure: no #version -> -1");
+    }
+    // h) a 5-frame hidden-window bench run: exactly 5 samples (the CSV
+    //    frames line) and glGetError() == 0 after the last frame. NO
+    //    timing assertions - the numbers are data.
+    {
+        const char* kScene = "editor0_tmp/bench5.txt";
+        const char* kCsv = "editor0_tmp/bench5.csv";
+        pe::Scene s5;
+        s5.name = "bench5";
+        s5.queueSpawn(pe::Entity(pe::Vec3(0.0f, 0.0f, 0.0f), 0.0f, pe::Vec3(1.0f, 1.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.5f), 1));
+        s5.flushSpawns();
+        std::string err;
+        check(pe::saveSceneToFile(s5, kScene), "measure: the 5-frame bench scene written");
+        check(runBench(kScene, 5, false, kCsv) == 0, "measure: the 5-frame bench run returns 0");
+        std::string csv;
+        readTextFile(kCsv, csv);
+        check(csv.find("bench,frames,5") != std::string::npos, "measure: exactly 5 samples taken (the CSV frames line)");
+        check(csv.find("bench,gl_error,0") != std::string::npos, "measure: glGetError() == 0 after the last frame");
+        std::remove(kScene);
+        std::remove(kCsv);
     }
 }
 
@@ -3266,6 +3585,10 @@ int main(int argc, char** argv) {
     bool selftest = false;
     bool makeSample = false;
     bool diagInput = false;
+    bool glInfo = false;
+    bool benchMode = false;
+    bool view3d = false;
+    const char* outArg = nullptr;
     const char* countArg = nullptr;
     const char* scenePath = nullptr;
     for (int i = 1; i < argc; ++i) {
@@ -3273,6 +3596,10 @@ int main(int argc, char** argv) {
         if (a == "--selftest") selftest = true;
         else if (a == "--make-sample") makeSample = true;
         else if (a == "--diag-input") diagInput = true;
+        else if (a == "--gl-info") glInfo = true;
+        else if (a == "--bench") benchMode = true;
+        else if (a == "--view" && i + 1 < argc) view3d = (std::string(argv[++i]) == "3d");
+        else if (a == "--out" && i + 1 < argc) outArg = argv[++i];
         else if (scenePath == nullptr) scenePath = argv[i];
         else countArg = argv[i];
     }
@@ -3295,6 +3622,7 @@ int main(int argc, char** argv) {
         checkEntityDelete();      // Step 309: the entity delete + the typed undo
         checkEntityCreate();      // Step 310: the entity create + the prefab cycle
         checkDualViewPlay();      // Step 311: the dual view + the play + the meshId keys
+        checkMeasurement();       // Step 312: the percentiles + the GL parse + the CSV (NO timing assertions)
         checkHiddenWindowFrame(); // Step 289: one hidden-window frame
         std::remove(kTempScene);  // runtime output cleanup (build/ is gitignored)
         if (failures != 0) {
@@ -3322,6 +3650,12 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "editor0: %s\n", err.c_str());
         return 1;
     }
+    if (glInfo) return runGlInfo();
+    if (benchMode) {
+        if (!scenePath) { std::fprintf(stderr, "editor0: --bench needs a scene path\n"); return 2; }
+        const int frames = countArg ? std::atoi(countArg) : 600;
+        return runBench(scenePath, frames > 0 ? frames : 600, view3d, outArg);
+    }
     if (diagInput) {
         if (!scenePath) { std::fprintf(stderr, "editor0: --diag-input needs a scene path\n"); return 2; }
         return runDiagInput(scenePath);
@@ -3330,6 +3664,8 @@ int main(int argc, char** argv) {
     std::printf("PureEditor0: no mode given. Usage:\n"
                 "  PureEditor0 --selftest          headless checks (+ one hidden-window GL frame)\n"
                 "  PureEditor0 --make-sample <p>   write the 3-prefab sample scene to <p> (refuses to overwrite)\n"
+                "  PureEditor0 --gl-info           the GL/GLSL strings + COMPATIBLE or RISK\n"
+                "  PureEditor0 --bench <scene> [frames] [--view 2d|3d] [--out file.csv]\n"
                 "  PureEditor0 <scene>             view the scene (drag = pan, +/- = zoom, R = reload, arrows = nudge,\n"
                 "                                  Shift = 1.0, Ctrl+S = save-as (the editor then follows the saved file), Ctrl+Z/Ctrl+Y = undo/redo, ESC = quit)\n"
                 "                                  PgUp/PgDn = scroll the inspector panel, Delete = remove\n"

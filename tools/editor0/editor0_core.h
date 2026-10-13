@@ -705,6 +705,74 @@ inline bool applyMeshKey(pe::Scene& scene, int selected, int meshId) {
     scene.entities[static_cast<std::size_t>(selected)].meshId = meshId;
     return true;
 }
+// --- Step 312: the measurement harness (editor-owned; pure) ---
+// NO timing assertions anywhere: the numbers are DATA, never
+// pass/fail; "indicative, this machine, not a budget". The
+// percentile definitions (documented): median = the sorted middle
+// (n odd: [n/2]; even: the mean of [n/2-1] and [n/2]); p95 = the
+// sorted index min(n-1, ceil(0.95*n)-1); mean = the sum/n; max =
+// the largest. The GL versions are compared as ints in the GLSL
+// convention: major*100 + minor*10 (GL 3.3 = 330).
+struct GlVersion { int major = 0; int minor = 0; bool ok = false; };
+inline int glLevel(int major, int minor) { return major * 100 + minor * 10; }
+inline GlVersion parseGlVersion(const std::string& s) {
+    GlVersion v;
+    const std::size_t d1 = s.find_first_of("0123456789");
+    if (d1 == std::string::npos) return v;
+    const std::size_t dot = s.find('.', d1);
+    if (dot == std::string::npos || dot == d1) return v;
+    const std::size_t d2 = s.find_first_of("0123456789", dot + 1);
+    if (d2 == std::string::npos) return v;
+    v.major = std::atoi(s.c_str() + d1);
+    v.minor = std::atoi(s.c_str() + d2);
+    v.ok = (v.major > 0);
+    return v;
+}
+inline int glLevelOf(const GlVersion& v) { return glLevel(v.major, v.minor); }
+inline int parseShaderGlsl(const std::string& shaderSource) {
+    const std::size_t p = shaderSource.find("#version");
+    if (p == std::string::npos) return -1;
+    const std::size_t d = shaderSource.find_first_of("0123456789", p + 8);
+    if (d == std::string::npos) return -1;
+    return std::atoi(shaderSource.c_str() + d);   // e.g. 330
+}
+inline bool glCompatible(int reqMajor, int reqMinor, const GlVersion& reported,
+                         const std::vector<int>& shaderGlslVersions) {
+    if (!reported.ok) return false;
+    if (glLevel(reqMajor, reqMinor) > glLevelOf(reported)) return false;
+    for (int s : shaderGlslVersions) if (s > glLevelOf(reported)) return false;
+    return true;
+}
+inline float medianOf(std::vector<float> samples) {
+    if (samples.empty()) return 0.0f;
+    std::sort(samples.begin(), samples.end());
+    const std::size_t n = samples.size();
+    if (n % 2 == 1) return samples[n / 2];
+    return (samples[n / 2 - 1] + samples[n / 2]) * 0.5f;
+}
+inline float p95Of(std::vector<float> samples) {
+    if (samples.empty()) return 0.0f;
+    std::sort(samples.begin(), samples.end());
+    const std::size_t n = samples.size();
+    const std::size_t idx = (std::size_t)std::min<std::size_t>(n - 1,
+        (std::size_t)std::ceil(0.95 * (double)n) - 1);
+    return samples[idx];
+}
+inline float meanOf(const std::vector<float>& samples) {
+    if (samples.empty()) return 0.0f;
+    float sum = 0.0f;
+    for (float s : samples) sum += s;
+    return sum / (float)samples.size();
+}
+inline float maxOf(const std::vector<float>& samples) {
+    float m = 0.0f;
+    for (float s : samples) if (s > m) m = s;
+    return m;
+}
+inline std::string benchCsvLine(const std::string& section, const std::string& key,
+                                const std::string& value) {
+    return section + "," + key + "," + value;
+}
 // Apply one undo: pop the newest entry, restore the BEFORE position,
 // push the entry to the redo stack. out: the affected index and the
 // from -> to positions (the diag). An empty stack or a stale index is
