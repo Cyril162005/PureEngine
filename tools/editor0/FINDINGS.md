@@ -1216,3 +1216,28 @@ ImGui / ECS / glTF / networking (the freezes stand).
   math tests-then-split -> engine_time split -> window bootstrap extraction). Core
   Foundation: NOT AUDITED -> AUDIT COMPLETE / IN PROGRESS pending migration. No engine
   change, no migration code; the split starts only on Cyril's approval.
+
+## Entry 54
+
+- **what:** Core Foundation slice 1 (Step 315, the hygiene defines) - DONE against the
+  Cyril-approved acceptance standard. GLFW_INCLUDE_NONE now precedes glfw3.h at every
+  src/ site (console.h:53, engine_time.h:55, gamepad.h:43, input.h:56, window_guard.h:46,
+  main.cpp:5 - the two audit gaps closed; main.cpp joined via the glad-first order);
+  mat4.h perspective near/far renamed zNear/zFar (API-preserving; the non-comment
+  near/far grep = 0; checkPerspective at hostile_data_test.cpp:5745 already pins the
+  matrix values, so the rename is behavior-verified); the engine_time.h:3 banner fixed.
+  Gates vs 76aeed6: build exit 0, ctest 5/5 (13.26s), alive x3 True, the mutation (the
+  input.h guard removed) NON-VACUOUS (exactly 1 grep violation) and restored. THIS
+  SLICE CLOSED audit gap 1 (the GLFW include order), gap 7 (the banner) and the mat4
+  half of gap 6 (the Windows near/far hazard). RESIDUALS: (a) the editor-side #undef
+  near/far (tools/editor0/main.cpp:48-49) is now defense-in-depth, left in place (a
+  consumer TU, outside the slice); (b) the games keep their glad-first bare glfw3.h
+  includes by consumer choice (out of the src/ slice scope; their GL ownership is
+  explicit); (c) the MSB6003 tlog contention seen once (an orphaned first-build node
+  after a 300s tool timeout) is a TRANSIENT build-infra class, NOT the 296-class exe
+  lock - it self-cleared on the immediate rerun; (d) slices 2-5 of the Core Foundation
+  migration remain NOT started.
+- **class:** existing capability (a migration slice closing recorded audit gaps; no
+  behavior change; the freeze set untouched).
+- **status:** recorded; Core Foundation IN PROGRESS (1 of 5 slices); the acceptance
+  standard stands approved with no amendments; each further slice waits on its own step.

@@ -3497,6 +3497,17 @@
    "depends_on": [
     313
    ]
+  },
+  {
+   "id": 315,
+   "name": "CORE: Core Foundation migration slice 1 - hygiene defines (GLFW_INCLUDE_NONE at every src/ GLFW site; mat4 near/far renamed zNear/zFar API-preserving; the engine_time.h banner fixed; no .cpp splits; Core Foundation IN PROGRESS 1 of 5)",
+   "status": "completed",
+   "definition_of_done": "The slice implemented against the Cyril-approved acceptance standard (no amendments listed): the guard at every src/ GLFW include site (6 sites grep-verified), the mat4 perspective zNear/zFar rename (0 non-comment near/far residuals; both call sites positional), the engine_time.h banner fixed. Gates against 76aeed6: the full Release build exit 0 (after one 300s tool timeout + one transient MSB6003 tlog rerun - recorded), ctest -C Release 5/5 100% (13.26s), alive x3 True, the slice grep evidence recorded, git diff --stat scoped to the 4 slice files (+14/-5), src/ outside the slice empty. MUTATION: the input.h guard removed -> exactly 1 grep violation (NON-VACUOUS), restored by pathspec, src/ clean. V3 + FINDINGS 54 + tracker + board/README recorded; Core Foundation IN PROGRESS (slices 2-5 not started).",
+   "notes": "Code commit 76aeed6 (CORE-315: src/engine_time.h, src/input.h, src/main.cpp, src/math/mat4.h; +14/-5) + the DOCS-315 record commit. THE SLICE FILES: the audit's slice 1 named engine_time.h + input.h; the Step 315 prompt extended the slice with the mat4 near/far defense and main.cpp (an engine include site) - disclosed in V3. THE GLFW EVIDENCE: the guard precedes the include at console.h:53 / engine_time.h:55 / gamepad.h:43 / input.h:56 / window_guard.h:46 / main.cpp:5 (glad/gl.h at main.cpp:1 owns the GL declarations - the console.h:46-49 contract). THE RENAME: API-preserving (camera.h:275 + hostile_data_test.cpp:5754 are positional; checkPerspective at hostile_data_test.cpp:5745 already pins the matrix values). THE BANNER: the em-dash line kept byte-exact, only '(src/time.h)' replaced. THE BUILD INCIDENT: the first full build hit the 300s tool timeout mid-hostile_data_test; its orphaned MSBuild node held pe_core's CL.read.1.tlog -> MSB6003 on the immediate rerun; the next rerun built everything incl. pe_core.lib and a no-op rebuild printed BUILD EXIT=0 - a TRANSIENT build-infra class, NOT the 296-class exe lock (no LNK1104; every exe linked on every attempt). RESIDUALS (FINDINGS 54): the editor #undef near/far stays as defense-in-depth; the games keep glad-first bare includes (consumer choice, out of the src/ slice scope); slices 2-5 not started. hostile_default.txt, Testing/, .kilo/, .goose/ untouched.",
+   "commit": "CORE-315",
+   "depends_on": [
+    314
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -3212,8 +3212,7 @@ GAP LIST (Core Foundation only; evidence-cited; no feature wishlist):
    rename did not update its own banner.
 
 CATEGORY ACCEPTANCE STANDARD - Core Foundation ACCEPTED when ALL of these hold
-(proposed at Step 314; NOT yet approved; each slice below is gated on Cyril approving
-THIS standard):
+(APPROVED by Cyril at Step 315 with no listed amendments; each slice lands as its own step gated on this standard):
 A. Build: cmake --build build --config Release exits 0 with NO new warnings vs the
    pre-migration baseline (the warning delta recorded per slice, not asserted to zero).
 B. Tests: ctest -C Release all green, and the count GROWS ADDITIVELY: a new math unit
@@ -3246,8 +3245,8 @@ generational-handle freezes; NO fixed-step/accumulator introduction into engine_
 (the Step 17 boundary stays mechanism-only; the editor's kEditorPlayDt stays
 consumer-side).
 
-PROPOSED MIGRATION SLICES (max 5, small, NONE started; each lands as its own step with
-the full Step 285 gates; nothing here is implemented):
+MIGRATION SLICES (max 5, small; each lands as its own step with
+the full Step 285 gates; slice 1 COMPLETE at Step 315 (the section below); slices 2-5 NOT started):
 - Slice 1 (hygiene first, ~zero risk): add GLFW_INCLUDE_NONE to engine_time.h + input.h
   (the console.h:50-53 pattern); fix the engine_time.h:3 banner; document the two include
   rules (the GLFW_INCLUDE_NONE rule + the windows.h/near-far rule) in the header
@@ -3294,6 +3293,50 @@ STATUS: Core Foundation: NOT AUDITED -> AUDIT COMPLETE (Step 314, 2026-10-13) /
 IN PROGRESS pending migration. The migration starts ONLY after Cyril approves the
 acceptance standard above (the prompt's own gate). No .cpp migration code was written
 in this step.
+
+### Core Foundation slice 1 (Step 315, 2026-10-13) - hygiene defines, COMPLETE
+
+Cyril APPROVED the Category Acceptance Standard (no amendments listed); this step
+implements slice 1 of the audit section above, extended by the Step 315 prompt to ALSO
+include the mat4 near/far defense (gap 6's engine half - the prompt made it explicit)
+and main.cpp (an engine include site the audit's slice-1 bullet had not named; the
+wider file set is disclosed here). src/ touches are limited to the slice's four files.
+
+IMPLEMENTED (commit CORE-315, `76aeed6`, 4 files +14/-5):
+- GLFW_INCLUDE_NONE now precedes <GLFW/glfw3.h> at EVERY src/ include site (the grep
+  evidence: the guard sits in the 3 lines before the include at all six sites) -
+  console.h:53, engine_time.h:55, gamepad.h:43, input.h:56, window_guard.h:46,
+  main.cpp:5. The two audit gaps (engine_time.h, input.h) are closed; main.cpp joined
+  them (glad/gl.h at main.cpp:1 owns the GL declarations - the console.h:46-49 contract
+  now holds repo-wide in src/).
+- mat4.h perspective: the parameters renamed near/far -> zNear/zFar (the signature
+  mat4.h:236, the body, and the caller-contract comment) - API-preserving (both call
+  sites are positional: camera.h:275, hostile_data_test.cpp:5754, and checkPerspective
+  at hostile_data_test.cpp:5745 already pins the matrix values, so the rename is
+  behavior-verified by the existing suite); the non-comment near/far grep in mat4.h
+  now returns 0 - the Windows macro clobber (the Step 312 incident class) can no longer
+  break this header.
+- engine_time.h:3 banner: "(src/time.h)" -> "(src/engine_time.h; was src/time.h,
+  renamed in Step 281)".
+- NO .cpp splits, no new features, no fixed-step into engine_time (the prompt's limits).
+
+GATES (against `76aeed6`): cmake --build build --config Release exit 0 (the first full
+run hit a 300s tool timeout mid-hostile_data_test, and its orphaned MSBuild node caused
+a TRANSIENT MSB6003 tlog contention on pe_core on the rerun; the next rerun built
+everything incl. pe_core.lib and a no-op rebuild printed BUILD EXIT=0 - a build-infra
+hiccup, NOT the 296-class exe lock: no LNK1104, every exe linked on every attempt);
+ctest -C Release 5/5 100% (13.26s; PureEditor0 1.76s - under the 40s guard); alive x3
+(PureEngine True, Pong True, Platformer True - the SMOKE_TEST.md:12 probe pattern);
+git diff --stat scoped to the slice (4 files, +14/-5); src/ outside the slice EMPTY.
+
+MUTATION (the Step 285 check): the input.h guard removed from the COMMITTED tree ->
+the slice's verification grep reported exactly 1 violation (input.h bare) - NON-VACUOUS
+(the expected value from the contract); restored by pathspec; git diff --stat -- src/
+EMPTY afterward.
+
+STATUS: Core Foundation IN PROGRESS - slice 1 of 5 done; slices 2-5 (the pe_core
+contract, the math tests-then-split, the engine_time split, the window bootstrap
+extraction) NOT started; each waits on its own step. Residuals in FINDINGS Entry 54.
 
 ## Kill criteria
 
