@@ -229,17 +229,17 @@ public:
     // untouched — this builder is purely additive and unused until a
     // caller opts in.
     //
-    // Caller contract: near > 0 and far > near (a degenerate frustum
+    // Caller contract: zNear > 0 and zFar > zNear (a degenerate frustum
     // divides by zero — the caller passes sane values; no guard here,
     // same minimal-helper discipline as the rest of pe::math).
     // ------------------------------------------------------------------
-    static Mat4 perspective(float fovyRadians, float aspect, float near, float far) {
+    static Mat4 perspective(float fovyRadians, float aspect, float zNear, float zFar) {
         const float f = 1.0f / std::tan(fovyRadians * 0.5f);
         Mat4 result;                      // starts as identity
         result.m[0][0] = f / aspect;
         result.m[1][1] = f;
-        result.m[2][2] = (far + near) / (near - far);
-        result.m[3][2] = (2.0f * far * near) / (near - far);
+        result.m[2][2] = (zFar + zNear) / (zNear - zFar);
+        result.m[3][2] = (2.0f * zFar * zNear) / (zNear - zFar);
         result.m[2][3] = -1.0f;           // w' = -z: the perspective row
         return result;
     }

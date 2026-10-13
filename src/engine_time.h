@@ -1,6 +1,6 @@
 /**
  * =====================================================================
- *  PureEngine — Step 17: Time/Timestep Boundary (src/time.h)
+ *  PureEngine — Step 17: Time/Timestep Boundary (src/engine_time.h; was src/time.h, renamed in Step 281)
  * =====================================================================
  *  The engine's FIFTH system boundary (after the renderer in Step 13,
  *  resource loading in Step 14, the camera in Step 15, and input in
@@ -49,6 +49,9 @@
 #define PUREENGINE_TIME_H
 
 #include <algorithm>     // std::min for delta time clamping
+#ifndef GLFW_INCLUDE_NONE
+#define GLFW_INCLUDE_NONE
+#endif
 #include <GLFW/glfw3.h>   // glfwGetTime — the monotonic clock source
 
 namespace pe {

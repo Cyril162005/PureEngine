@@ -1,4 +1,7 @@
 #include <glad/gl.h>
+#ifndef GLFW_INCLUDE_NONE
+#define GLFW_INCLUDE_NONE
+#endif
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <vector>   // Step 7: entities live in a std::vector

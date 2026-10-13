@@ -50,6 +50,9 @@
 #ifndef PUREENGINE_INPUT_H
 #define PUREENGINE_INPUT_H
 
+#ifndef GLFW_INCLUDE_NONE
+#define GLFW_INCLUDE_NONE
+#endif
 #include <GLFW/glfw3.h>   // glfwGetKey, GLFW_PRESS, raw GLFW key codes
 #include "gamepad.h"      // Step 158: GamepadState + pure button/edge reads
 #include <vector>         // the tracked-key list and previous-frame state
