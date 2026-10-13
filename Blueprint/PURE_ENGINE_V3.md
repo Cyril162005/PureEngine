@@ -3099,6 +3099,38 @@ PureEditor0 2.76s - under the 40s guard); alive x3; git diff
 Entry 51 (the search rule applied: build/, .git/, .kilo/ and
 .goose/ excluded from every grep and search).
 
+### T0 measurement record (Step 313, 2026-10-13) - Cyril's machine data, recorded verbatim
+
+Step 312's harness run by Cyril on his machine. T0 = the first recorded performance
+baseline. The Step 312 policy stands: the numbers are DATA, not a budget -
+"indicative, this machine, not a budget". Nothing here gates a build.
+
+Machine (verbatim):
+- i3-3120M 2.50GHz, 4 logical cores, 8052 MB RAM, OS 10.0.22621
+- GL 3.3.0 Build 10.18.10.4885, Intel HD Graphics 4000, GLSL 3.30, max tex 16384, REQUESTED 3.3 core, COMPATIBLE
+
+T0 bench (bench200 = the 200-entity sample, 600 measured frames, glFinish per frame,
+swap interval 0; times in ms):
+
+| run | median | p95 | max | mean | rss (MB) | gl_error |
+| --- | ------ | --- | --- | ---- | -------- | -------- |
+| bench200 2D 600f | 1.0709 | 4.0543 | 22.0148 | 1.5718 | 34 | 0 |
+| bench200 3D 600f | 32.5299 | 54.7805 | 510.2322 | 37.1151 | 35 | 0 |
+
+draw_calls / bytes_uploaded: UNAVAILABLE (the Step 312 policy - not guessable without
+an engine change).
+
+Budget notes (indicative targets for comparison on T0-class machines; NOT ctest
+timing asserts; NOT pass/fail):
+- 2D, 200 entities: keep median < ~8ms, p95 < ~16ms on T0.
+- 3D, 200 entities: the median (32.5299ms) is ABOVE the 16.6ms line on T0 - flagged
+  as FINDINGS Entry 52 (the 3D draw path is expensive on Intel HD 4000; the max
+  510.2322ms shows a long tail). Optimization is DEFERRED until a measured need or
+  an explicit human open; no src/ perf rewrite in Step 313.
+
+The bench CSVs stay under savedata/ - gitignored runtime output, not source (the
+standing rule); the numbers above are the record.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

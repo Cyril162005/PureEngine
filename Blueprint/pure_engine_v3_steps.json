@@ -3475,6 +3475,17 @@
    "depends_on": [
     311
    ]
+  },
+  {
+   "id": 313,
+   "name": "TOOLS: T0 measurement record (docs-only; Cyril's --gl-info/--bench machine data recorded verbatim as the T0 baseline; the 3D path flagged expensive on HD 4000, deferred)",
+   "status": "completed",
+   "definition_of_done": "The T0 table (the machine line + the bench200 2D/3D rows) recorded verbatim in PURE_ENGINE_V3.md; FINDINGS Entry 52 records the data + the finding; tracker/board/README updated. The budget notes are INDICATIVE TARGETS, not ctest timing asserts: 2D 200 ents keep median < ~8ms / p95 < ~16ms on T0; the 3D 200-ent median 32.5299ms is ABOVE the 16.6ms line - FINDING: the 3D draw path is expensive on Intel HD 4000, optimization DEFERRED until a measured need or an explicit human open (no src/ perf rewrite this step). The bench CSVs stay untracked under savedata/ (gitignored runtime output, not source); the recorded numbers are the record. src/ READ-ONLY; docs-only gates (git diff --check + the size guard + the U+FFFD scan; no build/ctest - nothing touched).",
+   "notes": "Docs-only step; no src/ changes, no code. THE DATA (Cyril's machine, pasted verbatim into V3 + FINDINGS): i3-3120M 2.50GHz, 4 logical cores, 8052 MB RAM, OS 10.0.22621; GL 3.3.0 Build 10.18.10.4885, Intel HD Graphics 4000, GLSL 3.30, max tex 16384, REQUESTED 3.3 core, COMPATIBLE; bench200 2D 600f: median 1.0709 p95 4.0543 max 22.0148 mean 1.5718 rss 34 gl_error 0; bench200 3D 600f: median 32.5299 p95 54.7805 max 510.2322 mean 37.1151 rss 35 gl_error 0; indicative; draw_calls/bytes UNAVAILABLE. THE READING: the 2D fits the indicative targets; the 3D median is ~2x over the 16.6ms line with a long tail - FINDINGS Entry 52, DEFERRED (the same discipline as the broadphase deferral, Step 52). THE CSV POLICY: the savedata/ CSVs stay untracked per the standing rule (savedata/ is runtime output); the numbers above are the record. FILING NOTE: the FINDINGS tail order was observed as Entry 51 ABOVE Entry 50 (the Step 312 insert landed one section high); Entry 52 appended at EOF, order not repaired. GATES (docs-only per the prompt): git diff --check exit 0 clean; the U+FFFD scan of the edited docs: only the KNOWN SESSION_BOARD mojibake (left alone); the size guard: no tracked doc grew >2x; the tracker parses (ConvertFrom-Json), 278 entries, no duplicate ids, the highest id 313.",
+   "commit": "TOOLS-313",
+   "depends_on": [
+    312
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

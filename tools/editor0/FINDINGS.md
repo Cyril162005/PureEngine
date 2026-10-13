@@ -1154,3 +1154,27 @@ ImGui / ECS / glTF / networking (the freezes stand).
   flipped stopped -> completed. The visuals 299-311 stay NOT TRIED
   except the human's partial 311 evidence (the build + the selftest +
   ctest quoted above; the on-screen visuals remain PENDING).
+
+## Entry 52
+
+- **what:** the 3D draw path is expensive on Intel HD 4000 - MEASURED, DEFERRED.
+  Cyril ran the Step 312 harness on his machine (T0 = the first recorded
+  baseline). THE DATA (verbatim): i3-3120M 2.50GHz, 4 logical cores, 8052 MB RAM,
+  OS 10.0.22621; GL 3.3.0 Build 10.18.10.4885, Intel HD Graphics 4000, GLSL 3.30,
+  max tex 16384, REQUESTED 3.3 core, COMPATIBLE. bench200 2D 600f: median 1.0709
+  p95 4.0543 max 22.0148 mean 1.5718 rss 34 gl_error 0. bench200 3D 600f: median
+  32.5299 p95 54.7805 max 510.2322 mean 37.1151 rss 35 gl_error 0. The numbers
+  are DATA ("indicative, this machine, not a budget"); draw_calls/bytes_uploaded
+  are UNAVAILABLE, so the cost split (drawEntity3D per-entity overhead vs fill
+  rate) is unknown until instrumented. The 2D numbers fit the indicative targets
+  (median < ~8ms, p95 < ~16ms); the 3D median is ABOVE the 16.6ms line (~2x over)
+  with a long tail (max 510.2322ms).
+- **class:** measured engine characteristic (a performance finding, not a
+  functional defect; nothing is broken; one machine, indicative).
+- **status:** recorded; DEFERRED by Cyril's Step 313 authorization - no src/ perf
+  rewrite this step; re-open only on a measured need or an explicit human open
+  (the same discipline as the broadphase deferral, Step 52). The bench CSVs stay
+  untracked under savedata/ (runtime output, not source). FILING NOTE: the file
+  tail order was observed as Entry 51 ABOVE Entry 50 (the Step 312 insert landed
+  one section high); Entry 52 is appended at EOF; the order is NOT repaired
+  (docs stay append-only).
