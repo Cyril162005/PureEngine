@@ -1178,3 +1178,41 @@ ImGui / ECS / glTF / networking (the freezes stand).
   tail order was observed as Entry 51 ABOVE Entry 50 (the Step 312 insert landed
   one section high); Entry 52 is appended at EOF; the order is NOT repaired
   (docs stay append-only).
+
+## Entry 53
+
+- **what:** the Core Foundation category AUDIT (Step 314, docs-only; src/ read fully,
+  nothing modified). The inventory, the gap list, the proposed acceptance standard and
+  the five proposed migration slices are recorded in PURE_ENGINE_V3.md ("Category Core
+  Foundation audit (Step 314)"). THE HEADLINE GAPS: (1) engine_time.h:52 and input.h:53
+  include <GLFW/glfw3.h> BARE while console.h:50-53 / gamepad.h:40-43 /
+  window_guard.h:43-46 define GLFW_INCLUDE_NONE first - the GL-freeness of the big TUs
+  rests on include-order luck (pe_core.cpp: console.h :11 precedes engine_time.h :27;
+  hostile_data_test.cpp: console.h :10 precedes engine_time.h :24); (2) the pe_core.cpp
+  "forces instantiation of core headers" claim (pe_core.cpp:3-5) omits math/vec3.h +
+  math/mat4.h + window_guard.h + mesh3d.h + components.h + gamestate.h + hostile_data.h +
+  prefab.h + animation.h - math arrives transitively via camera.h (pe_core.cpp:9), not
+  by contract; (3) pe_core (CMake:306-310) is linked by NO target - the documented
+  "or link pe_core" path (CMake:302-304) is unexercised; (4) no dedicated math unit test
+  (rotationZ has zero direct coverage in tests/) and no deterministic FrameTime 0.1s-clamp
+  test (the clamp is documented at engine_time.h:25/:83 only); (5) mat4.h:236 keeps the
+  near/far parameter names with NO engine-side defense - the Step 312 clobber was fixed
+  editor-side only (tools/editor0/main.cpp:47-49); (6) cosmetic: the engine_time.h:3
+  banner still says "(src/time.h)" post-rename. INVENTORY FORMS: vec3.h (121) / mat4.h
+  (351) / engine_time.h (109) / window_guard.h (76) = header-only impl; pe_core.cpp (32)
+  = the only core .cpp (a build-only instantiation check); the window bootstrap = NOT a
+  boundary (embedded: main.cpp:559/574/582/587 + duplicated per game pong.cpp:34-58,
+  platformer.cpp:116-131); ODR sweep: 0 non-inline file-scope definitions in all four
+  inventoried headers. TESTS: header_hygiene = the Step 281 rename invariant;
+  hostile_data_test (~10.3K lines, main :10307) directly tests WindowGuard headless
+  (:9640-9670) + FrameTime (:5715, :9679-9699 the tick position) + Mat4/Vec3 indirectly
+  (84/35/14 uses; rotationZ 0).
+- **class:** existing capability (an audit record; every gap is a candidate for a later
+  AUTHORIZED migration slice, not a defect fixed in this step - the prompt forbids
+  starting the split before Cyril approves the acceptance standard).
+- **status:** recorded; the V3 audit section carries the acceptance standard (build /
+  tests 5->7 / live window / consumer linkage / include hygiene / measurement-as-data +
+  the explicit OUT list) and the five slices (hygiene defines -> pe_core contract ->
+  math tests-then-split -> engine_time split -> window bootstrap extraction). Core
+  Foundation: NOT AUDITED -> AUDIT COMPLETE / IN PROGRESS pending migration. No engine
+  change, no migration code; the split starts only on Cyril's approval.

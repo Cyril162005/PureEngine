@@ -1998,7 +1998,7 @@ hostile_data_test.cpp) is the BASELINE - no invented progress
 bars):**
 
 **1 Core foundation - EXISTS (the v1.0 core, Step 100; audit
-VERIFIED):** math (src/math/vec3.h, src/math/mat4.h - rotationZ
+VERIFIED):** **[Step 314, 2026-10-13: the Core Foundation CATEGORY AUDIT is COMPLETE (the inventory + the gap list + the acceptance standard + the 5 proposed slices - the audit section below); the .h/.cpp migration is IN PROGRESS pending Cyril's approval of the standard; no migration code written; the audit covered math/time/window-bootstrap/hygiene/pe_core+tests ONLY - entity/collision/state/events/lifecycle/input/gamepad were NOT inventoried.]** math (src/math/vec3.h, src/math/mat4.h - rotationZ
 :125 + rotationY :260 builders; known limit: no SIMD), entity
 (src/entity.h:46-47 the SINGLE-AXIS rotation - "current Z rotation
 in RADIANS"; :279 Mat4::rotationZ; :128 no TRS composition; plain
@@ -3130,6 +3130,170 @@ timing asserts; NOT pass/fail):
 
 The bench CSVs stay under savedata/ - gitignored runtime output, not source (the
 standing rule); the numbers above are the record.
+
+### Category Core Foundation audit (Step 314, 2026-10-13) - AUDIT COMPLETE, migration NOT STARTED
+
+Docs-only audit step (the prompt: "AUDIT ONLY (no .cpp migration yet)"). src/ was read
+fully; no engine file modified. Search hygiene: build/, .git/, .kilo/ and .goose/ were
+excluded from every grep and search (the standing FINDINGS 45 rule).
+
+SCOPE. The prompt's six inventory bullets, NOT the whole V3 category: math + time +
+window bootstrap + header hygiene + pe_core.cpp/CMake + the tests covering them. The
+OTHER Core-foundation members per the 5-category map (entity, collision, state, events,
+lifecycle, input, gamepad - the "1 Core foundation" block above) are NOT inventoried
+here and their migration is NOT proposed; Entity/Scene work stays forbidden by the prompt.
+
+INVENTORY (each file: header-only impl | already has .cpp | mixed):
+
+| file | lines | form | key evidence (grep-verified 2026-10-13) |
+| --- | --- | --- | --- |
+| src/math/vec3.h | 121 | header-only impl | <cmath> only (vec3.h:30); struct Vec3 :36; dot/cross/length/normalized + operators :54-116; normalized() :88 is the only non-constexpr member (std::sqrt); ODR sweep: 0 non-inline file-scope definitions |
+| src/math/mat4.h | 351 | header-only impl | <cmath> + "vec3.h" (mat4.h:36-37); struct Mat4 :41; constexpr builders translation(Vec3) :88, scale(Vec3) :101, orthographic :152, scale(x,y,z) :278, translation(x,y,z) :292, operator* :311, transformPoint :341; RUNTIME builders rotationZ :125, lookAt :189, perspective :236, rotationY :260 (std::cos/sin/tan + normalized()); perspective names its parameters near/far (mat4.h:236) - the Windows-macro clobber target (the Step 312 incident); no vec2/vec4, no SIMD (the recorded known limit) |
+| src/engine_time.h | 109 | header-only impl | class FrameTime :56; start() :65; tick() :79 with the 0.1s clamp (std::min, :83); the Step 92 timeScale/pause surface :90-95; state lastTime/timeScale/paused :102-104; NO fixed-step/accumulator/frame-limiter - documented OUT (engine_time.h:23-26; main.cpp:435-436); the only fixed-dt in the repo is editor-owned kEditorPlayDt=1/60 (editor0_core.h:398, playTick :683 - Step 311, consumer-side) |
+| src/window_guard.h | 76 | header-only impl | Step 190 RAII WindowGuard :50; release() :57; ~WindowGuard destroys + terminates :62; GLFW only, no GL calls (the documented contract, :1-47); GLFW_INCLUDE_NONE defined first (:43-46); opt-in by design (the deliberate-NOT list, :23-34) |
+| window/GLFW bootstrap patterns | - | NOT a boundary | embedded in src/main.cpp: glfwInit :559, glfwCreateWindow(800,600) :574, makeContextCurrent :582, gladLoadGL :587; WindowGuard adopted at 5 call sites (main.cpp:2811, 2842, 3157, 3225, 3395; the renderer.shutdown()-before-guard contract main.cpp:3205); the games carry their own copies (pong.cpp:34/49/57/58, platformer.cpp:116/124/130/131) - the pre-190 duplication window_guard.h:7-12 documents |
+| src/pe_core.cpp | 32 | already has .cpp (the ONLY core .cpp) | Step 102 "Optional compiled core: header-only path remains primary" (pe_core.cpp:3-5; CMake:302-304); 22 headers included :7-28; pe_core_version()=102 :31 |
+| CMake linkage | - | - | PureEngine = main.cpp + stb_impl.cpp + glad_gl.c (CMake:82-84; links glfw+miniaudio :92); pe_core STATIC :306-310 is linked by NO target (a build-only instantiation check; "Games may either include headers directly (header-only, current) or link pe_core" CMake:302-304); Pong/Platformer consume engine headers by RELATIVE include with src/ deliberately OFF the include path (CMake:314-315; pong.cpp:23-29, platformer.cpp:22-27) - the Step 281 time.h-shadowing rule |
+
+Header hygiene facts: the Step 281 rename src/time.h -> engine_time.h is enforced by the
+header_hygiene ctest target (tests/header_hygiene.cpp:9-18 includes <time.h> + <ctime> +
+engine_time.h; CMake:271-278 - a reintroduced colliding name makes that target FAIL to
+build); the rename left the engine_time.h banner saying "(src/time.h)" (engine_time.h:3)
+- cosmetic doc-rot. Include rules observed: engine headers that include glfw3.h define
+GLFW_INCLUDE_NONE FIRST - console.h:50-53, gamepad.h:40-43, window_guard.h:43-46 do;
+engine_time.h:52 and input.h:53 include glfw3.h BARE (gap 1 below).
+
+TESTS covering the inventory (names + what they assert):
+- header_hygiene (ctest; CMake:273-278): the <time.h>/<ctime>/engine_time.h coexistence -
+  the Step 281 rename invariant. Nothing else from this inventory.
+- hostile_data_test (ctest; ~10.3K lines, main at :10307): WindowGuard DIRECTLY tested
+  headless (the null guard is a no-op :9652; guards on real windows :9660/:9670; the
+  Step 190 helper :9640); FrameTime exercised (:5715, and the tick-position check
+  :9679-9699 - tick at the VERY TOP before glfwPollEvents; start() in the init-order
+  check :3392); Mat4/Vec3 exercised INDIRECTLY through camera/renderer/collision/
+  simulation checks (Mat4 84 uses; perspective/lookAt/orthographic 35; rotationY 14;
+  rotationZ 0 direct); windows.h enters this TU only for the input test (:3025-3030).
+- resources_test / LevelPipelineConsumer / PureEditor0 (ctest): no direct core coverage
+  (the editor selftest exercises math indirectly via pick/unproject/projection).
+- NO dedicated math unit test exists (zero direct rotationZ coverage anywhere in tests/);
+  no deterministic FrameTime clamp (0.1s) assertion exists.
+
+GAP LIST (Core Foundation only; evidence-cited; no feature wishlist):
+1. Include-order trap: engine_time.h:52 and input.h:53 include <GLFW/glfw3.h> bare.
+   Without GLFW_INCLUDE_NONE, glfw3.h pulls the system GL headers (GLFW's documented
+   default). Today the big TUs stay GL-free ONLY BY ORDERING LUCK: in pe_core.cpp the
+   alphabetical order puts console.h (:11, which defines GLFW_INCLUDE_NONE) 16 positions
+   before engine_time.h (:27); in hostile_data_test.cpp console.h (:10) precedes
+   engine_time.h (:24). The safe in-repo pattern exists (console/gamepad/window_guard).
+   One include reorder or one new consumer and the GL headers arrive before math - and on
+   Windows the near/far macro set is one explicit #include <windows.h> away (the Step 312
+   clobber, fixed editor-side only: tools/editor0/main.cpp:47-49).
+2. Incomplete pe_core.cpp contract: the TU claims to "force instantiation of core headers"
+   (pe_core.cpp:3-5) but omits math/vec3.h + math/mat4.h (they arrive only transitively
+   via camera.h :9), window_guard.h, mesh3d.h, components.h, gamestate.h, hostile_data.h,
+   prefab.h and animation.h. The Core Foundation category's own math headers sit in the
+   lib by transitive luck, not by contract.
+3. Missing direct tests: no math unit test (rotationZ has zero direct coverage; the
+   builders are only exercised through camera/renderer paths); no deterministic FrameTime
+   clamp test (the 0.1s clamp is documented at engine_time.h:25/:83 but untested).
+4. pe_core is linked by nobody (CMake:306-310; no consumer links it) - documented as
+   optional (CMake:302-304), but the "or link pe_core" path is UNEXERCISED: a link break
+   in pe_core would not surface in any game/test build until someone links it.
+5. Undocumented-in-code init order: the Step 171 contract lives in prose (window_guard.h
+   doc block; main.cpp comments) and the games DUPLICATE the bootstrap (pong.cpp:34-58,
+   platformer.cpp:116-131) instead of sharing a window.h/.cpp - the duplication is
+   documented and opt-in (window_guard.h:23-34), but there is no shared, tested bootstrap
+   boundary to migrate TO (the extraction is slice 5).
+6. Portability: the math/time/window-guard trio is GLFW+std only (portable); the
+   Windows-specific risk is macro injection (near/far - the Step 312 incident), currently
+   defended only in the editor TU (tools/editor0/main.cpp:48-49), NOT in the engine
+   headers; mat4.h:236 near/far parameter names stay a per-TU hazard on Windows.
+7. Cosmetic doc-rot: the engine_time.h:3 banner still names "(src/time.h)" - the Step 281
+   rename did not update its own banner.
+
+CATEGORY ACCEPTANCE STANDARD - Core Foundation ACCEPTED when ALL of these hold
+(proposed at Step 314; NOT yet approved; each slice below is gated on Cyril approving
+THIS standard):
+A. Build: cmake --build build --config Release exits 0 with NO new warnings vs the
+   pre-migration baseline (the warning delta recorded per slice, not asserted to zero).
+B. Tests: ctest -C Release all green, and the count GROWS ADDITIVELY: a new math unit
+   test target (Vec3 ops + all 9 static Mat4 builders + operator* + transformPoint,
+   incl. rotationZ, with the near/far plane semantics pinned to hand-computed matrices)
+   and a deterministic FrameTime test (glfwInit is legal headless; the 0.1s clamp
+   asserted via a forced >=0.1s stall; the timescale/pause semantics) - ctest 5 -> 7;
+   NO timing assertions (the Step 312 policy).
+C. Live window check: PureEngine.exe opens the real window, renders, closes clean (the
+   SMOKE_TEST.md release gate); the alive x3 protocol green.
+D. Structure: every migrated boundary is exactly one .h (declarations + the doc contract)
+   + one .cpp (definitions); the ODR grep (non-inline file-scope definitions in the
+   inventoried headers) returns 0 before AND after; no API signature changes (any
+   intentional change listed and approved separately).
+E. Include hygiene, grep-verified: every engine header that includes glfw3.h defines
+   GLFW_INCLUDE_NONE first (console, gamepad, window_guard, engine_time, input ALL
+   conform); no engine header includes <windows.h>; header_hygiene stays green.
+F. Consumer linkage complete: PureEngine, hostile_data_test, resources_test,
+   LevelPipelineConsumer, PureEditor0, Pong, Platformer AND pe_core all build + link
+   after every slice (any new engine .cpp must be added to every consumer's CMake source
+   list - the games' relative-include rule makes this mandatory, not optional).
+G. pe_core.cpp's instantiation list matches its documented claim (or the claim is amended
+   to say exactly what it instantiates).
+H. Measurement, not budget: one T0 bench re-run (--bench 2d/3d) after the final slice,
+   recorded as DATA ("indicative, this machine, not a budget"; no gate).
+OUT OF SCOPE for this category (stays out even when ACCEPTED): ECS, networking, glTF,
+scripting (the v1.1 freezes); Entity/Scene (forbidden by this prompt - a separate
+category decision); editor features; gameplay; the broadphase/materials/
+generational-handle freezes; NO fixed-step/accumulator introduction into engine_time
+(the Step 17 boundary stays mechanism-only; the editor's kEditorPlayDt stays
+consumer-side).
+
+PROPOSED MIGRATION SLICES (max 5, small, NONE started; each lands as its own step with
+the full Step 285 gates; nothing here is implemented):
+- Slice 1 (hygiene first, ~zero risk): add GLFW_INCLUDE_NONE to engine_time.h + input.h
+  (the console.h:50-53 pattern); fix the engine_time.h:3 banner; document the two include
+  rules (the GLFW_INCLUDE_NONE rule + the windows.h/near-far rule) in the header
+  contracts. Files: src/engine_time.h, src/input.h (+ docs). Risk: near-zero (defines
+  only; the include guards are idempotent either way). Test plan: full build; ctest 5/5;
+  header_hygiene green; the editor + games still build; grep - no engine header includes
+  glfw3.h bare.
+- Slice 2 (pe_core contract, low risk): make pe_core.cpp's include list match its claim -
+  add math/vec3.h + math/mat4.h FIRST (before any GLFW-touching header), plus
+  window_guard.h, mesh3d.h, components.h, gamestate.h, hostile_data.h, prefab.h,
+  animation.h; leave pe_core_version()=102 untouched (a Step 102 marker, not a version).
+  Files: src/pe_core.cpp. Risk: low (compile-only; math-first also bakes the ordering
+  rule into the TU). Test plan: pe_core builds; full build; ctest 5/5.
+- Slice 3 (math: tests THEN split, medium risk): (a) add tests/math_test.cpp (a ctest
+  target) pinning Vec3 ops and every Mat4 builder against hand-computed matrices, incl.
+  rotationZ and the near/far semantics; (b) only then move the four RUNTIME builders
+  (rotationZ :125, lookAt :189, perspective :236, rotationY :260) to src/math/math.cpp,
+  keeping the constexpr builders and ALL of vec3.h header-only (for tiny leaf math,
+  header-only is the RIGHT form - the audit says so explicitly). Files: src/math/mat4.h,
+  src/math/math.cpp (new), tests/math_test.cpp (new), CMakeLists.txt (math.cpp added to
+  PureEngine, pe_core, BOTH games, and every Mat4-consuming test target). Risk: medium -
+  the linkage fan-out IS the cost; behavior identical if code only moves. Test plan:
+  full build; ctest 6/6; the editor selftest 489 PASS unchanged; the T0 bench re-run as
+  data.
+- Slice 4 (engine_time split, low-medium risk): move FrameTime's bodies (start/tick/
+  scaledTick/setTimeScale/setPaused) to src/engine_time.cpp; the header keeps the class
+  declaration and DROPS <GLFW/glfw3.h> (the GLFW dependency moves into the .cpp - the
+  hygiene payoff); add the deterministic FrameTime test. Files: src/engine_time.h,
+  src/engine_time.cpp (new), a new test target, CMakeLists.txt (the .cpp into every
+  FrameTime consumer - the same fan-out as slice 3). Risk: low-medium (the tick-position
+  call-site contract is prose and unchanged; every consumer must link the new .cpp).
+  Test plan: ctest 7/7; header_hygiene green; the hostile_data_test tick-position check
+  stays green.
+- Slice 5 (window bootstrap extraction, HIGHEST risk, optional/last): extract the shared
+  init pattern (glfwInit -> create -> makeCurrent -> gladLoad) into src/window.h/.cpp
+  with the Step 171 order documented IN code; src/main.cpp migrates; the games adopt
+  OPT-IN only (the Step 190 ruling - no forced adoption); WindowGuard stays exactly as
+  is. Files: src/window.h (new), src/window.cpp (new), src/main.cpp, CMakeLists.txt
+  (games only if they opt in). Risk: highest - the failure paths and the Step 171
+  contract live in main.cpp prose today. Test plan: ctest; alive x3; the live window
+  check (the SMOKE_TEST gate); the WindowGuard headless checks stay green.
+
+STATUS: Core Foundation: NOT AUDITED -> AUDIT COMPLETE (Step 314, 2026-10-13) /
+IN PROGRESS pending migration. The migration starts ONLY after Cyril approves the
+acceptance standard above (the prompt's own gate). No .cpp migration code was written
+in this step.
 
 ## Kill criteria
 
