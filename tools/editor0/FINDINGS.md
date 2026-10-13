@@ -946,6 +946,41 @@ ImGui / ECS / glTF / networking (the freezes stand).
   this step).
 - **status:** recorded; the NOT-TRIED status stands.
 
+## Entry 51
+- **what:** the measurement harness (the Step 306 rule explicitly
+  lifted by THIS prompt): `--gl-info` (the hidden GL window; the
+  GL_VERSION/RENDERER/VENDOR/SHADING_LANGUAGE_VERSION/MAX_TEXTURE_SIZE
+  strings + the REQUESTED 3.3 core + the shader #version ints
+  (330|330|330|330 from the four assets/shaders files) + the
+  COMPATIBLE/RISK line) and `--bench <scene> [frames] [--view 2d|3d]
+  [--out file.csv]` (the hidden window, the swap interval 0, 60
+  warmup + N measured frames of the editor's own draw path, the
+  glFinish at the end of each frame; the median/p95/max/mean ms, the
+  RSS working set, the machine info: the CPU brand via __cpuid, the
+  logical cores, the total RAM, the OS version via RtlGetVersion;
+  draw_calls and bytes_uploaded printed as UNAVAILABLE - not
+  guessable without an engine change). The percentiles/parse/compare
+  live in editor0_core.h as pure functions (the GL versions compared
+  as ints in the GLSL convention: major*100+minor*10). NO timing
+  assertions anywhere - the numbers are DATA, "indicative, this
+  machine, not a budget".
+- **evidence:** the selftest 489 PASS / 0 FAIL (the percentile
+  checks on 1/2/100 samples incl. the unsorted, the GL parser on the
+  Intel- and NVIDIA-style strings + the unparseable, the
+  COMPATIBLE/RISK matrix, the CSV formatting, the negative control -
+  the p95 is NOT the index-93 value, the 5-frame bench run asserting
+  exactly 5 samples + glGetError()==0); the live --gl-info output
+  (COMPATIBLE: the GL 3.3.0 Build 10.18.10.4885 / the Intel HD 4000 /
+  the GLSL 3.30 / the max texture 16384); the live 5-frame bench
+  (the CSV matched the stdout); the mutation (the p95 index -2)
+  FAILED 3 checks NON-VACUOUS.
+- **class:** existing capability (the pure math editor-owned; the
+  Windows APIs editor-side; no engine change; the packaging
+  contradiction from the 309 session resolved - the script exists).
+- **status:** recorded, implemented editor-side. THE SEARCH RULE was
+  applied: build/, .git/, .kilo/ and .goose/ excluded from every
+  grep and search this step (stated in the evidence lines).
+
 ## Entry 44
 - **what:** the DOCS CONTRADICTION resolved: Step 308's Vertical
   slices said "NO package.ps1 exists - packaging is MISSING" while

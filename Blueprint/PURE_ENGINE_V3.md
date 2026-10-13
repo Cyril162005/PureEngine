@@ -3050,6 +3050,55 @@ pathspec. The tracker 311 flipped stopped -> completed. The
 on-screen visuals (V 2D<->3D, the meshId keys, P play/stop) stay
 PENDING.
 
+### Measurement harness (Step 312, docs + tools implementation) - the numbers are DATA, not a budget
+
+THE AUTHORIZATION: the Step 306 rule ("no measurement harness unless
+a later step explicitly asks") was lifted by THIS prompt, sent by
+Cyril. SCOPE: measurement only - NO timing assertions anywhere,
+nothing timing-based in ctest, no budgets recorded as pass/fail;
+every printed number says "indicative, this machine, not a budget".
+THE GL FACTS (grep-verified, the searches excluded build/, .git/,
+.kilo/ and .goose/): the engine REQUESTS GL 3.3 Core
+(glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3) + MINOR 3 +
+GLFW_OPENGL_PROFILE CORE at tools/editor0/main.cpp:2833-2835 (the
+selftest), :2898-2900 (the viewer), :3071-3073 (the diag); the
+games match); WindowGuard sets NO hints; the shaders are ALL
+"#version 330 core" (assets/shaders/default.vert/frag, lit.vert/
+frag). --gl-info prints the reported strings + REQUESTED + the
+shader ints (330|330|330|330 from the four assets/shaders files) +
+COMPATIBLE/RISK (the pure editor-owned parseGlVersion/
+parseShaderGlsl/glCompatible in editor0_core.h - the versions
+compared as ints in the GLSL convention: major*100+minor*10 so
+GL 3.3 = 330 = GLSL 330). --bench: the hidden window, the swap
+interval 0, 60 warmup + N measured frames of the editor's own draw
+path (the 2D view; the 3D view forces meshId=1 on every alive
+entity IN MEMORY, never saved), glFinish at the end of each frame;
+the output = the machine info (the CPU brand via __cpuid, the
+logical cores, the total RAM, the OS version via RtlGetVersion -
+the Windows APIs editor-side), the scene entity count, the view,
+the frames, the median/p95/max/mean ms, the RSS working set (the
+Windows API), and draw_calls/bytes_uploaded printed as UNAVAILABLE
+(not guessable without an engine change); the optional --out CSV.
+THE LIVE RUN (this machine): the GL 3.3.0 Build 10.18.10.4885 /
+Intel(R) HD Graphics 4000 / the GLSL 3.30 / the max texture 16384 /
+COMPATIBLE; the bench 200 entities, 2d, 5 frames: the median ~1.0ms,
+the p95 ~1.06ms (the indicative numbers from ONE machine - the
+comparative data comes from Cyril's runs on every machine he has,
+the weakest first). THE TESTS (the selftest 489 PASS / 0 FAIL): the
+percentiles on 1/2/100 samples incl. the unsorted, the negative
+control (the p95 is NOT the index-93 value), the GL parser on the
+Intel-/NVIDIA-style strings + the unparseable, the COMPATIBLE/RISK
+matrix, the CSV formatting, the 5-frame bench run asserting exactly
+5 samples + glGetError()==0 - NO timing assertions. MUTATION: the
+p95 index changed -> 3 checks FAILED NON-VACUOUS; restored by
+pathspec. THE HOUSEKEEPING: editor0_tmp/ added to .gitignore (the
+only .gitignore change). GATES against ae05b35: cmake --build build
+--config Release exit 0; ctest -C Release 5/5 100% (23.23s;
+PureEditor0 2.76s - under the 40s guard); alive x3; git diff
+--check exit 0 clean; git diff --stat -- src/ EMPTY. FINDINGS:
+Entry 51 (the search rule applied: build/, .git/, .kilo/ and
+.goose/ excluded from every grep and search).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

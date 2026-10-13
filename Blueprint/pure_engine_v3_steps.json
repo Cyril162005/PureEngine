@@ -3464,6 +3464,17 @@
    "depends_on": [
     310
    ]
+  },
+  {
+   "id": 312,
+   "name": "TOOLS: measurement harness --gl-info + --bench (measurement only, no timing assertions; consumer, no engine change)",
+   "status": "completed",
+   "definition_of_done": "--gl-info: the hidden GL window the way the selftest creates it; prints GL_VERSION, GL_RENDERER, GL_VENDOR, GL_SHADING_LANGUAGE_VERSION, GL_MAX_TEXTURE_SIZE, the REQUESTED version/profile (3.3 core) and the shader #version strings (all 330 core), then COMPATIBLE or RISK (the pure editor-owned parse/compare: the versions as ints, major*100+minor*10). --bench <scene> [frames=600] [--view 2d|3d] [--out file.csv]: the hidden window, the swap interval 0, 60 warmup + N measured frames of the editor's own draw path with glFinish at the end of each frame; the stdout + the CSV: the machine info (the CPU brand, the logical cores, the total RAM, the OS version), the scene count, the view, the frames, the median/p95/max/mean ms, the RSS working set; draw_calls and bytes_uploaded = UNAVAILABLE (not guessable without an engine change); 'indicative, this machine, not a budget'. The selftest: the percentiles (1/2/100 samples, unsorted, the negative control), the GL parser, the COMPATIBLE/RISK matrix, the CSV formatting, the 5-frame bench run (exactly 5 samples + glGetError()==0) - NO timing assertions. The .gitignore gains editor0_tmp/ (authorized). The selftest: 489 PASS / 0 FAIL. Engine src/ read-only.",
+   "notes": "Editor-side only; no src/ changes. THE AUTHORIZATION: the Step 306 rule lifted by THIS prompt (Cyril). SCOPE: measurement only - nothing timing-based in ctest, no budgets as pass/fail. THE GL FACTS (grep-verified, the searches excluded build/, .git/, .kilo/ and .goose/): the requested GL 3.3 Core (main.cpp:2833-2835/:2898-2900/:3071-3073; WindowGuard sets no hints); the shaders all #version 330 core (default.vert/frag, lit.vert/frag). THE LIVE RUN (this machine): GL 3.3.0 Build 10.18.10.4885 / Intel(R) HD Graphics 4000 / GLSL 3.30 / the max texture 16384 / COMPATIBLE; the bench 200 entities 2d 5 frames: the median ~1.0ms, the p95 ~1.06ms (ONE machine - the comparative data comes from Cyril's runs, the weakest first). THE TESTS: 489 PASS / 0 FAIL (the percentiles 1/2/100 samples incl. the unsorted + the negative control, the GL parser, the COMPATIBLE/RISK matrix, the CSV, the 5-frame bench). MUTATION: the p95 index changed -> 3 checks FAILED NON-VACUOUS; restored by pathspec. THE HOUSEKEEPING: editor0_tmp/ -> .gitignore (authorized by this prompt). GATES against ae05b35: cmake --build build --config Release exit 0; ctest -C Release 5/5 100% (23.23s; PureEditor0 2.76s - under the 40s guard); alive x3 (all three True); git diff --check exit 0 clean; git diff --stat -- src/ EMPTY. SIZE: net +405, 3 files - within the 450 cap. The in-step defects fixed BEFORE the commit: the Windows near/far macros clobbering mat4.h (the #undefs after windows.h), the editor0:: qualification for the new pure helpers, and the CSV missing the gl_error line (the test caught it). The .kilo/ worktrees observed, NOT touched. hostile_default.txt, Testing/ and .goose/ untouched.",
+   "commit": "TOOLS-312",
+   "depends_on": [
+    311
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
