@@ -62,8 +62,8 @@ int main() {
     expect(nearv(M.transformPoint(pe::Vec3(1.0f, 1.0f, 1.0f)), 3.0f, 5.0f, 7.0f, 1e-4f),
         "mat4: transformPoint(T*S,(1,1,1)) = (3,5,7)");
     const pe::Mat4 IT = I * T;
-    expect(nearv(IT.transformPoint(pe::Vec3(1.0f, 2.0f, 3.0f)), 1.0f, 2.0f, 3.0f, 1e-5f),
-        "mat4: I*T acts as T");
+    expect(nearv(IT.transformPoint(pe::Vec3(1.0f, 2.0f, 3.0f)), 2.0f, 4.0f, 6.0f, 1e-5f),
+        "mat4: I*T acts as T (the point gains the translation: (1,2,3)+(1,2,3))");
     expect(nearv(T.transformPoint(pe::Vec3(1.0f, 1.0f, 1.0f)), 2.0f, 3.0f, 4.0f, 1e-5f),
         "mat4: translation(Vec3) moves the point by (1,2,3)");
     expect(nearv(S.transformPoint(pe::Vec3(1.0f, 1.0f, 1.0f)), 2.0f, 3.0f, 4.0f, 1e-5f),
