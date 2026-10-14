@@ -323,6 +323,18 @@ target_link_libraries(core_link_probe PRIVATE pe_core)
 add_test(NAME core_link_probe COMMAND core_link_probe)
 set_tests_properties(core_link_probe PROPERTIES TIMEOUT 60)
 
+# Step 317: the dedicated math unit test (Core Foundation slice 3).
+# Deterministic value asserts ONLY - no timing, no GL, no window, no files.
+# Vec3 ops + every Mat4 builder (identity, multiply, translation, scale,
+# orthographic, perspective zNear/zFar, rotationZ, rotationY, lookAt) +
+# transformPoint. Pure header-only math consumption: no pe_core link needed.
+add_executable(math_test
+    tests/math_test.cpp
+)
+target_include_directories(math_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
+add_test(NAME math_test COMMAND math_test)
+set_tests_properties(math_test PROPERTIES TIMEOUT 60)
+
 # Pong API-gate target: a second game built ONLY on public engine headers
 # (math, entity, renderer, camera, input). Headers are included by relative
 # path from games/pong/pong.cpp — src/ is deliberately NOT on this target's
