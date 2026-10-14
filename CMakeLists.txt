@@ -335,6 +335,20 @@ target_include_directories(math_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
 add_test(NAME math_test COMMAND math_test)
 set_tests_properties(math_test PROPERTIES TIMEOUT 60)
 
+# Step 318: the FrameTime contract test (Core Foundation slice 4).
+# Deterministic asserts: the dt clamp (a forced 150ms stall -> EXACTLY 0.1f),
+# the scale/pause state machine, the clamp invariant. glfwInit is legal
+# headless; FrameTime reads glfwGetTime (engine_time.h, the Step 315
+# GLFW_INCLUDE_NONE guard). No window, no GL.
+add_executable(time_test
+    tests/time_test.cpp
+)
+target_include_directories(time_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_include_directories(time_test PRIVATE "${glfw_SOURCE_DIR}/include")
+target_link_libraries(time_test PRIVATE glfw)
+add_test(NAME time_test COMMAND time_test)
+set_tests_properties(time_test PROPERTIES TIMEOUT 60)
+
 # Pong API-gate target: a second game built ONLY on public engine headers
 # (math, entity, renderer, camera, input). Headers are included by relative
 # path from games/pong/pong.cpp — src/ is deliberately NOT on this target's
