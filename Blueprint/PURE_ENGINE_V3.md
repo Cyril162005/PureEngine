@@ -3416,9 +3416,9 @@ IN PROGRESS / BLOCKED / VERIFICATION REQUIRED / ACCEPTED):
 | criterion | status | evidence |
 | --- | --- | --- |
 | A build exit 0 | ACCEPTED (this slice) | the three staged builds, exit 0 each |
-| B tests grow, all green | IN PROGRESS | ctest 6/6 (the probe added, TIMEOUT 60); the math + FrameTime test targets are slices 3-4 |
+| B tests grow, all green | IN PROGRESS (math ACCEPTED) | ctest 7/7 (the probe + math_test added, TIMEOUT 60); the FrameTime test target is slice 4 |
 | C live window check | VERIFICATION REQUIRED | alive x3 True (machine-side); Cyril's games+editor smoke line pending ("smoke: not tried") |
-| D one .h/.cpp per boundary + ODR 0 | ACCEPTED (the ODR half) | core_link_probe links clean; the mutation LNK2005/LNK1169 caught; 0 hazards in the 16 headers |
+| D one .h/.cpp per boundary + ODR 0 | ACCEPTED (the ODR half) | core_link_probe links clean; the mutation LNK2005/LNK1169 caught; 0 hazards in the 16 headers; math STAYS header-inline by the Step 317 decision (small hot bodies, a 6-8-target fan-out for no gain) |
 | E include hygiene | ACCEPTED (slice 1) | the guard at all 6 src/ GLFW sites (Step 315) |
 | F consumer linkage | IN PROGRESS | the probe links pe_core (first exerciser); games/editor/tests keep compiling exactly as before (by design this slice) |
 | G pe_core list matches its claim | ACCEPTED | 31 headers = the 16-list + the 15 the TU already carried |
@@ -3426,6 +3426,63 @@ IN PROGRESS / BLOCKED / VERIFICATION REQUIRED / ACCEPTED):
 
 STATUS: Core Foundation IN PROGRESS (2 of 5). The ODR hazard list (EMPTY - zero
 hazards found) is the slice-3 input; slice 3 (the math tests-then-split) NOT started.
+
+### Core Foundation slice 3 (Step 317, 2026-10-14) - the math unit test + the STAY-INLINE decision, COMPLETE (tests-only ACCEPTED for math)
+
+SMOKE: the human smoke line arrived UNFILLED again (<PASTE HIS ONE LINE>) - recorded
+"smoke: not tried"; the visuals 299-311 stay NOT TRIED; acceptance row C stays
+VERIFICATION REQUIRED.
+
+THE STAY-INLINE DECISION (the prompt's item 3 - documented with evidence, NO code
+moved): Vec3 and Mat4 STAY header-inline. The evidence:
+- body sizes: every Vec3 function is <= 8 lines (vec3.h:54-116); the largest Mat4
+  body is lookAt (mat4.h:189-211, ~20 lines), perspective :236-245 (9 lines),
+  rotationZ :125-135, rotationY :260-270 - all trivially small;
+- hotness: the per-frame camera path calls perspective/lookAt every drawn frame
+  (camera.h:275 proj = Mat4::perspective; camera.h view() -> lookAt) - the T0 3D
+  bench (median 32.5ms on HD 4000, Step 313) is dominated by the draw path, and a
+  .cpp boundary adds call overhead against it;
+- fan-out: a math.cpp would need adding to PureEngine, PureEditor0, Pong, Platformer,
+  hostile_data_test, core_link_probe/pe_core (+ every future consumer) - 6-8 CMake
+  touch points for zero behavior or clarity gain;
+- the supersession is incremental by Cyril's ruling (Step 316): a module stays
+  header-only until its slice moves it - THIS slice's measured decision is that math
+  stays; the Core Foundation .h/.cpp work concentrates where bodies are non-trivial
+  or carry dependencies (engine_time's GLFW - slice 4; the window bootstrap - slice 5).
+Slice 3 is therefore TESTS-ONLY ACCEPTED for math (the prompt's own allowance).
+
+THE MATH TEST (commits CORE-317 `96e9ece` + the fix `1dd3a33`; the CMake block after
+the probe block; ctest count 6 -> 7, TIMEOUT 60 - stated per the prompt):
+- tests/math_test.cpp: deterministic value asserts ONLY (no timing, no GL, no
+  window, no files), hand-computed from the formulas (column-major m[col][row]):
+  the Vec3 ops the engine uses (dot/cross/lengthSquared/length/normalized + the zero
+  guard/operators/==!=); Mat4 identity (exact); multiply traced from operator*
+  (T(1,2,3)*S(2,3,4): the diagonal of S + the translation column of T;
+  transformPoint(T*S,(1,1,1)) = (3,5,7)); translation/scale (Vec3 and xyz forms);
+  orthographic(0,8,0,6,0.1,100) (0.25, 2/6, -2/99.9, the centers -1);
+  perspective(90deg, aspect 1, zNear 1, zFar 3): f=1, m[2][2]=-2, m[3][2]=-3, the
+  w-row -1, AND the plane mapping (the near plane z=-1 -> pre-divide -1; the far
+  plane z=-3 -> pre-divide +3, w=3 -> NDC +1); rotationZ(90deg) +X->+Y, rotationZ(0)
+  the identity; rotationY(90deg) +Z->+X (the current behavior pinned); lookAt: the
+  eye -> the origin, the target -> z=-5.
+- THE IN-STEP DEFECT (disclosed): the first run FAILED 1 check - a test-authoring
+  bug of mine, NOT the product: the I*T assert expected transformPoint(T,(1,2,3)) =
+  (1,2,3) (identity semantics) instead of (2,4,6) (the translation semantics);
+  traced from the formula (I*T = T exactly), fixed in `1dd3a33`, gates re-run green.
+  The product code needed no change (the 310(g)/311 harness-bug class).
+
+GATES (against `1dd3a33`): the staged builds exit 0 (stage 1 math_test; stage 2 the
+full default build; the fix rebuild); ctest -C Release 7/7 100% (41.06s; PureEditor0
+10.34s - under the 40s guard); alive x3 True (PureEngine, Pong, Platformer);
+git diff --check clean; the diff scoped to CMakeLists.txt + tests/math_test.cpp.
+
+MUTATION (the Step 285 check, on the committed tree): the lengthSquared expected
+value 25 -> 24 in tests/math_test.cpp -> math_test FAILED 1 check ("FAIL: vec3:
+lengthSquared((3,4,0)) = 25", exit 1) - NON-VACUOUS; restored by pathspec;
+git diff --stat -- tests/ empty.
+
+STATUS: Core Foundation IN PROGRESS (3 of 5). Slice 4 (the engine_time split + the
+FrameTime test) NOT started - waits on Cyril's go.
 
 ## Kill criteria
 

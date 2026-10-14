@@ -1265,3 +1265,31 @@ ImGui / ECS / glTF / networking (the freezes stand).
   the games/editor/tests still do not link pe_core (by design this slice; the
   consumer-migration decision belongs to a later slice); (c) the slice-1 smoke
   template arrived UNFILLED - "smoke: not tried"; the visuals 299-311 stay NOT TRIED.
+
+## Entry 56
+
+- **what:** Core Foundation slice 3 (Step 317, math tests-then-split) - DONE,
+  TESTS-ONLY ACCEPTED for math. The dedicated math unit test landed FIRST
+  (tests/math_test.cpp, ctest 6 -> 7, TIMEOUT 60): deterministic value asserts only -
+  the Vec3 ops the engine uses + every Mat4 builder (identity, multiply traced from
+  operator*, transformPoint, orthographic, perspective zNear/zFar with the plane
+  mapping, rotationZ, rotationY pinned, lookAt), hand-computed from the formulas.
+  THEN the split decision on the evidence: STAY-INLINE - no code moved. The evidence:
+  every Vec3 body <= 8 lines (vec3.h:54-116), the largest Mat4 body ~20 lines
+  (lookAt, mat4.h:189-211), the per-frame camera path is hot (camera.h:275,
+  view() -> lookAt; the T0 3D median 32.5ms, Step 313), and a math.cpp would fan out
+  to 6-8 consumer CMake targets (PureEngine, PureEditor0, Pong, Platformer,
+  hostile_data_test, core_link_probe/pe_core) for zero behavior or clarity gain - the
+  incremental supersession (Step 316) keeps math header-only until a slice moves it,
+  and this slice measured that it should not move.
+- **class:** existing capability (a migration slice; tests + a documented decision;
+  no behavior change; the freeze set untouched).
+- **status:** recorded; Core Foundation IN PROGRESS (3 of 5). RESIDUALS: (a) the
+  in-step test bug - the first math_test run FAILED 1 check because MY assert
+  expected transformPoint(T,(1,2,3)) = (1,2,3) instead of (2,4,6); traced from the
+  formula (I*T = T exactly), fixed in `1dd3a33`, gates re-run green (7/7); the
+  product code needed no change (the 310(g)/311 harness-bug class); (b) the human
+  smoke template arrived UNFILLED again - "smoke: not tried" recorded; the visuals
+  299-311 stay NOT TRIED; (c) slice 4 (the engine_time split + the FrameTime test)
+  waits on Cyril's go; the ODR hazard list stays EMPTY (slice-3 added no hazards -
+  nothing moved).

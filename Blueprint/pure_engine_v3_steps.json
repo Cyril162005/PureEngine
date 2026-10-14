@@ -3519,6 +3519,17 @@
    "depends_on": [
     315
    ]
+  },
+  {
+   "id": 317,
+   "name": "CORE: Core Foundation slice 3 - the math unit test target + the STAY-INLINE decision (tests-only ACCEPTED for math; ctest 6 -> 7; no .cpp - small hot bodies, a 6-8-target fan-out for no gain; Core Foundation IN PROGRESS 3 of 5)",
+   "status": "completed",
+   "definition_of_done": "The dedicated math unit test landed FIRST (tests/math_test.cpp + the CMake target, ctest 6 -> 7, TIMEOUT 60): deterministic value asserts only - the Vec3 ops the engine uses + every Mat4 builder (identity, multiply traced from operator*, transformPoint, orthographic, perspective zNear/zFar with the near/far plane mapping, rotationZ, rotationY pinned, lookAt) - no timing. THEN the split decision on the evidence: STAY-INLINE (no code moved) - every Vec3 body <= 8 lines, the largest Mat4 body ~20 lines, the per-frame camera path is hot (T0 3D median 32.5ms), a math.cpp would fan out to 6-8 consumer CMake targets; documented in V3 per the prompt's allowance - slice 3 TESTS-ONLY ACCEPTED for math. Gates against 1dd3a33: the staged builds exit 0, ctest 7/7 100% (41.06s), alive x3 True, git diff --check clean, the diff scoped to CMakeLists.txt + tests/math_test.cpp. MUTATION: the lengthSquared expected 25 -> 24 -> math_test FAILED 1 check (NON-VACUOUS), restored by pathspec. Core Foundation IN PROGRESS (3 of 5); slice 4 NOT started.",
+   "notes": "Code commits 96e9ece (CORE-317: tests/math_test.cpp + CMakeLists.txt, +127) and 1dd3a33 (the fix) + the DOCS-317 record. THE IN-STEP DEFECT (disclosed): the first math_test run FAILED 1 check - a test-authoring bug of mine, NOT the product: the I*T assert expected transformPoint(T,(1,2,3)) = (1,2,3) instead of (2,4,6); traced (I*T = T exactly), fixed in 1dd3a33, gates re-run green; the 310(g)/311 harness-bug class. THE STAY-INLINE EVIDENCE: vec3.h:54-116 all <= 8-line bodies; mat4.h lookAt :189-211 the largest (~20 lines), perspective :236-245, rotationZ :125-135, rotationY :260-270; the hot per-frame camera path (camera.h:275, view() -> lookAt) against the T0 3D bench (Step 313); the fan-out list: PureEngine, PureEditor0, Pong, Platformer, hostile_data_test, core_link_probe/pe_core. SMOKE: the human smoke template arrived UNFILLED again (<PASTE HIS ONE LINE>) - 'smoke: not tried'; the visuals 299-311 stay NOT TRIED; acceptance row C VERIFICATION REQUIRED. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-317",
+   "depends_on": [
+    316
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
