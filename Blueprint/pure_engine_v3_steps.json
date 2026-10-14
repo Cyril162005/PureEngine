@@ -3508,6 +3508,17 @@
    "depends_on": [
     314
    ]
+  },
+  {
+   "id": 316,
+   "name": "CORE: Core Foundation migration slice 2 - the pe_core contract + the ODR link probe (pe_core.cpp includes the 16-header list, core_link_probe ctest 6/6 TIMEOUT 60, the Step 102 supersession recorded, 0 ODR hazards, 0 inline fixes; Core Foundation IN PROGRESS 2 of 5)",
+   "status": "completed",
+   "definition_of_done": "pe_core.cpp includes every Core Foundation header from the 314 list (16 named; 22 -> 31 includes, math first); pe_core builds in the default build; the new core_link_probe (tests/probe_a.cpp + probe_b.cpp, each including all 16, linked against pe_core, add_test + TIMEOUT 60, ctest 5 -> 6) LINKS with ZERO multiple-definition errors. The ODR sweep over the 16 headers: 0 real hazards (2 benign candidates inspected: entity.h:211 ctor init-list continuation, lifecycle.h:67 enum class) -> 0 inline additions (the cap was 10). MUTATION: a non-inline definition appended to src/components.h -> the probe FAILED (LNK2005 + LNK1169, exit 1); restored by pathspec, src/ clean. The Step 102 supersession recorded (Cyril, 2026-10-14; pointers from the V3 102 record line + the pe_core.cpp comment). Gates against a85caa6: staged builds exit 0 x3, ctest 6/6 (after one disclosed transient hostile_data_test fail - the rerun + 2 full runs green), alive x3 True, git diff --check clean, the diff scoped to pe_core.cpp + CMakeLists.txt + the 2 probes. Core Foundation IN PROGRESS (2 of 5); the ODR hazard list (empty) is the slice-3 input.",
+   "notes": "Code commit a85caa6 (CORE-316: src/pe_core.cpp, CMakeLists.txt, tests/probe_a.cpp, tests/probe_b.cpp; +94/-1) + the DOCS-316 record. THE 16-LIST (named): vec3, mat4, entity, collision, gamestate, events, engine_time, lifecycle, input, gamepad, window_guard, mesh3d, components, hostile_data, prefab, animation. THE LINKAGE EVIDENCE: no target linked pe_core before this slice (CMake:310 was the only mention) - the probe is the first exerciser of the compiled-core link path. THE PROBE DESIGN: probe_a (the main) calls Mat4::translation and probe::b_entry(); probe_b calls Vec3::lengthSquared; both include all 16 headers. THE TRANSIENT: ctest run 1 = 5/6, hostile_data_test Failed ONCE (the signature NOT captured - the --rerun-failed overwrote LastTest.log; the class UNDETERMINED; nothing in this slice touches that TU: pe_core.cpp is not in it and no header changed); the rerun passed (6.79s) + 2 full runs 6/6 (8.50s, 8.37s). BASELINE (indicative, this machine): the incremental PureEditor0 rebuild after touching src/renderer.h = 33s (exit 0); the full pe_core + probe recompile = 17s (exit 0); no 300s interruption. SMOKE: the slice-1 smoke template arrived UNFILLED - 'smoke: not tried'; the visuals 299-311 stay NOT TRIED. SEARCH HYGIENE: build/, .git/, .kilo/ and .goose/ excluded from every grep and search (stated in the V3 evidence lines); the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-316",
+   "depends_on": [
+    315
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -1241,3 +1241,27 @@ ImGui / ECS / glTF / networking (the freezes stand).
   behavior change; the freeze set untouched).
 - **status:** recorded; Core Foundation IN PROGRESS (1 of 5 slices); the acceptance
   standard stands approved with no amendments; each further slice waits on its own step.
+
+## Entry 55
+
+- **what:** Core Foundation slice 2 (Step 316, the pe_core contract + the ODR link
+  probe) - DONE. pe_core.cpp 22 -> 31 includes (the 16-header Core Foundation list
+  complete, math first); the new core_link_probe (2 TUs, each including all 16, linked
+  against pe_core, ctest TIMEOUT 60, count 5 -> 6) LINKED CLEAN - the ODR sweep over
+  the 16 headers found ZERO real hazards (entity.h:211 = a ctor init-list
+  continuation; lifecycle.h:67 = an enum class declaration - both benign), so 0 inline
+  additions were needed (the cap was 10). The mutation (a non-inline pe:: definition
+  appended to src/components.h, never committed) made the probe FAIL with LNK2005 +
+  LNK1169 exactly as designed; restored by pathspec. The Step 102 "header-only is the
+  primary path" rule is SUPERSEDED INCREMENTALLY (Cyril's decision, 2026-10-14; the
+  pointers: the V3 Step 102 record line + the pe_core.cpp doc comment).
+- **class:** existing capability (a migration slice; no behavior change; the freeze
+  set untouched).
+- **status:** recorded; Core Foundation IN PROGRESS (2 of 5). RESIDUALS: (a)
+  hostile_data_test failed ONCE in ctest run 1 (5/6) and passed the immediate rerun +
+  two full runs (6/6 x2) - the signature was NOT captured (the rerun overwrote
+  LastTest.log); the class is UNDETERMINED and nothing in this slice touches that
+  test's TU; IF IT RECURS: capture --output-on-failure FIRST before any rerun; (b)
+  the games/editor/tests still do not link pe_core (by design this slice; the
+  consumer-migration decision belongs to a later slice); (c) the slice-1 smoke
+  template arrived UNFILLED - "smoke: not tried"; the visuals 299-311 stay NOT TRIED.

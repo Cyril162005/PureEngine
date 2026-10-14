@@ -70,7 +70,7 @@ The items below are non-binding, exploratory ideas only. They are not a step que
 - ✓ Step 99: Hierarchy contract test + final freeze — completed
 - ✓ Step 100: Engine freeze + v1.0 readiness (docs-only) — completed
 - ✓ Step 101: Resource cache & binary blob (loadBinaryBlob + pack) — completed
-- ✓ Step 102: pe_core static lib (header-only still alive) — completed
+- ✓ Step 102: pe_core static lib (header-only still alive; 2026-10-14: the "header-only primary" rule is SUPERSEDED INCREMENTALLY for the Core Foundation category by Cyril's migration decision - see the Step 316 slice section; a module stays header-only until its slice moves it) — completed
 - ✓ Step 103: Lightweight component helpers (health/tag/timer/velocity) — completed
 - ✓ Step 104: Editor-time scene dump/load (console dump/reload) — completed
 - ✓ Step 105: Loadable input rebinding (Action=Key1,Key2) — completed
@@ -3337,6 +3337,95 @@ EMPTY afterward.
 STATUS: Core Foundation IN PROGRESS - slice 1 of 5 done; slices 2-5 (the pe_core
 contract, the math tests-then-split, the engine_time split, the window bootstrap
 extraction) NOT started; each waits on its own step. Residuals in FINDINGS Entry 54.
+
+### Core Foundation slice 2 (Step 316, 2026-10-14) - the pe_core contract + the ODR link probe, COMPLETE
+
+Cyril's migration decision recorded THIS STEP (the prompt's item 1): the Step 102
+"header-only path remains primary" rule (the V3 Step 102 record line above + the
+pe_core.cpp doc comment) is SUPERSEDED INCREMENTALLY by the migration objective
+(header-first -> conventional .h/.cpp, category by category) - a module stays
+header-only until its slice moves it. The pointers: the V3 Step 102 record line now
+carries the dated bracket, and the pe_core.cpp doc comment states the supersession
+(pe_core.cpp:3-8).
+
+THE 16-HEADER CORE FOUNDATION LIST (named, per the Step 314 audit + its gap 2):
+math/vec3.h, math/mat4.h, entity.h, collision.h, gamestate.h, events.h,
+engine_time.h, lifecycle.h, input.h, gamepad.h, window_guard.h, mesh3d.h,
+components.h, hostile_data.h, prefab.h, animation.h.
+
+IMPLEMENTED (commit CORE-316, `a85caa6`, 4 files +94/-1):
+- pe_core.cpp: 22 -> 31 includes - the 16-list complete (math/vec3.h + math/mat4.h
+  FIRST at :11-12, before every other include; window_guard/mesh3d/components/
+  gamestate/hostile_data/prefab/animation appended at :35-41); pe_core_version()=102
+  untouched (a Step 102 marker, as the 314 slice-2 proposal ruled).
+- pe_core builds in the default build (re-verified in stage 1: pe_core.lib).
+- NEW target core_link_probe (CMake:317-324): tests/probe_a.cpp + probe_b.cpp, EACH
+  including all 16 headers; probe_a (the main) calls Mat4::translation (math/mat4.h)
+  and drives probe::b_entry(); probe_b calls Vec3::lengthSquared (math/vec3.h) - a
+  different header; linked against pe_core; add_test + set_tests_properties TIMEOUT
+  60. ctest count 5 -> 6 (stated per the prompt).
+- NO game/editor/test target links pe_core this slice (their CMake is untouched);
+  no code moved out of headers; no Entity/Scene work; no new features.
+
+AUDIT EVIDENCE (every grep excluded build/, .git/, .kilo/ and .goose/):
+- who links pe_core: NOBODY before this slice (the only target_link_libraries line
+  mentioning pe_core was pe_core's own PUBLIC line, CMake:310) - the probe is the
+  first exerciser of the compiled-core link path.
+- the ODR sweep over the 16 headers (column-0 definition candidates, excluding
+  guards/namespace/inline/static/constexpr/template/typedef/using/extern and
+  comments): ZERO real hazards. Two column-0 candidates inspected and benign:
+  entity.h:211 is a constructor member-init continuation (gravityScale(0.0f), inside
+  a ctor), lifecycle.h:67 is an `enum class ArcadeRole` type declaration (the
+  enumerators carry no linker symbols). RESULT: 0 inline additions (the cap was 10;
+  none were needed - nothing was recorded as a blocking finding).
+
+GATES (against `a85caa6`, staged, each with its exit code):
+- stage 1 (pe_core + core_link_probe): exit 0 - the probe LINKED with zero
+  multiple-definition errors.
+- stage 2 (PureEngine, PureEditor0, Pong, Platformer, --parallel): exit 0.
+- stage 3 (hostile_data_test, resources_test, LevelPipelineConsumer,
+  header_hygiene, --parallel): exit 0.
+- ctest -C Release: RUN 1 = 5/6 - hostile_data_test FAILED once (the failure
+  signature was NOT captured: the immediate --rerun-failed overwrote
+  Testing/Temporary/LastTest.log; the class is UNDETERMINED - nothing in this slice
+  touches that test's TU: pe_core.cpp is not in it and no header changed); the
+  rerun PASSED (6.79s) and two further full runs were 6/6 (8.50s, 8.37s; exit 0
+  each). Disclosed as a transient; if it recurs, capture --output-on-failure FIRST
+  (FINDINGS Entry 55).
+- alive x3: PureEngine True, Pong True, Platformer True.
+- git diff --check clean; the diff scoped to src/pe_core.cpp, CMakeLists.txt and
+  the two probe files (zero inline fixes - none needed).
+
+MUTATION (the Step 285 check): a non-inline definition appended to a Core Foundation
+header (pe::odr_mutation_316 in src/components.h, never committed) -> core_link_probe
+FAILED to link: "error LNK2005: ... already defined in probe_a.obj" + "fatal error
+LNK1169: one or more multiply defined symbols found", exit 1 - the probe catches
+exactly the hazard class it exists for. Restored by pathspec; git diff --stat -- src/
+empty; the probe relinked exit 0.
+
+BASELINE (optional, non-gating, "indicative, this machine"): the incremental
+PureEditor0 rebuild after touching src/renderer.h = 33 s (exit 0); the full recompile
+of pe_core + the probe = 17 s (exit 0). No 300 s interruption.
+
+SMOKE: the slice-1 smoke template arrived UNFILLED - recorded "smoke: not tried";
+the visuals 299-311 stay NOT TRIED; the live-verification row below is
+VERIFICATION REQUIRED until Cyril's smoke line is recorded exactly as given.
+
+ACCEPTANCE TABLE (the mandatory criteria; statuses from the vocabulary NOT AUDITED /
+IN PROGRESS / BLOCKED / VERIFICATION REQUIRED / ACCEPTED):
+| criterion | status | evidence |
+| --- | --- | --- |
+| A build exit 0 | ACCEPTED (this slice) | the three staged builds, exit 0 each |
+| B tests grow, all green | IN PROGRESS | ctest 6/6 (the probe added, TIMEOUT 60); the math + FrameTime test targets are slices 3-4 |
+| C live window check | VERIFICATION REQUIRED | alive x3 True (machine-side); Cyril's games+editor smoke line pending ("smoke: not tried") |
+| D one .h/.cpp per boundary + ODR 0 | ACCEPTED (the ODR half) | core_link_probe links clean; the mutation LNK2005/LNK1169 caught; 0 hazards in the 16 headers |
+| E include hygiene | ACCEPTED (slice 1) | the guard at all 6 src/ GLFW sites (Step 315) |
+| F consumer linkage | IN PROGRESS | the probe links pe_core (first exerciser); games/editor/tests keep compiling exactly as before (by design this slice) |
+| G pe_core list matches its claim | ACCEPTED | 31 headers = the 16-list + the 15 the TU already carried |
+| H bench re-run as data | NOT STARTED | the final slice |
+
+STATUS: Core Foundation IN PROGRESS (2 of 5). The ODR hazard list (EMPTY - zero
+hazards found) is the slice-3 input; slice 3 (the math tests-then-split) NOT started.
 
 ## Kill criteria
 
