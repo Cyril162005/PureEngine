@@ -309,6 +309,20 @@ target_include_directories(pe_core PUBLIC "${stb_SOURCE_DIR}")
 target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/include")
 target_link_libraries(pe_core PUBLIC glfw miniaudio)
 
+# Step 316: the ODR link probe (Core Foundation slice 2). Two TUs that each
+# include ALL Core Foundation headers (the Step 314 list) and link against
+# pe_core: a multiple-definition (LNK2005-style) failure IS the ODR finding.
+# No game/editor/test target links pe_core this slice - this probe is the
+# first exerciser of the compiled-core link path.
+add_executable(core_link_probe
+    tests/probe_a.cpp
+    tests/probe_b.cpp
+)
+target_include_directories(core_link_probe PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(core_link_probe PRIVATE pe_core)
+add_test(NAME core_link_probe COMMAND core_link_probe)
+set_tests_properties(core_link_probe PROPERTIES TIMEOUT 60)
+
 # Pong API-gate target: a second game built ONLY on public engine headers
 # (math, entity, renderer, camera, input). Headers are included by relative
 # path from games/pong/pong.cpp — src/ is deliberately NOT on this target's
