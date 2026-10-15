@@ -1293,3 +1293,32 @@ ImGui / ECS / glTF / networking (the freezes stand).
   299-311 stay NOT TRIED; (c) slice 4 (the engine_time split + the FrameTime test)
   waits on Cyril's go; the ODR hazard list stays EMPTY (slice-3 added no hazards -
   nothing moved).
+
+## Entry 57
+
+- **what:** Core Foundation slice 4 (Step 318, engine_time + the FrameTime contract
+  test) - DONE. The inspection (engine_time.h post-slice-1: the NONE guard :52-55,
+  FrameTime :59, start :68-69, tick :82-87 with the std::min(delta, 0.1) clamp :86,
+  the scale/pause one-liners :93-96, scaledTick :97-99): every body 1-5 lines, no ODR
+  reason (core_link_probe stayed green - nothing changed), the .cpp fan-out would hit
+  5+ consumers (src/main.cpp:99 with uses :651-652/:1536, games/pong/pong.cpp:146-147,
+  games/platformer/platformer.cpp, tests/hostile_data_test.cpp:24 with uses
+  :5715/:9699) - engine_time STAYS header-inline (same bar and outcome as slice 3;
+  the GLFW-removal payoff belongs to a consumer-linkage slice if ever needed). The
+  REQUIRED test landed: tests/time_test.cpp (ctest 7 -> 8, TIMEOUT 60) - deterministic
+  asserts only: the clamp (a forced 150ms stall -> tick() == 0.1f BIT-EXACT;
+  load-robust because sleep overshoots, never undershoots), the clamp invariant
+  [0, 0.1], the scale state + the negative guard (exactly 0), paused scaledTick ==
+  0.0f exactly regardless of scale, the scaled clamp 0.2f bit-exact; glfwInit legal
+  headless; no assert depends on a small or specific delta.
+- **class:** existing capability (a migration slice; tests + a documented decision;
+  no behavior change; the freeze set untouched).
+- **status:** recorded; Core Foundation IN PROGRESS (4 of 5). THE SMOKE (Cyril,
+  VERBATIM): "smoke: PASS — editor opened with sample_scene; V hides meshId0, V
+  restores 2D; games OK; probe OK; HEAD 8137a23" - the FIRST filled smoke of the
+  migration; the acceptance rows B and C moved to ACCEPTED on it; the V behaviors at
+  HEAD 8137a23 recorded as the partial visual evidence they are (the 299-310
+  checklist rows were not filled and stay NOT TRIED). The mutation (the clamp
+  expected 0.1f -> 0.2f) was NON-VACUOUS (exit 1) and restored. Slice 5 (the
+  window-bootstrap extraction) waits on Cyril's explicit go; the ODR hazard list
+  stays EMPTY.

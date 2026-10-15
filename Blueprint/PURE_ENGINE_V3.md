@@ -3416,9 +3416,9 @@ IN PROGRESS / BLOCKED / VERIFICATION REQUIRED / ACCEPTED):
 | criterion | status | evidence |
 | --- | --- | --- |
 | A build exit 0 | ACCEPTED (this slice) | the three staged builds, exit 0 each |
-| B tests grow, all green | IN PROGRESS (math ACCEPTED) | ctest 7/7 (the probe + math_test added, TIMEOUT 60); the FrameTime test target is slice 4 |
-| C live window check | VERIFICATION REQUIRED | alive x3 True (machine-side); Cyril's games+editor smoke line pending ("smoke: not tried") |
-| D one .h/.cpp per boundary + ODR 0 | ACCEPTED (the ODR half) | core_link_probe links clean; the mutation LNK2005/LNK1169 caught; 0 hazards in the 16 headers; math STAYS header-inline by the Step 317 decision (small hot bodies, a 6-8-target fan-out for no gain) |
+| B tests grow, all green | ACCEPTED | ctest 8/8 (the probe + math_test + time_test, all TIMEOUT 60); both named test targets landed (slices 3-4) |
+| C live window check | ACCEPTED | Cyril's verbatim smoke (Step 318): "smoke: PASS â€” editor opened with sample_scene; V hides meshId0, V restores 2D; games OK; probe OK; HEAD 8137a23"; alive x3 True at every gate |
+| D one .h/.cpp per boundary + ODR 0 | ACCEPTED (the ODR half) | core_link_probe links clean; the mutation LNK2005/LNK1169 caught; 0 hazards in the 16 headers; math STAYS header-inline by the Step 317 decision (small hot bodies, a 6-8-target fan-out for no gain); engine_time STAYS header-inline by the Step 318 decision (1-5-line bodies, no ODR reason, a 5+-consumer fan-out; the GLFW dep already guarded NONE in slice 1) |
 | E include hygiene | ACCEPTED (slice 1) | the guard at all 6 src/ GLFW sites (Step 315) |
 | F consumer linkage | IN PROGRESS | the probe links pe_core (first exerciser); games/editor/tests keep compiling exactly as before (by design this slice) |
 | G pe_core list matches its claim | ACCEPTED | 31 headers = the 16-list + the 15 the TU already carried |
@@ -3483,6 +3483,63 @@ git diff --stat -- tests/ empty.
 
 STATUS: Core Foundation IN PROGRESS (3 of 5). Slice 4 (the engine_time split + the
 FrameTime test) NOT started - waits on Cyril's go.
+
+### Core Foundation slice 4 (Step 318, 2026-10-15) - the FrameTime contract test + the engine_time STAY-INLINE decision, COMPLETE
+
+THE LIVE SMOKE (Cyril's line, recorded VERBATIM - the first filled smoke of the
+migration; it covers the editor + games + the probe at HEAD 8137a23):
+"smoke: PASS â€” editor opened with sample_scene; V hides meshId0, V restores 2D;
+games OK; probe OK; HEAD 8137a23"
+The acceptance row C moves VERIFICATION REQUIRED -> ACCEPTED on this string. Narrow
+visual note: the line states the V behaviors passing (the 311 V-toggle family) at
+HEAD 8137a23 - recorded as the partial visual evidence it is; the 299-310 checklist
+rows were not filled and stay NOT TRIED.
+
+THE INSPECTION (engine_time.h, post-slice-1, file:line): the GLFW_INCLUDE_NONE guard
+:52-54 before <GLFW/glfw3.h> :55 (the slice-1 rule holds; the clock comment keeps its
+original em dash); class FrameTime :59; start() :68-69 (1 line); tick() :82-87
+(5 lines; the clamp std::min(delta, 0.1) at :86 - the documented 0.1s maximum); the
+scale/pause surface :93-96 (one-liners; the negative-scale guard at :93); scaledTick()
+:97-99 (3 lines; the paused path returns the literal 0.0f); the state :105-107
+(lastTime/timeScale/paused).
+
+THE STAY-INLINE DECISION (the prompt's bar - NO code moved): engine_time STAYS
+header-inline. The evidence: every body is 1-5 lines (the largest is tick at 5);
+there is NO ODR reason (core_link_probe stays green - nothing changed); a .cpp would
+fan out to 5+ consumer targets (src/main.cpp:99 with the uses at :651-652/:1536,
+games/pong/pong.cpp:146-147, games/platformer/platformer.cpp, tests/hostile_data_test.cpp:24
+with the uses at :5715/:9699) for zero behavior or clarity gain; the only hygiene
+motivation (the GLFW include) was already addressed by the slice-1 NONE guard, and the
+full GLFW-removal payoff belongs to a consumer-linkage slice if ever needed. Same bar
+and same outcome as slice 3's math.
+
+THE FRAMETIME CONTRACT TEST (commit CORE-318 `b9f5faf`; CMake after the math_test
+block; ctest count 7 -> 8, TIMEOUT 60 - stated per the prompt):
+- tests/time_test.cpp: deterministic asserts ONLY - the only real-clock use is a
+  forced 150 ms stall, which is load-robust BY CONSTRUCTION (sleep overshoots, never
+  undershoots, so the raw delta is always >= 0.15 s and the clamp returns the
+  constant bit-exact; a longer stall under load changes nothing):
+  the normal dt path within [0, 0.1] (the clamp invariant); THE CLAMP - a 150 ms
+  stall -> tick() == 0.1f bit-exact; the scale state (setTimeScale(2) stored; the
+  negative scale clamps to exactly 0 at :93; scale 0 -> scaledTick == 0.0f exact);
+  the pause state machine (paused -> scaledTick == 0.0f EXACTLY regardless of scale;
+  the unpause stored); the scaled clamp (a 150 ms stall at scale 2 -> scaledTick ==
+  0.2f bit-exact - 0.1f*2 is an exact float exponent bump); glfwInit is legal
+  headless (no window); glfwTerminate at the end.
+- No flake surface: no assert depends on a SMALL or specific delta - every clock-
+  dependent assert pins an OVERSHOOT-tolerant constant.
+
+GATES (against `b9f5faf`): the staged builds exit 0 (stage 1 time_test; stage 2 the
+full default build); ctest -C Release 8/8 100% (49.39s; PureEditor0 16.45s - under
+the 40s guard); alive x3 True (PureEngine, Pong, Platformer).
+
+MUTATION (the Step 285 check, on the committed tree): the clamp expected value
+0.1f -> 0.2f in tests/time_test.cpp -> time_test FAILED 1 check ("FAIL: time: a
+150ms stall clamps tick() to EXACTLY 0.1f (bit-exact)", exit 1) - NON-VACUOUS;
+restored by pathspec; git diff --stat -- tests/ empty.
+
+STATUS: Core Foundation IN PROGRESS (4 of 5). Slice 5 (the window-bootstrap
+extraction) NOT started - waits on Cyril's explicit go.
 
 ## Kill criteria
 

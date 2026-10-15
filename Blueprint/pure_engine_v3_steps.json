@@ -3530,6 +3530,17 @@
    "depends_on": [
     316
    ]
+  },
+  {
+   "id": 318,
+   "name": "CORE: Core Foundation slice 4 - the FrameTime contract test + the engine_time STAY-INLINE decision (time_test ctest 7 -> 8 TIMEOUT 60; the deterministic clamp/scale/pause asserts; no .cpp - 1-5-line bodies; Core Foundation IN PROGRESS 4 of 5)",
+   "status": "completed",
+   "definition_of_done": "The inspection first (engine_time.h post-slice-1: the NONE guard :52-55, FrameTime :59, start :68-69, tick :82-87 with the std::min(delta, 0.1) clamp :86, the scale/pause one-liners :93-96, scaledTick :97-99): every body 1-5 lines, no ODR reason, the fan-out 5+ consumers -> STAY-INLINE documented with evidence (no code moved). THEN the required test: tests/time_test.cpp (ctest 7 -> 8, TIMEOUT 60) - deterministic asserts only: the clamp (a forced 150ms stall -> tick() == 0.1f BIT-EXACT; load-robust because sleep overshoots), the clamp invariant [0, 0.1], the scale state + the negative guard, paused scaledTick == 0.0f exactly, the scaled clamp 0.2f bit-exact. Gates against b9f5faf: the staged builds exit 0, ctest 8/8 100% (49.39s), alive x3 True, git diff --check clean, the diff scoped to CMakeLists.txt + tests/time_test.cpp. MUTATION: the clamp expected 0.1f -> 0.2f -> time_test FAILED 1 check (NON-VACUOUS), restored by pathspec. THE SMOKE (Cyril, verbatim): 'smoke: PASS â€” editor opened with sample_scene; V hides meshId0, V restores 2D; games OK; probe OK; HEAD 8137a23' - the acceptance rows B and C move to ACCEPTED. Core Foundation IN PROGRESS (4 of 5); slice 5 NOT started.",
+   "notes": "Code commit b9f5faf (CORE-318: tests/time_test.cpp + CMakeLists.txt, +82) + the DOCS-318 record. THE SMOKE (recorded VERBATIM, the em dash preserved): 'smoke: PASS â€” editor opened with sample_scene; V hides meshId0, V restores 2D; games OK; probe OK; HEAD 8137a23' - the FIRST filled smoke of the migration; the V behaviors at HEAD 8137a23 recorded as the partial visual evidence they are (the 299-310 checklist rows were not filled and stay NOT TRIED). THE STAY-INLINE EVIDENCE: engine_time.h :68-69/:82-87/:93-96/:97-99 all 1-5-line bodies; no ODR reason (core_link_probe green, nothing changed); the fan-out: src/main.cpp:99 (uses :651-652/:1536), games/pong/pong.cpp:146-147, games/platformer/platformer.cpp, tests/hostile_data_test.cpp:24 (uses :5715/:9699); the GLFW include already guarded NONE (slice 1). THE DETERMINISM DESIGN: the only real-clock use is an overshoot-tolerant 150ms stall - no assert depends on a small or specific delta. Gates: stage 1 time_test exit 0, stage 2 full build exit 0, ctest 8/8 (49.39s; PureEditor0 16.45s), alive x3 True, the mutation non-vacuous (the clamp 0.1f -> 0.2f -> FAIL, exit 1, restored). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-318",
+   "depends_on": [
+    317
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
