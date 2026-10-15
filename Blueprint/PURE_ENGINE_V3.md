@@ -3745,6 +3745,59 @@ performs the slice's mutation (break PIN A -> FAIL -> restore -> REBUILD ->
 ctest), and flips 321 stopped -> completed. The FINDINGS 59 rule stands:
 after any mutation restore, REBUILD before ctest.
 
+### Entity/Scene/Persistence Step 322 (2026-10-15) - INSPECT + DECIDE (numbers only) - scene.h + prefab.h SPLIT-JUSTIFIED (awaiting Cyril), the rest STAY-INLINE
+
+Docs-only. No .cpp, no code changes. The rule applied verbatim: STAY-INLINE if the
+bodies are small OR the fan-out is narrow; SPLIT-JUSTIFIED if the persist bodies are
+large AND the I/O includes are paid by many targets that never save. Per the prompt:
+a SPLIT-JUSTIFIED verdict is RECORDED and the .cpp WAITS for Cyril.
+
+THE NUMBERS (grep-verified; build/, .git/, .kilo/ and .goose/ excluded):
+| header | lines | non-trivial bodies | the I/O includes forced | the fan-out (TUs including it) | the never-save/load consumers |
+| --- | --- | --- | --- | --- | --- |
+| scene.h | 820 | the persistence region :279-820 = 542 lines; the save/load/manager bodies alone :381-816 = 436 (save :381-450, load :459-649, the manager save :651-711, the manager load :724-816) | <filesystem> :38, <fstream> :39, <iomanip> :40, <iostream> :41, <sstream> :42, <cstdio> :37 | 6: src/main.cpp, games/platformer/platformer.cpp, tools/editor0/editor0_core.h, tools/editor0/main.cpp, consumers/level_pipeline/consumer.cpp, src/pe_core.cpp | main.cpp (the ONLY mention :1135 is a comment - it never calls the persist functions), platformer.cpp (zero persist calls), pe_core.cpp (instantiation only) = 3 of 6 |
+| prefab.h | 209 | loadPrefab :103-179 (~77) + instantiatePrefab :181-205 (~25) + the parse helpers :61-102 (~42) = ~144 | <iostream> :26, <fstream> :27, <sstream> :28, <filesystem> :29 | 6: src/main.cpp, tools/editor0/main.cpp, consumer.cpp, src/pe_core.cpp, tests/probe_a.cpp, tests/probe_b.cpp | pe_core.cpp (instantiation only), probe_a, probe_b (include-only, never call) = at least 3 of 6 |
+| hostile_data.h | 187 | loadHostileDefaults :86-187 (~102) + parseFloatList :54-72 (~19) + the helpers :45-53 (~9) = ~130 | <filesystem> :16, <fstream> :17, <iostream> :18, <sstream> :19 | DIRECT 3: src/pe_core.cpp, probe_a, probe_b; TRANSITIVE 5 via lifecycle.h :58 (adds src/main.cpp, tools/editor0/main.cpp) | the direct payers: pe_core (never loads), the probes (never call) |
+| entity.h | 360 | ~0 non-trivial (the data struct + one-liners; the :211 candidate is the ctor member-init continuation) | light: <cstddef> :28, <string> :29, <vector> :30 + math + animation.h - NO I/O streams | 8 (the widest): src/main.cpp, pong.cpp, platformer.cpp, tools/editor0/main.cpp, consumer.cpp, src/pe_core.cpp, probe_a, probe_b | n/a - nothing heavy to pay |
+| components.h | 44 | 0 (16 one-line sugar functions) | light: <string> :12 | 4: src/main.cpp, src/pe_core.cpp, probe_a, probe_b | n/a |
+| lifecycle.h | 158 | ~80 (buildInitialEntities :76-141 - the six arcade constructions, DATA-shaped; resetEntities :142-151; flagsForCount :152-157) | light of its own (<cstddef> :54, <vector> :55); TRANSITIVE: it includes hostile_data.h :58, so the I/O includes reach its 5 consumers | 5: src/main.cpp, tools/editor0/main.cpp, src/pe_core.cpp, probe_a, probe_b | the transitive-I/O note - not a lifecycle defect |
+
+ODR/link pain: NONE recorded (the 320 baseline: 0 real hazards; the 2 benign
+candidates entity.h:211 + lifecycle.h:67; no duplicate-symbol, no circular include,
+no build-time anomaly in evidence anywhere).
+
+THE VERDICTS (the rule applied to the numbers above):
+- scene.h: SPLIT-JUSTIFIED - the bodies are large (436-542 lines) AND the I/O
+  includes are paid by 6 TUs of which 3 (main.cpp, platformer.cpp, pe_core.cpp)
+  never call the persist functions. THE .cpp WAITS FOR CYRIL. The 320 audit's
+  Slice 2 shape stands (the paired scene_persist.h/.cpp; the Scene/SceneManager
+  data + the inline list ops stay header; the fan-out to wire: PureEngine,
+  PureEditor0, hostile_data_test, pe_core).
+- prefab.h: SPLIT-JUSTIFIED - the bodies ~144 lines (a real parse+I/O body) AND
+  the I/O includes are paid by 6 TUs of which at least 3 (pe_core.cpp, probe_a,
+  probe_b) never load a prefab. THE .cpp WAITS FOR CYRIL (the 320 audit's Slice 3
+  shape).
+- hostile_data.h: STAY-INLINE (borderline - the numbers cited) - the bodies ~130
+  lines (moderate: between the Core Foundation's stayed 20-66-line bodies and
+  scene.h's 436-542) but the DIRECT fan-out is narrow (3 TUs); the transitive
+  reach (5 TUs via lifecycle.h :58) is lifecycle's dependency choice - decoupling
+  THAT include is the cheap first move if the transitive I/O cost is ever
+  measured as a problem, WITHOUT splitting hostile_data itself.
+- entity.h: STAY-INLINE - ~0 non-trivial bodies, light includes, the plain-struct
+  v1.1 ruling; the 8-TU fan-out pays almost nothing.
+- components.h: STAY-INLINE - 0 non-trivial bodies (one-line sugar), light
+  includes.
+- lifecycle.h: STAY-INLINE - the bodies are DATA-shaped (the six constructions),
+  the own includes are light; the transitive hostile_data.h include is recorded
+  above.
+
+STATUS: Entity/Scene/Persistence IN PROGRESS 1/5 (the pins done at 321 + the
+recovery). Slice 2 (the scene persistence split): SPLIT-JUSTIFIED, AWAITING CYRIL
+- no .cpp until the explicit go. Slice 5 (the entity/components/lifecycle
+STAY-INLINE): DECIDED with the numbers. Slices 3-4: unimplemented (prefab's
+SPLIT-JUSTIFIED verdict recorded above; hostile_data STAY-INLINE). No persist
+contract changed. No other category opened.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

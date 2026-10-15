@@ -3574,6 +3574,17 @@
    "depends_on": [
     320
    ]
+  },
+  {
+   "id": 322,
+   "name": "INSPECT+DECIDE (docs-only): the numbers-driven per-header verdicts for Entity/Scene/Persistence - scene.h + prefab.h SPLIT-JUSTIFIED (awaiting Cyril), hostile_data.h/entity.h/components.h/lifecycle.h STAY-INLINE; nothing implemented",
+   "status": "completed",
+   "definition_of_done": "The inspect (the numbers, grep-verified): per header the total lines, the non-trivial body lines (the function boundaries cited), the I/O includes forced, the include fan-out across the 11 TUs, the never-save/load consumers. THE VERDICTS by the Core rule: scene.h SPLIT-JUSTIFIED (the bodies 436-542 lines + the I/O includes paid by 6 TUs of which 3 never call the persist functions - main.cpp's only mention :1135 is a comment, platformer zero calls, pe_core instantiation-only); prefab.h SPLIT-JUSTIFIED (~144-line bodies + the I/O includes paid by 6 TUs of which at least 3 never load); hostile_data.h STAY-INLINE (borderline: the bodies ~130 lines moderate, the DIRECT fan-out narrow at 3, the transitive reach 5 via lifecycle.h :58); entity.h/components.h/lifecycle.h STAY-INLINE (small or DATA-shaped bodies, light includes). ODR/link pain: none recorded. Per the prompt: the SPLIT-JUSTIFIED verdicts are RECORDED and the .cpp WAITS for Cyril. Gates: the build exit 0 + ctest 8/8 (sanity).",
+   "notes": "Docs-only; no code. THE FAN-OUT EVIDENCE (the 11 TUs grepped): entity.h 8 (main, pong, platformer, editor0/main, consumer, pe_core, probe_a, probe_b); scene.h 6 (main, platformer, editor0_core.h, editor0/main, consumer, pe_core); prefab.h 6 (main, editor0/main, consumer, pe_core, probe_a, probe_b); lifecycle.h 5 (main, editor0/main, pe_core, probe_a, probe_b); components.h 4 (main, pe_core, probe_a, probe_b); hostile_data.h DIRECT 3 (pe_core, probe_a, probe_b) + TRANSITIVE 5 via lifecycle.h :58. THE BODY REGIONS: scene.h the persistence region :279-820 (542 lines; the save :381-450, the load :459-649, the manager save :651-711, the manager load :724-816); prefab.h :61-205 (~144); hostile_data.h :45-187 (~130); lifecycle.h :76-157 (~80, DATA-shaped); entity/components ~0. THE HEAVY INCLUDES: scene.h <filesystem>/<fstream>/<iomanip>/<iostream>/<sstream>/<cstdio>; prefab.h <iostream>/<fstream>/<sstream>/<filesystem>; hostile_data.h <filesystem>/<fstream>/<iostream>/<sstream>; entity/components/lifecycle light. ODR: none recorded (the 320 baseline). THE STATUS: Entity/Scene/Persistence IN PROGRESS 1/5; Slice 2 SPLIT-JUSTIFIED AWAITING CYRIL; Slice 5 DECIDED STAY-INLINE; Slices 3-4 unimplemented (prefab recorded, hostile STAY-INLINE); no contract changed. GATES: the build exit 0 + ctest 8/8 (the sanity per the prompt). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-322",
+   "depends_on": [
+    321
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
