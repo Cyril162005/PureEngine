@@ -3541,6 +3541,17 @@
    "depends_on": [
     317
    ]
+  },
+  {
+   "id": 319,
+   "name": "CORE: Core Foundation slice 5 - the window bootstrap extraction (pe::bootWindow in the paired window.h/.cpp - the first Core Foundation .h/.cpp split; the three games wired; the negative check; Core Foundation ACCEPTED 5 of 5)",
+   "status": "completed",
+   "definition_of_done": "The inspect-first report (the three bootstrap blocks file:line, WindowGuard's API + call sites, the editor path left alone) - verdict SAFE in one step. The implementation: the paired src/window.h + src/window.cpp (pe::bootWindow owns the Step 171 sequence - init, the 3.3 Core hints + the APPLE guard, create, context, glad - with the failure cleanup inside and the unified '<tag>: <step> failed' stderr line; the titles/sizes byte-identical, the exit codes caller-side); PureEngine + Pong + Platformer wired; hostile_data_test gains the checkWindowBoot negative check (ctest 8 -> 8, no new target - stated); CMake adds src/window.cpp to the four targets; pe_core NOT extended, the editor NOT touched. Gates against e63095b: the staged builds exit 0, ctest 8/8 100% (13.63s), alive x3 True (the games START through the shared bootstrap), git diff --check clean, the diff scoped (7 files +138/-84). MUTATION: the window-failure path reports ok=true -> checkWindowBoot FAILED (exit 8, NON-VACUOUS), restored by pathspec. CRITERION H: the bench re-run as DATA (2D median 1.1379ms, 3D median 30.5809ms - the T0 1.0709/32.5299). Core Foundation ACCEPTED (5 of 5).",
+   "notes": "Code commit e63095b (CORE-319: src/window.h + src/window.cpp + src/main.cpp + games/pong/pong.cpp + games/platformer/platformer.cpp + tests/hostile_data_test.cpp + CMakeLists.txt; +138/-84) + the DOCS-319 record. THE SMOKE BASELINE (Cyril, verbatim, the 318 one - not a new claim): 'smoke: PASS â€” editor opened with sample_scene; V hides meshId0, V restores 2D; games OK; probe OK'. THE DELIBERATE WORDING CHANGE (disclosed): the unified '<tag>: <step> failed' stderr line replaces main.cpp's 'Failed to initialize GLFW/create GLFW window/initialize GLAD' and pong's 'Pong: Failed to ...' (the platformer pattern; stderr everywhere; the exit codes unchanged). THE IN-STEP DEFECT (disclosed): the first CMake source-list edit loop passed the REPLACEMENT string as the PATTERN and $null as the replacement, mangling the PureEngine source list; recovered by git checkout -- CMakeLists.txt and redone with literal string surgery + count checks; nothing was committed broken. RESIDUALS: the editor keeps its own hidden-window bootstrap (createHiddenGlWindow - a candidate only on explicit authorize); pe_core does not instantiate window.h; the wording unification. THE BENCH (DATA): 2D median 1.1379ms, 3D median 30.5809ms, 600 frames of the 200-entity sample. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-319",
+   "depends_on": [
+    318
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -3420,9 +3420,9 @@ IN PROGRESS / BLOCKED / VERIFICATION REQUIRED / ACCEPTED):
 | C live window check | ACCEPTED | Cyril's verbatim smoke (Step 318): "smoke: PASS â€” editor opened with sample_scene; V hides meshId0, V restores 2D; games OK; probe OK; HEAD 8137a23"; alive x3 True at every gate |
 | D one .h/.cpp per boundary + ODR 0 | ACCEPTED (the ODR half) | core_link_probe links clean; the mutation LNK2005/LNK1169 caught; 0 hazards in the 16 headers; math STAYS header-inline by the Step 317 decision (small hot bodies, a 6-8-target fan-out for no gain); engine_time STAYS header-inline by the Step 318 decision (1-5-line bodies, no ODR reason, a 5+-consumer fan-out; the GLFW dep already guarded NONE in slice 1) |
 | E include hygiene | ACCEPTED (slice 1) | the guard at all 6 src/ GLFW sites (Step 315) |
-| F consumer linkage | IN PROGRESS | the probe links pe_core (first exerciser); games/editor/tests keep compiling exactly as before (by design this slice) |
+| F consumer linkage | ACCEPTED | every target builds + links after every slice (the staged gates); the games share the Step 319 bootstrap (pe::bootWindow) |
 | G pe_core list matches its claim | ACCEPTED | 31 headers = the 16-list + the 15 the TU already carried |
-| H bench re-run as data | NOT STARTED | the final slice |
+| H bench re-run as data | ACCEPTED | the Step 319 re-run, 600 frames of the 200-entity sample: 2D median 1.1379ms (T0 1.0709), 3D median 30.5809ms (T0 32.5299) - DATA, "indicative, this machine, not a budget" |
 
 STATUS: Core Foundation IN PROGRESS (2 of 5). The ODR hazard list (EMPTY - zero
 hazards found) is the slice-3 input; slice 3 (the math tests-then-split) NOT started.
@@ -3540,6 +3540,92 @@ restored by pathspec; git diff --stat -- tests/ empty.
 
 STATUS: Core Foundation IN PROGRESS (4 of 5). Slice 5 (the window-bootstrap
 extraction) NOT started - waits on Cyril's explicit go.
+
+### Core Foundation slice 5 (Step 319, 2026-10-15) - the window bootstrap extraction, COMPLETE - CATEGORY ACCEPTED (5 of 5)
+
+SMOKE BASELINE (Cyril, verbatim - the 318 baseline, NOT a new visual claim):
+"smoke: PASS â€” editor opened with sample_scene; V hides meshId0, V restores 2D;
+games OK; probe OK". The runtime proof for THIS slice is alive x3 (all three games
+START through the shared bootstrap).
+
+THE INSPECT-FIRST REPORT (file:line, before any edit):
+- Arcade main.cpp :560-597: glfwInit (:562, fail -> cerr "Failed to initialize
+  GLFW" -> return -1), the 3.3 Core hints + the APPLE forward-compat guard
+  (:568-574), glfwCreateWindow(800,600,"PureEngine - Step 1") (:577, fail -> cerr +
+  terminate -> return -1), makeContextCurrent (:585), gladLoadGL (:590, fail ->
+  cerr + destroy + terminate -> return -1). NO WindowGuard on this path (the guard
+  sites :2811/:2842/:3157/:3225/:3395 are the other entry points).
+- pong.cpp :32-63: the same 5 steps, the "Pong: " prefix, return -1; then the
+  renderer init with its OWN cleanup (:66-72) - stays game-side.
+- platformer.cpp :115-136: the same 5 steps, the "platformer: " prefix, return 1;
+  then audio init (:138+) - stays game-side.
+- window_guard.h: the RAII teardown API (:50/:57/:62) - UNTOUCHED; its call sites
+  (main.cpp x5, hostile_data_test :9652-9670) keep working as-is.
+- PureEditor0: its own hidden-window path (createHiddenGlWindow) - NOT forced onto
+  the helper (the prompt: prefer games first) - the recorded residual.
+- Verdict: SAFE in one step - the three blocks are the same 5-step sequence; the
+  divergences are titles, tag-prefixed messages, and return codes.
+
+IMPLEMENTED (commit CORE-319, `e63095b`, 7 files +138/-84):
+- NEW paired src/window.h + src/window.cpp - pe::bootWindow(width, height, title,
+  logTag): the FIRST Core Foundation .h/.cpp split of the migration. It owns the
+  Step 171 sequence (init, the 3.3 Core hints + the APPLE guard, create, context,
+  glad) with the failure cleanup INSIDE and the unified "<logTag>: <step> failed"
+  stderr line. THE DELIBERATE WORDING CHANGE (disclosed): main.cpp's "Failed to
+  initialize GLFW"/"Failed to create GLFW window"/"Failed to initialize GLAD" and
+  pong's "Pong: Failed to ..." become the platformer-style "<tag>: glfwInit failed"
+  / "<tag>: window failed" / "<tag>: glad failed" (all three sites already used
+  stderr; the exit codes are unchanged and caller-side; the titles/sizes are
+  byte-identical).
+- The three games wired: main.cpp (the include in the engine_time.h region, the
+  block replaced, return -1 kept), pong.cpp (return -1), platformer.cpp (return 1).
+  WindowGuard + the post-glad steps (renderer/audio init with their own cleanup)
+  untouched.
+- hostile_data_test: the new checkWindowBoot negative check (a degenerate 0x0 size
+  must fail CLEANLY - ok=false, window null, the cleanup inside; a 64x64 window
+  must succeed with the caller owning the session), wired into the main
+  aggregation. ctest count 8 -> 8 (no new target; the check lives in the existing
+  suite - stated per the prompt).
+- CMake: src/window.cpp added to PureEngine, hostile_data_test, Pong, Platformer.
+- pe_core is NOT extended with window.h this slice (the recorded residual); the
+  editor bootstrap is NOT touched (the recorded residual).
+
+GATES (against `e63095b`, staged): stage 1 (PureEngine, Pong, Platformer,
+hostile_data_test, --parallel) exit 0; stage 2 (the full default build) exit 0;
+ctest -C Release 8/8 100% (13.63s); alive x3 True (PureEngine, Pong, Platformer -
+the games START through the shared bootstrap); git diff --check clean; the diff
+scoped to window.h/window.cpp + the three mains + hostile_data_test + CMakeLists.
+
+MUTATION (the Step 285 check, on the committed tree): the window-failure path
+mutated to report ok=true -> the checkWindowBoot negative check FAILED
+("boot: a degenerate size must fail cleanly"; hostile_data_test FAILED, exit 8) -
+NON-VACUOUS; restored by pathspec; git diff --stat -- src/ empty.
+
+CRITERION H (the bench re-run, DATA - "indicative, this machine, not a budget"):
+the 200-entity bench, 600 frames: 2D median 1.1379ms (the T0 baseline 1.0709); 3D
+median 30.5809ms (the T0 baseline 32.5299). Same machine class, same policy - no
+gate.
+
+THE IN-STEP DEFECT (disclosed): the CMake source-list edits were first applied by
+a broken loop that passed the REPLACEMENT string as the PATTERN (and $null as the
+replacement), mangling the PureEngine source list (the src/main.cpp line lost);
+recovered by `git checkout -- CMakeLists.txt` and REDONE with fully literal string
+surgery (no capture groups, no $-substitutions) + per-anchor count checks. Nothing
+was committed in the broken state; the four regions were re-verified by reading.
+
+ACCEPTANCE TABLE (final): A build exit 0 - ACCEPTED; B tests 8/8 - ACCEPTED;
+C live window - ACCEPTED (the 318 verbatim smoke + alive x3); D structure/ODR -
+ACCEPTED (window.h carries declarations only; the probe green); E include hygiene -
+ACCEPTED (all 7 src/ GLFW sites guarded NONE: console, engine_time, gamepad, input,
+window_guard, window, main); F consumer linkage - ACCEPTED (every target builds +
+links after every slice; the games share the bootstrap); G pe_core's list matches -
+ACCEPTED (31 headers = the 314 16-list + the 15 the TU carried); H bench re-run as
+data - ACCEPTED (the numbers above, recorded as DATA).
+
+STATUS: Core Foundation ACCEPTED (5 of 5 slices, 2026-10-15). The freeze
+guardrails stand: no ECS/net/glTF/scripting, no Entity/Scene work, no editor
+redesign. RESIDUALS (FINDINGS Entry 58): the editor keeps its own hidden-window
+bootstrap; pe_core does not instantiate window.h; the stderr wording unification.
 
 ## Kill criteria
 

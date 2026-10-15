@@ -1322,3 +1322,29 @@ ImGui / ECS / glTF / networking (the freezes stand).
   expected 0.1f -> 0.2f) was NON-VACUOUS (exit 1) and restored. Slice 5 (the
   window-bootstrap extraction) waits on Cyril's explicit go; the ODR hazard list
   stays EMPTY.
+
+## Entry 58
+
+- **what:** Core Foundation slice 5 (Step 319, the window bootstrap extraction) -
+  DONE, CATEGORY ACCEPTED (5 of 5). The inspect-first report (main.cpp :560-597,
+  pong.cpp :32-63, platformer.cpp :115-136 - the same 5-step sequence; window_guard.h
+  untouched; the editor path left alone) concluded SAFE in one step. The new paired
+  src/window.h + src/window.cpp - pe::bootWindow - owns the Step 171 sequence
+  (init/hints/create/context/glad) with the failure cleanup inside; the FIRST Core
+  Foundation .h/.cpp split. The three games wired (the titles/sizes byte-identical,
+  the exit codes caller-side); hostile_data_test gained the checkWindowBoot negative
+  check (ctest 8 -> 8, no new target); CMake adds src/window.cpp to four targets.
+  The mutation (the failure path reporting ok=true) failed the negative check
+  (exit 8, NON-VACUOUS) and was restored. Criterion H: the bench re-run as DATA
+  (2D median 1.1379ms, 3D median 30.5809ms vs the T0 1.0709/32.5299).
+- **class:** existing capability (a migration slice; no behavior change beyond the
+  disclosed stderr wording; the freeze set untouched).
+- **status:** recorded; Core Foundation ACCEPTED (5 of 5, 2026-10-15). RESIDUALS:
+  (a) the editor keeps its own hidden-window bootstrap (createHiddenGlWindow) - not
+  forced per the prompt; a candidate only on explicit authorize; (b) pe_core does
+  not instantiate window.h (a candidate if a later step wants the compiled-core
+  contract to cover it); (c) the stderr wording unification (main/pong's failure
+  messages became the platformer-style "<tag>: <step> failed"; stderr everywhere;
+  the exit codes unchanged and caller-side); (d) the in-step CMake loop bug (the
+  replacement string passed as the pattern) was recovered by git checkout + literal
+  string surgery BEFORE any commit - recorded as process evidence.
