@@ -81,6 +81,7 @@ FetchContent_MakeAvailable(stb)
 # to keep the build minimal and avoid extra external downloads.
 add_executable(${PROJECT_NAME} 
     src/main.cpp
+    src/window.cpp
     src/stb_impl.cpp
     "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
@@ -184,6 +185,7 @@ add_executable(hostile_data_test
     # Step 195: the depth-state test inits a full Renderer under the
     # hidden-window GL context, which references stbi_load - compile
     # the ONE stb implementation unit (same pattern as resources_test).
+    src/window.cpp
     src/stb_impl.cpp
     # Step 168: the console contract test references drawConsole ->
     # drawTextString -> glad_gl* symbols; compile the already-fetched
@@ -357,6 +359,7 @@ set_tests_properties(time_test PROPERTIES TIMEOUT 60)
 # assets/; packaging a second game is a separate decision.
 add_executable(Pong
     games/pong/pong.cpp
+    src/window.cpp
     src/stb_impl.cpp
     "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
@@ -393,6 +396,7 @@ target_link_libraries(Pong glfw)
 # miniaudio (it uses the audio boundary, unlike Pong).
 add_executable(Platformer
     games/platformer/platformer.cpp
+    src/window.cpp
     src/stb_impl.cpp
     "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )

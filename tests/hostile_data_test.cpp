@@ -28,6 +28,7 @@
 #include "../src/resources.h"
 #include "../src/mesh3d.h"
 #include "../src/window_guard.h"
+#include "../src/window.h"
 
 namespace fs = std::filesystem;
 
@@ -9670,6 +9671,22 @@ static bool checkWindowGuard() {
         pe::WindowGuard guard2(w2);
     }
     return ok;
+    return ok;
+}
+
+// Step 319: the shared bootstrap contract (Core Foundation slice 5).
+// bootWindow owns init/hints/create/context/glad: a degenerate window size
+// must fail CLEANLY (ok=false, window null, the cleanup done inside), and a
+// small real window must succeed with the caller owning the session
+// (terminated here).
+static bool checkWindowBoot() {
+    pe::WindowBoot bad = pe::bootWindow(0, 0, "boot-probe", "boot-probe");
+    if (bad.ok || bad.window != nullptr) { std::cerr << "boot: a degenerate size must fail cleanly\n"; return false; }
+    pe::WindowBoot good = pe::bootWindow(64, 64, "boot-probe", "boot-probe");
+    if (!good.ok || good.window == nullptr) { std::cerr << "boot: a 64x64 window must succeed\n"; return false; }
+    glfwDestroyWindow(good.window);
+    glfwTerminate();
+    return true;
 }
 
 // Step 174: core loop contract (from source, call-site based — a test
@@ -10399,6 +10416,7 @@ int main() {
     const bool timeScaleOk = checkTimeScale();
     const bool timeContractOk = checkTimeContract();
     const bool windowGuardOk = checkWindowGuard();
+    const bool windowBootOk = checkWindowBoot();
     const bool perspectiveOk = checkPerspective();
     const bool camera3DOk = checkCamera3D();
     const bool mesh3DOk = checkMesh3D();
@@ -10484,7 +10502,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !meshWorldLightOk || !meshSizingOk || !meshSizeInvariantOk || !aabbDebugSizeOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !windowBootOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !meshWorldLightOk || !meshSizingOk || !meshSizeInvariantOk || !aabbDebugSizeOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||

@@ -27,40 +27,18 @@
 #include "../../src/camera.h"
 #include "../../src/input.h"
 #include "../../src/engine_time.h"
+#include "../../src/window.h"
 #include "../../src/animation_data.h"
 
 int main() {
-    // 1. Initialize GLFW (window lifecycle stays game-side per input.h contract)
-    if (!glfwInit()) {
-        std::cerr << "Pong: Failed to initialize GLFW" << std::endl;
+    // 1-4. The shared window/GL bootstrap (Step 319: pe::bootWindow owns the
+    // Step 171 sequence; the caller keeps the return code and owns the
+    // window + the GLFW session on success).
+    const pe::WindowBoot boot = pe::bootWindow(800, 600, "Pong - PureEngine API gate", "Pong");
+    if (!boot.ok) {
         return -1;
     }
-
-    // 2. Configure GLFW (mirrors main.cpp: OpenGL 3.3 Core)
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-#ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-#endif
-
-    // 3. Create the window
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Pong - PureEngine API gate", NULL, NULL);
-    if (!window) {
-        std::cerr << "Pong: Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-
-    // 4. Context + GLAD loader
-    glfwMakeContextCurrent(window);
-    if (!gladLoadGL(glfwGetProcAddress)) {
-        std::cerr << "Pong: Failed to initialize GLAD" << std::endl;
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
+    GLFWwindow* window = boot.window;
 
     // 5. Renderer boundary (public API): init or die
     pe::Renderer renderer;

@@ -98,6 +98,10 @@
 // CMakeLists.txt change. glfwGetTime() is now exclusive to time.h.
 #include "engine_time.h"
 
+// --- Step 319: the shared window/GL bootstrap (pe::bootWindow owns the
+// Step 171 sequence; the failure cleanup is inside the helper). ---
+#include "window.h"
+
 // --- Step 18: Entity Lifecycle Boundary ---
 // Entity CREATION and RESET-RESTORATION moved out of this file into
 // free functions in pe (src/lifecycle.h): buildInitialEntities()
@@ -558,43 +562,15 @@ static_assert(!pe::aabbOverlap(pe::Vec3(0.0f, 3.0f, 0.0f), pe::Vec3(1.0f, 1.0f, 
                                pe::Vec3(0.0f, 0.0f, 0.0f), pe::Vec3(1.0f, 1.0f, 0.0f)),
               "AABB overlap: Y gap must prevent collision");
 int main() {
-    // 1. Initialize GLFW
-    if (!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW" << std::endl;
+    // 1-5. The shared window/GL bootstrap (Step 319: pe::bootWindow owns the
+    // Step 171 sequence - init, the 3.3 Core hints, create, context, glad
+    // load - with the failure cleanup inside; the caller keeps the return
+    // code and owns the window + the GLFW session on success).
+    const pe::WindowBoot boot = pe::bootWindow(800, 600, "PureEngine - Step 1", "PureEngine");
+    if (!boot.ok) {
         return -1;
     }
-
-    // 2. Configure GLFW
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-#ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-#endif
-
-    // 3. Create the Window
-    GLFWwindow* window = glfwCreateWindow(800, 600, "PureEngine - Step 1", NULL, NULL);
-    if (!window) {
-        std::cerr << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-
-    // 4. Make the Window's Context Current
-    glfwMakeContextCurrent(window);
-
-    // 5. Initialize GLAD
-    // We use the GLAD loader to get OpenGL function pointers.
-    // This must be done AFTER the context is created and made current.
-    if (!gladLoadGL(glfwGetProcAddress)) {
-        std::cerr << "Failed to initialize GLAD" << std::endl;
-        // The window already exists here, so clean it up before exiting —
-        // same consistent cleanup as every other error path below.
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
+    GLFWwindow* window = boot.window;
 
     // --- Step 9 / Step 20: Audio engine + sound loading (one-time setup) ---
     // The MECHANISM — ma_engine_init, the 3-candidate CWD probe for

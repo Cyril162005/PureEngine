@@ -25,6 +25,7 @@
 #include "../../src/camera.h"
 #include "../../src/input.h"
 #include "../../src/engine_time.h"
+#include "../../src/window.h"
 #include "../../src/gamestate.h"
 #include "../../src/animation_data.h"
 #include "../../src/tilemap.h"
@@ -113,27 +114,14 @@ static void spawnBurst(std::vector<pe::Particle>& out, const pe::Vec3& at,
 }
 
 int main() {
-    if (!glfwInit()) {
-        std::cerr << "platformer: glfwInit failed" << std::endl;
+    // The shared window/GL bootstrap (Step 319: pe::bootWindow owns the
+    // Step 171 sequence; the caller keeps the return code and owns the
+    // window + the GLFW session on success).
+    const pe::WindowBoot boot = pe::bootWindow(800, 600, "PureEngine - Platformer", "platformer");
+    if (!boot.ok) {
         return 1;
     }
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window =
-        glfwCreateWindow(800, 600, "PureEngine - Platformer", nullptr, nullptr);
-    if (!window) {
-        std::cerr << "platformer: window failed" << std::endl;
-        glfwTerminate();
-        return 1;
-    }
-    glfwMakeContextCurrent(window);
-    if (!gladLoadGL(glfwGetProcAddress)) {
-        std::cerr << "platformer: glad failed" << std::endl;
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return 1;
-    }
+    GLFWwindow* window = boot.window;
 
     pe::Audio audio;
     if (!audio.init()) {
