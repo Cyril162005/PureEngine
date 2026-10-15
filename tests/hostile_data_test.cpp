@@ -4149,6 +4149,141 @@ static bool checkSceneVersionUnknown() {
     return true;
 }
 
+// Step 321: the persistence FORMAT/CONTRACT pins (Entity/Scene/Persistence
+// slice 1, tests-first). Pins the RECORDED CONTRACTS at the file level:
+// (A) the 4-decimal writer bound (a coordinate needing rounding is written
+//     rounded, and the reload carries the ROUNDED value - the file is the
+//     source of truth); (B) meshId is NOT serialized (the documented 311
+//     contract: 34 comma-separated fields, the reload keeps the default 0);
+// (C) dead entities are dropped at the FILE level (one "entity=" line for
+//     one alive entity, the dead one's tag nowhere in the file); (D) an
+//     unknown-prefix line is a strict reject with out untouched (:633);
+// (E) the atomic save leaves no .tmp behind (:397 tmp+rename).
+// NOT re-pinned here (already hard-asserted): the spawn-after-kill append
+// (checkSpawnAfterKill :5449-5457), the unknown-VERSION reject
+// (checkSceneVersionUnknown), the malformed-VALUE refuse
+// (checkSceneSerialization :4034-4045).
+static bool checkPersistenceFormatPins() {
+    bool ok = true;
+    std::filesystem::create_directories("savedata");
+    const std::string path = "savedata/scene_pins.txt";
+    auto rmAll = [&](){
+        std::remove(path.c_str());
+        std::remove(("../" + path).c_str());
+        std::remove((path + ".tmp").c_str());
+        std::remove(("../" + path + ".tmp").c_str());
+    };
+    auto readRaw = [&](std::string& out) {
+        std::ifstream f(path, std::ios::binary);
+        if (f) { std::string l; while (std::getline(f, l)) { out += l; out += "\n"; } return true; }
+        std::ifstream f2("../" + path, std::ios::binary);
+        if (!f2) return false;
+        std::string l; while (std::getline(f2, l)) { out += l; out += "\n"; }
+        return true;
+    };
+    auto firstEntityLine = [](const std::string& raw, std::string& entLine) {
+        const std::size_t pos = raw.find("entity=");
+        if (pos == std::string::npos) return false;
+        const std::size_t end = raw.find('\n', pos);
+        entLine = raw.substr(pos, (end == std::string::npos ? std::string::npos : end - pos));
+        return true;
+    };
+    rmAll();
+    // PIN A: the 4-decimal writer bound + the rounded reload.
+    {
+        pe::Scene s; s.name = "pins_a";
+        pe::Entity e(pe::Vec3(0.1234567f, 123.45678f, -0.00016f), 0.0f,
+                     pe::Vec3(1.0f, 1.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+        s.entities = {e};
+        if (!pe::saveSceneToFile(s, path)) { std::cerr << "pins: A save failed\n"; return false; }
+        std::string raw;
+        if (!readRaw(raw)) { std::cerr << "pins: A raw read failed\n"; return false; }
+        std::string entLine;
+        if (!firstEntityLine(raw, entLine)) { std::cerr << "pins: A no entity line\n"; return false; }
+        const std::string prefix = "entity=0.1235,123.4568,-0.0002,";
+        if (entLine.compare(0, prefix.size(), prefix) != 0) {
+            std::cerr << "pins: A the writer is not 4-decimal bound\n"; ok = false;
+        }
+        pe::Scene out;
+        if (!pe::loadSceneFromFile(path, out) || out.entities.size() != 1) {
+            std::cerr << "pins: A load failed\n"; ok = false;
+        } else if (!assertFloatClose(out.entities[0].position.x, 0.1235f, 1e-6f) ||
+                   !assertFloatClose(out.entities[0].position.z, -0.0002f, 1e-6f)) {
+            std::cerr << "pins: A the reload must carry the ROUNDED values\n"; ok = false;
+        }
+        if (std::filesystem::exists(path + ".tmp") ||
+            std::filesystem::exists("../" + path + ".tmp")) {
+            std::cerr << "pins: E the tmp must not survive the atomic save\n"; ok = false;
+        }
+    }
+    rmAll();
+    // PIN B: meshId is NOT serialized (34 fields -> 33 commas, no meshId token,
+    // the reload keeps the default 0).
+    {
+        pe::Scene s; s.name = "pins_b";
+        pe::Entity e(pe::Vec3(1.0f, 1.0f, 0.0f), 0.0f,
+                     pe::Vec3(1.0f, 1.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+        e.meshId = 7;
+        s.entities = {e};
+        if (!pe::saveSceneToFile(s, path)) { std::cerr << "pins: B save failed\n"; return false; }
+        std::string raw;
+        if (!readRaw(raw)) { std::cerr << "pins: B raw read failed\n"; return false; }
+        std::string entLine;
+        if (!firstEntityLine(raw, entLine)) { std::cerr << "pins: B no entity line\n"; return false; }
+        int commas = 0;
+        for (char ch : entLine) { if (ch == ',') ++commas; }
+        if (commas != 33) { std::cerr << "pins: B the entity line is not the 34-field v2 shape\n"; ok = false; }
+        pe::Scene out;
+        if (!pe::loadSceneFromFile(path, out) || out.entities.size() != 1) {
+            std::cerr << "pins: B load failed\n"; ok = false;
+        } else if (out.entities[0].meshId != 0) {
+            std::cerr << "pins: B meshId must NOT round-trip (the documented contract)\n"; ok = false;
+        }
+    }
+    rmAll();
+    // PIN C: dead entities are dropped at the FILE level.
+    {
+        pe::Scene s; s.name = "pins_c";
+        pe::Entity alive(pe::Vec3(5.0f, 6.0f, 7.0f), 0.0f,
+                         pe::Vec3(1.0f, 1.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+        pe::Entity dead(pe::Vec3(9.0f, 9.0f, 9.0f), 0.0f,
+                        pe::Vec3(1.0f, 1.0f, 1.0f), pe::Vec3(0.5f, 0.5f, 0.0f), 0);
+        dead.alive = false;
+        dead.tag = "dead";
+        s.entities = {alive, dead};
+        if (!pe::saveSceneToFile(s, path)) { std::cerr << "pins: C save failed\n"; return false; }
+        std::string raw;
+        if (!readRaw(raw)) { std::cerr << "pins: C raw read failed\n"; return false; }
+        int entCount = 0;
+        for (std::size_t q = raw.find("entity="); q != std::string::npos; q = raw.find("entity=", q + 7)) ++entCount;
+        if (entCount != 1) { std::cerr << "pins: C the file must hold exactly one entity line\n"; ok = false; }
+        if (raw.find("dead") != std::string::npos) { std::cerr << "pins: C the dead entity's tag must be absent\n"; ok = false; }
+        pe::Scene out;
+        if (!pe::loadSceneFromFile(path, out) || out.entities.size() != 1) {
+            std::cerr << "pins: C the reload must carry only the alive entity\n"; ok = false;
+        } else if (!assertFloatClose(out.entities[0].position.x, 5.0f) ||
+                   !assertFloatClose(out.entities[0].position.y, 6.0f) ||
+                   !assertFloatClose(out.entities[0].position.z, 7.0f)) {
+            std::cerr << "pins: C the alive entity must round-trip in place\n"; ok = false;
+        }
+    }
+    rmAll();
+    // PIN D: an unknown-prefix line is a strict reject, out untouched (:633).
+    {
+        std::ofstream f(path, std::ios::binary | std::ios::trunc);
+        if (!f) { std::cerr << "pins: D fixture failed\n"; return false; }
+        f << "# scene v2\nscene=pins_d\nthis_line_has_no_equals\n";
+        f.close();
+        pe::Scene out;
+        out.name = "keep";
+        const bool loaded = pe::loadSceneFromFile(path, out);
+        if (loaded || out.name != "keep") {
+            std::cerr << "pins: D an unknown prefix must reject and leave out untouched\n"; ok = false;
+        }
+    }
+    rmAll();
+    return ok;
+}
 // --- Step 113: runtime entity lifecycle (alive + spawn/kill) ---
 static bool checkEntityLifecycle() {
     // Default: every entity is born alive (non-breaking).
@@ -10491,6 +10626,7 @@ int main() {
     const bool persistComposeOk = checkPrefabScenePersist();
     const bool persistV1Ok = checkScenePersistenceV1Compat();
     const bool persistV99Ok = checkSceneVersionUnknown();
+    const bool persistencePinsOk = checkPersistenceFormatPins();
     const bool lifecycleOk = checkEntityLifecycle();
     const bool frameUvOk = checkFrameUV();
     const bool followLerpOk = checkFollowLerp();
@@ -10519,7 +10655,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !volumeMatrixOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistencePinsOk || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
