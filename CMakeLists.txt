@@ -82,6 +82,7 @@ FetchContent_MakeAvailable(stb)
 add_executable(${PROJECT_NAME} 
     src/main.cpp
     src/window.cpp
+    src/scene_persist.cpp
     src/stb_impl.cpp
     "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
@@ -186,6 +187,7 @@ add_executable(hostile_data_test
     # hidden-window GL context, which references stbi_load - compile
     # the ONE stb implementation unit (same pattern as resources_test).
     src/window.cpp
+    src/scene_persist.cpp
     src/stb_impl.cpp
     # Step 168: the console contract test references drawConsole ->
     # drawTextString -> glad_gl* symbols; compile the already-fetched
@@ -241,6 +243,7 @@ add_test(NAME resources_test COMMAND resources_test)
 # consumer; engine src/ read-only. Own directory, own target.
 add_executable(LevelPipelineConsumer
     consumers/level_pipeline/consumer.cpp
+    src/scene_persist.cpp
 )
 target_include_directories(LevelPipelineConsumer PRIVATE "${glfw_SOURCE_DIR}/include")
 add_test(NAME LevelPipelineConsumer COMMAND LevelPipelineConsumer
@@ -254,6 +257,7 @@ set_tests_properties(LevelPipelineConsumer PROPERTIES TIMEOUT 60)
 # pattern: the prefab files the selftest loads).
 add_executable(PureEditor0
     tools/editor0/main.cpp
+    src/scene_persist.cpp
     src/stb_impl.cpp
     "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
@@ -305,7 +309,7 @@ add_custom_command(TARGET resources_test POST_BUILD
 # Same headers, same inline functions, just precompiled. Games may either
 # include headers directly (header-only, current) or link pe_core. No behaviour
 # change; arcade/platformer/Pong keep header-only and stay green.
-add_library(pe_core STATIC src/pe_core.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
+add_library(pe_core STATIC src/pe_core.cpp src/scene_persist.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
 target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/deps")
 target_include_directories(pe_core PUBLIC "${stb_SOURCE_DIR}")
 target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/include")
