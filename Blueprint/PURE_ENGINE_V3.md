@@ -3798,6 +3798,72 @@ STAY-INLINE): DECIDED with the numbers. Slices 3-4: unimplemented (prefab's
 SPLIT-JUSTIFIED verdict recorded above; hostile_data STAY-INLINE). No persist
 contract changed. No other category opened.
 
+### Entity/Scene/Persistence Step 323 (2026-10-15) - slice 2: the scene persistence split, COMPLETE
+
+The first Entity/Scene .h/.cpp split, executed per the Step 322 SPLIT-JUSTIFIED
+verdict (Cyril's go). THE INSPECT (before any edit, file:line): the persistence
+region scene.h :279-820 holds 11 plain-inline functions - the 7 helpers
+sceneTrim :279 / sceneParseFloat :286 / sceneParseInt :295 / sceneSplitComma :304 /
+sceneQuote :320 / sceneUnquote :329 / sceneSplitCommaQuoted :348 (ALL with ZERO
+external users - grep-verified) + the 4 bodies saveSceneToFile :381-450 /
+loadSceneFromFile :459-649 / saveSceneManagerToFile :651-711 /
+loadSceneManagerFromFile :724-816. ZERO templates, ZERO anon-namespace blocks -
+the move is clean.
+
+THE GOLDEN METHODOLOGY (the proof of no change): a temp golden generator
+(editor0_tmp/golden_gen.cpp, gitignored) saved, from the PRE-SPLIT tree: a
+3-entity scene (one DEAD entity, a tilemap reference, a meshId=3 entity, quoted
+tags) -> golden_scene.txt; a 2-scene manager (current=1, a dead entity in beta)
+-> golden_manager.txt + the per-scene scene_alpha.txt/scene_beta.txt. ALL FOUR
+recorded (sizes + SHA256): 475 B D7BABC38...F0E / 91 B 228BA511...3147 / 236 B
+CD3A4B4A...070D / 229 B 29630231...FEF58C. After the split the SAME generator
+re-ran: ALL FOUR BYTE-IDENTICAL (hash match) - the contracts provably unchanged.
+The per-scene files land via the bare-name assets/ probe (CWD-dependent - the
+process lesson: probe all three candidates when hashing).
+
+THE SPLIT (commit CORE-323, `8aa07e5`, 4 files +612/-547, net +65):
+- NEW paired src/scene_persist.h (37 lines: the 4 declarations + the contract
+  comment) + src/scene_persist.cpp (565 lines: the bodies VERBATIM, inline
+  stripped; the 7 helpers file-local in the anonymous namespace).
+- scene.h slimmed 820 -> 279 lines: the data types + the inline list ops
+  (spawnEntity/killEntity/killRole/loadTilemapIntoScene/queueSpawn/flushSpawns)
+  STAY; the persistence region replaced by the guarded include of
+  scene_persist.h placed AFTER the namespace close (the guarded-include pattern
+  - no circular dependency, both include orders work).
+- scene.h's I/O includes are GONE: <fstream>/<filesystem>/<iomanip>/<iostream>/
+  <sstream>/<cstdio> all 0 (were 6). scene_persist.cpp carries all five
+  (justified - it IS the I/O). NO TU needed an include fix for the lost
+  transitive includes (the build proved it - the only break was the LINK below).
+- The linkage: scene_persist.cpp added to PureEngine, PureEditor0,
+  hostile_data_test, pe_core, AND LevelPipelineConsumer (the consumer CALLS the
+  persistence in the Step 278 adversarial tests - the link error LNK2019 x4
+  caught it; the 322 audit's fan-out missed it because consumer.cpp's calls were
+  not in the 320 grep window - recorded as the audit-precision residual).
+
+THE IN-STEP DEFECTS (both caught by the build, both recovered before the commit):
+1. the include-inside-namespace bug: the scene.h tail placed the
+   scene_persist.h include INSIDE namespace pe -> scene_persist.h's own
+   `namespace pe` nested -> pe::pe (the C2039 cascade in simulation.h);
+   fixed by moving the include AFTER the namespace close.
+2. the descending-range corruption: a fix attempt used lines[275..274] (a
+   descending PowerShell range) which silently yielded a reversed 2-line slice
+   and duplicated the include; recovered by git checkout + the deterministic
+   index-based re-assembly with the nested-pe guard.
+
+GATES (against `8aa07e5`): the full build exit 0 (all 11 targets); ctest -C
+Release 8/8 100% (44.19s pre-commit on the identical tree, 14.59s post-restore);
+the golden re-run: ALL FOUR BYTE-IDENTICAL; alive x3 True with the FIXED probe.
+
+MUTATION (the Step 285 check, on the MOVED code): setprecision(4) -> (5) in
+scene_persist.cpp -> hostile_data_test FAILED with TWO pin failures ("pins: A
+the writer is not 4-decimal bound" + "pins: A the reload must carry the ROUNDED
+values", exit 8) - NON-VACUOUS; restored by pathspec; REBUILT -> ctest 8/8
+(14.59s).
+
+STATUS: Entity/Scene/Persistence IN PROGRESS (2 of 5). Slice 3 (the prefab
+split - SPLIT-JUSTIFIED at 322) and Slice 4 (the hostile parse) NOT started -
+they wait on Cyril. Slice 5 (the STAY-INLINE decision) was decided at 322.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
