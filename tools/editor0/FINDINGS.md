@@ -1348,3 +1348,31 @@ ImGui / ECS / glTF / networking (the freezes stand).
   the exit codes unchanged and caller-side); (d) the in-step CMake loop bug (the
   replacement string passed as the pattern) was recovered by git checkout + literal
   string surgery BEFORE any commit - recorded as process evidence.
+
+## Entry 59
+
+- **what:** the Entity/Scene/Persistence category AUDIT (Step 320, docs-only; no
+  fixes, no splits). The 6-header inventory (entity 360 / components 44 / scene 820
+  / lifecycle 158 / prefab 209 / hostile_data 187 lines - ALL header-only impl),
+  the save/load paths proven by the test matrix (the format v2 with the v1
+  backward-compat, the 34-field entity line, the atomic tmp+rename, the manager
+  save/load, the editor Ctrl+S), the ODR baseline (ZERO real hazards - the 2 known
+  benign candidates: entity.h:211 ctor init-list, lifecycle.h:67 enum class), the
+  honest contracts restated with file:line (the alive drop-on-save scene.h:419-420,
+  the 4-decimal format :418, the append-here index semantics, the no-count-field
+  format, meshId non-serialization, the strict unknown-version reject :636-639),
+  and 5 proposed migration slices (tests-first format pins -> the scene persistence
+  split -> the prefab split -> the hostile parse split -> the entity/components/
+  lifecycle STAY-INLINE decision). The draft acceptance standard A-I recorded in V3.
+- **class:** existing capability (an audit record; every limit is a RECORDED
+  CONTRACT, not a defect - changes need explicit human approval).
+- **status:** recorded; Entity/Scene/Persistence: NOT STARTED -> AUDIT COMPLETE /
+  migration NOT STARTED (Step 320, 2026-10-15); Core Foundation remains ACCEPTED
+  (5 of 5, Step 319). GROUPING NOTE: the prompt's category cuts across the V3
+  5-category map (entity/lifecycle under Core foundation; scene/prefab/hostile
+  under World+content) - the audit follows the prompt's grouping; the map
+  placements stay as recorded. Slice 1 waits on Cyril's go. PROCESS LESSON (the
+  316 stale-exe class, RECURRED): the optional sanity ctest ran the STALE MUTATED
+  hostile_data_test.exe (the mutation restore reverts SOURCES, not BINARIES) and
+  failed 2 runs, plus one PureEditor0 load timeout; after the rebuild the suite
+  was 8/8 x2 (8.02s, 7.48s). RULE REINFORCED: restore -> REBUILD -> ctest.

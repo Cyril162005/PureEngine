@@ -3627,6 +3627,107 @@ guardrails stand: no ECS/net/glTF/scripting, no Entity/Scene work, no editor
 redesign. RESIDUALS (FINDINGS Entry 58): the editor keeps its own hidden-window
 bootstrap; pe_core does not instantiate window.h; the stderr wording unification.
 
+### Entity / Scene / Persistence category audit (Step 320, 2026-10-15) - AUDIT COMPLETE, migration NOT STARTED
+
+Docs-only audit step (no fixes, no splits). GROUPING NOTE: this prompt's category
+cuts across the V3 5-category map (entity/lifecycle were filed under "1 Core
+foundation", scene/prefab/hostile under "2 World + content") - the audit follows
+the prompt's grouping; the map placements stay as recorded. Core Foundation remains
+ACCEPTED (Step 319, 5 of 5 slices). Search hygiene: build/, .git/, .kilo/ and
+.goose/ were excluded from every grep and search.
+
+INVENTORY (each file: header-only impl | already has .cpp | mixed):
+| file | lines | role | form | main call sites | ctest coverage | honest limits (recorded contracts) |
+| --- | --- | --- | --- | --- | --- | --- |
+| src/entity.h | 360 | the entity datum: the plain struct (the Step 103/v1.1 ruling) - rotationAngle :46 (Z radians), rotationSpeed :47, scale/halfExtents :60, roleId :75, animationState :78+, velocity :91, meshId :119, the static + kinematic flags :133-137, gravityScale :211 | header-only impl | everywhere (the arcade main, the games, the editor, the tests) | the whole suite constructs entities; the 309-310 editor delete/create tests | the SINGLE-AXIS rotation per mode (the 296 correction); no TRS composition :128 |
+| src/components.h | 44 | Step 103 "lightweight component helpers (not ECS)": the inline sugar over Entity.velocity/health/timer/tag (16 one-line functions) | header-only impl | opt-in; the games unchanged (the defaults) | the component check in hostile_data_test | explicitly NOT ECS (no archetypes, no query language) - the frozen ruling |
+| src/scene.h | 820 | struct Scene :52 (queueSpawn :73 / flushSpawns :81 - the append-here design, the pointer-invalidation note :26); SceneManager :110 (current as an INDEX :112, addScene :116, currentScene :132/:143, sceneByName :159, switchTo :178); the persistence: saveSceneToFile :381 (the atomic tmp+rename :397, the explicit-path handling :384-396), loadSceneFromFile :459 (the strict v1(14)/v2(34) parse :600-631, the unknown-version reject :636-639), the manager save/load :692/:808 (the fs::rename C-rename note :700) | header-only impl (the LARGEST header in src/) | main.cpp :1135 (a comment re the persisted-path exclusion), the editor's Ctrl+S path (the 299-310 records), the tests | checkSceneLifecycle/NoOps/ByName/Serialization/PointerStability, checkSceneManagerSave/RoundTrip, checkScenePersistenceV1/V2/V99/Compose, checkSceneDumpReload, checkSpawnQueue/AfterKill | the alive drop-on-save :419-420 ("Step 113: dead entities don't exist in saved state"); the 4-decimal float format :418; the no-count-field format (the 291 observation); meshId NOT serialized (the 311 gap); the strict unknown-version reject |
+| src/lifecycle.h | 158 | buildInitialEntities (:15/:70 - the six arcade constructions), resetEntities (:22), flagsForCount (:26/:152), ArcadeRole :67, the atomic resetGame block (:37-39) | header-only impl | the arcade main + the tests | checkHierarchyChain/Refusals/EdgeCases, checkHierarchyContractFreeze | no generational handles, no spawning system, no destruction (:32) - the recorded boundary |
+| src/prefab.h | 209 | loadPrefab :103 (the 3-candidate probe :71-73, the "# PureEngine prefab v1" header check :135, warn+skip partial parse), instantiatePrefab :181 (the 17 config fields + position + alive) | header-only impl | the editor (the N/[ keys, the 310 records), the tests | checkPrefabSystem/SceneSpawn/Live, checkPrefabMultiSpawnPersist, checkPrefabSceneFailureMatrix | the malformed-warn+skip contract (:16); the probe CWD-dependence (the run-from-root note) |
+| src/hostile_data.h | 187 | HostileDefinition :27, HostileDefaults :34, parseFloatList :54, loadHostileDefaults :86 (the data-driven defaults + the per-hostile overrides) | header-only impl | the arcade main, the tests | the 12+7 case-type matrix (the recorded loads) | the malformed clean-reject semantics (recorded) |
+
+THE SAVE/LOAD PATHS (already proven): the format v2 (Step 111; v1 = the first 14
+fields with backward compatibility :372-374); 34 comma-separated entity fields
+(:378-380); the atomic tmp+rename (:397); the manager save/load through the same
+functions (:692/:808); the editor's Ctrl+S (the editor-side path, proven by the
+editor selftest's checkSaveAs/checkPathSwitch family at 489 PASS); the proven test
+matrix: checkSceneSerialization, checkScenePersistenceV1/V2/V99/Compose,
+checkSceneManagerSave/RoundTrip, checkSceneDumpReload, checkSpawnAfterKill,
+checkPrefabMultiSpawnPersist, checkScenePointerStability, checkSceneByName.
+
+ODR BASELINE (the sweep, the same pattern as the 314/316 audits): ZERO real hazards
+across the six headers - the only two column-0 candidates are the KNOWN benign pair
+(entity.h:211 the ctor member-init continuation; lifecycle.h:67 the enum class
+declaration). Nothing to fix; nothing invented.
+
+HONEST LIMITS = RECORDED CONTRACTS (changes need explicit human approval): the
+dead-drop-on-save (:420), the 4-decimal format (:418), the append-here index
+semantics (the kill keeps the index; queueSpawn appends at the old count), the
+no-count-field format, meshId non-serialization, the strict unknown-version reject
+(:636-639).
+
+PROPOSED MIGRATION SLICES (max 5, PROPOSED ONLY, none started; the Core Foundation
+shape: inspect -> test-first where possible -> optional .h/.cpp only when justified
+-> ACCEPTED criteria):
+- Slice 1 (tests-first, ~zero risk): the persistence FORMAT pins - extend the
+  existing checkPersist*/checkSceneSerialization family with the byte-stability and
+  rounding pins (the 4-decimal rounding of a chosen coordinate, the dead-drop in a
+  saved file, the no-count-field parse, the unknown-version reject, the tmp+rename
+  atomicity). Files: tests only. Risk: near-zero. Test plan: ctest green, the count
+  grows.
+- Slice 2 (the scene persistence split, medium risk): saveSceneToFile/
+  loadSceneFromFile + the manager save/load (scene.h :381-820, ~350 lines of real
+  bodies) -> the paired scene_persist.h/.cpp (the Scene/SceneManager data + the
+  inline list ops STAY header). Files: src/scene.h, src/scene_persist.h/.cpp (new),
+  CMake (the consumers: PureEngine, PureEditor0, hostile_data_test, pe_core -
+  scene.h is in pe_core's includes), the tests if they link. Risk: medium - the
+  fan-out IS the cost; the format bytes must not change. Test plan: slice 1's pins
+  + the full ctest + the editor save/load smoke.
+- Slice 3 (the prefab split, low-medium risk): loadPrefab/instantiatePrefab
+  (prefab.h :103-205, ~100 lines) -> the paired prefab .h/.cpp (the Prefab struct
+  STAYS header). Files: src/prefab.h, src/prefab.cpp (new), CMake (the editor, the
+  tests, pe_core). Risk: low-medium. Test plan: the existing checkPrefab* matrix +
+  the failure matrix.
+- Slice 4 (the hostile parse split, low-medium risk): loadHostileDefaults/
+  parseFloatList (hostile_data.h :54-187) -> the paired hostile .h/.cpp (the
+  structs STAY header). Files: src/hostile_data.h, src/hostile_data.cpp (new),
+  CMake (the arcade main, the tests, pe_core). Risk: low-medium. Test plan: the
+  12+7 case matrix.
+- Slice 5 (the STAY-INLINE decision, near-zero risk): entity.h (the plain structs -
+  the v1.1 ruling), components.h (one-line sugar), lifecycle.h (small,
+  arcade-shaped) - documented STAY with the fan-out evidence (the same measured
+  pattern as the Core Foundation math/engine_time decisions). Files: docs only.
+  Risk: near-zero. Test plan: the existing suite stays green.
+WHAT STAYS INLINE (the named set): entity.h, components.h, lifecycle.h (slice 5
+documents it). THE CANDIDATES TO MOVE: the scene persistence half (slice 2), the
+prefab load/instantiate (slice 3), the hostile parse (slice 4).
+
+DRAFT ACCEPTANCE STANDARD (this category; PROPOSED, not yet approved):
+A. build exit 0 (staged).
+B. ctest green, the count grows additively (the format pins; NO timing asserts).
+C. the live editor save/load smoke (the Ctrl+S -> R round-trip) - VERIFICATION
+   REQUIRED until Cyril's line is recorded verbatim.
+D. structure: one .h/.cpp per migrated boundary; the ODR grep 0 on the category
+   headers (the 320 sweep = the baseline: 0 real hazards, the 2 known benign
+   candidates); no API signature changes without a listed approval.
+E. include hygiene: no new GLFW include without the NONE guard; no windows.h in
+   the category headers.
+F. consumer linkage complete: every target calling the moved bodies links the new
+   .cpp (pe_core included - the category headers are in its instantiation list).
+G. pe_core's instantiation list stays matched to its claim.
+H. format stability: the save->load->save byte-identity re-proven after any
+   persistence move (the existing matrix stays green).
+I. measurement not budget (no timing asserts; any bench run is DATA).
+OUT (frozen or out of scope): ECS (archetypes/query languages), networking,
+generational handles, the editor redesign, gameplay, and CHANGES to the recorded
+contracts (the dead-drop, the 4-decimal format, the index semantics, the
+no-count-field format, meshId non-serialization, the strict version reject) - those
+need explicit human approval.
+
+STATUS: Entity/Scene/Persistence: NOT STARTED -> AUDIT COMPLETE (Step 320,
+2026-10-15) / migration NOT STARTED. Core Foundation remains ACCEPTED (5 of 5,
+Step 319). Slice 1 NOT started - it waits on Cyril's go.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

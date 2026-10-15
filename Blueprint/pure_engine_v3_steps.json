@@ -3552,6 +3552,17 @@
    "depends_on": [
     318
    ]
+  },
+  {
+   "id": 320,
+   "name": "AUDIT: Entity/Scene/Persistence category (docs-only; the 6-header inventory + the ODR baseline 0 real hazards + the draft acceptance standard + 5 proposed slices, NOT started; Core Foundation remains ACCEPTED)",
+   "status": "completed",
+   "definition_of_done": "The category audit recorded in PURE_ENGINE_V3.md (the 6-header inventory table with file:line - entity/components/scene/lifecycle/prefab/hostile - the save/load paths proven by the test matrix, the ODR baseline, the honest contracts, the 5 proposed migration slices with files/risk/test plan, the draft acceptance standard A-I with the explicit OUT list) + FINDINGS Entry 59; tracker/board/README updated. NO fixes, NO .cpp splits, NO slice started. src/ READ-ONLY; docs-only gates. Core Foundation remains ACCEPTED (5 of 5, Step 319).",
+   "notes": "Docs-only audit. GROUPING NOTE: the prompt's category cuts across the V3 map (entity/lifecycle under Core foundation; scene/prefab/hostile under World+content) - the audit follows the prompt's grouping; the map placements stay. THE ODR BASELINE: 0 real hazards in the six headers (the 2 known benign candidates: entity.h:211 ctor init-list, lifecycle.h:67 enum class). THE HONEST CONTRACTS restated with file:line: the alive drop-on-save (scene.h:419-420, Step 113), the 4-decimal format (:418), the append-here index semantics (queueSpawn :73/flushSpawns :81), the no-count-field format (the 291 observation), meshId non-serialization (the 311 gap), the strict unknown-version reject (:636-639), the atomic tmp+rename (:397). THE SLICES PROPOSED: 1 tests-first format pins; 2 the scene persistence split (scene.h :381-820 ~350 lines -> scene_persist.h/.cpp; the fan-out incl. pe_core); 3 the prefab split (:103-205); 4 the hostile parse split (:54-187); 5 the STAY-INLINE decision for entity/components/lifecycle. Nothing started. THE PROOF STATUS: the editor Ctrl+S path proven by the editor selftest family (489 PASS); the persistence matrix proven by the checkPersist*/checkManager*/checkScene* checks. GATES (docs-only): the OPTIONAL sanity ctest caught the STALE MUTATED hostile_data_test.exe first (the Step 316 class recurred: a mutation restore reverts sources, not binaries; plus one PureEditor0 load timeout) - after the rebuild the suite was 8/8 x2 (8.02s, 7.48s) and the lesson reinforced: restore -> REBUILD -> ctest; git diff --check exit 0 clean; the U+FFFD scan: only the KNOWN SESSION_BOARD mojibake; the size guard: no tracked doc grew >2x. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-320",
+   "depends_on": [
+    319
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
