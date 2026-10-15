@@ -3563,6 +3563,17 @@
    "depends_on": [
     319
    ]
+  },
+  {
+   "id": 321,
+   "name": "CORE: Entity/Scene/Persistence slice 1 - the persistence format/contract pins (tests-first, hostile_data_test; STOPPED at the 296-class lock - the recovery is the human + a gate-recovery step)",
+   "status": "stopped",
+   "definition_of_done": "The additive pins CODED AND COMMITTED (bc851d2, tests/hostile_data_test.cpp +137/-1, ctest 8 -> 8 no new target): PIN A the 4-decimal writer bound + the rounded reload; PIN B meshId NOT serialized (the 34-field/33-comma shape + the reload keeps the default 0 - the documented 311 contract); PIN C the dead-drop at the file level (exactly one entity= line, the dead tag absent, the alive one round-trips); PIN D the unknown-PREFIX strict reject with out untouched (scene.h:633); PIN E no .tmp survives the atomic save. The already-pinned contracts named and NOT re-pinned (checkSpawnAfterKill :5449-5457, checkSceneVersionUnknown, the malformed-value refuse). UNVERIFIED: the pins have never executed - the gates are BLOCKED by the 296-class lock (LNK1104 on hostile_data_test.exe + time_test.exe; 9 probes over ~9 min all failed; the lock spreads to EXECUTION - the game exes cannot start; alive x3 INVALID). The mutation was NOT performed. THE RECOVERY: the human clears the lock, then a gate-recovery step reruns the gates, performs the mutation, and flips 321 stopped -> completed.",
+   "notes": "THE CODE: commit bc851d2 (tests/hostile_data_test.cpp only; +137/-1). THE INSPECT-FIRST: the already-pinned contracts verified by reading (checkSceneSerialization :4002-4048 incl. the malformed refuse + out-untouched; checkScenePersistenceV2 :4051-4102 the 34-field round-trip; checkScenePersistenceV1Compat :4105-4132; checkSceneVersionUnknown :4135-4150 the v99 reject + out-untouched; checkSpawnAfterKill :5426-5482 the append-after-kill i2==2 + the stability; checkPrefabMultiSpawnPersist :5488+ the dead-drop count). THE GAPS FOUND: the 4-decimal writer bound, meshId non-serialization, the file-level dead-drop, the unknown-PREFIX reject (:633), the tmp leftover - all pinned by checkPersistenceFormatPins. THE LOCK EVIDENCE: LNK1104 on hostile_data_test.exe + time_test.exe at the first link; the ctest run 6/8 with 2 'Not Run' ([resource busy or locked]); 9 probe attempts (55s apart) ALL EXIT=1; the game exes cannot EXECUTE (Start-Process 'used by another process') - the first time the lock blocked execution, not just the link; the alive-probe 'True' outputs were the null-handling artifact, recorded INVALID. THE MUTATION: not performed (blocked). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-321",
+   "depends_on": [
+    320
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

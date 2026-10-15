@@ -1376,3 +1376,25 @@ ImGui / ECS / glTF / networking (the freezes stand).
   hostile_data_test.exe (the mutation restore reverts SOURCES, not BINARIES) and
   failed 2 runs, plus one PureEditor0 load timeout; after the rebuild the suite
   was 8/8 x2 (8.02s, 7.48s). RULE REINFORCED: restore -> REBUILD -> ctest.
+
+## Entry 60
+
+- **what:** the 296-class lock's THIRD incident (after 305 and 311) - and the FIRST
+  time it blocked EXECUTION, not just the link. Slice 1 (the persistence format/
+  contract pins) was coded and committed (`bc851d2`, tests-only) but every gate is
+  blocked: the Release link fails with LNK1104 on hostile_data_test.exe AND
+  time_test.exe (write+delete blocked, read OK), 9 probe attempts over ~9 minutes
+  all failed, ctest ran 6/8 with the 2 locked tests "Not Run" ([resource busy or
+  locked]), and Start-Process cannot run PureEngine.exe/Pong.exe/Platformer.exe
+  ("used by another process") - the game exes themselves are locked. The
+  alive-probe script's three "True" outputs were a null-handling ARTIFACT ($p null
+  -> -not $null = True) and are recorded as INVALID, not as passes - the script
+  must check ($null -ne $p) before reporting.
+- **class:** environment/infrastructure (the recurring exclusive lock; no code
+  defect; the slice's code is committed and the recovery is procedural).
+- **status:** recorded as the Step 321 STOP (the tracker 321 'stopped', the V3
+  STOP note). UNVERIFIED: the five pins have never executed; the mutation was not
+  performed. THE RECOVERY (the 305/311 pattern): the human clears the lock
+  (resmon -> Associated Handles, or delete the locked exes + rebuild), then a
+  gate-recovery step reruns the gates, performs the mutation (break PIN A -> FAIL
+  -> restore -> REBUILD -> ctest), and flips 321 stopped -> completed.

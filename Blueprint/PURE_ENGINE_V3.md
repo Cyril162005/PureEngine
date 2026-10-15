@@ -3727,6 +3727,23 @@ need explicit human approval.
 STATUS: Entity/Scene/Persistence: NOT STARTED -> AUDIT COMPLETE (Step 320,
 2026-10-15) / migration NOT STARTED. Core Foundation remains ACCEPTED (5 of 5,
 Step 319). Slice 1 NOT started - it waits on Cyril's go.
+***STOP NOTE (Step 321, 2026-10-15): THE 296-CLASS LOCK IS BACK (the third
+incident, after 305 and 311) - THIS TIME IT BLOCKS EXECUTION TOO.*** Slice 1
+(the persistence format/contract pins) is CODED AND COMMITTED (`bc851d2`,
+tests-only, hostile_data_test) but the gates are BLOCKED: the Release link
+fails with LNK1104 on hostile_data_test.exe AND time_test.exe (write+delete
+blocked, read OK), 9 probe attempts over ~9 minutes all failed, and the lock
+SPREAD TO EXECUTION - Start-Process cannot run PureEngine.exe/Pong.exe/
+Platformer.exe ("used by another process"; the three "ALIVE True" lines from
+the probe script are a null-handling ARTIFACT and are recorded as INVALID,
+not as passes). ctest ran 6/8 (the 2 locked tests "Not Run"). UNVERIFIED:
+the five pins have never executed; the mutation was NOT performed; alive x3
+INVALID. THE RECOVERY (the 305/311 pattern): the human clears the lock
+(resmon -> Associated Handles, or delete the locked exes + rebuild), then a
+gate-recovery step reruns the gates (the staged build, ctest 8/8, alive x3),
+performs the slice's mutation (break PIN A -> FAIL -> restore -> REBUILD ->
+ctest), and flips 321 stopped -> completed. The FINDINGS 59 rule stands:
+after any mutation restore, REBUILD before ctest.
 
 ## Kill criteria
 
