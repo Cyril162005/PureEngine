@@ -1398,3 +1398,14 @@ ImGui / ECS / glTF / networking (the freezes stand).
   (resmon -> Associated Handles, or delete the locked exes + rebuild), then a
   gate-recovery step reruns the gates, performs the mutation (break PIN A -> FAIL
   -> restore -> REBUILD -> ctest), and flips 321 stopped -> completed.
+- **recovery (2026-10-15, the gate-recovery step):** the lock cleared by Cyril
+  (the verbatim local evidence: "cmake --build build --config Release -> all
+  targets linked (incl. hostile_data_test, time_test)" and "ctest -C Release ->
+  8/8 Passed (hostile_data_test 12.98s … time_test 1.42s), 100%"). THE GATES
+  RE-RUN BY THE AGENT: the full build exit 0; the DIRECT hostile_data_test run
+  exit 0 with ZERO "pins:" failure lines + the aggregate PASS (PIN A-E executed);
+  ctest 8/8 100% (39.16s). THE MUTATION: PIN A broken (the expected prefix
+  0.1235 -> 0.1234) -> hostile_data_test FAILED with exactly "pins: A the writer
+  is not 4-decimal bound" (exit 8, NON-VACUOUS); restored by pathspec; REBUILT
+  (the FINDINGS 59 lesson) -> ctest 8/8 (9.50s). ALIVE x3 True with the FIXED
+  probe (the $null check). 321 flipped stopped -> completed.

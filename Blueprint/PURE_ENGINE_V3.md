@@ -3727,8 +3727,8 @@ need explicit human approval.
 STATUS: Entity/Scene/Persistence: NOT STARTED -> AUDIT COMPLETE (Step 320,
 2026-10-15) / migration NOT STARTED. Core Foundation remains ACCEPTED (5 of 5,
 Step 319). Slice 1 NOT started - it waits on Cyril's go.
-***STOP NOTE (Step 321, 2026-10-15): THE 296-CLASS LOCK IS BACK (the third
-incident, after 305 and 311) - THIS TIME IT BLOCKS EXECUTION TOO.*** Slice 1
+***STOP NOTE (Step 321, 2026-10-15): THE 296-CLASS LOCK (RESOLVED 2026-10-15: the
+human cleared the locks - the verbatim local evidence: "cmake --build build --config Release -> all targets linked (incl. hostile_data_test, time_test)" and "ctest -C Release -> 8/8 Passed (hostile_data_test 12.98s ... time_test 1.42s), 100%"; the gate-recovery step re-ran the gates green (the full build exit 0, ctest 8/8, the direct pins run exit 0 with zero "pins:" failure lines + the aggregate PASS), the mutation break-PIN-A NON-VACUOUS (exit 8, restored, REBUILT, 8/8 again), alive x3 True, 321 flipped completed - see the tracker + FINDINGS 60.) THE ORIGINAL TEXT BELOW IS KEPT FOR HISTORY.*** Slice 1
 (the persistence format/contract pins) is CODED AND COMMITTED (`bc851d2`,
 tests-only, hostile_data_test) but the gates are BLOCKED: the Release link
 fails with LNK1104 on hostile_data_test.exe AND time_test.exe (write+delete
