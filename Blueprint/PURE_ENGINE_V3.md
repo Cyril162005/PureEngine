@@ -3916,6 +3916,69 @@ STATUS: Entity/Scene/Persistence IN PROGRESS (3 of 5). Slice 4 (the hostile_data
 parse split - STAY-INLINE was the 322 verdict, revisitable) NOT started; it waits
 on Cyril. Slice 5 (the STAY-INLINE decision) was decided at 322.
 
+### Entity/Scene/Persistence Step 325 (2026-10-16) - CATEGORY ACCEPTED (close, docs + gates)
+
+The category close per Cyril's Step 325 authorization. THE GATES AT CLOSE (all
+green): the full build exit 0; ctest -C Release 8/8 100% (14.42s); alive x3 True
+(PureEngine, Pong, Platformer, the $null-checked probe).
+
+THE DELIVERED PROGRAM (the 320 audit's 5-slice shape, as executed):
+- Slice 1 (Step 321, RECOVERED the same day after the 296-class lock): the
+  persistence FORMAT/CONTRACT pins in hostile_data_test - PIN A the 4-decimal
+  writer bound + the rounded reload, PIN B meshId NOT serialized (the 34-field/
+  33-comma shape + the default 0), PIN C the file-level dead-drop, PIN D the
+  unknown-PREFIX strict reject with out untouched, PIN E no .tmp after the
+  atomic save. The already-pinned contracts named and not re-pinned.
+- Slice 2 (Step 323): the paired src/scene_persist.h/.cpp - the 4 persistence
+  bodies + the 7 file-local helpers moved VERBATIM from scene.h :277-816;
+  scene.h 820 -> 279 lines with ZERO I/O includes; scene_persist.cpp linked
+  into 5 targets (incl. LevelPipelineConsumer - the fan-out the link caught);
+  the golden byte-identity proof ALL FOUR files vs the pre-split SHA256.
+- Slice 3 (Step 324): the paired src/prefab_persist.h/.cpp - loadPrefab + the
+  prefab_detail helpers moved VERBATIM from prefab.h :58-177; prefab.h 209 ->
+  88 lines with ZERO I/O includes; prefab_persist.cpp linked into the 4 caller
+  targets.
+- Slice 4 (the hostile_data parse split): NOT EXECUTED - SUPERSEDED by the Step
+  322 INSPECT+DECIDE verdict (STAY-INLINE: the bodies ~130 lines moderate, the
+  DIRECT fan-out narrow at 3, the transitive reach 5 via lifecycle.h :58;
+  revisit only on a measured need).
+- Slice 5 (the STAY-INLINE decisions, decided at 322 with the numbers):
+  entity.h (~0 non-trivial bodies, light includes, the 8-TU fan-out pays almost
+  nothing; the plain-struct v1.1 ruling), components.h (16 one-line sugar
+  functions), lifecycle.h (~80 DATA-shaped lines; the transitive hostile_data.h
+  include via :58 noted).
+
+THE ACCEPTANCE CRITERIA (the 320 draft A-I) - ALL MET:
+A the build exit 0 at every slice; B ctest green, the additive count 5 -> 8
+(the Core's probe/math/time targets; the category's pins joined
+hostile_data_test); C the live editor save/load smoke - Cyril's VERBATIM PASS
+at 318 + alive x3 at every slice; D structure: one .h/.cpp per migrated
+boundary, the ODR grep 0 (the 320 baseline held through both splits), no API
+signature changes beyond the declared linkage moves; E include hygiene: all
+src/ GLFW sites guarded, no windows.h in the category headers, the I/O
+includes now live ONLY in scene_persist.cpp/prefab_persist.cpp; F consumer
+linkage complete (5 targets link scene_persist.cpp, 4 link
+prefab_persist.cpp, every caller covered); G pe_core's instantiation list
+still matches its claim; H format stability: the golden byte-identity proof
+ALL FOUR (323) + the pins (321); I measurement not budget (no timing asserts
+anywhere).
+
+THE HONEST LIMITS - UNCHANGED RECORDED CONTRACTS: the dead-drop-on-save, the
+4-decimal format, the append-here index semantics, meshId not in the scene
+file, the strict version/prefix rejects, the atomic tmp+rename. Changes need
+explicit human approval.
+
+THE RESIDUALS (recorded, none blocking): the editor keeps its own
+hidden-window bootstrap; pe_core instantiates the category headers but links
+only scene_persist.cpp (it never calls loadPrefab, so prefab_persist.cpp is
+not in its sources - the declarations suffice); hostile_data.h keeps its
+transitive I/O reach via lifecycle.h :58.
+
+STATUS: Entity/Scene/Persistence ACCEPTED (2026-10-16). The migration program:
+3 implemented slices + 2 decision-slices (one superseding a proposed split).
+The next category (Render/Physics/math or any other) opens ONLY on Cyril's
+explicit prompt.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

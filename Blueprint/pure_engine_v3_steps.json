@@ -3607,6 +3607,17 @@
    "depends_on": [
     323
    ]
+  },
+  {
+   "id": 325,
+   "name": "CLOSE: Entity/Scene/Persistence category ACCEPTED (docs + gates; the 320 draft criteria A-I all met; 3 implemented slices + 2 decision-slices; the next category opens only on Cyril's explicit prompt)",
+   "status": "completed",
+   "definition_of_done": "The category close recorded in PURE_ENGINE_V3.md: the delivered program (Slice 1 the format/contract pins at 321 RECOVERED the same day; Slice 2 the scene_persist.h/.cpp split at 323 with the golden byte-identity proof ALL FOUR; Slice 3 the prefab_persist.h/.cpp split at 324; Slice 4 SUPERSEDED by the 322 STAY-INLINE verdict; Slice 5 the STAY-INLINE decisions decided at 322 with the numbers), the 320 acceptance criteria A-I all met (the build exit 0 at every slice, ctest 8/8 with the additive pins, the live smoke + alive x3, the structure/ODR 0, the include hygiene with the I/O includes only in the .cpp files, the consumer linkage complete, the pe_core list matched, the format byte-stability, measurement not budget), the honest contracts UNCHANGED, the residuals recorded (the editor bootstrap, pe_core's prefab_persist non-link, the lifecycle transitive I/O). Gates at close: the build exit 0, ctest 8/8 (14.42s), alive x3 True. No code this step; no new category opened.",
+   "notes": "Docs-only close; the gates ran BEFORE the record (the build exit 0, ctest -C Release 8/8 100% (14.42s), alive x3 True with the $null-checked probe - recorded in V3). THE SLICE LEDGER: 321 the pins (RECOVERED the same day after the 296-class lock; the FINDINGS 59 lesson applied at 323/324), 323 the scene split (the golden ALL FOUR; LevelPipelineConsumer's fan-out caught by the link), 324 the prefab split (the mutation x4 assertions), 322 the INSPECT+DECIDE (scene.h + prefab.h SPLIT-JUSTIFIED; hostile/entity/components/lifecycle STAY-INLINE with the numbers - Slice 4 superseded), 322/323/324 the STAY-INLINE decisions held. THE HONEST CONTRACTS UNCHANGED: the dead-drop, the 4-decimal format, the append indices, meshId non-serialization, the strict rejects, the atomic tmp+rename. THE RESIDUALS: the editor's own hidden-window bootstrap; pe_core links scene_persist.cpp but not prefab_persist.cpp (it never calls loadPrefab); lifecycle.h's transitive hostile_data.h I/O reach. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-325",
+   "depends_on": [
+    324
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
