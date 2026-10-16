@@ -9809,6 +9809,193 @@ static bool checkWindowGuard() {
     return ok;
 }
 
+// Step 327: the headless 2D drawWorld contract checks (Render slice 1,
+// tests-first per the 326 audit's largest-gap finding). The probes use
+// TEXEL-FREE CHANNEL ISOLATION: the collision tint override (renderer.h
+// :599-600) zeroes the green channel in the whole footprint regardless of
+// the texel, and a non-colliding (0,1,0) tint zeroes the red channel - so
+// the depth-sort winner is observable without knowing any texture content.
+// The palette rule (renderer.h :213-214: every palette color keeps
+// red-channel content) guarantees the mutation's non-vacuity.
+static bool checkDraw2DContract() {
+    if (!glfwInit()) { std::cerr << "draw2d test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "draw2d", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "draw2d skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "draw2d skipped: gladLoadGL failed\n"; return true;
+    }
+    bool ok = true;
+    pe::Renderer r;
+    if (!r.init()) { std::cerr << "draw2d: renderer init must succeed\n"; glfwDestroyWindow(w); glfwTerminate(); return false; }
+    glViewport(0, 0, 320, 240);
+    // The ortho over a known world rect: 40 px/unit on the 320x240 window.
+    const pe::Mat4 proj = pe::Mat4::orthographic(-4.0f, 4.0f, -3.0f, 3.0f, -1.0f, 1.0f);
+    const pe::Mat4 view = pe::Mat4();
+    auto clear = [&]() { glClearColor(0.0f, 0.0f, 0.0f, 1.0f); glClear(GL_COLOR_BUFFER_BIT); };
+    // The probe points INSIDE the entity triangle at P=(0.5,0.5): the
+    // vertices are (0,0),(1,0),(0.5,1) - all five probes are interior.
+    const float probeX[5] = { 0.50f, 0.40f, 0.60f, 0.45f, 0.55f };
+    const float probeY[5] = { 0.35f, 0.30f, 0.30f, 0.42f, 0.42f };
+    auto readProbes = [&](float outR[5], float outG[5], float outB[5]) {
+        for (int i = 0; i < 5; ++i) {
+            const int fx = static_cast<int>((probeX[i] + 4.0f) / 8.0f * 320.0f);
+            const int fy = static_cast<int>((probeY[i] + 3.0f) / 6.0f * 240.0f);
+            float px[3] = {0.0f, 0.0f, 0.0f};
+            glReadPixels(fx, fy, 1, 1, GL_RGB, GL_FLOAT, px);
+            outR[i] = px[0]; outG[i] = px[1]; outB[i] = px[2];
+        }
+    };
+    auto probesOk = [&](float rr[5], float gg[5], float bb[5], float rExp, float gExp, float bExp) {
+        for (int i = 0; i < 5; ++i) {
+            if (std::fabs(rr[i] - rExp) > 0.05f || std::fabs(gg[i] - gExp) > 0.05f ||
+                std::fabs(bb[i] - bExp) > 0.05f) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    // PIN 1: the DEPTH SORT - the higher depth wins the overlap. A (depth 2,
+    // colliding -> the red override) must cover B (depth 1, the green tint
+    // 0,1,0, not colliding). A's footprint zeroes the GREEN channel
+    // (texel-free: (texel.rgb) x (1,0,0)); the loser's footprint would zero
+    // the RED channel. The assert: all probes G < eps AND at least one probe
+    // R > eps (the palette rule - tex_player keeps red-channel content - so
+    // the flipped-sort mutation shows red and fails).
+    {
+        clear();
+        pe::Entity a(pe::Vec3(0.5f, 0.5f, 0.0f), 0.0f, pe::Vec3(1,1,1), pe::Vec3(0.5f,0.5f,0.0f), 0);
+        a.depth = 2.0f;
+        pe::Entity b(pe::Vec3(0.5f, 0.5f, 0.0f), 0.0f, pe::Vec3(1,1,1), pe::Vec3(0.5f,0.5f,0.0f), 0);
+        b.depth = 1.0f; b.tint = pe::Vec3(0.0f, 1.0f, 0.0f);
+        std::vector<pe::Entity> ents = {a, b};
+        std::vector<char> coll = {1, 0};
+        r.drawWorld(proj, view, ents, coll);
+        float rr[5], gg[5], bb[5];
+        readProbes(rr, gg, bb);
+        bool allGreenZero = true;
+        bool anyRed = false;
+        for (int i = 0; i < 5; ++i) {
+            if (std::fabs(gg[i]) > 0.05f) allGreenZero = false;
+            if (rr[i] > 0.05f) anyRed = true;
+        }
+        if (!allGreenZero || !anyRed) {
+            std::cerr << "draw2d: the higher depth must win the overlap (the red-colliding A covers the green B)\n";
+            ok = false;
+        }
+    }
+    // PIN 2: the COLLISION OVERRIDE - a colliding entity zeroes the green
+    // channel (the red override x the texel) regardless of its tint.
+    {
+        clear();
+        pe::Entity e(pe::Vec3(0.5f, 0.5f, 0.0f), 0.0f, pe::Vec3(1,1,1), pe::Vec3(0.5f,0.5f,0.0f), 0);
+        e.tint = pe::Vec3(0.0f, 1.0f, 0.0f);
+        std::vector<pe::Entity> ents = {e};
+        std::vector<char> coll = {1};
+        r.drawWorld(proj, view, ents, coll);
+        float rr[5], gg[5], bb[5];
+        readProbes(rr, gg, bb);
+        for (int i = 0; i < 5; ++i) {
+            if (std::fabs(gg[i]) > 0.05f) {
+                std::cerr << "draw2d: the colliding override must zero the green channel\n";
+                ok = false; break;
+            }
+        }
+    }
+    // PIN 3: the DEAD entities draw nothing - the clear color survives.
+    {
+        clear();
+        pe::Entity d(pe::Vec3(0.5f, 0.5f, 0.0f), 0.0f, pe::Vec3(1,1,1), pe::Vec3(0.5f,0.5f,0.0f), 0);
+        d.alive = false;
+        pe::Entity d2 = d; d2.position = pe::Vec3(-2.0f, 1.0f, 0.0f);
+        std::vector<pe::Entity> ents = {d, d2};
+        std::vector<char> coll = {0, 0};
+        r.drawWorld(proj, view, ents, coll);
+        float rr[5], gg[5], bb[5];
+        readProbes(rr, gg, bb);
+        if (!probesOk(rr, gg, bb, 0.0f, 0.0f, 0.0f)) {
+            std::cerr << "draw2d: dead entities must draw nothing (the clear color survives)\n";
+            ok = false;
+        }
+    }
+    // PIN 4: meshId>0 entities are SKIPPED in the 2D pass (the Step 232
+    // single-clear rule) - the clear color survives at their position.
+    {
+        clear();
+        pe::Entity m(pe::Vec3(0.5f, 0.5f, 0.0f), 0.0f, pe::Vec3(1,1,1), pe::Vec3(0.5f,0.5f,0.0f), 0);
+        m.meshId = 3;
+        std::vector<pe::Entity> ents = {m};
+        std::vector<char> coll = {0};
+        r.drawWorld(proj, view, ents, coll);
+        float rr[5], gg[5], bb[5];
+        readProbes(rr, gg, bb);
+        if (!probesOk(rr, gg, bb, 0.0f, 0.0f, 0.0f)) {
+            std::cerr << "draw2d: meshId>0 must be skipped in the 2D pass\n";
+            ok = false;
+        }
+    }
+    // PIN 5: the blend state is RESTORED after the world pass (renderer.h
+    // :632-633) - and the depth stays OFF (the checkDepthState contract).
+    {
+        if (glIsEnabled(GL_BLEND) != GL_FALSE) {
+            std::cerr << "draw2d: GL_BLEND must be disabled after the world pass\n";
+            ok = false;
+        }
+        if (glIsEnabled(GL_DEPTH_TEST) != GL_FALSE) {
+            std::cerr << "draw2d: the depth must stay OFF after the 2D pass\n";
+            ok = false;
+        }
+    }
+    // PIN 6: the OOB textureId falls back to the checker WITHOUT crashing
+    // (the diagnostic is NDEBUG-gated - silent in Release, no flake). The
+    // texel is the checker's - assert only that SOMETHING drew (not the
+    // clear color) at the footprint.
+    {
+        clear();
+        pe::Entity o(pe::Vec3(0.5f, 0.5f, 0.0f), 0.0f, pe::Vec3(1,1,1), pe::Vec3(0.5f,0.5f,0.0f), 0);
+        o.textureId = 999;
+        std::vector<pe::Entity> ents = {o};
+        std::vector<char> coll = {0};
+        r.drawWorld(proj, view, ents, coll);
+        float rr[5], gg[5], bb[5];
+        readProbes(rr, gg, bb);
+        bool drewSomething = false;
+        for (int i = 0; i < 5; ++i) {
+            if (rr[i] > 0.05f || gg[i] > 0.05f || bb[i] > 0.05f) drewSomething = true;
+        }
+        if (!drewSomething) { std::cerr << "draw2d: the OOB textureId must fall back to a drawn texture\n"; ok = false; }
+    }
+    // PIN 7: the LIT overload is callable headless and draws through its
+    // fallback path (litProgram==0 -> the unlit program, renderer.h :412-416)
+    // or through the real lit program - either way something drew.
+    {
+        clear();
+        pe::LightingState lights;
+        lights.ambient.color = pe::Vec3(1.0f, 1.0f, 1.0f);
+        lights.ambient.intensity = 1.0f;
+        pe::Entity e(pe::Vec3(0.5f, 0.5f, 0.0f), 0.0f, pe::Vec3(1,1,1), pe::Vec3(0.5f,0.5f,0.0f), 0);
+        std::vector<pe::Entity> ents = {e};
+        std::vector<char> coll = {0};
+        r.drawWorld(proj, view, ents, coll, lights);
+        float rr[5], gg[5], bb[5];
+        readProbes(rr, gg, bb);
+        bool drewSomething = false;
+        for (int i = 0; i < 5; ++i) {
+            if (rr[i] > 0.05f || gg[i] > 0.05f || bb[i] > 0.05f) drewSomething = true;
+        }
+        if (!drewSomething) { std::cerr << "draw2d: the lit overload must draw (its fallback or its own path)\n"; ok = false; }
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
 // Step 319: the shared bootstrap contract (Core Foundation slice 5).
 // bootWindow owns init/hints/create/context/glad: a degenerate window size
 // must fail CLEANLY (ok=false, window null, the cleanup done inside), and a
@@ -10552,6 +10739,7 @@ int main() {
     const bool timeContractOk = checkTimeContract();
     const bool windowGuardOk = checkWindowGuard();
     const bool windowBootOk = checkWindowBoot();
+    const bool draw2dOk = checkDraw2DContract();
     const bool perspectiveOk = checkPerspective();
     const bool camera3DOk = checkCamera3D();
     const bool mesh3DOk = checkMesh3D();
@@ -10638,7 +10826,7 @@ int main() {
         !sceneLifecycleOk || !sceneNoOpsOk ||
         !hierarchyChainOk || !hierarchyRefusalsOk || !hierarchyEdgeOk ||
         !fontCellsOk || !fontMetricsOk ||
-        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !windowBootOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !meshWorldLightOk || !meshSizingOk || !meshSizeInvariantOk || !aabbDebugSizeOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
+        !eventsOrderOk || !eventsUnsubOk || !eventsEdgeOk || !eventThrowOnceOk || !eventGapOk || !followLerpOk || !consoleContractOk || !particleContractOk || !timeContractOk || !windowGuardOk || !windowBootOk || !draw2dOk || !perspectiveOk || !camera3DOk || !mesh3DOk || !depthStateOk || !view3DOk || !editorLiteOk || !editorSafetyOk || !editorKillOk || !editorSpawnOk || !editorKillOk || !editorSpawnOk || !debugFrameOk || !debug3dParseOk || !nohostilesParseOk || !nohostilesKillOk || !bounceRestOk || !pongStuckOk || !cameraHalfOk || !meshLoadOk || !meshRegistryOk || !texturedMeshOk || !meshTexIdOk || !meshLightOk || !meshOcclusionOk || !meshDepthStateOk || !wedgeMeshOk || !texIdParseOk || !meshStateLeakOk || !frozen3DConsumerOk || !meshWorldLightOk || !meshSizingOk || !meshSizeInvariantOk || !aabbDebugSizeOk || !rotationYOk || !massWeightingOk || !tileResolveOk || !dropPhysicsOk || !sandboxResolveOk || !bounceTunnelOk || !spawnQueueOk || !restitutionOk || !frictionOk || !meshHandleOk || !meshIdParseOk || !camParseOk || !orbitOk || !fovParseOk || !tint3DOk || !arc3DOk || !entity3DRefreshOk || !pyramidOk || !entity3DYawOk || !entity3DOk ||
         !consoleToggleOk || !consoleFeedOk || !consoleSubmitOk ||
         !consoleHistoryOk ||
         !gamepadDeadzoneOk || !gamepadButtonsOk || !gamepadEdgeOk ||
