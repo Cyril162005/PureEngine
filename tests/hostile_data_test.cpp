@@ -4541,6 +4541,50 @@ static bool checkTextureRegistry() {
     // Valid id 5 must not be OOB
     if (5 < 0 || 5 >= static_cast<int>(reg.size())) { std::cerr << "Texture id 5 should be valid\n"; return false; }
     return true;
+
+    // --- Step 329: the REAL registry semantics through the PUBLIC API ---
+    // (releaseTexture itself is private; the public unload/counting path
+    // observes the same contracts: the non-core release count, the
+    // idempotent second unload = the double-release refuse via the zeroed
+    // slots, the core slots surviving, the re-register after the unload).
+    // The single-slot releaseTexture refusals (the core id < 5 refuse, the
+    // negative/OOB refuse) stay PRIVATE - recorded, not directly pinnable.
+    bool registryRendererOk = true;
+    if (!glfwInit()) { std::cerr << "texture registry renderer section skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* wr = glfwCreateWindow(320, 240, "texreg", NULL, NULL);
+    if (!wr) { glfwTerminate(); std::cerr << "texture registry renderer section skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(wr);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(wr); glfwTerminate();
+        std::cerr << "texture registry renderer section skipped: gladLoadGL failed\n"; return true;
+    }
+    {
+        pe::Renderer r;
+        if (!r.init()) { std::cerr << "texture registry: renderer init must succeed\n"; registryRendererOk = false; }
+        else {
+            const int baseCount = r.textureCount();   // 6 after init (0..4 + the Step 89 proof slot 5)
+            if (baseCount != 6) { std::cerr << "texture registry: the post-init count must be 6\n"; registryRendererOk = false; }
+            const int id6 = r.registerNonCoreTexture("tex_player.png");
+            if (id6 != baseCount) { std::cerr << "texture registry: the register must append at the next slot\n"; registryRendererOk = false; }
+            if (r.textureCount() != baseCount + 1) { std::cerr << "texture registry: the count must grow by one\n"; registryRendererOk = false; }
+            const int released1 = r.unloadNonCoreTextures();
+            if (released1 != 2) { std::cerr << "texture registry: the first unload must release the 2 non-core slots\n"; registryRendererOk = false; }
+            if (r.textureCount() != baseCount + 1) { std::cerr << "texture registry: the unload must keep the slots (the ids stable)\n"; registryRendererOk = false; }
+            const int released2 = r.unloadNonCoreTextures();
+            if (released2 != 0) { std::cerr << "texture registry: the second unload must release nothing (the double-release refuse via the zeroed slots)\n"; registryRendererOk = false; }
+            const int id7 = r.registerNonCoreTexture("tex_player.png");
+            if (id7 != baseCount + 1) { std::cerr << "texture registry: the re-register after the unload must append a fresh slot\n"; registryRendererOk = false; }
+            r.unloadNonCoreTextures();   // cleanup
+        }
+    }
+    glfwDestroyWindow(wr);
+    glfwTerminate();
+    if (!registryRendererOk) return false;
 }
 
 static bool checkEventThrowAndOnce() {
