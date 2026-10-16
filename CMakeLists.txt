@@ -83,6 +83,7 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     src/window.cpp
     src/scene_persist.cpp
+    src/prefab_persist.cpp
     src/stb_impl.cpp
     "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
@@ -188,6 +189,7 @@ add_executable(hostile_data_test
     # the ONE stb implementation unit (same pattern as resources_test).
     src/window.cpp
     src/scene_persist.cpp
+    src/prefab_persist.cpp
     src/stb_impl.cpp
     # Step 168: the console contract test references drawConsole ->
     # drawTextString -> glad_gl* symbols; compile the already-fetched
@@ -244,6 +246,7 @@ add_test(NAME resources_test COMMAND resources_test)
 add_executable(LevelPipelineConsumer
     consumers/level_pipeline/consumer.cpp
     src/scene_persist.cpp
+    src/prefab_persist.cpp
 )
 target_include_directories(LevelPipelineConsumer PRIVATE "${glfw_SOURCE_DIR}/include")
 add_test(NAME LevelPipelineConsumer COMMAND LevelPipelineConsumer
@@ -258,6 +261,7 @@ set_tests_properties(LevelPipelineConsumer PROPERTIES TIMEOUT 60)
 add_executable(PureEditor0
     tools/editor0/main.cpp
     src/scene_persist.cpp
+    src/prefab_persist.cpp
     src/stb_impl.cpp
     "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
