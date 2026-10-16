@@ -3864,6 +3864,58 @@ STATUS: Entity/Scene/Persistence IN PROGRESS (2 of 5). Slice 3 (the prefab
 split - SPLIT-JUSTIFIED at 322) and Slice 4 (the hostile parse) NOT started -
 they wait on Cyril. Slice 5 (the STAY-INLINE decision) was decided at 322.
 
+### Entity/Scene/Persistence Step 324 (2026-10-16) - slice 3: the prefab I/O split, COMPLETE
+
+The second Entity/Scene .h/.cpp split, per the Step 322 SPLIT-JUSTIFIED verdict (the
+scene_persist pattern). THE INSPECT (before any edit): prefab.h 209 lines - struct
+Prefab :33-56 + instantiatePrefab :181-205 (pure construction, STAY) + the
+prefab_detail helpers :59-97 (prefabTrim/prefabCandidates/prefabParseFloat/
+prefabParseVec3/prefabParseBool - ZERO external users, grep-verified) + loadPrefab
+:103-177 (the 3-candidate probe + the CWD/absolute fallbacks + the strict header
+check + the malformed/unknown-key warn+skip). The caller grep: main.cpp (2),
+editor0_core.h (1) + editor0/main.cpp (12), hostile_data_test (11), consumer.cpp
+(23) - the linkage set = PureEngine, PureEditor0, hostile_data_test,
+LevelPipelineConsumer.
+
+THE SPLIT (commit CORE-324, `8154c98`, 4 files +180/-126):
+- NEW paired src/prefab_persist.h (32 lines: the loadPrefab declaration + the
+  contract comment) + src/prefab_persist.cpp (~120 lines: the bodies VERBATIM,
+  inline stripped; the prefab_detail helpers file-local).
+- prefab.h slimmed 209 -> 88 lines: the Prefab struct + instantiatePrefab STAY;
+  the I/O includes <iostream>/<fstream>/<sstream>/<filesystem> GONE (were 4);
+  the guarded prefab_persist.h include AFTER the namespace close (the
+  scene_persist pattern); the stale "Header-only, no CMakeLists.txt change" doc
+  line updated.
+- The load contracts UNCHANGED: the 3-candidate probe, the strict "# PureEngine
+  prefab v1" header check, the malformed-warn+skip, the unknown-key warn+skip,
+  out assigned only on the full success.
+- CMake: prefab_persist.cpp added to the four caller targets. NOT added:
+  pe_core (it includes prefab.h but never calls loadPrefab - the declarations
+  suffice; the recorded residual), the probes (include-only).
+
+GATES (against `8154c98`): the full build exit 0 (11 targets); ctest -C Release
+8/8 100% (24.59s; the checkPrefab* family + the persistence pins all green);
+alive x3 True with the FIXED probe.
+
+MUTATION (the Step 285 check, on the MOVED code): loadPrefab mutated to always
+return false (the parsed result dropped) -> hostile_data_test FAILED with FOUR
+load-path assertions ("shipped enemy.txt failed to load" x2, the multi-persist
+test, the failure-matrix check; exit 8) - NON-VACUOUS; restored by pathspec;
+REBUILT -> ctest 8/8 (15.60s).
+
+THE IN-STEP FRICTION (all caught before any damage): the anchor asserts caught
+three label/idx off-by-ones (the read-display labels are idx+1) and one leftover
+assembly line from an abandoned approach (it duplicated the doc-fix line and
+swallowed the */ close -> the C1071 EOF-in-comment build error) - fixed by the
+byte-level tail dump + the leftover removal; the mutation's first anchor used LF
+against the CRLF file (count 0 - nothing changed) and its first replacement
+dropped the closing brace (the C1075 imbalance) - both fixed before the mutation
+landed.
+
+STATUS: Entity/Scene/Persistence IN PROGRESS (3 of 5). Slice 4 (the hostile_data
+parse split - STAY-INLINE was the 322 verdict, revisitable) NOT started; it waits
+on Cyril. Slice 5 (the STAY-INLINE decision) was decided at 322.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

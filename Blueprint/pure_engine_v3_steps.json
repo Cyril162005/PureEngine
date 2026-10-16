@@ -3596,6 +3596,17 @@
    "depends_on": [
     322
    ]
+  },
+  {
+   "id": 324,
+   "name": "CORE: Entity/Scene slice 3 - the prefab I/O split (the paired prefab_persist.h/.cpp - loadPrefab + the prefab_detail helpers moved verbatim; prefab.h 209 -> 88 lines with ZERO I/O includes; the load contracts UNCHANGED; Entity/Scene IN PROGRESS 3/5)",
+   "status": "completed",
+   "definition_of_done": "The inspect-first report (prefab.h 209 lines: the Prefab struct + instantiatePrefab STAY; the prefab_detail helpers + loadPrefab MOVE; the helpers zero-external-users; the caller grep = main/editor0/hostile_data_test/consumer). THE SPLIT: the paired src/prefab_persist.h (32 lines, the loadPrefab declaration + the contract comment) + src/prefab_persist.cpp (~120 lines, the bodies VERBATIM, inline stripped, the helpers file-local in prefab_detail); prefab.h 209 -> 88 lines (the I/O includes <iostream>/<fstream>/<sstream>/<filesystem> GONE; the guarded prefab_persist.h include AFTER the namespace close; the stale Header-only doc line updated); prefab_persist.cpp linked into the four caller targets (PureEngine, PureEditor0, hostile_data_test, LevelPipelineConsumer; pe_core NOT - it never calls loadPrefab, the declarations suffice - the recorded residual). THE LOAD CONTRACTS UNCHANGED. Gates against 8154c98: the build exit 0 (11 targets), ctest 8/8 (24.59s; the checkPrefab* family + the persistence pins green), alive x3 True. MUTATION on the MOVED code: loadPrefab always-false -> hostile_data_test FAILED with FOUR load-path assertions (exit 8, NON-VACUOUS), restored, REBUILT, 8/8. Entity/Scene IN PROGRESS (3 of 5); Slice 4 waits on Cyril.",
+   "notes": "Code commit 8154c98 (CORE-324: src/prefab.h 209 -> 88 lines, src/prefab_persist.h +32, src/prefab_persist.cpp +~120, CMakeLists.txt +4; 4 files +180/-126). THE CALLER GREP: main.cpp 2 calls, editor0_core.h 1 + editor0/main.cpp 12, hostile_data_test 11, consumer.cpp 23; the helpers ZERO external users. THE IN-STEP FRICTION (all caught before any damage): 1. three label/idx off-by-ones in the anchor asserts (the read-display labels are idx+1) - fixed by the byte-level tail dump (idx177 = the blank, idx178 = the instantiate comment, idx206 = the namespace close); 2. a leftover assembly line from an abandoned approach duplicated the doc-fix line and swallowed the */ close (the C1071 EOF-in-comment build error) - the leftover removed, prefab.h restored + re-split; 3. the mutation's first anchor used LF against the CRLF file (count 0, nothing changed) and its first replacement dropped the closing brace (the C1075 imbalance) - both fixed before the mutation landed. THE MUTATION EVIDENCE: FOUR load-path assertions failed (the shipped enemy.txt x2, the multi-persist test, the failure matrix). THE RESIDUAL: pe_core does not link prefab_persist.cpp (it never calls loadPrefab). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-324",
+   "depends_on": [
+    323
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
