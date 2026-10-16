@@ -3640,6 +3640,17 @@
    "depends_on": [
     326
    ]
+  },
+  {
+   "id": 328,
+   "name": "AUDIT: Render 3D contract coverage matrix (docs-only; the 17-row matrix with the exact test assertions read from the bodies, the 327 PIN reassessment, the top-5 gaps, the recommended smallest 329, the mesh3d OBJ-split verdict SPLIT-JUSTIFIED with numbers, the self-review)",
+   "status": "completed",
+   "definition_of_done": "The coverage matrix recorded in PURE_ENGINE_V3.md: 17 contract rows (the registry register/replace/lookup/fallback, the OBJ load success + the failure paths, the depth enable/write/restore, the occlusion, the clearDepth + the color preservation, the texture registry/release, the destroyAll partial-init, the lighting uniforms, the lit fallback, the 2D depth sort, the collision override, the meshId 2D skip, the blend restore, the AABB debug, the font/digit path) - each with the symbol file:line, the intended behavior, the EXACT test assertion read from the body (no coverage from names), Covered/Partial/Unverified, the mode, the strongest missing assert, the confidence. The 327 PIN reassessment (only PIN 1 mutated; PIN 6/7 observe something-drew only). The top-5 gaps ranked. The recommended smallest 329 (the 2 mutations + the release-refusal asserts, read-checkTextureRegistry-first). The mesh3d OBJ-split verdict SPLIT-JUSTIFIED with the numbers (the 91-line loader, the 5-TU fan-out, 3-of-5 never-load, the ODR 0, the risks low). The self-review (the weakest inference named). Gates: the build exit 0, ctest 8/8 (22.73s), alive x3 True. No tests, no source edits.",
+   "notes": "Docs-only. THE KEY READS: checkMeshLoad :7608-7660 (size==60 EXACT + the UV bounds + the out-untouched), checkMeshRegistry :7749-7812 (the MEASURED depth-strip probe distinguishing the loaded tetra from the cube fallback), checkMeshStateLeak :6492-6545 (the SENTINEL corner pixel surviving clearDepth=true), checkMeshOcclusion :8218+ (the near/far pixel probe), mesh3d.h :102-192 (the loader: the 3-candidate probe, the 1-based bounds-checked indexing, the malformed warn+skip, the per-face planar UV scheme, out UNTOUCHED, the triangles==0 reject), renderer.h :740-800/:835-870/:1130-1268 (the registry/replace, the depth discipline, the TEXTURE LIFETIME CONTRACT :1140-1168, releaseTexture :1201-1207 the core-refuse, destroyAll :1218-1241 safe-at-any-partial-init). THE SELF-REVIEW - THE WEAKEST INFERENCE: the row-9 classification (Partial) without reading checkTextureRegistry's body - the refusal asserts may already exist; the 329 recommendation reads FIRST. THE SECOND-WEAKEST: PIN 6/7 depend on the assets loading in the ctest CWD. GATES: the build exit 0, ctest 8/8 (22.73s), alive x3 True. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-328",
+   "depends_on": [
+    327
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -3,7 +3,7 @@
 Per-session rows; update your row when you start/stop. Claims need real
 command output behind them (see AGENTS.md reporting expectations).
 Feature history stays in pure_engine_v3_steps.json + PURE_ENGINE_V3.md �
-this board never replaces it. Highest step id: 327 (292 entries, no dups; the 327 entry = the Render slice 1 headless 2D drawWorld contract checks, the depth-sort mutation NON-VACUOUS - see the tracker/V3;
+this board never replaces it. Highest step id: 328 (293 entries, no dups; the 328 entry = the Render 3D contract coverage MATRIX + the ranked gaps + the recommended 329 + the mesh3d SPLIT-JUSTIFIED verdict - see the tracker/V3;
 the former '287 entries' count was stale).
 
 ## Focus (binding for all sessions)

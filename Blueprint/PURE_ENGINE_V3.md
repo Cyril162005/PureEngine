@@ -4097,6 +4097,122 @@ STATUS: Render migration IN PROGRESS (1 of N - the pins landed; the mesh3d
 SPLIT-JUSTIFIED candidate and any further Render slices wait on Cyril's go).
 The live pixel-perfect smoke stays VERIFICATION REQUIRED (human), not CI.
 
+### Render Step 328 (2026-10-16) - the 3D contract coverage audit (docs-only, matrix + gaps + the 329 recommendation)
+
+Docs-only. No new tests, no source edits, no mesh3d.cpp, no renderer API change.
+The gates at audit time: the build exit 0, ctest 8/8 (22.73s), alive x3 True.
+
+THE INVENTORY (file:line, all header-only): the mesh registry registerMesh
+renderer.h :752-754 (meshRegistry_[id] = move - the re-register REPLACES, the
+Step 89 rule; meshId 1/2 stay the hardcoded paths, the registry serves 3+),
+clearRegisteredMeshes :755-758; the lookup :789-799 (the registered draws its
+data; the unregistered >2 AND the empty registered vector fall back to the cube;
+meshId==0 -> no 3D draw :765-767); drawEntity3D :763-834 (the Step 261 sizing =
+halfExtents*scale*2 :776-780; the tint drives the color :781-785); the depth
+discipline :841-854 (the depthWasOn capture, glEnable, the clearDepth OPT-IN
+clear :852-854, the color buffer never touched) and :986-989 (drawDebugMesh3D's
+own); drawEntityMesh3D :826-969 (the per-face loop :860-866 note); the CPU
+per-face lighting :868+; drawAABBs :1085-1129; the TEXTURE LIFETIME CONTRACT
+:1140-1168 (LOAD/REGISTER/DRAW/RELEASE/CLEAR/TEARDOWN/STALE IDS - the core
+0..4 refuse in releaseTexture :1201-1207, clearNonCoreTextures :1208-1212,
+destroyAll :1218-1241 safe at ANY partial-init point); drawWorldInternal's
+sort/batch :490-547; mesh3d.h loadMeshFromObj :102-192 (the 3-candidate probe
+:105-115, the 1-based indexing with the bounds checks :134-138, the malformed
+warn+skip :130/:181, the per-face planar UV scheme :142-178, the triangles==0
+reject :187-189, out UNTOUCHED on failure :104/:190); unitCubeVertices :49 /
+pyramidVertices :76; shader.h readShaderFile :38 + compileShader :50;
+lighting.h MAX_LIGHTS=4 + LightingState :41; resources.h loadRgbTexture :93 /
+loadRgbaTexture :123 / the blob cache :151-193.
+
+THE COVERAGE MATRIX (the exact assertions read from the test bodies - no
+coverage claimed from names):
+| contract | symbol file:line | intended behavior + evidence | existing test + the EXACT assertion | status | mode | the strongest missing assert | conf |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| the registry register/replace | renderer.h :752-754 | the re-register replaces the slot | checkMeshRegistry :7809+ registers ids 3 AND 4, then the MEASURED depth-strip probe distinguishes the loaded tetra from the cube fallback | Covered | hidden-window GL | a same-id RE-REGISTER with different data changes the drawn silhouette | 0.85 |
+| the registry lookup + the fallback | renderer.h :789-799 | the registered draws its data; the unregistered >2 -> the cube; meshId==0 -> no 3D draw | checkMeshRegistry (the strip) + the 327 PIN 4 (the 2D skip) | Covered | hidden-window GL | an EMPTY registered vector -> the cube fallback (:792 !empty() untested) | 0.8 |
+| the OBJ load success | mesh3d.h :102-192 | the 4-face fixture -> 60 floats; the per-face UVs in [0,1]; the bounds ~unit | checkMeshLoad :7629-7644 (size==60 EXACT, the UV bounds, the position bounds) | Covered | headless | nothing material | 0.95 |
+| the OBJ failure paths | mesh3d.h :115/:130/:181/:187-190 | the missing -> false + out untouched; the malformed warn+skip; the 0-triangle -> false | checkMeshLoad :7647-7651 (the missing -> false + untouched) + the malformed fixture (v 999 + f 1 2 99 skipped, the good triangle loads) | Covered | headless | the malformed-SKIP count (the implied-by-load assert) | 0.9 |
+| the depth enable/write/restore | renderer.h :841-854/:986-989 | the 3D enables + the opt-in clear; the 2D leaves OFF | checkDepthState :5943-5962 (before==after + the 2D OFF) + checkMeshDepthState (an ON caller's ON survives + the depth WRITES) + checkDebugFrameDepth | Covered | hidden-window GL | the glDepthMask state (never asserted) | 0.85 |
+| the occlusion order-independence | renderer.h :842-854 | the near hides the far regardless of the order | checkMeshOcclusion :8252+ (the near/far entities + the pixel probe) | Covered | hidden-window GL | the >2-entity overlap chain | 0.85 |
+| the clearDepth opt-in + the color preservation | renderer.h :852-854 | the depth-only clear never touches the color | checkMeshStateLeak :6539-6545 (the SENTINEL corner pixel survives clearDepth=true) | Covered | hidden-window GL | nothing material | 0.9 |
+| the texture registry/release | renderer.h :1169-1212 + resources.h :93-123 | the growable slots; the release >=5 only (the core 0..4 refuse); the OOB/released -> the checker | checkTextureRegistry :4529+ (the body NOT read for this audit) + the 327 PIN 6 | Partial | hidden-window GL | the core-slot REFUSE + the double-release REFUSE asserts quoted | 0.75 |
+| destroyAll partial-init safety | renderer.h :1218-1241 | safe at ANY point of a partial init | the init-SUCCESS paths only | Partial | hidden-window GL | an init-failure -> destroyAll -> re-init sequence | 0.6 |
+| the lighting uniforms | renderer.h :423-446 | the ambient + the MAX_LIGHTS loop uploads | checkMeshLighting :8121+ (the lit-draw pixel evidence) | Covered | hidden-window GL | n/a (the pixel evidence is the right form - GL uniform read-back is impractical) | 0.8 |
+| the lit fallback | renderer.h :412-416 | litProgram==0 -> the unlit path | the 327 PIN 7 (callable + something drew) | Partial | headless GL | the fallback ENGAGED (the pixel == the unlit output for the same input) | 0.7 |
+| the 2D depth sort | renderer.h :494-497 | the lower depth first; the higher wins | the 327 PIN 1 (the texel-free channel isolation + the comparator-flip mutation) | Covered | headless GL | nothing material | 0.95 |
+| the collision tint override | renderer.h :599-600 | the colliding -> the red channel only | the 327 PIN 2 | Covered | headless GL | the mutation gap (below) | 0.95 |
+| the meshId 2D skip | renderer.h :515-519 | the dead + the meshId>0 draw nothing in 2D | the 327 PINs 3-4 | Covered | headless GL | the mutation gap (below) | 0.9 |
+| the blend restore | renderer.h :632-633 | the blending disabled after the world | the 327 PIN 5 | Covered | headless GL | n/a | 0.9 |
+| the AABB debug draw | renderer.h :1085-1129 | the line loop sized halfExtents*scale*2 (the Step 261 truth) | checkAABBDebugSize + checkMeshSizing | Covered | hidden-window GL | the line-loop pixel evidence | 0.8 |
+| the font/digit path | renderer.h :649+ + font.h :34-58 | the screen-space glyphs, the 37-cell atlas | checkFontCells/checkFontMetrics (font.h) - the renderer's glyph HALF untested | Partial | headless (font.h) / human (the glyphs) | the glyph-position pixel probe | 0.7 |
+
+THE 327 REASSESSMENT (PIN 2-7): the ONLY mutation run against the 2D pins is
+PIN 1's (the comparator flip, 327). PIN 2-7 have NO mutation. What PIN 6 and
+PIN 7 ACTUALLY observe: PIN 6 = after a drawWorld with textureId 999, at least
+one probe pixel is non-black - i.e., the checker fallback PRODUCED output; it
+does NOT verify the checker's identity, and the diagnostic message is
+unobservable (NDEBUG-gated). PIN 7 = after the lit drawWorld, at least one
+probe pixel is non-black - it does NOT distinguish the litProgram path from
+the :412-416 fallback, nor any lighting math. THE RANKED MUTATION GAPS:
+1. PIN 2 (the collision override - the gameplay-visible feedback; the tint
+   logic :599-600), 2. PIN 4 (the meshId 2D skip - the double-draw hazard),
+3. PIN 3 (the dead skip), 4. PIN 6 (the fallback output), 5. PIN 7 (the lit
+dispatch), 6. PIN 5 (the state hygiene - partially covered by
+checkDepthState's depth-OFF assert).
+
+THE TOP 5 GAPS (impact x likelihood):
+1. PIN 2's mutation gap: the collision-override regression would silence the
+   gameplay's collision feedback (the red flash); the likelihood moderate (the
+   :599-600 lines were touched by the Steps 86/112 history).
+2. PIN 4's mutation gap: the meshId 2D-skip regression = the documented
+   2D/3D double-draw hazard returns; the likelihood low-moderate.
+3. The releaseTexture refusal contracts unquoted (the matrix row 9): a
+   regression = the runtime unload breaking a running frame (the documented
+   SAFETY RULE :1132-1135); the likelihood low.
+4. The lit-fallback distinguishability (PIN 7): a regression = the lit call
+   drawing nothing when litProgram==0; the likelihood low.
+5. The destroyAll partial-init safety: a regression = the failure-path
+   crash; the likelihood very low (the :1214-1216 no-op-on-0 design).
+
+THE RECOMMENDED SMALLEST SLICE 329 (NOT implemented): two renderer.h one-line
+mutations run against the EXISTING pins - (a) drop the collision override
+(:600 -> the tint passes through) -> PIN 2 must FAIL (the probe G>0 for the
+green-tint colliding entity), (b) drop the meshId skip (:519) -> PIN 4 must
+FAIL (the probe non-black) - each: FAIL -> pathspec restore -> REBUILD ->
+ctest 8/8. PLUS: read checkTextureRegistry :4529 FIRST (the self-review
+caveat) and add the release-refusal asserts ONLY if absent: releaseTexture(2)
+== false (the core refuse), releaseTexture(5)==true then releaseTexture(5)==
+false (the double-release refuse). The pass/fail: both mutations non-vacuous,
+the refusals green, ctest 8/8, alive x3.
+
+THE OBJ SPLIT (mesh3d.h) - the numbers: the loader mesh3d.h :102-192 = 91
+lines (the parse + the I/O) + the includes <fstream>/<sstream>/<iostream>
+forced on 5 TUs; the vertex-data builders :49-101 (~53 lines, pure data -
+STAY); the never-load consumers: pe_core (instantiation-only), probe_a,
+probe_b = 3 of 5; the ODR 0; the behavior-preservation risk LOW (the pure
+function move; the out-untouched + the expansion contracts pinned EXACTLY by
+checkMeshLoad); the compile/link risk LOW (the scene_persist/prefab_persist
+pattern; the probe/header-only consumers need NO link - they never call the
+loader). VERDICT: SPLIT-JUSTIFIED (the same shape and thresholds as
+prefab_persist at 324: the moderate-large I/O bodies + the includes paid by
+majority-never-load consumers). The .cpp WAITS for Cyril (no .cpp this step
+per the prompt).
+
+THE SELF-REVIEW - THE WEAKEST INFERENCE: the matrix row 9 (the texture
+registry/release) is classified Partial with the release-refusal gap WITHOUT
+reading checkTextureRegistry's body (:4529) - the refusal asserts may already
+exist there; the classification rests on the name + the Step 89/94 records,
+not the read body. The 329 recommendation accounts for this (read FIRST, add
+ONLY if absent). The second-weakest: PIN 6/7's "something drew" evidence
+depends on the checker/texture assets being loadable in the ctest CWD - a
+missing-asset environment would fail them spuriously (never observed in the
+gate runs to date).
+
+STATUS: Render AUDIT DEEPENED (the 326 audit + this coverage matrix);
+Render migration IN PROGRESS 1/N (the 327 pins); Slice 329 RECOMMENDED, not
+started; the mesh3d split SPLIT-JUSTIFIED, awaiting Cyril; the live visual
+smoke stays VERIFICATION REQUIRED (human).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
