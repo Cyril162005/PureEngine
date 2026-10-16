@@ -3651,6 +3651,17 @@
    "depends_on": [
     327
    ]
+  },
+  {
+   "id": 329,
+   "name": "RENDER: the 2D pins validated (the mutations A-D all NON-VACUOUS with the exact failing lines) + the releaseTexture gap closed through the PUBLIC API (the renderer-backed registry section in checkTextureRegistry; Render IN PROGRESS 1/N)",
+   "status": "completed",
+   "definition_of_done": "The mutations, each with ALL the failing lines quoted: A (the collision override :599 bypassed) -> TWO failures (PIN 1 the higher-depth overlap + PIN 2 the collision override must zero the green channel - the shared-code co-failure, expected); B (the meshId skip :519 bypassed) -> ONE failure (PIN 4 exactly); C (the dead skip :515 bypassed) -> ONE failure (PIN 3 exactly); D (the world-pass blend restore :633 commented, disambiguated from the 2 other GL_BLEND sites by the Step 112 anchor - the first attempt aborted on the 3-match ambiguity before any edit) -> ONE failure (PIN 5 exactly). All: exit 8, restored by pathspec, REBUILT, the focused ctest green. THE RELEASETEXTURE GAP: the checkTextureRegistry body read FIRST (the 328 self-review CONFIRMED: the old body was a pure local-vector simulation, zero renderer coverage); the single-slot releaseTexture refusals stay PRIVATE (recorded, not directly pinnable); the PUBLIC-API contracts pinned (+44 lines): the post-init count 6, the register appends, the first unload releases exactly the 2 non-core slots, the slots kept, the second unload releases nothing (the double-release refuse), the re-register appends. THE PIN 6/7 ASSET RESOLUTION VERIFIED: the Renderer init succeeds in the ctest CWD (the 3-candidate probe loads checker + the 5 entity textures). Gates: the build exit 0, ctest 8/8 (19.60s), alive x3 True.",
+   "notes": "Test commit 0aa719e (CORE-329: tests/hostile_data_test.cpp +44). THE MUTATION DISCIPLINE: restore by pathspec -> REBUILD -> the focused + full ctest (the FINDINGS 59 rule) - one chain ran the ctest against a STALE exe after a failed build (caught: the ctest 'passed' was meaningless; redone with the build verified first). THE READ-FIRST FINDING: the 328 self-review's weakest inference CONFIRMED - checkTextureRegistry was a local-vector simulation; the row-9 Partial upgraded to the renderer-backed Covered for the public contracts. THE PIN 6/7 RESOLUTION: the assets resolve because init() succeeds (the 3-candidate probe); a missing asset would report 'renderer init must succeed'. GATES: the build exit 0, ctest 8/8 (19.60s), alive x3 True. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-329",
+   "depends_on": [
+    328
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

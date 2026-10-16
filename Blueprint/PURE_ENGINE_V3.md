@@ -4213,6 +4213,70 @@ Render migration IN PROGRESS 1/N (the 327 pins); Slice 329 RECOMMENDED, not
 started; the mesh3d split SPLIT-JUSTIFIED, awaiting Cyril; the live visual
 smoke stays VERIFICATION REQUIRED (human).
 
+### Render Step 329 (2026-10-16) - the 2D pins validated (mutations A-D) + the releaseTexture gap closed, COMPLETE
+
+The 328-recommended validation slice, executed. ALL FOUR mutations NON-VACUOUS,
+each with the exact failing line naming its pin (the full failing-line lists
+below - no first-line-only reporting).
+
+MUTATION A (PIN 2, the collision override): renderer.h :599 `if (colliding[i])`
+-> `if (false)`. THE FAILING LINES (both, from --output-on-failure):
+"draw2d: the higher depth must win the overlap (the red-colliding A covers the
+green B)" (PIN 1 - the CO-FAILURE: the same override produces the winner's red,
+so bypassing it removes that red too - the shared-code mutation, expected) and
+"draw2d: the colliding override must zero the green channel" (PIN 2 - the pin
+under test, named exactly). Exit 8. Restored by pathspec; REBUILT; the focused
+ctest green.
+
+MUTATION B (PIN 4, the meshId 2D skip): renderer.h :519 `if (entity.meshId != 0)
+continue;` -> `if (false && ...)`. THE FAILING LINE (exactly one):
+"draw2d: meshId>0 must be skipped in the 2D pass" - names PIN 4 exactly. Exit 8.
+Restored; REBUILT; green.
+
+MUTATION C (PIN 3, the dead skip): renderer.h :515 `if (!entity.alive) continue;`
+-> `if (false && ...)`. THE FAILING LINE (exactly one): "draw2d: dead entities
+must draw nothing (the clear color survives)" - names PIN 3 exactly. Exit 8.
+Restored; REBUILT; green.
+
+MUTATION D (PIN 5, the blend restore): renderer.h :633 (the WORLD-pass
+glDisable - disambiguated from the 2 other GL_BLEND sites by the Step 112
+comment anchor; the first attempt aborted on the 3-match ambiguity BEFORE any
+edit) -> commented out. THE FAILING LINE (exactly one): "draw2d: GL_BLEND must
+be disabled after the world pass" - names PIN 5 exactly. Exit 8. Restored;
+REBUILT; green.
+
+THE RELEASETEXTURE GAP (the 328 row-9 Partial -> CLOSED): the checkTextureRegistry
+body read FIRST per the self-review - THE CONFIRMED FINDING: the old body was a
+PURE LOCAL-VECTOR SIMULATION (a std::vector<unsigned int> reg with the grow/OOB
+logic on the LOCAL copy) touching NO renderer code - releaseTexture had ZERO
+coverage. The single-slot releaseTexture refusals (the core id<5 :1202, the
+negative/OOB :1202, the double-release :1203) are PRIVATE - not directly
+pinnable; RECORDED (the 328 residual stands for the single-slot form). The
+PUBLIC-API observable contracts ARE now pinned (commit `0aa719e`,
+tests/hostile_data_test.cpp +44): after init textureCount()==6 (0..4 + the Step
+89 proof slot 5); registerNonCoreTexture appends at the next slot; the FIRST
+unloadNonCoreTextures releases EXACTLY the 2 non-core slots; the unload KEEPS
+the slots (the ids stable); the SECOND unload releases NOTHING (the
+double-release refuse via the zeroed slots, the :1176 guard); the re-register
+after the unload appends a fresh slot. No stricter policy invented - the asserts
+match :1173-1180 verbatim.
+
+THE PIN 6/7 TEXTURE-ASSET RESOLUTION (the 328 item): VERIFIED - the assets
+resolve under the ctest CWD because the Renderer init() SUCCEEDS in the test
+(the 327/329 runs): init loads checker.png + tex_player/scenery/hostile/
+hostile_alt/paddle_spritesheet via the 3-candidate probe (:199-227) - a missing
+asset would fail init and the section would report "renderer init must succeed".
+The probe method: the successful init + the non-black PIN 6/7 reads.
+
+GATES: the build exit 0; ctest -C Release 8/8 100% (19.60s with the new section;
+the focused runs 6.97-35.26s across the mutations); alive x3 True with the
+$null-checked probe.
+
+STATUS: Render migration IN PROGRESS (1 of N: the 2D pins VALIDATED by the
+4 mutations + the release gap closed; the mesh3d split SPLIT-JUSTIFIED at
+322/328 waits on Cyril; the live pixel-perfect smoke stays VERIFICATION
+REQUIRED).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
