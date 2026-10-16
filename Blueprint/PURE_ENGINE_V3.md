@@ -3979,6 +3979,77 @@ STATUS: Entity/Scene/Persistence ACCEPTED (2026-10-16). The migration program:
 The next category (Render/Physics/math or any other) opens ONLY on Cyril's
 explicit prompt.
 
+### Render category audit (Step 326, 2026-10-16) - AUDIT COMPLETE, migration NOT STARTED
+
+Docs-only audit (no refactors, no math phase, no Physics migration). Core
+Foundation remains ACCEPTED (319/325); Entity/Scene/Persistence remains ACCEPTED
+(325). Search hygiene: build/, .git/, .kilo/ and .goose/ excluded from every grep.
+
+INVENTORY (grep-verified; all seven headers header-only impl, ODR sweep: ZERO
+candidates across all seven - the cleanest category yet):
+| header | lines | role + key surfaces | the includes it forces | the fan-out (TUs) | classification |
+| --- | --- | --- | --- | --- | --- |
+| renderer.h | 1269 (the largest header in src/) | the Renderer class: init/destroyAll :141/:1218, drawWorld x2 :401/:408 + drawWorldInternal :448 (the 2D sorted path), drawDigitString :649, the mesh registry + clearRegisteredMeshes :755, drawEntity3D :763 (the clearDepth param), drawEntityMesh3D :826, drawDebugMesh3D :970, drawTextString :1026, drawAABBs :1085, releaseTexture :1201; the OOB texture diagnostics :527/:811 | <glad/gl.h> (intrinsic), <algorithm>/<cassert>/<iostream>/<set>/<string>/<unordered_map>/<vector> + resources/shader/font/lighting/math/entity/mesh3d | 7 TUs (main, pong, platformer, editor0/main, hostile_data_test, resources_test, pe_core) | contract+tests (the 3D half) + GAP (the 2D half - see below); STAY-INLINE (every consumer actually draws - the 322 never-use condition fails; the size is the intrinsic weight of the GL boundary) |
+| mesh3d.h | 196 | unitCubeVertices :49, pyramidVertices :76 (the built-in data), loadMeshFromObj :102 (the OBJ triangle-soup loader, ~95 parse-I/O lines) | <fstream> :38, <sstream> :39, <iostream> :40 (I/O ONLY for the loader) + <vector>/<string> + math | 5 TUs (main, hostile_data_test, pe_core, probe_a, probe_b) | SPLIT-JUSTIFIED candidate (the loader half): the bodies ~95 lines (moderate) AND the I/O includes paid by 5 TUs of which at least 3 (pe_core instantiation-only, the probes include-only) never load an OBJ; the vertex-data builders STAY header (pure data). AWAITS CYRIL - no .cpp until the go |
+| shader.h | 142 | readShaderFile :38, compileShader :50, the program link; the assets/shaders/ probe | <glad/gl.h> (intrinsic), <fstream> :29, <iostream> :30, <sstream> :31 | DIRECT 1 (pe_core) + TRANSITIVE 7 via renderer.h :73 | thin-to-moderate; STAY-INLINE (the GL coupling intrinsic; the transitive <fstream>/<sstream> via renderer.h noted - a renderer.h include-audit would lighten it) |
+| lighting.h | 66 | PointLight :29, AmbientLight :36, LightingState :41, addLight :49 - pure data + a one-line mutator; MAX_LIGHTS=4 (the shader-array bound documented at one place) | math + <vector> only - the CLEANEST header | 3 direct + transitive via renderer.h :77 | thin; STAY-INLINE |
+| resources.h | 197 | loadRgbTexture :93, loadRgbaTexture :123, loadBinaryBlob :151, loadPackEntry :175, binaryCache :181/:185, clearBinaryCache :193 | <glad/gl.h>, <stb_image.h> :76 (the declarations; the impl in stb_impl.cpp), <fstream> :80, <unordered_map> :81 | 4 TUs (main, hostile_data_test, resources_test, pe_core) | contract+tests (the dedicated resources_test target + checkTextureRegistry); STAY-INLINE pending a measured need (the init-time loads; the blob/cache is the Step 101-102 machinery) |
+| font.h | 64 | fontCellFor :34, textWidth :53, alignOffsetX :58 - pure math | <string> only | 3 direct + transitive via renderer.h :76 | thin + contract+tests (checkFontCells/checkFontMetrics); STAY-INLINE |
+| ui.h | 125 | the HUD number formatting (the one-decimal rule :49) + the drawDigitString hand-through ("used, never owned" :54) | <iomanip>/<sstream> (the number formatting, NOT file I/O) + renderer.h | 2 direct (main, pe_core) | thin; STAY-INLINE |
+
+THE DRAW CONSUMERS: the arcade main.cpp (the 2D batch + the HUD + the 3D debug),
+pong.cpp/platformer.cpp (the 2D batch), PureEditor0 (the 2D + the drawEntity3D 3D
+path with the caller-side first-draw clearDepth discipline, Step 311), the tests
+(the headless GL context via the hidden-window pattern).
+
+DEPTH CLEAR DISCIPLINE: the caller-side contract (drawEntity3D/drawEntityMesh3D/
+drawDebugMesh3D default clearDepth=false; the FIRST 3D draw carries true - the
+Step 311 contract) - pinned by checkDebugFrameDepth/checkDepthState/
+checkMeshDepthState. meshId REGISTRY: the Step 244 registry + clearRegisteredMeshes
+:755 - pinned by checkMeshRegistry/checkMeshHandle/checkMeshIdParse/
+checkMeshStateLeak. RESOURCE LIFETIME: releaseTexture/destroyAll + the OOB
+diagnostics :527/:811 - pinned by checkTextureRegistry/checkMeshStateLeak +
+resources_test. 3D DEBUG PATH: drawDebugMesh3D + drawAABBs - pinned by
+checkAABBDebugSize/checkDebug3dParse/checkFrozen3DConsumer. font/HUD: pinned by
+checkFontCells/checkFontMetrics.
+
+THE LARGEST GAP (one primary): the 2D DRAW PATH - drawWorld/drawWorldInternal
+(renderer.h :401-640, ~190 lines: the depth-based stable_sort draw order, the
+sprite UV frames, the OOB texture diagnostics, the lit overload) has NO headless
+test - hostile_data_test mentions drawWorld only twice (indirect), and the ONLY
+2D contract evidence is the F-04 cassert (renderer.h :453: entities.size() ==
+colliding.size()). Every mesh/depth/texture/lighting/occlusion check exercises
+the 3D/mesh path; the engine's PRIMARY 2D surface is verified only by the live
+games. FEASIBLE TO FIX: the headless-window pattern already proven by
+checkWindowBoot/checkInputEdges - a Render slice 1 (tests-first) can drive
+drawWorld against a hidden window and pin the draw-order/UV/OOB contracts.
+
+THE DRAFT ACCEPTANCE CRITERIA (Render; PROPOSED, not yet approved):
+A. the build exit 0 (staged).
+B. ctest green, the count grows additively (a render-contract target driving
+   drawWorld/drawEntity3D against the hidden window; NO timing asserts).
+C. the live smoke: alive x3 + the Cyril visual checklist (the 2D frame, the 3D
+   depth discipline, the HUD digits) - VERIFICATION REQUIRED until recorded.
+D. the structure: one .h/.cpp per split boundary (only mesh3d is
+   SPLIT-JUSTIFIED today); the ODR grep 0 held; no renderer API changes beyond
+   the declared moves.
+E. the include hygiene: the GL/glad stays intrinsic to the render headers; no
+   new heavy includes in the headers the .cpps can own.
+F. the consumer linkage complete: every caller of a moved body links the new
+   .cpp (the 323/324 pattern).
+G. the contracts pinned before any move (the tests-first rule).
+H. the behavior proof: the golden/regression evidence for any moved draw path
+   (the headless frame compare or the contract asserts - no pixel golden unless
+   Cyril asks).
+I. measurement not budget (no timing asserts; any bench run is DATA).
+OUT: no new GL features, no batch rewrite, no shader abstraction, no renderer
+API redesign, no Post-processing/materials, no Physics migration, no math
+phase - the next category opens only on Cyril's explicit prompt.
+
+STATUS: Render AUDITED / migration NOT STARTED. Slice 1 candidate: the
+tests-first 2D draw-contract target (the largest gap). The mesh3d SPLIT-JUSTIFIED
+verdict waits on Cyril. No .cpp until the go.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

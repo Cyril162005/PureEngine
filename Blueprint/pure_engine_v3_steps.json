@@ -3618,6 +3618,17 @@
    "depends_on": [
     324
    ]
+  },
+  {
+   "id": 326,
+   "name": "AUDIT: Render category (docs-only; the 7-header inventory + the ODR baseline 0 + the classifications + the largest gap = the untested 2D draw path + the draft acceptance criteria; Render AUDITED / migration NOT STARTED)",
+   "status": "completed",
+   "definition_of_done": "The Render category audit recorded in PURE_ENGINE_V3.md: the 7-header inventory (renderer.h 1269 - the largest header in src/, mesh3d.h 196, shader.h 142, lighting.h 66, resources.h 197, font.h 64, ui.h 125 - ALL header-only, the ODR sweep ZERO candidates across all seven), the per-surface classifications (renderer.h contract+tests on the 3D half + GAP on the 2D half, mesh3d.h SPLIT-JUSTIFIED candidate for the loader half, shader/lighting/resources/font/ui thin or contract+tests STAY-INLINE), the depth-clear/meshId-registry/resource-lifetime/3D-debug/font-HUD call-outs with their pinning tests, THE LARGEST GAP (the 2D draw path drawWorld/drawWorldInternal :401-640 has NO headless test - only the F-04 cassert renderer.h :453 + the live games; feasible via the proven headless-window pattern), the draft acceptance criteria A-I (PROPOSED, not approved), the OUT list. Gates: the build exit 0, ctest 8/8 (14.75s), alive x3 True. No refactors; no math; no Physics.",
+   "notes": "Docs-only audit. THE FAN-OUT (13 TUs grepped): renderer.h 7 (main, pong, platformer, editor0/main, hostile_data_test, resources_test, pe_core - EVERY consumer actually draws, so the 322 never-use condition fails for a renderer split); mesh3d.h 5 (main, hostile_data_test, pe_core, probe_a, probe_b - at least 3 never load an OBJ); shader.h DIRECT 1 (pe_core) + TRANSITIVE 7 via renderer.h :73; lighting.h 3 direct + transitive via renderer.h :77; resources.h 4; font.h 3 direct + transitive; ui.h 2. THE HEAVY INCLUDES: mesh3d.h <fstream>/<sstream>/<iostream> (the loader only); shader.h <fstream>/<sstream> (the transitive reach 7 noted); resources.h <fstream> + <stb_image.h>; renderer.h itself forces NO file-I/O streams (glad is intrinsic). THE CLASSIFICATIONS: renderer.h contract+tests (3D) + GAP (2D) STAY-INLINE; mesh3d.h SPLIT-JUSTIFIED candidate (the loader) + thin (the builders) AWAITING CYRIL; shader/lighting/resources/font/ui STAY-INLINE (the 322 rule applied to the numbers). THE LARGEST GAP: the 2D draw path untested headless (the F-04 cassert renderer.h :453 is the only contract evidence) - the Render slice 1 candidate (tests-first, the headless-window pattern proven by checkWindowBoot/checkInputEdges). THE CMAKE CARRIERS: glad_gl.c in 5 targets, stb_impl.cpp in 7, the glfw link in 6. GATES: the build exit 0, ctest 8/8 (14.75s), alive x3 True. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-326",
+   "depends_on": [
+    325
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
