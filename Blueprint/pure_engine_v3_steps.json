@@ -3629,6 +3629,17 @@
    "depends_on": [
     325
    ]
+  },
+  {
+   "id": 327,
+   "name": "RENDER: slice 1 - the headless 2D drawWorld contract checks (tests-first, hostile_data_test; the texel-free channel-isolation technique; 7 pins; the depth-sort mutation NON-VACUOUS; Render IN PROGRESS 1/N)",
+   "status": "completed",
+   "definition_of_done": "The headless 2D drawWorld contract checks added to hostile_data_test (checkDraw2DContract, ctest 8 -> 8 no new target), driving drawWorld under the hidden-window GL context with glReadPixels probes: PIN 1 the depth-sort winner via TEXEL-FREE CHANNEL ISOLATION (the higher-depth colliding-red entity zeroes the green channel everywhere - the palette rule renderer.h :213-214 guarantees the mutation shows red), PIN 2 the collision override zeroes the green channel, PIN 3 the dead entities draw nothing, PIN 4 meshId>0 skipped in the 2D pass (the Step 232 rule), PIN 5 the blend restored + the depth OFF after the pass, PIN 6 the OOB textureId falls back to a drawn texture without crashing, PIN 7 the lit overload callable headless. Gates against 46d97c6: the full build exit 0, ctest 8/8 (8.73s / 9.04s), the direct run with ZERO draw2d failure lines, alive x3 True. MUTATION: the depth-sort comparator flipped (renderer.h :496) -> hostile_data_test FAILED with exactly the depth-sort pin message (exit 8, NON-VACUOUS), restored by pathspec, REBUILT, 8/8. Render IN PROGRESS (1 of N); the mesh3d split + any further slices wait on Cyril.",
+   "notes": "Test commit 46d97c6 (CORE-327: tests/hostile_data_test.cpp +189/-1). THE TECHNIQUE: texel-free channel isolation - the collision override zeroes G regardless of the texel; the non-colliding (0,1,0) tint zeroes R; the winner is observable without any texture content; the mutation non-vacuity guaranteed by the palette rule (renderer.h :213-214). THE PIN DETAILS: the probe grid 5 points inside the entity triangle at a known ortho position (Mat4::orthographic(-4,4,-3,3) at 320x240 = 40 px/unit); the OOB pin asserts something-drew (the NDEBUG-gated diagnostic is silent in Release - no flake); the lit pin asserts callable + something-drew (the fallback renderer.h :412-416 or the own path). THE IN-STEP FRICTION: the first PIN-1 draft asserted the green CHANNEL VALUE (texel-dependent) - redesigned to the channel-isolation form before the commit; one Entity.colliding member misuse caught by the compiler (the flags live in the colliding vector). THE RENDER AUDIT PRECISION NOTE: the 326 largest-gap finding (the 2D path untested) is now PARTIALLY closed - the draw-order/tint/skip/state contracts are pinned; the pixel-perfect visuals stay VERIFICATION REQUIRED (human). GATES: the build exit 0, ctest 8/8 (8.73s / 9.04s), alive x3 True. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded from every grep; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-327",
+   "depends_on": [
+    326
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

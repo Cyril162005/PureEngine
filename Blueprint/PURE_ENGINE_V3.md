@@ -4050,6 +4050,53 @@ STATUS: Render AUDITED / migration NOT STARTED. Slice 1 candidate: the
 tests-first 2D draw-contract target (the largest gap). The mesh3d SPLIT-JUSTIFIED
 verdict waits on Cyril. No .cpp until the go.
 
+### Render Step 327 (2026-10-16) - slice 1: the headless 2D drawWorld contract checks, COMPLETE
+
+The Render migration slice 1, tests-first per the 326 audit's largest-gap finding
+(the untested 2D draw path). THE PATTERN: the hidden-window GL context (the
+checkWindowBoot/checkDepthState idiom) + the full Renderer init + glReadPixels
+probes. THE KEY TECHNIQUE: TEXEL-FREE CHANNEL ISOLATION - the collision tint
+override (renderer.h :599-600) zeroes the green channel in the whole footprint
+REGARDLESS of the texel, and a non-colliding (0,1,0) tint zeroes the red channel -
+so the depth-sort winner is observable without knowing any texture content. The
+non-vacuity is guaranteed by the documented palette rule (renderer.h :213-214:
+every palette color keeps red-channel content).
+
+THE PINS (commit CORE-327, `46d97c6`, tests/hostile_data_test.cpp +189/-1, ctest
+8 -> 8 no new target):
+1. THE DEPTH SORT: the higher-depth colliding-red entity covers the lower-depth
+   green-tint entity - all probes G == 0 (texel-free) AND at least one probe
+   R > 0 (the palette rule). The probe grid: 5 points inside the entity
+   triangle at a known ortho position.
+2. THE COLLISION OVERRIDE: a colliding entity zeroes the green channel (the
+   red override x the texel) regardless of its tint.
+3. THE DEAD ENTITIES draw nothing - the clear color survives at their
+   positions.
+4. meshId>0 entities are SKIPPED in the 2D pass (the Step 232 single-clear
+   rule) - the clear color survives.
+5. THE STATE RESTORE: GL_BLEND disabled + the depth OFF after the world pass
+   (renderer.h :632-633).
+6. THE OOB textureId falls back to a drawn texture (the checker) WITHOUT
+   crashing - the diagnostic is NDEBUG-gated (silent in Release, no flake);
+   the assert is "something drew", not the message text.
+7. THE LIT OVERLOAD is callable headless and draws (its fallback path when
+   litProgram==0, renderer.h :412-416, or its own path).
+
+GATES (against `46d97c6`): the full build exit 0; ctest -C Release 8/8 100%
+(8.73s pre-mutation, 9.04s post-restore); the direct hostile_data_test run
+prints ZERO draw2d failure lines (all 7 pins green); alive x3 True with the
+FIXED probe.
+
+MUTATION (the Step 285 check, on renderer.h): the depth-sort comparator
+flipped (< -> >, renderer.h :496) -> hostile_data_test FAILED with exactly
+"draw2d: the higher depth must win the overlap (the red-colliding A covers
+the green B)" (exit 8) - NON-VACUOUS, delivered by the palette rule exactly
+as designed; restored by pathspec; REBUILT -> ctest 8/8 (9.04s).
+
+STATUS: Render migration IN PROGRESS (1 of N - the pins landed; the mesh3d
+SPLIT-JUSTIFIED candidate and any further Render slices wait on Cyril's go).
+The live pixel-perfect smoke stays VERIFICATION REQUIRED (human), not CI.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
