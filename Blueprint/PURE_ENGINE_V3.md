@@ -4325,6 +4325,32 @@ comparable across the rebuild scopes). 330 STAYS STOPPED until Cyril rules:
 REVERT the split, or KEEP it as verified-correct decoupling with the honestly-
 recorded nil measured payoff.
 
+***STEP 332 (2026-10-17): THE 330 STOP RESOLVED - Cyril ruled KEEP; 330 is
+COMPLETED AS DECOUPLING (the gates verified by 331; the include payoff NIL
+(pe_core 194 -> 195); the compile time UNMEASURED).*** METHODOLOGY NOTE
+(recorded for every future split decision): the include fan-out must be
+measured TRANSITIVELY with /showIncludes (the full note tree of the touched
+TU), never by counting direct includes - the direct-include reasoning alone
+would have missed the 8 other carriers that keep the stream subtree alive
+for pe_core. QUEUED (compile-only, NOT executed in 332): re-measure
+pe_core /showIncludes vs a pre-323 baseline. THE 332 WORK: the zero-face
+OBJ-rejection PIN (the 331-identified gap) - the smallest fixture (verts
+only, zero usable faces) asserts false + out untouched (the sentinel size
+preserved) with a fixture-writable guard; commit 2aea156 (tests-only, +17);
+gates: the build exit 0, the direct run exit 0, ctest 8/8 (43.08s); the
+mutation landed as the positions-form surgical disable -> the NEW assert
+failed BY NAME and NO OTHER ("zero-face file must fail and leave out
+untouched", exit 1) -> pathspec restore -> REBUILD -> ctest 8/8 (16.40s);
+the golden re-check EXACT (508B, the 330/331 baseline sha256); alive x3
+True. THE STRUCTURAL FINDING (the mutation evidence): the wholesale reject
+drop co-fails BOTH missing-file pins - the probe loop's in.clear() after
+every failed open neutralizes the :31 "if (!in) return false;" guard (DEAD
+CODE) so the missing-file failure is IMPLEMENTED BY THE REJECT (a
+never-opened stream zero-parses -> triangles==0); the eof() surgical form
+also co-fails (the sentry's skipws peek sets eofbit on the unattached
+filebuf too) - only the parse result (positions.size()) separates the
+paths. THE CONTRACT IS UNCHANGED: false + out untouched for BOTH paths.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

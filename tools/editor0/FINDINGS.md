@@ -1435,3 +1435,26 @@ ImGui / ECS / glTF / networking (the freezes stand).
   331 addition: "if includes did not drop for the non-loading TUs, STOP and
   report; revert only on Cyril's go"). The keep case is defensible ONLY as
   verified-correct decoupling, not as a measured payoff.
+## Entry 63
+
+- **what:** the zero-face OBJ-rejection pin (332) + the ruling on the 330
+  split: KEEP - completed as decoupling; the include payoff nil (pe_core
+  194 -> 195); the compile time UNMEASURED.
+- **class:** loader structure (the triangles==0 reject is the SINGLE failure
+  mechanism for TWO contracts) + the measurement methodology.
+- **the structural finding:** mesh3d_obj.cpp's probe loop calls in.clear()
+  after every failed open, so the ':31 if (!in) return false;' guard NEVER
+  fires (dead code); the missing-file failure is implemented by the
+  triangles==0 reject (a never-opened stream zero-parses). The wholesale
+  reject drop therefore co-fails the missing-file pins; the eof() surgical
+  form also co-fails (the sentry's skipws peek sets eofbit on the unattached
+  filebuf); ONLY the parse result (positions.size() <= 1) separates the
+  never-opened path from the verts-but-zero-faces path.
+- **methodology note:** the include fan-out must be measured transitively
+  with /showIncludes (the full note tree), never by direct-include counting.
+- **queued (NOT executed in 332):** re-measure pe_core /showIncludes vs a
+  pre-323 baseline (compile-only).
+- **status:** the pin landed (2aea156, +17, tests-only); the mutation
+  NON-VACUOUS by name and no other (the positions form; the failing line
+  "zero-face file must fail and leave out untouched", exit 1); ctest 8/8
+  post-restore (16.40s); the golden EXACT (the 330/331 baseline sha256).
