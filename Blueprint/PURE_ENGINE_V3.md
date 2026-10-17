@@ -4292,6 +4292,39 @@ and flips 330 stopped -> completed. THE MEASUREMENTS: the baseline recorded
 (pe_core 194 include lines / ~939ms first-run; the probes unreliable in the
 harness); the AFTER measurements DEFERRED.
 
+***STEP 331 (2026-10-17): THE 330 GATE-RECOVERY - ALL GATES VERIFIED GREEN, BUT
+THE COMPLETED-FLIP IS BLOCKED BY THE INCLUDE VERDICT (STOP per the 331
+addition; the revert-or-keep decision is Cyril's).*** THE LOCK DIAGNOSIS (no
+blind kills): Get-Process across the 11 target/tool names found NO holders and
+ALL exes open ReadWrite+ShareNone (PureEngine, Pong, Platformer, PureEditor0,
+core_link_probe, hostile_data_test, time_test, math_test; mesh_gold.exe absent
+as expected) - the manual clear HELD, nothing killed. THE AFTER MEASUREMENT
+(lock-independent, FIRST): pe_core 195 include lines vs the 194 baseline = +1;
+the probes 338 lines captured post-split with NO valid pre-split baseline - the
+330 probe measurement ran NONEXISTENT targets (probe_a/probe_b are TUs of
+core_link_probe, not CMake targets; the 330 "0 lines" were failed invocations) -
+disclosed as a 330 measurement error. THE +1 DIAGNOSED: the stream subtree still
+reaches pe_core via 8 other header-only carriers (hostile_data.h :16-19, input.h
+:63-65, shader.h :29-31, tilemap.h :40-44, animation_data.h :29-33, resources.h
+:80, renderer.h :63, ui.h :50; audio.h :87) - the net delta = -0 + 1 (the new
+mesh3d_obj.h node) = +1 exactly; the mesh3d split's include payoff for the
+all-16 TUs is NIL. THE GATES: the full Release build exit 0 (62.4s, 20
+artifacts, LNK1104 = 0, all 11 targets linked); the golden byte-identity EXACT
+(mesh_gold from the repo root: 60 floats, size = 508, sha256
+4E700683DA1AB1F6D6B3D88330CE0F07EE9D4D906DFE47EE34295324B6E5A814 = the 330
+baseline; the fixture self-removed); ctest 8/8 (26.00s, and 8/8 again
+post-restore 15.01s); the mutation NON-VACUOUS with the named asserts - but NOT
+the planned one: the triangles==0 reject is pinned by NO test (checkMeshLoad
+read in full + all 20 loader call sites: no zero-face fixture exists; the test
+gap recorded) - the executed EQUIVALENT dropped the per-vertex UV push_back
+pair from mesh3d_obj.cpp -> "4 faces must expand to 60 floats, got 36" + "one
+good face must expand to 15 floats, got 9" (direct run exit 1) -> pathspec
+restore -> REBUILD -> ctest 8/8; alive x3 True (the $null -ne $p probe, stopped
+in finally, WaitForExit). TIMES: UNMEASURED (the one-shot touch medians are not
+comparable across the rebuild scopes). 330 STAYS STOPPED until Cyril rules:
+REVERT the split, or KEEP it as verified-correct decoupling with the honestly-
+recorded nil measured payoff.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

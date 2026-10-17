@@ -1409,3 +1409,29 @@ ImGui / ECS / glTF / networking (the freezes stand).
   is not 4-decimal bound" (exit 8, NON-VACUOUS); restored by pathspec; REBUILT
   (the FINDINGS 59 lesson) -> ctest 8/8 (9.50s). ALIVE x3 True with the FIXED
   probe (the $null check). 321 flipped stopped -> completed.
+
+## Entry 62
+
+- **what:** the Step 330 gate-recovery (Step 331) - the FOURTH lock incident
+  RESOLVED by Cyril's manual clear, ALL 330 gates then verified green, and the
+  completed-flip BLOCKED by the include verdict (the addition's STOP).
+- **class:** process/verification (the split is CORRECT - the golden is EXACT -
+  but its measured payoff on the cited non-loading TUs is nil: the stream
+  subtree reaches pe_core via 8 OTHER header-only carriers; the +1 = the new
+  mesh3d_obj.h node).
+- **evidence:** no holder processes (Get-Process, 11 names); all 8 exes open
+  ReadWrite+ShareNone; the build exit 0 (62.4s, LNK1104=0, 20 artifacts, 11
+  targets); the golden EXACT (60 floats, 508B, sha256 4E700683...A814 = the 330
+  baseline); ctest 8/8 x2 (26.00s, 15.01s post-restore); the mutation
+  NON-VACUOUS (the UV-pair drop: "60 floats, got 36" + "15 floats, got 9",
+  exit 1 -> restore -> REBUILD -> 8/8); alive x3 with the self-cleaning probe.
+- **the 330 measurement errors disclosed:** (1) the probe harness ran
+  NONEXISTENT targets (probe_a/probe_b are TUs of core_link_probe) - the "0
+  lines" were failed invocations, so NO valid pre-split probe baseline exists;
+  (2) the PLANNED mutation (the triangles==0 reject drop) is VACUOUS - NO test
+  pins it (no zero-face fixture in checkMeshLoad or the 19 other call sites) -
+  the test gap is recorded for a future step.
+- **status:** 330 stays stopped; the revert-or-keep decision is Cyril's (the
+  331 addition: "if includes did not drop for the non-loading TUs, STOP and
+  report; revert only on Cyril's go"). The keep case is defensible ONLY as
+  verified-correct decoupling, not as a measured payoff.
