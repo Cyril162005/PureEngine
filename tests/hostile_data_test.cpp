@@ -7641,6 +7641,8 @@ static bool checkEntity3D() {
 //     planar in [0,1] (Step 245 - the documented scheme),
 //     bounds ~unit;
 //   - a missing file: false, out UNTOUCHED (failure-not-cached);
+//   - a zero-face file (verts only, zero usable faces): false, out
+//     UNTOUCHED (the triangles==0 reject - the 331 gap, pinned in 332);
 //   - malformed v/f lines: skipped with warnings, the good triangle
 //     still loads;
 //   - the draw path under a REAL hidden-window GL context: meshId 3
@@ -7693,6 +7695,21 @@ static bool checkMeshLoad() {
     if (pe::loadMeshFromObj("mesh_load_missing.obj", untouched) || untouched.size() != 3) {
         std::cerr << "missing file must fail and leave out untouched\n"; ok = false;
     }
+    // Zero-face file (verts only, zero usable faces): false, out untouched
+    // (the triangles==0 reject - the 331-identified test gap, pinned in 332).
+    {
+        std::ofstream zf("assets/mesh_zeroface_test.obj");
+        if (!zf) { std::cerr << "zero-face fixture must be writable\n"; ok = false; }
+        zf << "# zero-face fixture: verts, no faces\n";
+        zf << "v 0 0 0\n";
+        zf << "v 1 0 0\n";
+        zf << "v 0 1 0\n";
+    }
+    std::vector<float> zeroface(2, 1.0f);
+    if (pe::loadMeshFromObj("mesh_zeroface_test.obj", zeroface) || zeroface.size() != 2) {
+        std::cerr << "zero-face file must fail and leave out untouched\n"; ok = false;
+    }
+    std::remove("assets/mesh_zeroface_test.obj");
     // Malformed lines: skipped with warnings, the good triangle loads.
     {
         std::ofstream out("assets/" + fname);
