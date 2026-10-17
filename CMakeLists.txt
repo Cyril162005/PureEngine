@@ -478,4 +478,4 @@ add_custom_command(TARGET Platformer POST_BUILD
 # On Linux, we might need extra libs
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)
-endif()\
+endif()
