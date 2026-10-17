@@ -1,1 +1,483 @@
-cmake_minimum_required(VERSION 3.10)project(PureEngine LANGUAGES C CXX)enable_testing()set(CMAKE_CXX_STANDARD 17)set(CMAKE_CXX_STANDARD_REQUIRED ON)# --- Game Build Phase 6: fully standalone executable ---# MSVC defaults to /MD (dynamic C runtime): the built exe would depend on# VCRUNTIME140.dll / MSVCP140.dll, which a CLEAN machine without Visual# Studio does not have. Everything else was already static (GLFW,# miniaudio, stb, GLAD), so statically linking the runtime too leaves# the shipped exe needing only Windows' own system DLLs.## Mechanism, chosen after an honest first attempt failed: the modern# CMAKE_MSVC_RUNTIME_LIBRARY property did NOT take effect here — the# fetched dependencies (GLFW, miniaudio) declare their own# cmake_minimum_required, which resets the CMP0091 policy scope in their# directories (the generated project files proved they still carried# /MD). The old-school method below is generator- and scope-proof: it# rewrites the flag VARIABLES every target inherits, before any# dependency is configured.foreach(flagVar        CMAKE_C_FLAGS                CMAKE_C_FLAGS_DEBUG    CMAKE_C_FLAGS_RELEASE        CMAKE_C_FLAGS_MINSIZEREL     CMAKE_C_FLAGS_RELWITHDEBINFO        CMAKE_CXX_FLAGS              CMAKE_CXX_FLAGS_DEBUG  CMAKE_CXX_FLAGS_RELEASE        CMAKE_CXX_FLAGS_MINSIZEREL   CMAKE_CXX_FLAGS_RELWITHDEBINFO)    if(${flagVar} MATCHES "/MD")        string(REGEX REPLACE "/MD" "/MT" ${flagVar} "${${flagVar}}")    endif()endforeach()# ---------------------------------------------------------------------------# Dependencies# ---------------------------------------------------------------------------include(FetchContent)# GLFW - Windowing and Context creationFetchContent_Declare(    glfw    GIT_REPOSITORY https://github.com/glfw/glfw.git    GIT_TAG 3.3.8)set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)FetchContent_MakeAvailable(glfw)# miniaudio - Audio playback/capture, single-file library.# Its own CMakeLists builds a static library target named "miniaudio";# examples/tests/tools are OFF by default. Same FetchContent pattern as GLFW.FetchContent_Declare(    miniaudio    GIT_REPOSITORY https://github.com/mackron/miniaudio.git    GIT_TAG 0.11.25)FetchContent_MakeAvailable(miniaudio)# stb - single-header utility libraries (we use stb_image for PNG loading).# The repo has NO CMakeLists.txt at its root, so MakeAvailable only# populates the source; we consume it as headers. Pinned to an exact# commit because stb publishes no version tags.FetchContent_Declare(    stb    GIT_REPOSITORY https://github.com/nothings/stb.git    GIT_TAG 2c980bb59875b0d32144a71867fbdebb2f77cd20)FetchContent_MakeAvailable(stb)# ---------------------------------------------------------------------------# Project Source# ---------------------------------------------------------------------------# We use the GLAD loader provided within the GLFW dependency folder# to keep the build minimal and avoid extra external downloads.add_executable(${PROJECT_NAME}     src/main.cpp    src/window.cpp    src/scene_persist.cpp    src/prefab_persist.cpp    src/mesh3d_obj.cpp    src/stb_impl.cpp    "${glfw_SOURCE_DIR}/deps/glad_gl.c")target_include_directories(${PROJECT_NAME} PRIVATE "${glfw_SOURCE_DIR}/deps")target_include_directories(${PROJECT_NAME} PRIVATE "${stb_SOURCE_DIR}")# Link GLFW and miniaudiotarget_link_libraries(${PROJECT_NAME} glfw miniaudio)# Copy the runtime asset bundle next to the executable so the game can# still find its data when launched from build/Release/ without relying# on the repo root working directory. This includes both the parser data# and the audio assets used at runtime.# Runtime asset bundle: copies the 18 files + prefabs/ + shaders/ matching# scripts/package.ps1 (package.ps1 is the shipping single source of truth,# F-08). Build-local copy is for dev runs; hostile_stress_*.txt are# stress-test-only, excluded.add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/beep.wav"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/beep.wav"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/GAMEOVER.wav"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/GAMEOVER.wav"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/win_sound.wav"    # Step 123: the Step 119 music loop asset — playMusicLoop probes    # assets/music_loop.wav at startup; missing file = silent graceful    # failure, so every bundle that inits audio carries it.    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/music_loop.wav"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/music_loop.wav"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/hostile_default.txt"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_default.txt"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/hostile_alt.txt"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_alt.txt"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/animation_default.txt"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/animation_default.txt"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/arcade_arena.txt"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/arcade_arena.txt"    # paddle_* are Pong assets, but renderer slot 4 is fatal if missing, so    # every bundle carries them; platformer proof ships for verification (F-08).    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/paddle_spritesheet.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/paddle_animations.txt"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/platformer_step72_proof.txt"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/platformer_step72_proof.txt"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/checker.png"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/checker.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/font_digits.png"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/font_digits.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/tex_player.png"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_player.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/tex_scenery.png"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_scenery.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/tex_hostile.png"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_hostile.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/tex_hostile_alt.png"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_hostile_alt.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/input_bindings.txt"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/input_bindings.txt"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/mesh_tetrahedron.obj"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/mesh_tetrahedron.obj"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/mesh_wedge.obj"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/mesh_wedge.obj"    # Step 77: the renderer loads GLSL from files now — every game bundle    # must carry assets/shaders/ (missing files are fatal in init).    COMMAND ${CMAKE_COMMAND} -E copy_directory        "${CMAKE_SOURCE_DIR}/assets/shaders"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/shaders"    # Step 120: prefab templates    COMMAND ${CMAKE_COMMAND} -E copy_directory        "${CMAKE_SOURCE_DIR}/assets/prefabs"        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/prefabs")# Minimal parser validation target: exercises the real hostile-data loading# logic without changing PureEngine.exe's source, flags, or dependency set.add_executable(hostile_data_test    tests/hostile_data_test.cpp    # Step 195: the depth-state test inits a full Renderer under the    # hidden-window GL context, which references stbi_load - compile    # the ONE stb implementation unit (same pattern as resources_test).    src/window.cpp    src/scene_persist.cpp    src/mesh3d_obj.cpp    src/prefab_persist.cpp    src/stb_impl.cpp    # Step 168: the console contract test references drawConsole ->    # drawTextString -> glad_gl* symbols; compile the already-fetched    # glad implementation unit (same pattern as resources_test). The    # closed-console draw path never CALLS the GL pointers, so the    # test stays headless-safe.    "${glfw_SOURCE_DIR}/deps/glad_gl.c")add_test(NAME hostile_data_test COMMAND hostile_data_test)# Step 68: the debug-console header (src/console.h) is pure logic but names# GLFW key codes and draws through pe::Renderer, so this target needs the# same third-party header paths as the games. src/ itself stays off the# path (time.h-shadowing rule above).target_include_directories(hostile_data_test PRIVATE "${glfw_SOURCE_DIR}/include")target_include_directories(hostile_data_test PRIVATE "${glfw_SOURCE_DIR}/deps")target_include_directories(hostile_data_test PRIVATE "${stb_SOURCE_DIR}")# Step 69: the gamepad header CALLS GLFW (pollGamepad), so the test also# links the already-fetched static GLFW. No new dependency — same lib the# games link. (Step 68 needed headers only; this step needs the symbols.)target_link_libraries(hostile_data_test PRIVATE glfw)# Step 75: the audio header's inline setters reference miniaudio symbols# (applyVolumes calls ma_sound_set_volume, guarded to no-op pre-init), so# the test links the already-fetched static miniaudio too — headers arrive# via its interface includes. Same pattern as Step 69, still no new dep.target_link_libraries(hostile_data_test PRIVATE miniaudio)# Step 120: copy prefabs for testadd_custom_command(TARGET hostile_data_test POST_BUILD    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:hostile_data_test>/assets"    COMMAND ${CMAKE_COMMAND} -E copy_directory        "${CMAKE_SOURCE_DIR}/assets/prefabs"        "$<TARGET_FILE_DIR:hostile_data_test>/assets/prefabs")# Resources session: dedicated headless resources contract test target.# Exercises the WHOLE pe::resources boundary (blob/pack/cache/probe +# the texture failure path) as one coherent system, with no GL context# or window — the texture all-miss path makes no GL calls. Same fetched# dependency pattern as hostile_data_test (stb implementation unit +# glad, no new deps; no miniaudio: the resources boundary touches no# audio symbols).add_executable(resources_test    tests/resources_test.cpp    src/stb_impl.cpp    "${glfw_SOURCE_DIR}/deps/glad_gl.c")target_include_directories(resources_test PRIVATE "${glfw_SOURCE_DIR}/deps")target_include_directories(resources_test PRIVATE "${stb_SOURCE_DIR}")add_test(NAME resources_test COMMAND resources_test)# Phase D consumer: level pipeline (Step 275) - headless prefab/scene# consumer; engine src/ read-only. Own directory, own target.add_executable(LevelPipelineConsumer    consumers/level_pipeline/consumer.cpp    src/scene_persist.cpp    src/prefab_persist.cpp)target_include_directories(LevelPipelineConsumer PRIVATE "${glfw_SOURCE_DIR}/include")add_test(NAME LevelPipelineConsumer COMMAND LevelPipelineConsumer         WORKING_DIRECTORY "$<TARGET_FILE_DIR:LevelPipelineConsumer>")set_tests_properties(LevelPipelineConsumer PROPERTIES TIMEOUT 60)# Phase Tools consumer: editor0 (Step 288, Tools step 1 of 5) - the# PureEditor0 tool target; viewer + --selftest (Step 289); engine src/# read-only for the step. Own directory, own target; CMake changes# limited to adding this target (the fixture copy is the consumer# pattern: the prefab files the selftest loads).add_executable(PureEditor0    tools/editor0/main.cpp    src/scene_persist.cpp    src/prefab_persist.cpp    src/stb_impl.cpp    "${glfw_SOURCE_DIR}/deps/glad_gl.c")target_include_directories(PureEditor0 PRIVATE "${glfw_SOURCE_DIR}/deps")target_include_directories(PureEditor0 PRIVATE "${stb_SOURCE_DIR}")target_include_directories(PureEditor0 PRIVATE "${glfw_SOURCE_DIR}/include")target_link_libraries(PureEditor0 glfw)add_test(NAME PureEditor0 COMMAND PureEditor0 --selftest         WORKING_DIRECTORY "$<TARGET_FILE_DIR:PureEditor0>")set_tests_properties(PureEditor0 PROPERTIES TIMEOUT 60)add_custom_command(TARGET PureEditor0 POST_BUILD    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/consumers/level_pipeline" "$<TARGET_FILE_DIR:PureEditor0>/consumers/level_pipeline")# Step 281: permanent header-hygiene check (the (g) capability). THE# POINT: src IS on this target's include path, and the standard# <time.h>/<ctime> must still compile - a reintroduced colliding header# name in src/ makes this target FAIL to build.add_executable(header_hygiene    tests/header_hygiene.cpp)target_include_directories(header_hygiene PRIVATE "${CMAKE_SOURCE_DIR}/src")target_include_directories(header_hygiene PRIVATE "${glfw_SOURCE_DIR}/include")add_test(NAME header_hygiene COMMAND header_hygiene)add_custom_command(TARGET LevelPipelineConsumer POST_BUILD    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/consumers/level_pipeline" "$<TARGET_FILE_DIR:LevelPipelineConsumer>/consumers/level_pipeline")# Blob fixtures for the test: beep.wav + prefabs/ so the 3-candidate# probe finds real committed assets from any CWD (mirrors the# hostile_data_test fixture pattern). Runtime-written temp fixtures are# cleaned up by the test itself.add_custom_command(TARGET resources_test POST_BUILD    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:resources_test>/assets"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/beep.wav"        "$<TARGET_FILE_DIR:resources_test>/assets/beep.wav"    COMMAND ${CMAKE_COMMAND} -E copy_directory        "${CMAKE_SOURCE_DIR}/assets/prefabs"        "$<TARGET_FILE_DIR:resources_test>/assets/prefabs")# Keep the test translation unit scoped to the exact header it needs.# This avoids exposing the whole src/ directory, which is what made# the pre-281 src/time.h shadow the CRT's time.h during compilation# (renamed to engine_time.h in Step 281; the hygiene target enforces it).# Step 102: optional pe_core static library — compiled core, header-only remains.# Same headers, same inline functions, just precompiled. Games may either# include headers directly (header-only, current) or link pe_core. No behaviour# change; arcade/platformer/Pong keep header-only and stay green.add_library(pe_core STATIC src/pe_core.cpp src/scene_persist.cpp src/mesh3d_obj.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/deps")target_include_directories(pe_core PUBLIC "${stb_SOURCE_DIR}")target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/include")target_link_libraries(pe_core PUBLIC glfw miniaudio)# Step 316: the ODR link probe (Core Foundation slice 2). Two TUs that each# include ALL Core Foundation headers (the Step 314 list) and link against# pe_core: a multiple-definition (LNK2005-style) failure IS the ODR finding.# No game/editor/test target links pe_core this slice - this probe is the# first exerciser of the compiled-core link path.add_executable(core_link_probe    tests/probe_a.cpp    tests/probe_b.cpp)target_include_directories(core_link_probe PRIVATE "${CMAKE_SOURCE_DIR}/src")target_link_libraries(core_link_probe PRIVATE pe_core)add_test(NAME core_link_probe COMMAND core_link_probe)set_tests_properties(core_link_probe PROPERTIES TIMEOUT 60)# Step 317: the dedicated math unit test (Core Foundation slice 3).# Deterministic value asserts ONLY - no timing, no GL, no window, no files.# Vec3 ops + every Mat4 builder (identity, multiply, translation, scale,# orthographic, perspective zNear/zFar, rotationZ, rotationY, lookAt) +# transformPoint. Pure header-only math consumption: no pe_core link needed.add_executable(math_test    tests/math_test.cpp)target_include_directories(math_test PRIVATE "${CMAKE_SOURCE_DIR}/src")add_test(NAME math_test COMMAND math_test)set_tests_properties(math_test PROPERTIES TIMEOUT 60)# Step 318: the FrameTime contract test (Core Foundation slice 4).# Deterministic asserts: the dt clamp (a forced 150ms stall -> EXACTLY 0.1f),# the scale/pause state machine, the clamp invariant. glfwInit is legal# headless; FrameTime reads glfwGetTime (engine_time.h, the Step 315# GLFW_INCLUDE_NONE guard). No window, no GL.add_executable(time_test    tests/time_test.cpp)target_include_directories(time_test PRIVATE "${CMAKE_SOURCE_DIR}/src")target_include_directories(time_test PRIVATE "${glfw_SOURCE_DIR}/include")target_link_libraries(time_test PRIVATE glfw)add_test(NAME time_test COMMAND time_test)set_tests_properties(time_test PROPERTIES TIMEOUT 60)# Pong API-gate target: a second game built ONLY on public engine headers# (math, entity, renderer, camera, input). Headers are included by relative# path from games/pong/pong.cpp — src/ is deliberately NOT on this target's# include path, for the time.h-shadowing reason above. No POST_BUILD asset# copy yet: run Pong from the repo root so the 3-candidate probe finds# assets/; packaging a second game is a separate decision.add_executable(Pong    games/pong/pong.cpp    src/window.cpp    src/stb_impl.cpp    "${glfw_SOURCE_DIR}/deps/glad_gl.c")target_include_directories(Pong PRIVATE "${glfw_SOURCE_DIR}/deps")target_include_directories(Pong PRIVATE "${stb_SOURCE_DIR}")# Link GLFW only (no miniaudio: the scaffold uses no audio boundary).target_link_libraries(Pong glfw)# Step 59B: deliver Pong's animation assets next to its exe (same    # copy_if_different pattern as the arcade bundle). Without these, the    # paddle sheet + clip file resolve only from a repo-root CWD.    add_custom_command(TARGET Pong POST_BUILD        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Pong>/assets"        COMMAND ${CMAKE_COMMAND} -E copy_if_different            "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"            "$<TARGET_FILE_DIR:Pong>/assets/paddle_spritesheet.png"        COMMAND ${CMAKE_COMMAND} -E copy_if_different            "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"            "$<TARGET_FILE_DIR:Pong>/assets/paddle_animations.txt"        COMMAND ${CMAKE_COMMAND} -E copy_directory            "${CMAKE_SOURCE_DIR}/assets/shaders"            "$<TARGET_FILE_DIR:Pong>/assets/shaders"        COMMAND ${CMAKE_COMMAND} -E copy_directory            "${CMAKE_SOURCE_DIR}/assets/prefabs"            "$<TARGET_FILE_DIR:Pong>/assets/prefabs"    )# Platformer proof game (Session 4): third game proving the engine without# bypassing it — tilemap + scenes + character controller + animation +# input/gamepad + particles + events + audio + text + console + hierarchy.# Same header-only consumption as Pong (relative includes, no -Isrc), plus# miniaudio (it uses the audio boundary, unlike Pong).add_executable(Platformer    games/platformer/platformer.cpp    src/window.cpp    src/stb_impl.cpp    "${glfw_SOURCE_DIR}/deps/glad_gl.c")target_include_directories(Platformer PRIVATE "${glfw_SOURCE_DIR}/deps")target_include_directories(Platformer PRIVATE "${stb_SOURCE_DIR}")target_link_libraries(Platformer glfw miniaudio)# Platformer runtime bundle: everything its renderer init loads (the fixed# 7-texture + font set — missing files are fatal there) plus its own# clips, levels, and sounds. Run from the repo root like Pong.add_custom_command(TARGET Platformer POST_BUILD    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Platformer>/assets"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/checker.png"        "$<TARGET_FILE_DIR:Platformer>/assets/checker.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/font_digits.png"        "$<TARGET_FILE_DIR:Platformer>/assets/font_digits.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/tex_player.png"        "$<TARGET_FILE_DIR:Platformer>/assets/tex_player.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/tex_scenery.png"        "$<TARGET_FILE_DIR:Platformer>/assets/tex_scenery.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/tex_hostile.png"        "$<TARGET_FILE_DIR:Platformer>/assets/tex_hostile.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/tex_hostile_alt.png"        "$<TARGET_FILE_DIR:Platformer>/assets/tex_hostile_alt.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"        "$<TARGET_FILE_DIR:Platformer>/assets/paddle_spritesheet.png"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"        "$<TARGET_FILE_DIR:Platformer>/assets/paddle_animations.txt"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/platformer_level1.txt"        "$<TARGET_FILE_DIR:Platformer>/assets/platformer_level1.txt"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/platformer_level2.txt"        "$<TARGET_FILE_DIR:Platformer>/assets/platformer_level2.txt"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/beep.wav"        "$<TARGET_FILE_DIR:Platformer>/assets/beep.wav"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/GAMEOVER.wav"        "$<TARGET_FILE_DIR:Platformer>/assets/GAMEOVER.wav"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"        "$<TARGET_FILE_DIR:Platformer>/assets/win_sound.wav"    # Step 123: music loop asset (same rule as the arcade bundle).    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/music_loop.wav"        "$<TARGET_FILE_DIR:Platformer>/assets/music_loop.wav"    COMMAND ${CMAKE_COMMAND} -E copy_if_different        "${CMAKE_SOURCE_DIR}/assets/input_bindings.txt"        "$<TARGET_FILE_DIR:Platformer>/assets/input_bindings.txt"    COMMAND ${CMAKE_COMMAND} -E copy_directory        "${CMAKE_SOURCE_DIR}/assets/shaders"        "$<TARGET_FILE_DIR:Platformer>/assets/shaders"    COMMAND ${CMAKE_COMMAND} -E copy_directory        "${CMAKE_SOURCE_DIR}/assets/prefabs"        "$<TARGET_FILE_DIR:Platformer>/assets/prefabs")# On Linux, we might need extra libsif(UNIX AND NOT APPLE)    target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)endif()
+cmake_minimum_required(VERSION 3.10)
+project(PureEngine LANGUAGES C CXX)
+enable_testing()
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# --- Game Build Phase 6: fully standalone executable ---
+# MSVC defaults to /MD (dynamic C runtime): the built exe would depend on
+# VCRUNTIME140.dll / MSVCP140.dll, which a CLEAN machine without Visual
+# Studio does not have. Everything else was already static (GLFW,
+# miniaudio, stb, GLAD), so statically linking the runtime too leaves
+# the shipped exe needing only Windows' own system DLLs.
+#
+# Mechanism, chosen after an honest first attempt failed: the modern
+# CMAKE_MSVC_RUNTIME_LIBRARY property did NOT take effect here — the
+# fetched dependencies (GLFW, miniaudio) declare their own
+# cmake_minimum_required, which resets the CMP0091 policy scope in their
+# directories (the generated project files proved they still carried
+# /MD). The old-school method below is generator- and scope-proof: it
+# rewrites the flag VARIABLES every target inherits, before any
+# dependency is configured.
+foreach(flagVar
+        CMAKE_C_FLAGS                CMAKE_C_FLAGS_DEBUG    CMAKE_C_FLAGS_RELEASE
+        CMAKE_C_FLAGS_MINSIZEREL     CMAKE_C_FLAGS_RELWITHDEBINFO
+        CMAKE_CXX_FLAGS              CMAKE_CXX_FLAGS_DEBUG  CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_MINSIZEREL   CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+    if(${flagVar} MATCHES "/MD")
+        string(REGEX REPLACE "/MD" "/MT" ${flagVar} "${${flagVar}}")
+    endif()
+endforeach()
+
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
+
+include(FetchContent)
+
+# GLFW - Windowing and Context creation
+FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG 3.3.8
+)
+
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(glfw)
+
+# miniaudio - Audio playback/capture, single-file library.
+# Its own CMakeLists builds a static library target named "miniaudio";
+# examples/tests/tools are OFF by default. Same FetchContent pattern as GLFW.
+FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG 0.11.25
+)
+
+FetchContent_MakeAvailable(miniaudio)
+
+# stb - single-header utility libraries (we use stb_image for PNG loading).
+# The repo has NO CMakeLists.txt at its root, so MakeAvailable only
+# populates the source; we consume it as headers. Pinned to an exact
+# commit because stb publishes no version tags.
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG 2c980bb59875b0d32144a71867fbdebb2f77cd20
+)
+
+FetchContent_MakeAvailable(stb)
+
+# ---------------------------------------------------------------------------
+# Project Source
+# ---------------------------------------------------------------------------
+
+# We use the GLAD loader provided within the GLFW dependency folder
+# to keep the build minimal and avoid extra external downloads.
+add_executable(${PROJECT_NAME} 
+    src/main.cpp
+    src/window.cpp
+    src/scene_persist.cpp
+    src/prefab_persist.cpp
+    src/mesh3d_obj.cpp
+    src/stb_impl.cpp
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(${PROJECT_NAME} PRIVATE "${stb_SOURCE_DIR}")
+
+# Link GLFW and miniaudio
+target_link_libraries(${PROJECT_NAME} glfw miniaudio)
+
+# Copy the runtime asset bundle next to the executable so the game can
+# still find its data when launched from build/Release/ without relying
+# on the repo root working directory. This includes both the parser data
+# and the audio assets used at runtime.
+# Runtime asset bundle: copies the 18 files + prefabs/ + shaders/ matching
+# scripts/package.ps1 (package.ps1 is the shipping single source of truth,
+# F-08). Build-local copy is for dev runs; hostile_stress_*.txt are
+# stress-test-only, excluded.
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/beep.wav"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/beep.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/GAMEOVER.wav"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/GAMEOVER.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/win_sound.wav"
+    # Step 123: the Step 119 music loop asset — playMusicLoop probes
+    # assets/music_loop.wav at startup; missing file = silent graceful
+    # failure, so every bundle that inits audio carries it.
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/music_loop.wav"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/music_loop.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/hostile_default.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_default.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/hostile_alt.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/hostile_alt.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/animation_default.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/animation_default.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/arcade_arena.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/arcade_arena.txt"
+    # paddle_* are Pong assets, but renderer slot 4 is fatal if missing, so
+    # every bundle carries them; platformer proof ships for verification (F-08).
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/paddle_spritesheet.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/paddle_animations.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/platformer_step72_proof.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/platformer_step72_proof.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/checker.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/checker.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/font_digits.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/font_digits.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_player.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_player.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_scenery.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_scenery.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_hostile.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_hostile.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_hostile_alt.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/tex_hostile_alt.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/input_bindings.txt"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/input_bindings.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/mesh_tetrahedron.obj"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/mesh_tetrahedron.obj"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/mesh_wedge.obj"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/mesh_wedge.obj"
+    # Step 77: the renderer loads GLSL from files now — every game bundle
+    # must carry assets/shaders/ (missing files are fatal in init).
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/shaders"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/shaders"
+    # Step 120: prefab templates
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/prefabs"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/prefabs"
+)
+
+# Minimal parser validation target: exercises the real hostile-data loading
+# logic without changing PureEngine.exe's source, flags, or dependency set.
+add_executable(hostile_data_test
+    tests/hostile_data_test.cpp
+    # Step 195: the depth-state test inits a full Renderer under the
+    # hidden-window GL context, which references stbi_load - compile
+    # the ONE stb implementation unit (same pattern as resources_test).
+    src/window.cpp
+    src/scene_persist.cpp
+    src/mesh3d_obj.cpp
+    src/prefab_persist.cpp
+    src/stb_impl.cpp
+    # Step 168: the console contract test references drawConsole ->
+    # drawTextString -> glad_gl* symbols; compile the already-fetched
+    # glad implementation unit (same pattern as resources_test). The
+    # closed-console draw path never CALLS the GL pointers, so the
+    # test stays headless-safe.
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
+)
+add_test(NAME hostile_data_test COMMAND hostile_data_test)
+
+# Step 68: the debug-console header (src/console.h) is pure logic but names
+# GLFW key codes and draws through pe::Renderer, so this target needs the
+# same third-party header paths as the games. src/ itself stays off the
+# path (time.h-shadowing rule above).
+target_include_directories(hostile_data_test PRIVATE "${glfw_SOURCE_DIR}/include")
+target_include_directories(hostile_data_test PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(hostile_data_test PRIVATE "${stb_SOURCE_DIR}")
+# Step 69: the gamepad header CALLS GLFW (pollGamepad), so the test also
+# links the already-fetched static GLFW. No new dependency — same lib the
+# games link. (Step 68 needed headers only; this step needs the symbols.)
+target_link_libraries(hostile_data_test PRIVATE glfw)
+# Step 75: the audio header's inline setters reference miniaudio symbols
+# (applyVolumes calls ma_sound_set_volume, guarded to no-op pre-init), so
+# the test links the already-fetched static miniaudio too — headers arrive
+# via its interface includes. Same pattern as Step 69, still no new dep.
+target_link_libraries(hostile_data_test PRIVATE miniaudio)
+
+# Step 120: copy prefabs for test
+add_custom_command(TARGET hostile_data_test POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:hostile_data_test>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/prefabs"
+        "$<TARGET_FILE_DIR:hostile_data_test>/assets/prefabs"
+)
+
+# Resources session: dedicated headless resources contract test target.
+# Exercises the WHOLE pe::resources boundary (blob/pack/cache/probe +
+# the texture failure path) as one coherent system, with no GL context
+# or window — the texture all-miss path makes no GL calls. Same fetched
+# dependency pattern as hostile_data_test (stb implementation unit +
+# glad, no new deps; no miniaudio: the resources boundary touches no
+# audio symbols).
+add_executable(resources_test
+    tests/resources_test.cpp
+    src/stb_impl.cpp
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
+)
+target_include_directories(resources_test PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(resources_test PRIVATE "${stb_SOURCE_DIR}")
+add_test(NAME resources_test COMMAND resources_test)
+
+# Phase D consumer: level pipeline (Step 275) - headless prefab/scene
+# consumer; engine src/ read-only. Own directory, own target.
+add_executable(LevelPipelineConsumer
+    consumers/level_pipeline/consumer.cpp
+    src/scene_persist.cpp
+    src/prefab_persist.cpp
+)
+target_include_directories(LevelPipelineConsumer PRIVATE "${glfw_SOURCE_DIR}/include")
+add_test(NAME LevelPipelineConsumer COMMAND LevelPipelineConsumer
+         WORKING_DIRECTORY "$<TARGET_FILE_DIR:LevelPipelineConsumer>")
+set_tests_properties(LevelPipelineConsumer PROPERTIES TIMEOUT 60)
+
+# Phase Tools consumer: editor0 (Step 288, Tools step 1 of 5) - the
+# PureEditor0 tool target; viewer + --selftest (Step 289); engine src/
+# read-only for the step. Own directory, own target; CMake changes
+# limited to adding this target (the fixture copy is the consumer
+# pattern: the prefab files the selftest loads).
+add_executable(PureEditor0
+    tools/editor0/main.cpp
+    src/scene_persist.cpp
+    src/prefab_persist.cpp
+    src/stb_impl.cpp
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
+)
+target_include_directories(PureEditor0 PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(PureEditor0 PRIVATE "${stb_SOURCE_DIR}")
+target_include_directories(PureEditor0 PRIVATE "${glfw_SOURCE_DIR}/include")
+target_link_libraries(PureEditor0 glfw)
+add_test(NAME PureEditor0 COMMAND PureEditor0 --selftest
+         WORKING_DIRECTORY "$<TARGET_FILE_DIR:PureEditor0>")
+set_tests_properties(PureEditor0 PROPERTIES TIMEOUT 60)
+add_custom_command(TARGET PureEditor0 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/consumers/level_pipeline" "$<TARGET_FILE_DIR:PureEditor0>/consumers/level_pipeline"
+)
+
+# Step 281: permanent header-hygiene check (the (g) capability). THE
+# POINT: src IS on this target's include path, and the standard
+# <time.h>/<ctime> must still compile - a reintroduced colliding header
+# name in src/ makes this target FAIL to build.
+add_executable(header_hygiene
+    tests/header_hygiene.cpp
+)
+target_include_directories(header_hygiene PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_include_directories(header_hygiene PRIVATE "${glfw_SOURCE_DIR}/include")
+add_test(NAME header_hygiene COMMAND header_hygiene)
+add_custom_command(TARGET LevelPipelineConsumer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/consumers/level_pipeline" "$<TARGET_FILE_DIR:LevelPipelineConsumer>/consumers/level_pipeline"
+)
+
+# Blob fixtures for the test: beep.wav + prefabs/ so the 3-candidate
+# probe finds real committed assets from any CWD (mirrors the
+# hostile_data_test fixture pattern). Runtime-written temp fixtures are
+# cleaned up by the test itself.
+add_custom_command(TARGET resources_test POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:resources_test>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/beep.wav"
+        "$<TARGET_FILE_DIR:resources_test>/assets/beep.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/prefabs"
+        "$<TARGET_FILE_DIR:resources_test>/assets/prefabs"
+)
+
+# Keep the test translation unit scoped to the exact header it needs.
+# This avoids exposing the whole src/ directory, which is what made
+# the pre-281 src/time.h shadow the CRT's time.h during compilation
+# (renamed to engine_time.h in Step 281; the hygiene target enforces it).
+
+# Step 102: optional pe_core static library — compiled core, header-only remains.
+# Same headers, same inline functions, just precompiled. Games may either
+# include headers directly (header-only, current) or link pe_core. No behaviour
+# change; arcade/platformer/Pong keep header-only and stay green.
+add_library(pe_core STATIC src/pe_core.cpp src/scene_persist.cpp src/mesh3d_obj.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
+target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/deps")
+target_include_directories(pe_core PUBLIC "${stb_SOURCE_DIR}")
+target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/include")
+target_link_libraries(pe_core PUBLIC glfw miniaudio)
+
+# Step 316: the ODR link probe (Core Foundation slice 2). Two TUs that each
+# include ALL Core Foundation headers (the Step 314 list) and link against
+# pe_core: a multiple-definition (LNK2005-style) failure IS the ODR finding.
+# No game/editor/test target links pe_core this slice - this probe is the
+# first exerciser of the compiled-core link path.
+add_executable(core_link_probe
+    tests/probe_a.cpp
+    tests/probe_b.cpp
+)
+target_include_directories(core_link_probe PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(core_link_probe PRIVATE pe_core)
+add_test(NAME core_link_probe COMMAND core_link_probe)
+set_tests_properties(core_link_probe PROPERTIES TIMEOUT 60)
+
+# Step 317: the dedicated math unit test (Core Foundation slice 3).
+# Deterministic value asserts ONLY - no timing, no GL, no window, no files.
+# Vec3 ops + every Mat4 builder (identity, multiply, translation, scale,
+# orthographic, perspective zNear/zFar, rotationZ, rotationY, lookAt) +
+# transformPoint. Pure header-only math consumption: no pe_core link needed.
+add_executable(math_test
+    tests/math_test.cpp
+)
+target_include_directories(math_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
+add_test(NAME math_test COMMAND math_test)
+set_tests_properties(math_test PROPERTIES TIMEOUT 60)
+
+# Step 318: the FrameTime contract test (Core Foundation slice 4).
+# Deterministic asserts: the dt clamp (a forced 150ms stall -> EXACTLY 0.1f),
+# the scale/pause state machine, the clamp invariant. glfwInit is legal
+# headless; FrameTime reads glfwGetTime (engine_time.h, the Step 315
+# GLFW_INCLUDE_NONE guard). No window, no GL.
+add_executable(time_test
+    tests/time_test.cpp
+)
+target_include_directories(time_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_include_directories(time_test PRIVATE "${glfw_SOURCE_DIR}/include")
+target_link_libraries(time_test PRIVATE glfw)
+add_test(NAME time_test COMMAND time_test)
+set_tests_properties(time_test PROPERTIES TIMEOUT 60)
+
+# Pong API-gate target: a second game built ONLY on public engine headers
+# (math, entity, renderer, camera, input). Headers are included by relative
+# path from games/pong/pong.cpp — src/ is deliberately NOT on this target's
+# include path, for the time.h-shadowing reason above. No POST_BUILD asset
+# copy yet: run Pong from the repo root so the 3-candidate probe finds
+# assets/; packaging a second game is a separate decision.
+add_executable(Pong
+    games/pong/pong.cpp
+    src/window.cpp
+    src/stb_impl.cpp
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
+)
+
+target_include_directories(Pong PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(Pong PRIVATE "${stb_SOURCE_DIR}")
+
+# Link GLFW only (no miniaudio: the scaffold uses no audio boundary).
+target_link_libraries(Pong glfw)
+
+# Step 59B: deliver Pong's animation assets next to its exe (same
+    # copy_if_different pattern as the arcade bundle). Without these, the
+    # paddle sheet + clip file resolve only from a repo-root CWD.
+    add_custom_command(TARGET Pong POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Pong>/assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"
+            "$<TARGET_FILE_DIR:Pong>/assets/paddle_spritesheet.png"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"
+            "$<TARGET_FILE_DIR:Pong>/assets/paddle_animations.txt"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets/shaders"
+            "$<TARGET_FILE_DIR:Pong>/assets/shaders"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets/prefabs"
+            "$<TARGET_FILE_DIR:Pong>/assets/prefabs"
+    )
+
+# Platformer proof game (Session 4): third game proving the engine without
+# bypassing it — tilemap + scenes + character controller + animation +
+# input/gamepad + particles + events + audio + text + console + hierarchy.
+# Same header-only consumption as Pong (relative includes, no -Isrc), plus
+# miniaudio (it uses the audio boundary, unlike Pong).
+add_executable(Platformer
+    games/platformer/platformer.cpp
+    src/window.cpp
+    src/stb_impl.cpp
+    "${glfw_SOURCE_DIR}/deps/glad_gl.c"
+)
+
+target_include_directories(Platformer PRIVATE "${glfw_SOURCE_DIR}/deps")
+target_include_directories(Platformer PRIVATE "${stb_SOURCE_DIR}")
+
+target_link_libraries(Platformer glfw miniaudio)
+
+# Platformer runtime bundle: everything its renderer init loads (the fixed
+# 7-texture + font set — missing files are fatal there) plus its own
+# clips, levels, and sounds. Run from the repo root like Pong.
+add_custom_command(TARGET Platformer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Platformer>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/checker.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/checker.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/font_digits.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/font_digits.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_player.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/tex_player.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_scenery.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/tex_scenery.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_hostile.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/tex_hostile.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/tex_hostile_alt.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/tex_hostile_alt.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_spritesheet.png"
+        "$<TARGET_FILE_DIR:Platformer>/assets/paddle_spritesheet.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/paddle_animations.txt"
+        "$<TARGET_FILE_DIR:Platformer>/assets/paddle_animations.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/platformer_level1.txt"
+        "$<TARGET_FILE_DIR:Platformer>/assets/platformer_level1.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/platformer_level2.txt"
+        "$<TARGET_FILE_DIR:Platformer>/assets/platformer_level2.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/beep.wav"
+        "$<TARGET_FILE_DIR:Platformer>/assets/beep.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/GAMEOVER.wav"
+        "$<TARGET_FILE_DIR:Platformer>/assets/GAMEOVER.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/win_sound.wav"
+        "$<TARGET_FILE_DIR:Platformer>/assets/win_sound.wav"
+    # Step 123: music loop asset (same rule as the arcade bundle).
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/music_loop.wav"
+        "$<TARGET_FILE_DIR:Platformer>/assets/music_loop.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/assets/input_bindings.txt"
+        "$<TARGET_FILE_DIR:Platformer>/assets/input_bindings.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/shaders"
+        "$<TARGET_FILE_DIR:Platformer>/assets/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets/prefabs"
+        "$<TARGET_FILE_DIR:Platformer>/assets/prefabs"
+)
+
+# On Linux, we might need extra libs
+if(UNIX AND NOT APPLE)
+    target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)
+endif()
+
+
