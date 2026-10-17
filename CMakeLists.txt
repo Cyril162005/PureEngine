@@ -84,6 +84,7 @@ add_executable(${PROJECT_NAME}
     src/window.cpp
     src/scene_persist.cpp
     src/prefab_persist.cpp
+    src/mesh3d_obj.cpp
     src/stb_impl.cpp
     "${glfw_SOURCE_DIR}/deps/glad_gl.c"
 )
@@ -189,6 +190,7 @@ add_executable(hostile_data_test
     # the ONE stb implementation unit (same pattern as resources_test).
     src/window.cpp
     src/scene_persist.cpp
+    src/mesh3d_obj.cpp
     src/prefab_persist.cpp
     src/stb_impl.cpp
     # Step 168: the console contract test references drawConsole ->
@@ -313,7 +315,7 @@ add_custom_command(TARGET resources_test POST_BUILD
 # Same headers, same inline functions, just precompiled. Games may either
 # include headers directly (header-only, current) or link pe_core. No behaviour
 # change; arcade/platformer/Pong keep header-only and stay green.
-add_library(pe_core STATIC src/pe_core.cpp src/scene_persist.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
+add_library(pe_core STATIC src/pe_core.cpp src/scene_persist.cpp src/mesh3d_obj.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
 target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/deps")
 target_include_directories(pe_core PUBLIC "${stb_SOURCE_DIR}")
 target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/include")
@@ -478,3 +480,7 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} GL X11 lpthread ldl lrt)
 endif()
 
+
+# TEMP (Step 330): the mesh golden generator - REVERTED before any commit.
+add_executable(mesh_gold editor0_tmp/mesh_gold.cpp)
+target_include_directories(mesh_gold PRIVATE "${CMAKE_SOURCE_DIR}/src")
