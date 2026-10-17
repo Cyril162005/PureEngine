@@ -4276,6 +4276,21 @@ STATUS: Render migration IN PROGRESS (1 of N: the 2D pins VALIDATED by the
 4 mutations + the release gap closed; the mesh3d split SPLIT-JUSTIFIED at
 322/328 waits on Cyril; the live pixel-perfect smoke stays VERIFICATION
 REQUIRED).
+***STOP NOTE (Step 330, 2026-10-17): THE 296-CLASS LOCK IS BACK (the FOURTH
+incident: 305, 311, 321, 330) - the LINK blocked on 4 exes (LNK1104) AND the
+EXECUTION blocked (the game exes cannot start).*** The mesh3d OBJ-loader split
+is CODED AND COMMITTED (`0509c06` + the CMake fixes `4806755`/`3c6cb74`/
+`c84fe93`/`b665eee` - the CMake corruption incident disclosed in the tracker:
+the fix script's undefined $CRLF collapsed the file to one line; recovered
+from 0509c06 + the temp mesh_gold target removed). UNVERIFIED: the gates
+(the build exit 0 NOT achieved - the compile succeeded, the LINK blocked),
+ctest, alive, the golden compare (the baseline recorded: mesh_result 508B
+sha256 4E700683...A814), the mutation. THE RECOVERY (the 321 pattern): the
+human clears the lock, then a gate-recovery step reruns the gates, the golden
+compare, the mutation (the triangles==0 reject drop -> checkMeshLoad FAIL),
+and flips 330 stopped -> completed. THE MEASUREMENTS: the baseline recorded
+(pe_core 194 include lines / ~939ms first-run; the probes unreliable in the
+harness); the AFTER measurements DEFERRED.
 
 ## Kill criteria
 
