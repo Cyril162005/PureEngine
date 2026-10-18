@@ -4425,6 +4425,50 @@ REBUILD -> ctest 8/8 (8.98s); alive x3 True. THE CONTRACT IS UNCHANGED: the
 fallback semantics (:412-416) stay the documented degradation for a
 missing lit program.
 
+***STEP 335 (2026-10-18): THE RENDERER PARTIAL-INIT TEARDOWN (destroyAll)
+AUDIT + PIN.*** (The SECOND Step-334 prompt; recorded as tracker id 335 -
+id 334 = the lit-vs-fallback pin from the first 334 prompt.) THE READ
+(file:line): init() acquires in order - the program (:149), the transform/
+color uniforms (:158/:164), the world VAO/VBO (:181-182), the checker
+(:202), the 5 entity textures (:218-222), the id5 register proof (:230),
+the font atlas (:248), the text VAO/VBO (:262-263), the aabb VAO/VBO
+(:288-289), the tex uniform check (:305), the lit program (:316, NON-fatal
+- the degradation warning :318); EVERY failure path runs destroyAll()
+before return false (:151/:161/:167/:205/:225/:233/:251/:308);
+destroyAll() (:1218-1241) frees textVAO/VBO, aabbVAO/VBO, worldVAO/VBO,
+shaderProgram, litProgram, fontTexture, every entityTexture,
+checkerTexture - then zeroes EVERY name (+ the lit locs to -1 +
+entityTextures.clear()). THE CONTRACT (in-source, no ambiguity): :1214-
+1217 "All names default to 0 and GL delete calls on 0 are no-ops, so this
+is safe at ANY point of a partial init" + the TEARDOWN line :1162-1165
+("safe at ANY point of a partial init (with a live context...)"). THE GAP
+(2): the Renderer has NO destructor (the success-path objects rely on the
+context teardown), and NO test reached ANY failure path - destroyAll was
+NEVER executed by the suite (the 328 classification was read-based). THE
+PIN (commit c674b59, tests-only +73): checkPartialInitTeardown - the
+fixture is a 3-LEVEL-DEEP temp CWD (<tmp>/pe_partial_teardown/d1/d2/d3)
+whose assets/ holds ONLY shaders/ + checker.png, so the loader 3-candidate
+list (assets/, ../assets/, ../../assets/) can NEVER escape the fixture
+tree; init acquires the program + the world VAO/VBO + the checker, pushes
+FIVE zeroed entity slots, fails at the :223 quality check, runs
+destroyAll (:225), returns false. The asserts: init must fail;
+textureCount() == 0 after the failed init (the registry reset - the public
+observable of the teardown); the SAME object re-initializes cleanly with
+the 6 core textures once the CWD is restored (the no-corruption clause
+:1166-1168 neighbor). THE MUTATION (the committed tree): the :225
+destroyAll() call removed -> textureCount()==5 (the zeroed slots stay) ->
+the NEW assert failed BY NAME and NO OTHER: "partialinit: after a failed
+init the texture registry must be empty (the failure path must run
+destroyAll)" (the mutated direct run exit 1; the init-failure assert, the
+re-init asserts and the whole suite passed); pathspec restore -> REBUILD
+-> ctest 8/8 (9.73s); alive x3 True. THE LIMITS (honest): the GL-name
+freeing itself is NOT publicly observable (the handles are private; the GL
+tolerates both) - the pin observes the REGISTRY-RESET consequence through
+textureCount(); the other 7 failure paths stay read-verified only (the
+shader/uniform/font failures are not injectable without touching src/ or
+the committed assets); the never-inited case exercises NOTHING (no
+destructor). THE CONTRACT IS UNCHANGED.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

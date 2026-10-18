@@ -1508,3 +1508,27 @@ ImGui / ECS / glTF / networking (the freezes stand).
   REBUILT; ctest 8/8.
 - **status:** the contract unchanged (the :412-416 fallback = the
   documented degradation); the gates green; docs only besides the test.
+## Entry 66
+
+- **what:** the Renderer partial-init teardown (destroyAll) audit + pin
+  (335) - the SECOND Step-334 prompt (recorded as id 335; 334 = the
+  lit-vs-fallback pin).
+- **class:** dead-code-in-tests discovery (a documented safety property
+  with ZERO execution coverage) + the fixture design.
+- **the discovery:** the Renderer has NO destructor; destroyAll runs ONLY
+  inside init 8 failure paths (:151/:161/:167/:205/:225/:233/:251/:308) and
+  NO test reached ANY of them - the 328 "safe-at-any-partial-init"
+  classification was READ-based with zero execution evidence.
+- **the fixture design that worked:** a 3-LEVEL-DEEP temp CWD whose
+  assets/ holds ONLY shaders/ + checker.png - the loader 3-candidate list
+  (assets/, ../assets/, ../../assets/) stays inside the fixture tree, so
+  init deterministically reaches the :223 entity-texture failure with 5
+  zeroed registry slots; the public teardown observable = textureCount()==0
+  after the failed init; the same-object re-init (6 textures) proves the
+  no-corruption recovery.
+- **the honest limits:** the GL-name freeing is not publicly observable
+  (private handles); the other 7 failure paths stay read-verified; the
+  never-inited case exercises nothing (no destructor).
+- **status:** the pin landed (c674b59, +73); the mutation (the :225
+  destroyAll removed) failed the NEW assert BY NAME and no other; restored;
+  REBUILT; ctest 8/8; alive x3; the contract unchanged.
