@@ -4390,6 +4390,41 @@ decoupling (mesh3d.h/scene.h/prefab.h no longer FORCE the I/O includes on
 their consumers; the I/O cost now lives ONCE in the _persist/_obj TUs), not
 a compile-cost win on this machine. No claims beyond the numbers.
 
+***STEP 334 (2026-10-18): THE LIT OVERLOAD VS THE FALLBACK - DISTINGUISHABLE
+AND NOW PINNED (PIN 8).*** THE READ (file:line): the lit overload
+renderer.h :408-420 - the litProgram==0 guard :412-416 falls back to the
+UNLIT path (the internal ignores the lights pointer :452 - the fallback is
+light-INDEPENDENT); the lit path :417-419 runs setLightUniforms :423-446
+(the ambient color/intensity + the 4-light pos/color/radius/intensity)
+through the lit program; lit.frag: FragColor = texel.rgb * color *
+clamp(ambient.color*ambient.intensity + Sum lightColor*(intensity/(1+d^2/
+r^2)), 0, 1), d = distance(vWorldPos, u_lightPos.xy), vWorldPos =
+u_entityWorldPos + aPos.xy (lit.vert; the per-entity uniform :616-627, the
+faf1052 world-space fix); the shipped assets/shaders/lit.vert+lit.frag
+LOAD headless (the ../assets/shaders probe resolves from the ctest CWD; no
+load diagnostics in any direct run) - PIN 7's fallback-or-own ambiguity
+(327) RESOLVED: the REAL lit path is what runs. THE 3D PINS ARE A DIFFERENT
+MECHANISM: the CPU per-face directional formula 0.35 + 0.65*diffuse pinned
+by the consumer check (:6368-6487), the Step 260 world-space regression
+(:6638-6685), the expected-value checks (:6951-6972) and the measured
++X-face brightness (:8172-8240) - none touch the 2D lit shader. THE PIN
+(commit a660656, tests-only +41): checkDraw2DContract PIN 8 - (a) the
+unlit reference (the plain overload, the PIN 7 fixture) keeps texture
+content at the shared grid (deterministic: PIN 1 proves texel.r > eps at
+the same probes for the same position/scale/texture); (b) the lit-dark
+contrast (ambient (0,0,0)/0.0 + no lights) must render EVERY probe black -
+texel-free (rgb*0 = 0; any alpha lands black over the black clear).
+THE MUTATION (the committed tree): the overload forced to the fallback
+(:412 -> if (true); the anchor included the overload signature - the guard
+text appears at BOTH :317 and :412) -> the NEW assert failed BY NAME and
+NO OTHER: "draw2d: the lit pass with zero ambient and no lights must
+render the entity black (the lighting math must differ from the unlit
+path)" (the mutated direct run exit 1; the unlit reference, PIN 7 and the
+PINs 1-6 all passed - the forced fallback still draws); pathspec restore ->
+REBUILD -> ctest 8/8 (8.98s); alive x3 True. THE CONTRACT IS UNCHANGED: the
+fallback semantics (:412-416) stay the documented degradation for a
+missing lit program.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

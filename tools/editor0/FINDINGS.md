@@ -1482,3 +1482,29 @@ ImGui / ECS / glTF / networking (the freezes stand).
   is the structural decoupling (the headers no longer force the I/O includes
   on their consumers; the cost lives once in the _persist/_obj TUs).
 - **status:** docs only; src/ + CMake untouched; the gates green.
+## Entry 65
+
+- **what:** the lit overload vs the fallback (334) - the distinguishability
+  PINNED (PIN 8) and PIN 7''s fallback-or-own ambiguity resolved.
+- **class:** test-coverage precision (the 327 PIN 7 asserted only
+  something-drew through either path).
+- **the read:** the lit overload renderer.h :408-420; the fallback :412-416
+  (light-INDEPENDENT - the internal ignores the lights pointer :452);
+  setLightUniforms :423-446 (the ambient + the 4-light slots); lit.frag
+  (texel.rgb * color * clamp(ambient + Sum point terms, 0, 1)); lit.vert
+  (vWorldPos = u_entityWorldPos + aPos.xy - the faf1052 world-space fix);
+  the 3D pins (the CPU per-face directional 0.35 + 0.65*diffuse) are a
+  DIFFERENT mechanism.
+- **the near-miss:** the first assets grep looked at the TOP level only
+  (no lit.* there) and nearly triggered a false STOP ("the lit path has no
+  observable difference") - the shaders/ SUBDIRECTORY holds lit.vert/
+  lit.frag and the loadShader probe (assets/shaders/, ../, ../../) makes
+  them resolve from the ctest CWD. LESSON: before declaring a path dead,
+  walk the loader''s actual candidate list.
+- **the pin:** (a) the unlit reference keeps texture content at the shared
+  grid (PIN 1''s proven texel.r); (b) the lit-dark (zero ambient, no lights)
+  renders EVERY probe black (texel-free). The mutation (the overload forced
+  to the fallback) failed the NEW assert BY NAME and no other; restored;
+  REBUILT; ctest 8/8.
+- **status:** the contract unchanged (the :412-416 fallback = the
+  documented degradation); the gates green; docs only besides the test.
