@@ -10112,6 +10112,77 @@ static bool checkWindowBoot() {
     glfwTerminate();
     return true;
 }
+// Step 335 (the second Step-334 prompt): the Renderer PARTIAL-INIT teardown
+// contract (renderer.h :1214-1217, :1162-1165): destroyAll() is safe at ANY
+// point of a partial init and every init failure path runs it before
+// returning false (:151/:161/:167/:205/:225/:233/:251/:308). NO test reached
+// ANY failure path before this check (destroyAll was never executed by the
+// suite; the Renderer has NO destructor - the success-path objects rely on
+// the context teardown). The ONE richly-observable reachable partial state:
+// a CWD whose assets/ holds ONLY shaders/ + checker.png (a 3-level-deep temp
+// dir so only THIS tree is probed - the candidate list is assets/, ../assets/,
+// ../../assets/): init acquires the program + the world VAO/VBO + the
+// checker, pushes FIVE zeroed entity slots, fails at the renderer.h :223
+// quality check, runs destroyAll (:225) and returns false. The public
+// postcondition: textureCount() == 0 (the registry reset). Then the same
+// object must re-initialize cleanly once the real assets resolve again.
+static bool checkPartialInitTeardown() {
+    if (!glfwInit()) { std::cerr << "partialinit test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "partialinit", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "partialinit skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "partialinit test skipped: gladLoadGL failed\n"; return true;
+    }
+    bool ok = true;
+    const fs::path savedCwd = fs::current_path();
+    fs::path fixture = fs::temp_directory_path() / "pe_partial_teardown" / "d1" / "d2" / "d3";
+    fs::path fixtureAssets = fixture / "assets";
+    fs::create_directories(fixtureAssets / "shaders");
+    std::error_code ec;
+    // The shader sources must resolve (the program load must succeed so the
+    // failure lands at the renderer.h :223 entity-texture check).
+    bool shaderSourcesOk = true;
+    for (const char* sh : { "default.vert", "default.frag", "lit.vert", "lit.frag" }) {
+        fs::path src;
+        for (const char* cand : { "assets/shaders/", "../assets/shaders/", "../../assets/shaders/" }) {
+            fs::path p = fs::path(cand) / sh;
+            if (fs::exists(p)) { src = p; break; }
+        }
+        if (src.empty()) { shaderSourcesOk = false; break; }
+        fs::copy_file(src, fixtureAssets / "shaders" / sh, fs::copy_options::overwrite_existing, ec);
+        if (ec) { shaderSourcesOk = false; break; }
+    }
+    // The checker must load (a real PNG): copy the first resolvable copy.
+    fs::path checkerSrc;
+    for (const char* cand : { "assets/checker.png", "../assets/checker.png", "../../assets/checker.png" }) {
+        fs::path p = fs::path(cand);
+        if (fs::exists(p)) { checkerSrc = p; break; }
+    }
+    if (!shaderSourcesOk || checkerSrc.empty()) { std::cerr << "partialinit skipped: the fixture sources not found\n"; fs::current_path(savedCwd); glfwDestroyWindow(w); glfwTerminate(); return true; }
+    fs::copy_file(checkerSrc, fixtureAssets / "checker.png", fs::copy_options::overwrite_existing, ec);
+    if (ec) { std::cerr << "partialinit skipped: the checker copy failed\n"; fs::current_path(savedCwd); glfwDestroyWindow(w); glfwTerminate(); return true; }
+
+    fs::current_path(fixture);
+    pe::Renderer r;
+    const bool initOk = r.init();
+    if (initOk) { std::cerr << "partialinit: init must fail with checker-only assets (the entity textures missing)\n"; ok = false; }
+    if (r.textureCount() != 0) { std::cerr << "partialinit: after a failed init the texture registry must be empty (the failure path must run destroyAll)\n"; ok = false; }
+    // Restore BEFORE the recovery so the real assets resolve again.
+    fs::current_path(savedCwd);
+    const bool reOk = r.init();
+    if (!reOk) { std::cerr << "partialinit: the renderer must re-initialize cleanly after a failed init\n"; ok = false; }
+    else if (r.textureCount() != 6) { std::cerr << "partialinit: the re-initialized registry must hold the 6 core textures\n"; ok = false; }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
 
 // Step 174: core loop contract (from source, call-site based — a test
 // cannot execute a game loop headless, so the order is locked HERE).
@@ -10922,6 +10993,7 @@ int main() {
     const bool followLerpOk = checkFollowLerp();
     const bool particleContractOk = checkParticleContract();
     const bool lightingCapOk = checkLightingCap();
+    const bool partialInitOk = checkPartialInitTeardown();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -10945,7 +11017,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !volumeMatrixOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistencePinsOk || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistencePinsOk || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk || !partialInitOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
