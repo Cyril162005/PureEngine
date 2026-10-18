@@ -10053,6 +10053,47 @@ static bool checkDraw2DContract() {
         }
         if (!drewSomething) { std::cerr << "draw2d: the lit overload must draw (its fallback or its own path)\n"; ok = false; }
     }
+    // PIN 8 (Step 334): the LIT PATH OUTPUT IS LIGHT-DEPENDENT - the lit
+    // overload with zero ambient and no lights renders the entity BLACK
+    // (lit.frag: texel.rgb * color * clamp(0 + 0, 0, 1) = 0 - texel-free,
+    // any texel, any alpha over the black clear), provably different from
+    // the unlit path at the same probes. This pins the distinguishability
+    // PIN 7 left open ("the fallback OR the own path"): the shipped
+    // assets/shaders load the lit program (the ../assets/shaders probe
+    // resolves from the ctest CWD; no load diagnostics in the direct runs),
+    // so PIN 7 exercises the REAL lit path.
+    {
+        pe::Entity e(pe::Vec3(0.5f, 0.5f, 0.0f), 0.0f, pe::Vec3(1,1,1), pe::Vec3(0.5f,0.5f,0.0f), 0);
+        std::vector<pe::Entity> ents = {e};
+        std::vector<char> coll = {0};
+        // (a) the unlit reference: the plain overload keeps texture content
+        // at the grid (deterministic: PIN 1 proves texel.r > eps at these
+        // probes for the same position/scale/texture).
+        clear();
+        r.drawWorld(proj, view, ents, coll);
+        float rr[5], gg[5], bb[5];
+        readProbes(rr, gg, bb);
+        float unlitMax = 0.0f;
+        for (int i = 0; i < 5; ++i) {
+            if (rr[i] > unlitMax) unlitMax = rr[i];
+            if (gg[i] > unlitMax) unlitMax = gg[i];
+            if (bb[i] > unlitMax) unlitMax = bb[i];
+        }
+        if (unlitMax <= 0.05f) { std::cerr << "draw2d: the unlit reference must show texture content\n"; ok = false; }
+        // (b) the lit-dark: the SAME fixture through the lit overload with
+        // zero ambient and no lights - EVERY probe black.
+        pe::LightingState dark;
+        dark.ambient.color = pe::Vec3(0.0f, 0.0f, 0.0f);
+        dark.ambient.intensity = 0.0f;
+        clear();
+        r.drawWorld(proj, view, ents, coll, dark);
+        readProbes(rr, gg, bb);
+        bool allBlack = true;
+        for (int i = 0; i < 5; ++i) {
+            if (rr[i] > 0.05f || gg[i] > 0.05f || bb[i] > 0.05f) allBlack = false;
+        }
+        if (!allBlack) { std::cerr << "draw2d: the lit pass with zero ambient and no lights must render the entity black (the lighting math must differ from the unlit path)\n"; ok = false; }
+    }
     glfwDestroyWindow(w);
     glfwTerminate();
     return ok;
