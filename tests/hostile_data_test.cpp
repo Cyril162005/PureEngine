@@ -10183,6 +10183,74 @@ static bool checkPartialInitTeardown() {
     glfwTerminate();
     return ok;
 }
+// Step 336: the font DRAW-side layout contract - the index-slot advance with
+// the glyph-less skip. font.h documents the rule ("the CALLER skips the draw
+// but still consumes the advance slot - so spaces gap correctly") and the
+// pure checks (checkFontCells/checkFontMetrics) pin the MAPPING and the WIDTH
+// math; NOTHING pinned the renderer x-placement (drawDigitString positions
+// glyph c at originX + c*0.52 - renderer.h :714-717; the same rule in
+// drawTextString :1064-1066). The probe: draw "11" and "1X2" ('X' has no
+// glyph in the digit path - the draw is skipped, the slot is kept) at the
+// same origin; the drawn-ink CENTROID must shift right by about one advance
+// step (10.4 px at 40 px/unit and the 0.52 advance). If a skipped character
+// stopped consuming its slot, the '2' would collapse onto slot 1 and the
+// shift would vanish.
+static bool checkFontDrawLayout() {
+    if (!glfwInit()) { std::cerr << "fontdraw test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "fontdraw", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "fontdraw skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "fontdraw test skipped: gladLoadGL failed\n"; return true;
+    }
+    bool ok = true;
+    const pe::Mat4 proj = pe::Mat4::orthographic(-4.0f, 4.0f, -3.0f, 3.0f, -1.0f, 1.0f);
+    glViewport(0, 0, 320, 240);
+    // The ink scan: one glReadPixels over the whole glyph band; the white
+    // glyphs over the black clear -> any channel > 0.3 is ink.
+    auto scanInk = [&](float& centroidX) -> int {
+        const int x0 = 100, y0 = 100, w = 120, h = 44;
+        std::vector<float> px(static_cast<std::size_t>(w) * h * 3, 0.0f);
+        glReadPixels(x0, y0, w, h, GL_RGB, GL_FLOAT, px.data());
+        double sum = 0.0;
+        int n = 0;
+        for (int yy = 0; yy < h; ++yy) {
+            for (int xx = 0; xx < w; ++xx) {
+                const float r = px[(static_cast<std::size_t>(yy) * w + xx) * 3 + 0];
+                const float g = px[(static_cast<std::size_t>(yy) * w + xx) * 3 + 1];
+                const float b = px[(static_cast<std::size_t>(yy) * w + xx) * 3 + 2];
+                if (r > 0.3f || g > 0.3f || b > 0.3f) { sum += (x0 + xx); ++n; }
+            }
+        }
+        centroidX = (n > 0) ? static_cast<float>(sum / n) : 0.0f;
+        return n;
+    };
+    pe::Renderer r;
+    if (!r.init()) { std::cerr << "fontdraw: renderer init must succeed\n"; glfwDestroyWindow(w); glfwTerminate(); return false; }
+    auto clearBlack = [&]() { glClearColor(0.0f, 0.0f, 0.0f, 1.0f); glClear(GL_COLOR_BUFFER_BIT); };
+    clearBlack();
+    r.drawDigitString("11", -1.0f, 0.0f, proj);
+    float cA = 0.0f;
+    const int nA = scanInk(cA);
+    if (nA <= 0) { std::cerr << "fontdraw: the digit reference must produce glyph ink\n"; ok = false; }
+    clearBlack();
+    r.drawDigitString("1X2", -1.0f, 0.0f, proj);
+    float cB = 0.0f;
+    const int nB = scanInk(cB);
+    if (nB <= 0) { std::cerr << "fontdraw: the skip-probe draw must produce glyph ink\n"; ok = false; }
+    if (nA > 0 && nB > 0 && (cB - cA) <= 5.0f) {
+        std::cerr << "fontdraw: a glyph-less character must consume its advance slot (the ink centroid must shift right)\n"; ok = false;
+    }
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
 
 // Step 174: core loop contract (from source, call-site based — a test
 // cannot execute a game loop headless, so the order is locked HERE).
@@ -10994,6 +11062,7 @@ int main() {
     const bool particleContractOk = checkParticleContract();
     const bool lightingCapOk = checkLightingCap();
     const bool partialInitOk = checkPartialInitTeardown();
+    const bool fontDrawOk = checkFontDrawLayout();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -11017,7 +11086,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !volumeMatrixOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistencePinsOk || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk || !partialInitOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistencePinsOk || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk || !partialInitOk || !fontDrawOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
