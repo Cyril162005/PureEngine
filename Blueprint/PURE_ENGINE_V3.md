@@ -4469,6 +4469,47 @@ shader/uniform/font failures are not injectable without touching src/ or
 the committed assets); the never-inited case exercises NOTHING (no
 destructor). THE CONTRACT IS UNCHANGED.
 
+***STEP 336 (2026-10-18): THE FONT/DIGIT RENDERING AUDIT + THE DRAW-SIDE
+LAYOUT PIN.*** THE READ (file:line): drawDigitString (renderer.h :649-725)
+- the glyph quad 0.7 units, the advance 0.52 (:654-655), the digit-only
+inline mapping (:675-683: the digits 0-9 -> 0-9, '.' -> 10, anything else
+SKIPPED - the draw skipped, the slot kept via the index), the Step-243 UV
+divisor cell/37 (:689-697), the position originX + c*0.52 with
+projection*model and NO VIEW (:711-717); drawTextString (:1026-1069) -
+fontCellFor consumption (:1046), the SAME skip-keep-slot rule (:1047-1049),
+the alignment via alignOffsetX (:1040-1041), the same UV/position math
+(:1052-1066); font.h (the boundary doc: "Anything without a glyph yields
+-1: the CALLER skips the draw but still consumes the advance slot - the
+established drawDigitString rule, so spaces gap correctly"); the call
+sites: main.cpp (drawTextString for the stats/pause/game-over/menu
+:2145-2177), ui.h (the score formatting -> drawDigitString per the Step
+21 note :646-648). THE EXISTING COVERAGE (quoted): checkFontCells
+(:548-578, the PURE mapping: the frozen digits/'.' cells, A-Z 11-36, the
+lowercase folds, the glyph-less -> -1) and checkFontMetrics (:581-597, the
+PURE width/alignment: textWidth counts EVERY character's advance,
+alignOffsetX left/center) - BOTH PURE-LOGIC ONLY. THE GAP: the renderer's
+x-PLACEMENT (the index-slot rule at :715/:1065) had NO pin - font.h calls
+the draw path the REFERENCE for its own rule, unpinned. THE PIN (commit
+ad7b779, tests-only +70): checkFontDrawLayout - draw "11" vs "1X2" ('X' =
+glyph-less in the digit path: the draw skipped, the slot kept) at the same
+origin; ONE glReadPixels over the glyph band; the drawn-ink CENTROID must
+shift right by ~one advance (10.4 px at 40 px/unit and the 0.52 advance;
+the threshold 5 px). THE MUTATION (the committed tree): the drawn-only
+counter in drawDigitString (the skipped chars stop consuming their slots;
+the 3 anchored edits - the guard text sits at BOTH :672 and :1042 so the
+anchor carried the digit-path-unique comment, and the renderer.h has MIXED
+line endings - the anchors went \r?\n-tolerant) -> '2' collapses onto slot
+1 -> the centroid shift ~0 -> the NEW assert failed BY NAME and NO OTHER:
+"fontdraw: a glyph-less character must consume its advance slot (the ink
+centroid must shift right)" (the mutated direct run exit 1; the
+reference-ink asserts, the pure font checks and the whole suite passed);
+pathspec restore -> REBUILD -> ctest 8/8 (13.79s); alive x3 True. THE
+STEP-243 QUIRK (the digit UV divisor 11 -> 37, 9167e14): DOCUMENTED-AND-
+RESTORED in-source (:689-695 states the intent) - recorded as the known
+intent per the 336 additions; its pixel discriminator (the ink-extent
+comparison) is deferred as fragile, NOT pinned this step. NO font
+redesign; NO new API.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

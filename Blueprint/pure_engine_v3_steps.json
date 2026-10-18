@@ -3728,6 +3728,17 @@
    "depends_on": [
     334
    ]
+  },
+  {
+   "id": 336,
+   "name": "RENDER: the font/digit rendering audit + the draw-side layout pin (the index-slot advance with the glyph-less skip - the centroid-shift probe; the mutation single-assert BY NAME; the 243 digit-UV quirk recorded as documented-and-restored)",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD 0ec92ce == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker confirmed: 334 lit, 335 partial-init, 336 free (no collision). THE READ (file:line): drawDigitString (renderer.h :649-725: the 0.7/0.52 layout constants, the digit-only inline mapping with the skip-keep-slot rule :675-683, the Step-243 UV divisor cell/37 :689-697, the index-slot position :711-717, projection*model NO VIEW); drawTextString (:1026-1069: fontCellFor, the same skip-keep-slot rule :1043-1049, the alignment :1040-1041, the same UV/position math); font.h (the boundary doc - the skip-consumes-advance rule stated verbatim); the call sites: main.cpp :2145-2177 (drawTextString), ui.h (the score formatting -> drawDigitString). THE EXISTING COVERAGE (quoted): checkFontCells (:548-578 the pure mapping) + checkFontMetrics (:581-597 the pure width/alignment) - PURE-LOGIC ONLY; the renderer x-placement had NO pin. THE CONTRACT (source/history): the skip-consumes-advance rule documented in font.h AND the draw comments; the Step-243 UV intent documented in-source (:689-695). THE PIN (commit ad7b779, tests-only +70): checkFontDrawLayout - draw '11' vs '1X2' at the same origin, ONE glReadPixels over the glyph band, the drawn-ink CENTROID must shift right by ~one advance (10.4 px; the threshold 5 px). GATES vs ad7b779: the build exit 0; the direct run exit 0 with ZERO fontdraw failure lines; ctest 8/8 (13.59s). THE MUTATION (the committed tree): the drawn-only counter in drawDigitString (the skipped chars stop consuming their slots; the 3 anchored edits - the loop text sits at BOTH :672 and :1042 so the anchor carried the digit-path-unique comment; the renderer.h has MIXED line endings - the anchors went \\r?\\n-tolerant) -> '2' collapses onto slot 1 -> the centroid shift ~0 -> the NEW assert failed BY NAME and NO OTHER (the failing line: 'fontdraw: a glyph-less character must consume its advance slot (the ink centroid must shift right)'; the mutated direct run exit 1; the reference-ink asserts, the pure font checks and the suite passed) -> pathspec restore (src diff empty) -> REBUILD exit 0 -> ctest 8/8 (13.79s); alive x3 True. THE 243 QUIRK: documented-and-restored in-source - recorded as the known intent, the pixel discriminator deferred (fragile), NOT pinned. NO font redesign; NO new API.",
+   "notes": "Docs commit DOCS-336 (docs only). The in-step friction: the renderer.h has MIXED line endings (the :669-672 region CRLF, the :719-722 region LF) - the first mutation attempt's literal CRLF anchor matched 0 at the increment site (the abort was clean, no write); the anchors went \\r?\\n-tolerant regexes with the counts-before-writes discipline. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-336",
+   "depends_on": [
+    335
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

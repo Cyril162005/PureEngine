@@ -1532,3 +1532,28 @@ ImGui / ECS / glTF / networking (the freezes stand).
 - **status:** the pin landed (c674b59, +73); the mutation (the :225
   destroyAll removed) failed the NEW assert BY NAME and no other; restored;
   REBUILT; ctest 8/8; alive x3; the contract unchanged.
+## Entry 67
+
+- **what:** the font/digit rendering audit + the draw-side layout pin (336).
+- **class:** coverage precision (the pure font checks never exercised the
+  renderer glyph loop) + the mixed-endings hazard.
+- **the classification:** checkFontCells (the frozen mapping) and
+  checkFontMetrics (the width/alignment) are PURE-LOGIC ONLY; the renderer
+  x-placement (drawDigitString originX + c*0.52, the skip-keep-slot rule)
+  had NO pin - font.h names the draw path the REFERENCE for its own rule.
+- **the pin:** the centroid-shift probe - draw "11" vs "1X2" at the same
+  origin, ONE glReadPixels over the glyph band, the drawn-ink centroid must
+  shift right ~one advance (10.4 px; the threshold 5). Robust to the glyph
+  shapes (the ink-centroid, not the fixed windows) and texel-free in the
+  threshold sense (any ink > 0.3 counts).
+- **the mixed-endings hazard:** renderer.h carries CRLF at :669-672 and LF
+  at :719-722 - the literal CRLF mutation anchor matched 0 at the increment
+  site (a clean abort, no write); the \\r?\\n-tolerant regexes with the
+  counts-before-writes discipline handled both. LESSON: in accreted headers,
+  treat line endings as PER-REGION unknowns.
+- **the 243 quirk:** the digit UV divisor (11 -> 37) is documented-and-
+  restored in-source; per the 336 additions it is recorded as the known
+  intent - the pixel discriminator (the ink-extent) deferred as fragile,
+  not pinned.
+- **status:** the pin landed (ad7b779, +70); the mutation failed the NEW
+  assert BY NAME and no other; restored; REBUILT; ctest 8/8; alive x3.
