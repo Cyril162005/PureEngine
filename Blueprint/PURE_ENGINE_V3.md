@@ -4351,6 +4351,45 @@ also co-fails (the sentry's skipws peek sets eofbit on the unattached
 filebuf too) - only the parse result (positions.size()) separates the
 paths. THE CONTRACT IS UNCHANGED: false + out untouched for BOTH paths.
 
+***STEP 333 (2026-10-18): THE PE_CORE COMPILE-TIME / INCLUDE AUDIT (measure +
+docs only; the queued 332 item executed).*** THE BASELINE IDENTITY: CORE-323
+= `8aa07e5` (the scene_persist split - the FIRST header migration touching
+pe_core's include tree; then 324 prefab, 330 mesh3d); the BASELINE = its
+parent `f3164aa` (DOCS-322). Exported with `git archive --format=zip` into
+%TEMP%\pe_baseline333 (OUTSIDE the repo; no checkout/stash/worktree in the
+live repo); the identity checks passed (no scene_persist.h/prefab_persist.h/
+mesh3d_obj.h in the export); the baseline configured + pe_core built exit 0
+on attempt 1 (the FETCHCONTENT_SOURCE_DIR_GLFW/_MINIAUDIO/_STB overrides
+reuse the live _deps - no network). THE METHOD (stated before measuring):
+the same machine, the same Release config + generator + compiler; the
+pe_core-TARGET isolation (the static-lib archive only - no exe link, no
+tests); the FORCED REBUILD per trial by deleting THAT TU's .obj (only that
+TU recompiles, so every /showIncludes note belongs to it); N=5 per TU per
+side; the same CL=/showIncludes on BOTH sides; src/ and CMakeLists.txt in
+the live repo untouched. THE PER-TU TABLE (the samples ms; the median; the
+range; the unique-note count, constant across all 5 trials per TU):
+BASELINE pe_core.cpp 17202/10108/7483/7107/6236 med 7483 rng 10966 count
+190; HEAD pe_core.cpp 19156/8199/9460/8135/14726 med 9460 rng 11021 count
+195 (193 unique); BASELINE stb_impl.cpp med 4540 rng 381 count 40; HEAD
+stb_impl.cpp med 7486 rng 8802 count 40; BASELINE glad_gl.c med 2701 rng
+854 count 24; HEAD glad_gl.c med 9302 rng 13251 count 24; HEAD-only TUs:
+scene_persist.cpp 157 notes, mesh3d_obj.cpp 128 notes. THE INCLUDE VERDICT
+(exact): pe_core.cpp 190 -> 195 raw (+5) / 190 -> 193 unique (+3 = EXACTLY
+scene_persist.h + prefab_persist.h + mesh3d_obj.h); the SYSTEM-header
+subtree BIT-IDENTICAL between the sides (zero files added or removed - the
+removed stream includes were REDUNDANT CARRIERS; the 331 structural finding
+now proven at the file level); the controls stb_impl 40==40 and glad_gl
+24==24 (the harness validated). THE TIME VERDICT: UNMEASURABLE - the
+run-to-run ranges (381-13251ms) dwarf every median difference, and the
+CONTROL TUs on IDENTICAL sources show median gaps up to 6.6s (glad_gl 2701
+vs 9302; stb_impl 4540 vs 7486) - the machine noise dominates any code
+effect; the first trial per TU trends high (17.2s/19.2s pe_core) and was
+NOT discarded (all samples reported per the method). THE OVERALL VERDICT:
+NO DEMONSTRATED IMPROVEMENT for pe_core - the split value is the structural
+decoupling (mesh3d.h/scene.h/prefab.h no longer FORCE the I/O includes on
+their consumers; the I/O cost now lives ONCE in the _persist/_obj TUs), not
+a compile-cost win on this machine. No claims beyond the numbers.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

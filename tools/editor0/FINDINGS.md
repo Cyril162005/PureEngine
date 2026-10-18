@@ -1458,3 +1458,27 @@ ImGui / ECS / glTF / networking (the freezes stand).
   NON-VACUOUS by name and no other (the positions form; the failing line
   "zero-face file must fail and leave out untouched", exit 1); ctest 8/8
   post-restore (16.40s); the golden EXACT (the 330/331 baseline sha256).
+## Entry 64
+
+- **what:** the pe_core compile-time/include audit (333) - the queued 332
+  item executed against the TRUE pre-migration baseline.
+- **class:** measurement methodology + the split-payoff verdict.
+- **the baseline:** f3164aa (DOCS-322, the parent of CORE-323 8aa07e5),
+  git-archive-exported OUTSIDE the repo; configured with the
+  FETCHCONTENT_SOURCE_DIR overrides (no network); pe_core built exit 0 on
+  attempt 1.
+- **the method that worked:** the per-TU forced rebuild - delete THAT TU's
+  obj, build the pe_core target: only that TU recompiles, so every
+  /showIncludes note belongs to it (no output parsing); N=5 per side per TU;
+  the identical-source control TUs (stb_impl, glad_gl) calibrate the noise.
+- **the result:** the include counts EXACT: pe_core.cpp 190 -> 193 unique
+  (+3 = exactly the 3 shim headers) / 195 raw; the SYSTEM-header subtree
+  BIT-IDENTICAL (the removed stream includes were redundant carriers - the
+  331 structural finding proven at the file level); the TIMES UNMEASURABLE:
+  the identical-source controls show the median gaps up to 6.6s, the ranges
+  dwarf every median difference - on this machine, single-TU wall-clock
+  comparisons below ~5s of true effect cannot be made.
+- **the verdict:** NO DEMONSTRATED IMPROVEMENT for pe_core; the split value
+  is the structural decoupling (the headers no longer force the I/O includes
+  on their consumers; the cost lives once in the _persist/_obj TUs).
+- **status:** docs only; src/ + CMake untouched; the gates green.
