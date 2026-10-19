@@ -1604,3 +1604,27 @@ ImGui / ECS / glTF / networking (the freezes stand).
   the mixed line endings. Each carries a BLANK "Approved by Cyril: __"
   line - none approved.
 - **status:** the Render category IN PROGRESS -> VERIFICATION REQUIRED.
+## Entry 70
+
+- **what:** the debug3d drop huge-box classified (339) - A) draw/camera
+  geometry; the entities never change size.
+- **class:** camera-geometry mis-scale (the documented default camera vs
+  the sandbox ground box), not a physics or draw bug.
+- **the evidence:** the 180-frame headless trace (the exact dropSandbox
+  entities + applyPhysics + resolveSandboxPairs): sizesStable=1 (the
+  scale/halfExtents bitwise-unchanged; the box bounces and rests sanely);
+  the geometry: the default camera (0,0,5) FOV 60 - the ground +Z face at
+  the view depth 1.0, the half-width 4.0 vs the frustum 0.77 = 5.2x the
+  half-width; the resting box = 17.3% of the frustum half-height.
+- **the answers:** the sandbox 2D sprites CANNOT grow (the meshId>0 2D
+  skip, PIN 4); the F1 AABB overlay scales with them only when toggled;
+  meshId 13 = the unregistered fallback cube; the bright/dark faces = the
+  CPU per-face directional (no shadow pass exists).
+- **the temp-instrumentation lesson:** the insertion anchor must NEVER
+  swallow a following comment line, and [string].Replace with a MATCHED
+  VALUE re-interprets it as a regex (the parens became a group -> 22
+  sites) - the lookahead regex + [regex]::Replace is the one-site
+  guarantee; both failures were caught by the build/counts and restored.
+- **status:** inspect only; the bounded fix recommended (the drop-reply
+  cam tip OR the documented-default change + the frustum-fit pin);
+  RENDER STAYS VERIFICATION REQUIRED.

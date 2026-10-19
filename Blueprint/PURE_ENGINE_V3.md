@@ -4679,6 +4679,70 @@ criterion except C; NO criterion is UNVERIFIED; the limits L1-L8 carry
 explicitly. The Render category status moves: IN PROGRESS -> VERIFICATION
 REQUIRED. The next Render work (if any) opens only on Cyril's prompt.
 
+***STEP 339 (2026-10-19): THE DEBUG3D DROP "HUGE BOX" CLASSIFIED (inspect
+only; NO code fix).*** THE TRIGGER (Cyril smoke 2026-10-19): debug3d drop ->
+the lower/ground box becomes huge and covers almost the whole screen; the
+falling-box interaction hard to judge. THE TRACE (file:line): the drop
+spawner = main.cpp :1144-1180 (dropSandbox, the Step 231 shared lambda) -
+ground: position (0,-3,0), scale (1,1,1), halfExtents (4,0.5,4),
+isStatic=true, meshId=1, Sandbox role, restitution 0; box: position
+(0,6,0), scale (1,1,1), halfExtents (0.5,0.5,0.5), meshId=1, restitution
+0.85, gravityScale 1; both queueSpawn'd. The per-frame path: applyPhysics
+(main :1865) -> resolveSandboxPairs (:1870) -> the draw. resolveSandboxPairs
+(physics.h :283-307) delegates to resolveCollision for the Sandbox pairs -
+the writes are POSITIONS/VELOCITIES only; physics.h touches scale/
+halfExtents ONLY as reads (the collision math :107-110/:342-355/:410-463).
+drawEntity3D (renderer.h :776-780): the model = translation * rotationY *
+scale(halfExtents * scale * 2) - the drawn size = the entity spec
+(the Step 261 sizing); the mesh = meshId 1 -> unitCubeVertices (:796-799).
+THE CLASSIFICATION: **A) DRAW/CAMERA GEOMETRY - the entities never change
+size.** THE EXECUTION EVIDENCE (the temporary instrumentation, restored by
+pathspec before any commit; the tree verified clean): the drop replicated
+headlessly (the exact dropSandbox entities + applyPhysics +
+resolveSandboxPairs, 180 frames) - sizesStable=1 (the scale/halfExtents
+bitwise-unchanged across every frame); the box falls 6.0 -> the bounces
+(vel +8.4 at f=90) -> the oscillation; the ground never moves. THE
+GEOMETRY: the DEFAULT debug camera = eye (0,0,5), target origin, FOV 60
+(main :1205-1208, the Step 216 reset) - the ground's +Z face (z=4) sits at
+the view depth 1.0; its half-width 4.0 vs the frustum half-width
+tan(30)*1*4/3 = 0.77 -> the face is 5.2x the frustum half-width (~10.4x the
+full screen width) - the 8x1x8 ground box rendered CORRECTLY at a
+camera-hostile distance fills and overflows the screen; the resting box
+(the top y=-2.0) = 17.3% of the frustum half-height, just above the
+ground's top face - the occlusion judgment is hard because the ground's
+near face fills the lower screen. THE CRITICAL QUESTION ANSWERED (from
+source, pending the visual retest): the 2D sprites of the sandbox entities
+CANNOT grow - meshId>0 entities are SKIPPED in the 2D batch (the 327 PIN 4);
+the ONLY 2D thing that scales with them = the F1 drawAABBs overlay
+(:1085-1128, the line loops, the collision-exact halfExtents*scale*2, the
+player orange / the others yellow) - ONLY when F1 is toggled; the player 2D
+sprite is unaffected. THE MESH IDS: meshId 1 = the HARDCODED cube (both
+sandbox entities; :796-799), meshId 2 = the hardcoded pyramid (NOT set by
+any engine code - only the user meshid command), meshId 13 = an
+UNREGISTERED registry id -> the CUBE FALLBACK (:789-799: the registry miss
+-> unitCubeVertices); NO mesh path draws the HUD (the HUD digits =
+drawDigitString, the 2D path; the meshId>0 2D skip separates them) and the
+2D path never draws a mesh. THE FACES: the bright/dark = the CPU per-face
+directional shading (renderer.h :868-880: the fixed lightDir
+(0.32,0.74,0.42) normalized, ambient 0.35 + diffuse 0.65*max(0,n.L)) - the
+top faces bright, the undersides darker; NO shadow pass exists (the grep:
+zero matches in renderer.h/main.cpp/physics.h/collision.h). THE BOUNDED
+FIX RECOMMENDATION (ONE step, no redesign): keep the entities; make the
+DROP discoverable at the default camera - EITHER the dropSandbox reply
+appends the camera tip ("drop: ground@N box@N (tip: debug3d cam 0 4 14 0
+-2 0)") - the least invasive (the documented cam default stays), OR the
+Step 216 cam-reset default moves to a drop-suitable eye (0,4,14) /
+target (0,-2,0) - a DOCUMENTED-DEFAULT change needing Cyril's call. THE
+EXACT PIN for either: the headless frustum-fit assert - compute
+projection*view over the 8 ground corners + the 8 box corners at the
+DOCUMENTED default cam; assert every NDC z in [-1,1] and the x/y extents
+within [-1,1] (the ground face must not overflow the frustum); the
+mutation: the cam default reverted to (0,0,5) -> the x extents exceed 1 ->
+the named assert fails; plus the reply-string assert for the tip variant.
+RENDER STAYS VERIFICATION REQUIRED - the blocker moves from "the drop
+unjudgeable" to "the drop camera default mis-scaled for the sandbox
+geometry" (the fix = ONE bounded step on Cyril's go).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
