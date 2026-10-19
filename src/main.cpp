@@ -1141,6 +1141,13 @@ if (clip != animations.end()) {
     // Step 231: the drop logic as a SHARED lambda - both the standalone
     // "drop" command AND the debug3d "drop" subcommand route here (one
     // implementation, no duplication).
+    // Step 340: the drop camera - the ONE source for the reply tip (the
+    // eye xyz + the target xyz, exactly the 6 floats the cam command
+    // consumes; the FOV stays the Step-215 default and is not part of the
+    // tip). The FIT pin (checkDropCamFit) reads THESE definitions from
+    // this file and asserts the sandbox geometry fits the frustum they
+    // define - a constant drift fails the build gate, not only the smoke.
+    const float dropCam[6] = { 0.0f, 8.0f, 18.0f, 0.0f, 0.0f, 0.0f };
     auto dropSandbox = [&]() -> std::string {
         // Step 232 (DECISION, stated): drop is PLAYING-ONLY - the
         // physics (applyPhysics) ticks only in PLAYING, so a drop in
@@ -1179,6 +1186,13 @@ if (clip != animations.end()) {
         const std::size_t bIdx = activeScene->queueSpawn(box);
         return std::string("drop: ground@" + std::to_string(gIdx) + " box@" +
                            std::to_string(bIdx) + " (session-transient, never saved)");
+        std::ostringstream tip;
+        tip << "(tip: debug3d cam " << dropCam[0] << " " << dropCam[1] << " "
+            << dropCam[2] << " " << dropCam[3] << " " << dropCam[4] << " "
+            << dropCam[5] << ")";
+        return std::string("drop: ground@" + std::to_string(gIdx) + " box@" +
+                           std::to_string(bIdx) + " (session-transient, never saved)") +
+               " " + tip.str();
     };
     // --- Step 202: debug3d console trigger (diagnostic hook, default OFF) ---
     // The pure parse lives in console.h (parseOnOff, CI-tested); this

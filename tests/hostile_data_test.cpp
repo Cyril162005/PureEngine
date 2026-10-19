@@ -10372,6 +10372,107 @@ static bool checkDigitUvAtlas() {
     glfwTerminate();
     return ok;
 }
+// Step 340: the drop camera FIT + TIP pins. The constants live ONCE in
+// main.cpp (near dropSandbox); THIS check reads them from the source
+// (the grep-verified-contract pattern) so a constant drift fails here,
+// not only in the manual smoke. The FIT: every NDC coordinate of the 8
+// ground corners and the 8 box corners (the start y=6, a mid-bounce
+// y=3, the rest y=-2) must stay within [-1,1] at the parsed camera.
+// The TIP: the drop reply must contain the camera tip built from the
+// same constants (the source-level wiring pin; the runtime reply text
+// stays a manual-smoke item). The 339 classification A (the camera
+// geometry) is closed by the constants: the ground near face sits ~14
+// units from the eye instead of ~1.
+static bool checkDropCamFit() {
+    bool ok = true;
+    fs::path mainSrc;
+    for (const char* cand : { "src/main.cpp", "../src/main.cpp", "../../src/main.cpp" }) {
+        fs::path p = fs::path(cand);
+        if (fs::exists(p)) { mainSrc = p; break; }
+    }
+    if (mainSrc.empty()) { std::cerr << "dropcam skipped: main.cpp not found\n"; return true; }
+    std::ifstream in(mainSrc);
+    std::ostringstream text;
+    text << in.rdbuf();
+    const std::string srcText = text.str();
+    float cam[6] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+    {
+        const std::string marker = "const float dropCam[6] = {";
+        const std::size_t at = srcText.find(marker);
+        if (at == std::string::npos) { std::cerr << "dropcam: the dropCam constants must be defined once in main.cpp\n"; return false; }
+        std::size_t cur = at + marker.size();
+        for (int i = 0; i < 6; ++i) {
+            const std::size_t comma = srcText.find(',', cur);
+            if (comma == std::string::npos) { std::cerr << "dropcam: the constants parse failed\n"; return false; }
+            cam[i] = std::stof(srcText.substr(cur, comma - cur));
+            cur = comma + 1;
+        }
+    }
+    std::cerr << "dropcam DIAG: the parsed camera = (" << cam[0] << "," << cam[1] << "," << cam[2] << ") -> (" << cam[3] << "," << cam[4] << "," << cam[5] << ")\n";
+    pe::Camera c;
+    c.setEyeTargetUp(pe::Vec3(cam[0], cam[1], cam[2]), pe::Vec3(cam[3], cam[4], cam[5]), pe::Vec3(0.0f, 1.0f, 0.0f));
+    c.setPerspective(1.0472f, 0.1f, 100.0f);
+    const pe::Mat4 proj = c.projection();
+    const pe::Mat4 view = c.view();
+    // The convention validator: the manual clip (the column-major
+    // m[col][row]) must equal transformPoint (the pre-divide xyz) for
+    // the same input - the row/col order locked before the FIT math.
+    {
+        const pe::Vec3 p(0.5f, 6.5f, 0.5f);
+        const float cx = view.m[0][0] * p.x + view.m[1][0] * p.y + view.m[2][0] * p.z + view.m[3][0];
+        const float cy = view.m[0][1] * p.x + view.m[1][1] * p.y + view.m[2][1] * p.z + view.m[3][1];
+        const float cz = view.m[0][2] * p.x + view.m[1][2] * p.y + view.m[2][2] * p.z + view.m[3][2];
+        const pe::Vec3 tp = view.transformPoint(p);
+        if (std::fabs(cx - tp.x) > 1e-4f || std::fabs(cy - tp.y) > 1e-4f || std::fabs(cz - tp.z) > 1e-4f) {
+            std::cerr << "dropcam: the Mat4 convention validation failed\n"; ok = false;
+        }
+    }
+    // The clip -> the NDC for one corner; the perspective w-divide done
+    // explicitly (transformPoint assumes w=1 and must not be used here).
+    auto cornerInside = [&](const pe::Vec3& center, const pe::Vec3& half) -> bool {
+        for (int i = 0; i < 8; ++i) {
+            const float x = center.x + ((i & 1) ? half.x : -half.x);
+            const float y = center.y + ((i & 2) ? half.y : -half.y);
+            const float z = center.z + ((i & 4) ? half.z : -half.z);
+            const float cx = view.m[0][0] * x + view.m[1][0] * y + view.m[2][0] * z + view.m[3][0];
+            const float cy = view.m[0][1] * x + view.m[1][1] * y + view.m[2][1] * z + view.m[3][1];
+            const float cz = view.m[0][2] * x + view.m[1][2] * y + view.m[2][2] * z + view.m[3][2];
+            const float cw = view.m[0][3] * x + view.m[1][3] * y + view.m[2][3] * z + view.m[3][3];
+            if (cw <= 0.0f) { return false; }
+            const float px = proj.m[0][0] * cx + proj.m[1][0] * cy + proj.m[2][0] * cz + proj.m[3][0] * cw;
+            const float py = proj.m[0][1] * cx + proj.m[1][1] * cy + proj.m[2][1] * cz + proj.m[3][1] * cw;
+            const float pz = proj.m[0][2] * cx + proj.m[1][2] * cy + proj.m[2][2] * cz + proj.m[3][2] * cw;
+            const float pw = proj.m[0][3] * cx + proj.m[1][3] * cy + proj.m[2][3] * cz + proj.m[3][3] * cw;
+            if (pw <= 0.0f) { return false; }
+            const float nx = px / pw;
+            const float ny = py / pw;
+            const float nz = pz / pw;
+            if (nx < -1.0f || nx > 1.0f || ny < -1.0f || ny > 1.0f) { return false; }
+            if (nz < -1.001f || nz > 1.001f) { return false; }
+        }
+        return true;
+    };
+    if (!cornerInside(pe::Vec3(0.0f, -3.0f, 0.0f), pe::Vec3(4.0f, 0.5f, 4.0f))) {
+        std::cerr << "dropcam: the ground corners must fit the frustum at the documented drop camera\n"; ok = false;
+    }
+    if (!cornerInside(pe::Vec3(0.0f, 6.0f, 0.0f), pe::Vec3(0.5f, 0.5f, 0.5f))) {
+        std::cerr << "dropcam: the box corners must fit at the start pose (y=6)\n"; ok = false;
+    }
+    if (!cornerInside(pe::Vec3(0.0f, 3.0f, 0.0f), pe::Vec3(0.5f, 0.5f, 0.5f))) {
+        std::cerr << "dropcam: the box corners must fit at a mid-bounce pose (y=3)\n"; ok = false;
+    }
+    if (!cornerInside(pe::Vec3(0.0f, -2.0f, 0.0f), pe::Vec3(0.5f, 0.5f, 0.5f))) {
+        std::cerr << "dropcam: the box corners must fit at the rest pose (y=-2)\n"; ok = false;
+    }
+    // The TIP: the reply must contain the camera tip built from the SAME
+    // constants (the source-level wiring pin).
+    const bool tipBuilt = srcText.find("(tip: debug3d cam ") != std::string::npos &&
+                          srcText.find("dropCam[0] << \" \" << dropCam[1]") != std::string::npos;
+    const bool replyWired = srcText.find("\" (session-transient, never saved)\") +") != std::string::npos &&
+                            srcText.find("tip.str()") != std::string::npos;
+    if (!tipBuilt || !replyWired) { std::cerr << "dropcam: the drop reply must contain the camera tip built from the constants\n"; ok = false; }
+    return ok;
+}
 
 // Step 174: core loop contract (from source, call-site based — a test
 // cannot execute a game loop headless, so the order is locked HERE).
@@ -11185,6 +11286,7 @@ int main() {
     const bool partialInitOk = checkPartialInitTeardown();
     const bool fontDrawOk = checkFontDrawLayout();
     const bool digitUvOk = checkDigitUvAtlas();
+    const bool dropCamFitOk = checkDropCamFit();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -11208,7 +11310,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !volumeMatrixOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistencePinsOk || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk || !partialInitOk || !fontDrawOk || !digitUvOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistencePinsOk || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk || !partialInitOk || !fontDrawOk || !digitUvOk || !dropCamFitOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
