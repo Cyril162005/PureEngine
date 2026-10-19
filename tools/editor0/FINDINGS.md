@@ -1557,3 +1557,27 @@ ImGui / ECS / glTF / networking (the freezes stand).
   not pinned.
 - **status:** the pin landed (ad7b779, +70); the mutation failed the NEW
   assert BY NAME and no other; restored; REBUILT; ctest 8/8; alive x3.
+## Entry 68
+
+- **what:** the digit UV cell-mapping pin (337) - 37 vs the stale 11, via
+  the CONTROLLED ATLAS.
+- **class:** discriminator design (the area-preservation trap) + the
+  content-sniffed fixture.
+- **the trap (pre-computed, then rejected honestly):** the quad-level raw
+  ink counts CANNOT discriminate for an average-coverage digit - the stale
+  strip has ~3.36x more source pixels but the quad minifies it ~3.36x, so
+  the coverages coincide; the real-atlas density ratios peak at 1.66
+  (digit 1) < the 2.0 floor. The System.Drawing pre-computation proved it
+  BEFORE any test code existed.
+- **the fixture that worked:** a GENERATED font_digits.png (TGA bytes under
+  the .png name - stbi sniffs the CONTENT, not the extension) in the
+  3-level-deep fixture CWD: the cells 0-9 + 25 SOLID white, the rest
+  transparent. The margin asserted first from the arithmetic (784 vs 233 =
+  3.36x); the digit-0 control survives the mutation by construction (its
+  stale strip is all-solid cells) - the single-assert guarantee is
+  structural, not hoped for.
+- **the mutation:** the divisor 37 -> 11 at BOTH draw paths (the identical
+  u0/u1 pairs) -> digit 7 samples the mostly-empty strip -> the NEW assert
+  failed BY NAME and no other; restored; REBUILT; ctest 8/8; alive x3.
+- **status:** the Step-243 intent (cell/37 = one exact cell per digit) is
+  now EXECUTION-proven, not just documented; the committed assets untouched.

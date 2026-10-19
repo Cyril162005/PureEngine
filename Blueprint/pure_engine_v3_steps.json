@@ -3739,6 +3739,17 @@
    "depends_on": [
     335
    ]
+  },
+  {
+   "id": 337,
+   "name": "RENDER: the digit UV cell mapping pin (37 vs the stale 11) via the CONTROLLED ATLAS (the cells 0-9+25 solid in the fixture CWD; the margin asserted first 784 vs 233; the mutation single-assert BY NAME; the real-atlas coverage design pre-computed and rejected at the 1.66 best ratio)",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD e1432b8 == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 336 completed, 337 free. THE READ (file:line): the Step-243 UV math drawDigitString :696-697 (the IDENTICAL lines drawTextString :1052-1053); FONT_TEXT_CELL_COUNT = 37 (:1264); the atlas on disk = 592x16 = exactly 37x16px cells (the PNG IHDR); stbi_load callable from the test TU (resources.h declares <stb_image.h>, the impl in stb_impl.cpp, the test compiles resources.h); the sampling CLAMP_TO_EDGE + LINEAR. THE DESIGN: the addition's real-atlas coverage discriminator was PRE-COMPUTED (the System.Drawing decode of the real atlas) and REJECTED honestly - the best correct-vs-stale density ratio across the 10 digits = 1.66 (digit 1) < the 2.0 floor (the 5x7 glyphs have similar ink densities; the quad-level raw counts coincide because the stale region has ~3.36x more source pixels but the quad minifies it ~3.36x). THE CONTROLLED ATLAS (the addition preferred design): the fixture CWD (3-level-deep, the 3-candidate probe cannot escape) provides a GENERATED font_digits.png - TGA bytes under the .png name (stbi sniffs the CONTENT): 592x16, the cells 0-9 AND 25 SOLID white, the rest transparent; the margin asserted FIRST from the atlas arithmetic (784 >= 2x 233 = 3.36x); the asserts: (a) the digit-0 control (>= 700) under BOTH mappings, (b) THE PIN: digit 7 must fill the quad (>= 700) - the correct divisor maps cell 7 (solid) into the quad, the stale divisor maps the mostly-empty strip [376.7,430.5] (only the 16px of the solid cell 25). THE MUTATION (the committed tree): the divisor 37 -> 11 at BOTH draw paths (the u0/u1 lines are identical pairs) -> digit 7 = ~233 px -> the NEW assert failed BY NAME and NO OTHER (the failing line: 'fontatlas: digit 7 must sample its own 37-cell slot (the solid cell must fill the quad)'; the mutated direct run exit 1; the digit-0 control, the margin pre-assert and the suite passed) -> pathspec restore (src diff empty) -> REBUILD exit 0 -> ctest 8/8 (28.89s); alive x3 True. NO font redesign; NO new API; the committed assets untouched (the controlled atlas = the temp fixture only).",
+   "notes": "Docs commit DOCS-337 (docs only). The in-step friction: the first impl draft referenced an undefined proj helper (caught by inspection before the run - the proj declared inline); the addition's shell-hygiene rule followed (2>nul / the explicit status checks - the $null-file class from 335 not repeated). The pre-computation script: editor0_tmp/precompute337.ps1 (System.Drawing, gitignored). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "CORE-337",
+   "depends_on": [
+    336
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

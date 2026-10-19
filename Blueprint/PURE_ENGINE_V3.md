@@ -4510,6 +4510,44 @@ intent per the 336 additions; its pixel discriminator (the ink-extent
 comparison) is deferred as fragile, NOT pinned this step. NO font
 redesign; NO new API.
 
+***STEP 337 (2026-10-19): THE DIGIT UV CELL MAPPING (37 VS THE STALE 11) -
+PINNED VIA THE CONTROLLED ATLAS.*** THE READ (file:line): the Step-243 UV
+math in drawDigitString :696-697 (u0/u1 = cell/37, cell+1/37; the IDENTICAL
+lines in drawTextString :1052-1053); FONT_TEXT_CELL_COUNT = 37 (renderer.h
+:1264) and the ATLAS ON DISK = 592x16 = EXACTLY 37x16px cells (the PNG IHDR
+read directly); the loader = stbi (resources.h: the declarations in
+<stb_image.h>, the ONE implementation in stb_impl.cpp - the test TU already
+compiles resources.h, so stbi_load is callable); the sampling CLAMP_TO_EDGE
++ LINEAR. THE REAL-ATLAS COVERAGE DESIGN WAS PRE-COMPUTED AND REJECTED
+HONESTLY (the addition's fallback): decoding font_digits.png and comparing
+each digit's correct-cell ink density vs its stale-divisor strip density
+gives the BEST ratio 1.66 (digit 1) across all 10 digits - the 5x7 glyphs
+have similar ink densities, NO digit clears a 2x margin -> per the addition
+that design would be BLOCKED. THE CONTROLLED ATLAS (the addition's
+preferred design) IS FULLY VIABLE: the fixture CWD (the 335 pattern,
+3-level-deep so the 3-candidate probe cannot escape) provides a GENERATED
+font_digits.png - TGA BYTES written under the .png name (stbi sniffs the
+file CONTENT, not the extension): 592x16, the cells 0-9 AND 25 SOLID white
+BGRA, the rest fully transparent. THE DISCRIMINATOR: under the CORRECT
+divisor digit 7 samples its OWN cell 7 (solid) -> the quad renders ~784 of
+784 px; under the STALE divisor digit 7 samples [7/11,8/11] x 592 =
+[376.7,430.5] = the mostly-EMPTY cells 23.5-26.9 (only the 16 source px of
+the solid cell 25 inside) -> ~233 px. THE MARGIN IS ASSERTED FIRST from the
+atlas arithmetic (784 >= 2x 233 = 3.36x) - the fixture proves it can tell
+the mappings apart before it tests anything. THE PIN (commit 569cbe0,
+tests-only +123): checkDigitUvAtlas - (a) the digit-0 CONTROL must render
+its solid cell (>= 700 px) under BOTH mappings (its stale strip [0,54] is
+all-solid cells - the mutation cannot co-fail it); (b) THE PIN: digit 7
+must fill the quad (>= 700). THE MUTATION (the committed tree): the divisor
+37 -> 11 at BOTH draw paths (the u0/u1 lines are identical pairs, one
+contract) -> digit 7's quad = the mostly-empty strip -> the NEW assert
+failed BY NAME and NO OTHER: "fontatlas: digit 7 must sample its own
+37-cell slot (the solid cell must fill the quad)" (the mutated direct run
+exit 1; the digit-0 control, the margin pre-assert and the whole suite
+passed); pathspec restore -> REBUILD -> ctest 8/8 (28.89s); alive x3 True.
+NO font redesign; NO new API; the committed assets untouched (the
+controlled atlas lives in the temp fixture CWD only).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
