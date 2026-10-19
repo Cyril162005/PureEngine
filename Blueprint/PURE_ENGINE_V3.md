@@ -4548,6 +4548,137 @@ passed); pathspec restore -> REBUILD -> ctest 8/8 (28.89s); alive x3 True.
 NO font redesign; NO new API; the committed assets untouched (the
 controlled atlas lives in the temp fixture CWD only).
 
+***STEP 338 (2026-10-19): THE RENDER CATEGORY ACCEPTANCE AUDIT (evidence +
+recommendation only; docs; the tracker id 338).*** THE CRITERIA SOURCE: the
+326 draft A-I (V3 :4028-4044, recovered verbatim from disk) - PROPOSED,
+NEVER approved by Cyril. Per the 338 additions: the status vocabulary is
+NOT AUDITED / IN PROGRESS / BLOCKED / VERIFICATION REQUIRED / ACCEPTED;
+this audit maps the EVIDENCE onto the proposed criteria and proposes
+wording edits; it does NOT self-approve anything.
+
+THE A-I EVIDENCE TABLE (the criterion: the evidence grade + the citations):
+A. the build exit 0 (staged) - PROVEN: the full Release build exit 0 at
+   every slice gate (327-337); the 338-turn build exit 0 (338.2s, LNK1104=0,
+   19 artifacts). WORDING PROPOSAL: "(staged)" is ambiguous - the gates ran
+   against the COMMITS; propose "(against the committed tree, before the
+   docs record)".
+B. ctest green, the count grows additively - PROVEN IN INTENT, WORDING
+   DRIFT: ctest 8/8 at every gate; the render-contract coverage grew +189/
+   +44/+41/+73/+70/+123 test lines (327/329/334/335/336/337) INSIDE the
+   existing hostile_data_test - NO new "render-contract target" was created
+   (the draft literal wording). The intent (the additive headless coverage
+   of drawWorld/drawEntity3D) is met; propose "(inside the existing harness
+   or a new target)". NO timing asserts anywhere in the Render pins.
+C. the live smoke: alive x3 + the Cyril visual checklist - PARTIAL (the
+   ONLY criterion not fully evidenced): alive x3 True at every gate (the
+   automated half); the CYRIL VISUAL CHECKLIST for the Render migration is
+   NOT RECORDED - the recorded 318 smoke line (HEAD 8137a23) predates ALL
+   Render pins (327+). The SMOKE_TEST section 7 rows 7.4-7.12 (the GL-only
+   gate: the OOB checker visual, the blend, the tint, the debug3d mesh/depth/
+   drop, nohostiles) remain HUMAN-ONLY. THIS CRITERION HOLDS THE CATEGORY
+   AT VERIFICATION REQUIRED.
+D. the structure - PROVEN: mesh3d = the ONLY SPLIT-JUSTIFIED boundary and
+   the ONLY split (mesh3d_obj.h/.cpp, mesh3d.h 196 -> 108, 330); the ODR
+   grep 0 (the 326 sweep) held - core_link_probe green at every gate; the
+   renderer API: ZERO changes beyond the declared moves (the 327-337 src
+   diffs = the mutation cycles only, all restored by pathspec).
+E. the include hygiene - PROVEN: mesh3d.h LOST its 3 stream includes to
+   mesh3d_obj.cpp (330); no render header gained a heavy include (the
+   327-337 src diffs = the tests); the 333 audit: pe_core's system-header
+   subtree BIT-IDENTICAL across all the migrations.
+F. the consumer linkage - PROVEN: mesh3d_obj.cpp linked into PureEngine,
+   hostile_data_test, pe_core (the loader callers); the 330 temp mesh_gold
+   needed the same link (the 323 LNK2019 lesson re-applied at the temp
+   target).
+G. the contracts pinned before any move - PROVEN: the mesh contracts
+   (checkMeshLoad :7608 etc.) predate the 330 move; every NEW Render pin
+   landed tests-first with the gates against the test commit
+   (327/334/335/336/337).
+H. the behavior proof - PROVEN: the moved loader's golden (mesh_gold,
+   508B sha256 4E700683...A814) re-verified byte-identical at 331/332/337;
+   checkMeshLoad's exact asserts over the moved body. WORDING PROPOSAL:
+   the golden is a DATA dump, not a frame compare - propose "(the data-dump
+   goldens count; no pixel golden unless Cyril asks)".
+I. measurement not budget - PROVEN: no timing asserts in any Render test;
+   the bench runs recorded as DATA (the 333 audit: the times UNMEASURABLE
+   per the noise rule - recorded, not acted on).
+
+THE COVERAGE ROWS (the 338 prompt's minimum set, beyond A-I):
+- the 2D draw/order - PROVEN: PIN 1 (the depth sort; the mutation 327),
+  PIN 3 (the dead skip; the mutation 329-C), PIN 4 (the meshId skip; the
+  mutation 329-B), PIN 5 (the blend/depth restore; the mutation 329-D).
+- depth/occlusion - PROVEN: checkDebugFrameDepth/checkDepthState/
+  checkMeshDepthState/checkMeshOcclusion (the pre-327 pins the 326 audit
+  cited at :4007-4012).
+- lit vs unlit - PROVEN: PIN 7 (the callable; the 334 resolution - the
+  REAL lit path runs, the shipped assets/shaders load headless) + PIN 8
+  (the lit-dark vs the unlit contrast; the 334 mutation: the forced
+  fallback -> single-assert by name).
+- mesh registry/UV/textureId - PROVEN: checkMeshRegistry/checkMeshHandle/
+  checkMeshIdParse/checkMeshStateLeak (the registry), checkMeshLoad (the
+  UV bounds + the per-face planar scheme), PIN 6 (the OOB fallback) + the
+  329 renderer-backed textureRegistry (the release/refuse contracts).
+- partial-init destroyAll - PROVEN WITH LIMITS (the 335 pin: the checker-
+  only fixture -> init false + textureCount()==0 + the re-init recovery;
+  the mutation single-assert; THE LIMITS: 7 of 8 failure paths read-only;
+  the GL-name freeing unobservable through the public API).
+- font layout + digit UV - PROVEN: checkFontDrawLayout (the 336 centroid-
+  shift skip rule) + checkDigitUvAtlas (the 337 controlled-atlas UV
+  mapping; the margin asserted first).
+- resource/load contracts - PROVEN: resources_test (the dedicated target)
+  + checkTextureRegistry/checkResourceSystem (the 326-audit classification
+  held).
+
+THE LIMITS TABLE (each with its evidence; NONE approved - the approval
+lines stay blank for Cyril):
+L1. The live pixel-perfect smoke is HUMAN-ONLY (SMOKE_TEST 7.4-7.12; the
+    criterion C) - the build/ctest can never close it.
+    Evidence: SMOKE_TEST.md section 7; the 327/336 STATUS lines.
+    Approved by Cyril: __
+L2. 7 of 8 init failure paths are READ-ONLY verified (not injectable
+    without touching src/ or the committed assets).
+    Evidence: the 335 record; the init failure map :151-:308.
+    Approved by Cyril: __
+L3. The destroyAll GL-name freeing is not publicly observable (the private
+    handles; the GL tolerates both) - the 335 pin observes the
+    registry-reset consequence through textureCount().
+    Evidence: the 335 record; the destroyAll map :1218-1241.
+    Approved by Cyril: __
+L4. PIN 6 (the OOB textureId) is "something drew" BY DESIGN - the
+    diagnostic is NDEBUG-gated (silent in Release, no flake).
+    Evidence: the 327 record, PIN 6.
+    Approved by Cyril: __
+L5. The compile-time: NO DEMONSTRATED IMPROVEMENT for pe_core (the times
+    UNMEASURABLE per the noise rule; the include delta +3 unique files =
+    the 3 shims).
+    Evidence: the 333 audit (the per-TU table + the control TUs).
+    Approved by Cyril: __
+L6. The mesh3d include payoff is nil for the all-16-header TUs (the stream
+    subtree survives via 8 other carriers; the system subtree
+    bit-identical).
+    Evidence: the 331 include verdict; the 333 file-level proof.
+    Approved by Cyril: __
+L7. The point-light attenuation geometry (the d^2/r^2 formula, the light
+    positions) is unpinned headless - the zero-light and callable
+    contracts are pinned (334); the light math runs only in the live game.
+    Evidence: the 334 record; assets/shaders/lit.frag.
+    Approved by Cyril: __
+L8. The renderer.h carries MIXED line endings (CRLF/LF per-region) - a
+    maintenance hazard for the literal anchors (the 336 mutation needed
+    the tolerant regexes).
+    Evidence: the 336 mutation record (the :719-722 LF region).
+    Approved by Cyril: __
+
+THE RECOMMENDATION: **VERIFICATION REQUIRED** (the 338 addition mandates
+this status until the human smoke passes). THE REMAINING BLOCKERS to a
+future ACCEPTED: (1) the Cyril visual checklist recorded (the criterion C:
+the 2D frame, the 3D depth discipline, the HUD digits - the SMOKE_TEST 7
+rows); (2) the A-I criteria formally APPROVED by Cyril (with the wording
+edits proposed at A/B/H above). THE EVIDENCE BASE IS COMPLETE for every
+criterion except C; NO criterion is UNVERIFIED; the limits L1-L8 carry
+explicitly. The Render category status moves: IN PROGRESS -> VERIFICATION
+REQUIRED. The next Render work (if any) opens only on Cyril's prompt.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

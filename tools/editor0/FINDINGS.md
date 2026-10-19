@@ -1581,3 +1581,26 @@ ImGui / ECS / glTF / networking (the freezes stand).
   failed BY NAME and no other; restored; REBUILT; ctest 8/8; alive x3.
 - **status:** the Step-243 intent (cell/37 = one exact cell per digit) is
   now EXECUTION-proven, not just documented; the committed assets untouched.
+## Entry 69
+
+- **what:** the Render category acceptance audit (338) - the evidence table
+  + the limits + the recommendation.
+- **class:** process (the acceptance vocabulary discipline).
+- **the recommendation:** VERIFICATION REQUIRED (the addition mandate until
+  the human smoke passes - NOT self-approved). The blockers to a future
+  ACCEPTED: the Cyril visual checklist recorded (the 318 smoke predates ALL
+  the Render pins) + the A-I criteria formally approved.
+- **the evidence:** every 326 criterion except C is PROVEN with the
+  citations (the commits/mutations/tests); C is PARTIAL (alive x3 yes, the
+  visual checklist no). NO criterion UNVERIFIED.
+- **the wording-edit proposals (not self-applied as approvals):** A
+  "(staged)" -> "(against the committed tree)"; B -> "inside the existing
+  harness or a new target" (the coverage grew inside hostile_data_test);
+  H -> "the data-dump goldens count".
+- **the limits L1-L8:** the live smoke HUMAN-ONLY; the 7-of-8 failure
+  paths read-only; the GL-name freeing unobservable; PIN 6
+  something-drew by design; the compile-time NO DEMONSTRATED IMPROVEMENT;
+  the mesh3d include payoff nil; the point-light attenuation unpinned;
+  the mixed line endings. Each carries a BLANK "Approved by Cyril: __"
+  line - none approved.
+- **status:** the Render category IN PROGRESS -> VERIFICATION REQUIRED.
