@@ -10251,6 +10251,127 @@ static bool checkFontDrawLayout() {
     glfwTerminate();
     return ok;
 }
+// Step 337: the digit UV cell mapping (37 vs the stale 11) - the CONTROLLED
+// ATLAS discriminator (the addition preferred design). The fixture CWD
+// provides a GENERATED font_digits.png (TGA bytes - stbi sniffs the file
+// CONTENT, not the extension): 592x16, the cells 0-9 and 25 SOLID white,
+// everything else fully transparent. Under the CORRECT divisor (cell/37,
+// the Step-243 fix) digit 7 samples its OWN cell 7 (solid) -> the quad
+// renders nearly full (~784 of 784 px). Under the STALE divisor (cell/11)
+// digit 7 samples the atlas strip [7/11,8/11] = the mostly-EMPTY cells
+// 23.5-26.9 (only the 16 source px of the solid cell 25 inside) -> ~233 px.
+// THE MARGIN IS ASSERTED FIRST from the atlas arithmetic (784 >= 2x 233) so
+// the fixture proves it can tell the two mappings apart before it tests
+// anything. The digit 0 control stays full-coverage under BOTH mappings
+// (its stale strip [0,54] is all-solid cells) -> the mutation can only fail
+// the digit-7 assert.
+static bool checkDigitUvAtlas() {
+    if (!glfwInit()) { std::cerr << "digituv test skipped: glfwInit failed\n"; return false; }
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+    GLFWwindow* w = glfwCreateWindow(320, 240, "digituv", NULL, NULL);
+    if (!w) { glfwTerminate(); std::cerr << "digituv skipped: no GL context\n"; return true; }
+    glfwMakeContextCurrent(w);
+    if (!gladLoadGL(glfwGetProcAddress)) {
+        glfwDestroyWindow(w); glfwTerminate();
+        std::cerr << "digituv test skipped: gladLoadGL failed\n"; return true;
+    }
+    bool ok = true;
+    const fs::path savedCwd = fs::current_path();
+    fs::path fixture = fs::temp_directory_path() / "pe_digituv" / "d1" / "d2" / "d3";
+    fs::path fa = fixture / "assets";
+    fs::create_directories(fa / "shaders");
+    std::error_code ec;
+    bool srcOk = true;
+    for (const char* sh : { "default.vert", "default.frag", "lit.vert", "lit.frag" }) {
+        fs::path src;
+        for (const char* cand : { "assets/shaders/", "../assets/shaders/", "../../assets/shaders/" }) {
+            fs::path p = fs::path(cand) / sh;
+            if (fs::exists(p)) { src = p; break; }
+        }
+        if (src.empty()) { srcOk = false; break; }
+        fs::copy_file(src, fa / "shaders" / sh, fs::copy_options::overwrite_existing, ec);
+        if (ec) { srcOk = false; break; }
+    }
+    for (const char* asset : { "checker.png", "tex_player.png", "tex_scenery.png", "tex_hostile.png", "tex_hostile_alt.png", "paddle_spritesheet.png" }) {
+        fs::path src;
+        for (const char* cand : { "assets/", "../assets/", "../../assets/" }) {
+            fs::path p = fs::path(cand) / asset;
+            if (fs::exists(p)) { src = p; break; }
+        }
+        if (src.empty()) { srcOk = false; break; }
+        fs::copy_file(src, fa / asset, fs::copy_options::overwrite_existing, ec);
+        if (ec) { srcOk = false; break; }
+    }
+    if (!srcOk) { std::cerr << "digituv skipped: the fixture sources not found\n"; fs::current_path(savedCwd); glfwDestroyWindow(w); glfwTerminate(); return true; }
+    // The controlled atlas: 592x16 TGA (the uncompressed true-color RGBA, the
+    // top-origin): the cells 0-9 + 25 solid white BGRA, the rest (0,0,0,0).
+    const int AW = 592, AH = 16;
+    std::vector<unsigned char> tga(18 + (std::size_t)AW * AH * 4, 0);
+    tga[2] = 2;
+    tga[12] = (unsigned char)(AW & 0xFF); tga[13] = (unsigned char)((AW >> 8) & 0xFF);
+    tga[14] = (unsigned char)(AH & 0xFF); tga[15] = (unsigned char)((AH >> 8) & 0xFF);
+    tga[16] = 32;
+    tga[17] = 0x28;
+    auto solidCell = [&](int k) {
+        for (int x = 16 * k; x < 16 * k + 16; ++x) {
+            for (int y = 0; y < AH; ++y) {
+                unsigned char* px = &tga[18 + ((std::size_t)y * AW + x) * 4];
+                px[0] = 255; px[1] = 255; px[2] = 255; px[3] = 255;
+            }
+        }
+    };
+    for (int k = 0; k <= 9; ++k) solidCell(k);
+    solidCell(25);
+    {
+        std::ofstream out(fa / "font_digits.png", std::ios::binary);
+        if (!out) { std::cerr << "digituv skipped: the atlas write failed\n"; fs::current_path(savedCwd); glfwDestroyWindow(w); glfwTerminate(); return true; }
+        out.write(reinterpret_cast<const char*>(tga.data()), (std::streamsize)tga.size());
+    }
+    // THE MARGIN PRE-ASSERT (the addition): the atlas arithmetic must prove
+    // the two mappings are distinguishable BEFORE any draw.
+    const double quadPx = 28.0 * 28.0;
+    const double expectedCorrect7 = quadPx;
+    const double expectedStale7 = (16.0 / (AW / 11.0)) * 28.0 * (28.0 / 16.0);
+    if (!(expectedCorrect7 >= 2.0 * expectedStale7)) {
+        std::cerr << "digituv BLOCKED: the controlled-atlas margin is below 2x (" << expectedCorrect7 << " vs " << expectedStale7 << ")\n";
+        fs::current_path(savedCwd); glfwDestroyWindow(w); glfwTerminate();
+        return true;
+    }
+    fs::current_path(fixture);
+    pe::Renderer r;
+    if (!r.init()) { std::cerr << "digituv: renderer init must succeed\n"; fs::current_path(savedCwd); glfwDestroyWindow(w); glfwTerminate(); return false; }
+    glViewport(0, 0, 320, 240);
+    const pe::Mat4 proj = pe::Mat4::orthographic(-4.0f, 4.0f, -3.0f, 3.0f, -1.0f, 1.0f);
+    auto scanInk = [&]() -> int {
+        const int x0 = 104, y0 = 104, w = 32, h = 32;
+        std::vector<float> px(static_cast<std::size_t>(w) * h * 3, 0.0f);
+        glReadPixels(x0, y0, w, h, GL_RGB, GL_FLOAT, px.data());
+        int n = 0;
+        for (int i = 0; i < w * h; ++i) {
+            if (px[i * 3 + 0] > 0.3f || px[i * 3 + 1] > 0.3f || px[i * 3 + 2] > 0.3f) ++n;
+        }
+        return n;
+    };
+    auto clearBlack = [&]() { glClearColor(0.0f, 0.0f, 0.0f, 1.0f); glClear(GL_COLOR_BUFFER_BIT); };
+    // (a) the digit-0 control: the solid cell 0 under BOTH mappings.
+    clearBlack();
+    r.drawDigitString("0", -1.0f, 0.0f, proj);
+    const int cov0 = scanInk();
+    if (cov0 < 700) { std::cerr << "fontatlas: the digit-0 control must render its solid cell (the draw path must work)\n"; ok = false; }
+    // (b) THE PIN: digit 7 must sample its own 37-cell slot.
+    clearBlack();
+    r.drawDigitString("7", -1.0f, 0.0f, proj);
+    const int cov7 = scanInk();
+    if (cov7 < 700) { std::cerr << "fontatlas: digit 7 must sample its own 37-cell slot (the solid cell must fill the quad)\n"; ok = false; }
+    fs::current_path(savedCwd);
+    glfwDestroyWindow(w);
+    glfwTerminate();
+    return ok;
+}
 
 // Step 174: core loop contract (from source, call-site based — a test
 // cannot execute a game loop headless, so the order is locked HERE).
@@ -11063,6 +11184,7 @@ int main() {
     const bool lightingCapOk = checkLightingCap();
     const bool partialInitOk = checkPartialInitTeardown();
     const bool fontDrawOk = checkFontDrawLayout();
+    const bool digitUvOk = checkDigitUvAtlas();
 
     if (!validOk || !missingKeyOk || !malformedOk || !emptyListOk || !missingFileOk ||
         !tilemapValidOk || !tilemapMalformedOk || !tilemapCollideOk ||
@@ -11086,7 +11208,7 @@ int main() {
         !platLevelsOk || !platLandingOk || !platSwitchOk || !platGoalOk ||
         !platClimbOk || !inputEdgesOk ||         !volumeClampOk || !muteToggleOk || !perSoundVolumeOk ||
         !musicVolumeIndepOk || !preInitGuardsOk || !volumeMatrixOk || !audioDeviceLifecycleOk ||
-        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistencePinsOk || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk || !partialInitOk || !fontDrawOk) {
+        !audioPoolRotationOk || !screenToWorldOk || !worldToScreenOk || !entityPickOk || !screenPickOk || !entityBoundsOk || !gateTableOk || !highscoreOk || !sceneSerOk || !pongScoreOk || !particleColorOk || !fixedStepOk || !actionMapOk || !textureRegOk || !consoleHistRecallOk || !timeScaleOk || !hierarchyFreezeOk || !animClipOk || !binaryBlobOk || !resourceSystemOk || !keyNamesOk || !keysAllOk || !gamepadActionsOk || !adoptionOk || !inputBindingsOk || !componentOk || !sceneDumpOk || !managerSaveOk || !managerRoundTripOk || !spawnAfterKillOk || !multiPersistOk || !prefabMatrixOk || !animClipKeepOk || !animationSystemOk || !scenePtrOk || !persistV2Ok || !persistV1Ok || !persistV99Ok || !persistencePinsOk || !persistComposeOk || !lifecycleOk || !frameUvOk || !lightingCapOk || !followLerpOk || !particleContractOk || !partialInitOk || !fontDrawOk || !digitUvOk) {
         std::cerr << "hostile_data_test: FAILED\n";
         return 1;
     }
