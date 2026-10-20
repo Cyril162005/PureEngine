@@ -1669,3 +1669,19 @@ ImGui / ECS / glTF / networking (the freezes stand).
 - **status:** Render ACCEPTED (2026-10-20, HEAD c748c5c); the freeze
   rule: the reopens only on a measured regression; the next category
   opens only on Cyril's explicit prompt.
+## Entry 73
+
+- **what:** the multi-category backlog brief (342, docs only) - the four
+  tracks inventoried (A Simulation, B World/content, C Graphics assets,
+  D Editor/tools); the recommendation A -> B -> C -> D; PARK until Cyril
+  picks.
+- **class:** planning (the category lifecycle; no implementation).
+- **the headline gaps per track:** A: the two integration variants
+  (applyPhysics vs the test-only applyPhysicsFixed), the RESTING_VEL
+  scope, the audio device playback human-only; B: the tilemap 2D-only
+  (no 3D interaction contract), the loader reject-only versioning;
+  C: the OBJ subset limits (the vn/vt partial, the quads unsupported),
+  no registry eviction (by design); D: the Phase-D findings + the save-as
+  write-safety (the src/ read-only holds).
+- **status:** the four tracks INVENTORIED (none ACCEPTED); the next full
+  audit = Simulation on Cyril's pick.

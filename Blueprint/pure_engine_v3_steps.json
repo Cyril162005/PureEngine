@@ -3794,6 +3794,17 @@
    "depends_on": [
     340
    ]
+  },
+  {
+   "id": 342,
+   "name": "BACKLOG: the multi-category brief (inspect + docs only) - the four tracks inventoried (A Simulation, B World/content, C Graphics assets, D Editor/tools) with the tables (the headers, the tests, the consumers, the gaps, the risks); the recommendation A -> B -> C -> D (the Simulation audit first); PARK: no feature steps/pins/fixes until Cyril picks; none ACCEPTED this step",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD 7ae6a61 == origin/main; the tree clean except the untouched hostile_default.txt + Testing/. THE RELOAD: AGENTS.md, V3, the tracker, the board, FINDINGS, README, git log -12. THE ACCEPTED BASELINE recorded: Core Foundation (319/325), Entity/Scene/Persistence (325), Render (341, 2026-10-20, the limits L1-L8, the smoke PASS after the tip camera). THE FOUR TRACK TABLES in V3 (the headers with the line counts, the tests/pins, the live consumers, the gaps, the risks): A Simulation (physics/collision/simulation/input/audio/time/events - the gaps: the TWO integration variants (applyPhysics vs applyPhysicsFixed test-only), the RESTING_VEL scope, the audio device playback human-only; the check density 30+); B World/content (tilemap/scene/prefab/lifecycle/hostile_data + the games as the consumers - the Entity/Scene ACCEPTED narrows the audit; the tilemap 2D-only); C Graphics assets (mesh3d/mesh3d_obj/the registry/the texture slots/resources - the draw path Render-ACCEPTED narrows to the OBJ subset limits and the asset producers; no registry eviction by design); D Editor/tools (tools/editor0: editor0_core.h 1398 + main.cpp 3674 + FINDINGS.md; the editor-lite checks x4; the Phase-D findings; the src/ read-only). THE ORDERED RECOMMENDATION: A -> B -> C -> D (the Simulation audit first: the largest not-yet-audited surface, the highest criticality, the cheap evidence-rich audit); what must NOT start until the A audit ACCEPTED: any B/C/D implement step; PARK until Cyril picks. THE STATUS LANGUAGE: the tracks = NOT AUDITED | INVENTORIED; none ACCEPTED this step. GATES: the build exit 0, ctest 8/8, alive x3 (the docs commit).",
+   "notes": "Docs commit DOCS-342 (docs only; no src/ change; the tools/editor0 READ-only). THE INVENTORY METHOD: the per-file function inventories with the line numbers (editor0_tmp/inv342.ps1 -> inv342.txt, gitignored) + the check-function census (11319-line test file). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-342",
+   "depends_on": [
+    341
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

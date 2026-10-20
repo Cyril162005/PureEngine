@@ -4879,6 +4879,73 @@ approved limits L1-L8 listed above. THE FREEZE RULE: Render reopens only
 on a measured regression (the same as Core Foundation and Entity/Scene/
 Persistence). The next category opens only on Cyril's explicit prompt.
 
+### Category backlog brief (Step 342, 2026-10-20, docs only - INSPECT, no
+### implementation, no category ACCEPTED this step)
+
+THE ACCEPTED BASELINE (frozen; the reopen only on a measured regression):
+Core Foundation - ACCEPTED (319/325). Entity/Scene/Persistence - ACCEPTED
+(325). Render (the draw path) - ACCEPTED (341, 2026-10-20, HEAD c748c5c;
+the limits L1-L8 approved; the smoke PASS after the tip camera).
+
+TRACK A - SIMULATION (physics.h 656, collision.h 374, simulation.h 162,
+input.h 430, audio.h 470, engine_time.h 112, events.h 157):
+| Area | Key headers | Tests / pins | Live consumer | Gaps | Risk |
+| --- | --- | --- | --- | --- | --- |
+| gravity/force/integrate | physics.h :41-55 | checkApplyForceMath, checkApplyPhysicsSemantics, checkApplyPhysicsFixedFreeMovers | main :1865 applyPhysics | TWO integration variants (applyPhysics vs applyPhysicsFixed :632) - the FIXED variant is test-only today (no production caller); the drift risk between them | medium |
+| AABB/resolve | collision.h :83-180, physics.h resolveCollision | checkStaticFloorLanding..checkResolveEdgeTouch (7), checkRestitution, checkBounceRestHeights, checkMassWeighting | the arcade loop, the sandbox | RESTING_VEL scope: 0.5f threshold lives ONLY in resolveSandboxPairs (physics.h :304); Pong's default call passes 0 (the documented split) | low |
+| swept/character | physics.h sweptMoveAndCollide :333, the character controller | checkSweptAABBContract, checkSweptControllerContract, checkSweptFixedContract, checkSweptMoveAndCollide, checkKinematicCarry/Resolve, checkFixedJump/Substep | platformer | the swept contract fully pinned; the platformer consumes | low |
+| broadphase | physics.h (the grid pairs) | checkBroadphaseGridPairs, checkFixedTimestepNoTunnel | main (the Step-52 gate) | the Step-52 ruling: fine at <=2000 entities; the reopen ONLY on a measured superlinear breach | low (frozen by measurement) |
+| sandbox resolve | physics.h :283-307 | checkSandboxResolve, checkBounceTunneling, checkDropPhysics | the debug3d drop (main :1144-1180) | the RESTING_VEL magic constant documented in-place (the 238 note) | low |
+| input | input.h :83-404 | checkInputEdges, checkMouseInput, checkGamepadDeadzone/Buttons/Edge/PollSafety, checkActionMap, checkKeyNames, checkKeysForAllActions, checkGamepadActions, checkInputAdoptionHelper, checkInputBindings | main (the actions + the mouse + the pad) | the GLFW window paths need a live window (the headless checks use the Input adoption helper + the parse contracts); the gamepad DEVICE polling human-only | medium |
+| audio | audio.h :124-422 | checkVolumeClamp, checkMuteToggle, checkPerSoundVolume, checkMusicVolumeIndependence, checkPreInitGuards, checkAudioVolumeMatrix, checkAudioDeviceLifecycle, checkAudioPoolRotation | main (the sfx + the music loop) | the miniaudio DEVICE playback = human-only (the volume matrix + the lifecycle headless-pinned); the music loop end-to-end unproven in CI | medium |
+| time | engine_time.h :68-99 | checkTimeContract, checkTimeScale | main :1512 tick | the dt clamp/scale/pause pinned (318) | low |
+| events | events.h :65-143 | checkEventsOrderAndPayload, checkEventsUnsubscribe, checkEventsEdgeCases, checkEventThrowAndOnce, checkEventReentrantOnceGaps | main (the collision events) | the reentrancy + the once-gaps pinned | low |
+
+TRACK B - WORLD/CONTENT (tilemap.h 358, scene.h 279, prefab.h 88,
+lifecycle.h 158, hostile_data.h 187):
+| Area | Key headers | Tests / pins | Live consumer | Gaps | Risk |
+| --- | --- | --- | --- | --- | --- |
+| tilemap load/collide | tilemap.h :70-299 | checkTilemapValidLoad, checkTilemapMalformedFallsBack, checkTilemapCollidePushesOut, checkTileResolve | the arcade level (the tilemap default) | the tilemap is 2D-only - no 3D interaction contract; the malformed fallback pinned | low |
+| scene/manager | scene.h :67-261 (the persistence in scene_persist) | checkSceneLifecycle, checkSceneNoCurrentNoOps, checkSceneByName, checkSpawnQueue, checkSceneDumpReload, checkSceneManagerSave/RoundTrip | main (the two scenes) | the Entity/Scene/Persistence ACCEPTED (325) - the format pins held | low (frozen) |
+| prefab | prefab.h :56 (+ prefab_persist) | checkPrefabSystem, checkPrefabSceneSpawn, checkPrefabLiveSpawn, checkPrefabMultiSpawnPersist, checkPrefabSceneFailureMatrix | the spawn command | the strict v1 header check pinned; the versioning = reject-only (no migration path by design) | low |
+| lifecycle/roles | lifecycle.h :76-152 | checkEntityLifecycle, checkSpawnAfterKill, checkNohostilesParse/Kill, checkHierarchy* | main (the role scoping) | the role IDs as ints (the ArcadeRole cast) - the type safety is the accepted design | low |
+| hostile data | hostile_data.h :31-73 | checkCaseValidData..checkCaseMissingFile (5), the defaults load | the hostile defaults | the malformed warn paths pinned; the stress files (500/2000/5000) exercised via the stress test only | low |
+| platformer/pong (CONSUMERS ONLY) | games/ | checkPlatformerLevels/Landing/LevelSwitch/Climb/GoalEvent, checkPongScore, checkPongSustainedContact | the games | the games = the consumers; no expansion per the standing priority | low |
+
+TRACK C - GRAPHICS ASSETS (mesh3d.h 108, mesh3d_obj.h/.cpp, the renderer
+mesh registry, the texture slots, resources.h 197) - the DRAW PATH IS
+RENDER-ACCEPTED; this track = the asset-load/registry surfaces ONLY:
+| Area | Key headers | Tests / pins | Live consumer | Gaps | Risk |
+| --- | --- | --- | --- | --- | --- |
+| OBJ loader | mesh3d.h :46-73 (the builders), mesh3d_obj.cpp (the loader) | checkMeshLoad (the 60-float expand, the UV bounds, the zero-face), checkWedgeMesh (the registered real asset) | meshid 3/5 (the debug3d binds) | the OBJ subset: the vn/vt tags partially supported, the quads unsupported (the 328 note) - the loader is a triangle-soup subset BY DESIGN; the bigger models untested | medium |
+| mesh registry | renderer.h meshRegistry_ :751 | checkMeshRegistry, checkMeshHandle, checkTexturedMesh, checkMeshTextureId | meshid >= 3 | no eviction (the growable map by design); the unregistered ids fall back to the cube | low |
+| texture slots | renderer.h (the registry, the release) | checkTextureRegistry (the renderer-backed section), checkMeshStateLeak | the 6 core + the non-core | Render-ACCEPTED (the release/refuse pinned); the asset-API view = the same contracts | low (frozen) |
+| blob/pack/cache | resources.h :151-185 | checkBinaryBlob, checkResourceSystem, resources_test (the dedicated target) | the audio + the future asset packs | the pack v1 hit/fallback pinned; the cache = the process-lifetime single-threaded (the documented limit) | low |
+
+TRACK D - EDITOR/TOOLS (tools/editor0/):
+| Area | Key headers | Tests / pins | Live consumer | Gaps | Risk |
+| --- | --- | --- | --- | --- | --- |
+| Editor-0 | editor0_core.h (1398), main.cpp (3674), FINDINGS.md | checkEditorLiteKill/Spawn/Safety/Success (4 - the editor-lite logic mirrored in the harness) | PureEditor0 (its own CMake target) | the Phase-D findings live in tools/editor0/FINDINGS.md; the save-as write-safety documented; the engine src/ read-only during the Tools steps (the 284 rule) | medium |
+| status | the Phase Tools option (c) per the 292 map - ALLOWED (the 284 amendment) | - | - | no editor feature work in 342; the Tools steps remain a CONSUMER phase | low |
+
+THE ORDERED RECOMMENDATION: **A (Simulation) -> B (World/content) -> C
+(Graphics assets) -> D (Editor/tools)**. WHY A FIRST: the largest
+not-yet-audited surface (7 headers, ~2360 lines) with the highest
+gameplay criticality (every interactive frame runs it), and the existing
+check density (30+ physics/input/audio/time/event checks) makes the audit
+cheap and evidence-rich; the TWO integration variants (applyPhysics vs
+applyPhysicsFixed) and the audio device paths are the honest unknowns.
+B second: the persistence-adjacent surfaces are already ACCEPTED-frozen,
+so the audit narrows to the tilemap 3D interaction and the loader
+versions. C third: mostly covered by the Render ACCEPTED contracts - the
+audit narrows to the OBJ subset limits and the asset producers. D last:
+the Tools phase needs the CONSUMER rules (the 284) and the human-gated
+editor work. MUST NOT START until the A audit is ACCEPTED (or explicitly
+deferred by Cyril): any B/C/D implement step (the pins/fixes/features).
+**PARK: all four tracks sit in NOT AUDITED | INVENTORIED - no feature
+steps, no pins, no fixes until Cyril picks the track for the next full
+audit.**
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
