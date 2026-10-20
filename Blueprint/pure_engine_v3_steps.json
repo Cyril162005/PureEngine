@@ -3783,6 +3783,17 @@
    "depends_on": [
     339
    ]
+  },
+  {
+   "id": 341,
+   "name": "RENDER: the category ACCEPTED (docs only) - Cyril's smoke recorded (all items PASS; the lit N/A; the drop with the Step-340 tip, the bounce/occlusion OK); the A/B/H wording edits + the limits L1-L8 APPROVED as known limits; the category completion report in V3; the freeze rule: the reopens only on a measured regression",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD c748c5c == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 340 completed, 341 free. CYRIL'S SMOKE recorded (Render, 2026-10-20, the Release PureEngine.exe): all items PASS; 2D lit vs unlit = N/A (not judgeable in normal play); the drop used with debug3d cam 0 8 18 0 0 0 (the Step-340 tip); bounce/occlusion OK. THE APPROVALS (granted by the 341 prompt): the A/B/H wording edits APPROVED (A 'against the committed tree'; B 'inside the existing harness or a new target'; H 'the data-dump goldens count'); the limits L1-L8 APPROVED AS KNOWN LIMITS (each keeps its evidence line; no stronger guarantees). THE CATEGORY COMPLETION REPORT in V3: the original gaps (the 2D drawWorld untested, the unvalidated pins, the texture-release simulation, the lit-vs-fallback ambiguity, the never-executed destroyAll, the font layout, the digit UV, the zero-face OBJ, the drop camera), the changes (the commits 327-340), the files affected, THE PINS WITH THE MUTATION EVIDENCE (the commit + the failing line per pin: PIN 1 327; PINs 2-5 329; PINs 7/8 334; the partial-init 335; the font layout 336; the digit UV 337; the zero-face 332; the drop camera 340), the remaining limits L1-L8, the smoke record. THE STATUS: Render ACCEPTED (2026-10-20, HEAD c748c5c) with the approved limits; THE FREEZE RULE: the reopens only on a measured regression. GATES: the build exit 0, ctest 8/8, alive x3 (the docs commit).",
+   "notes": "Docs commit DOCS-341 (docs only; no src/ change). The completion report cites the mutation failing lines verbatim from the step records (327/329/332/334/335/336/337/340). PIN 6's mutation deliberately NOT run (the L4 limit: the NDEBUG-gated diagnostic makes it vacuous by construction). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-341",
+   "depends_on": [
+    340
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

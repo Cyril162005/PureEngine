@@ -1651,3 +1651,21 @@ ImGui / ECS / glTF / networking (the freezes stand).
 - **status:** the tip + the pins landed (832e807/f231993); both mutations
   single-assert; restored; REBUILT; ctest 8/8 x2; alive x3; RENDER STAYS
   VERIFICATION REQUIRED until the drop re-smoke (one command now).
+## Entry 72
+
+- **what:** the Render category ACCEPTED (341, docs only) - the smoke
+  recorded, the approvals granted, the completion report written.
+- **class:** category lifecycle (the acceptance per the vocabulary; the
+  freeze rule applied).
+- **the smoke:** Render, 2026-10-20 (the Release PureEngine.exe): all
+  items PASS; the lit N/A; the drop with the Step-340 tip, the
+  bounce/occlusion OK.
+- **the approvals:** the A/B/H wording edits; the limits L1-L8 as known
+  limits (the evidence lines kept; no stronger guarantees).
+- **the completion report:** the 9 original gaps closed by the commits
+  327-340; the pins with the mutation evidence per pin (the commit + the
+  failing line, quoted verbatim from the step records); the limits
+  carried.
+- **status:** Render ACCEPTED (2026-10-20, HEAD c748c5c); the freeze
+  rule: the reopens only on a measured regression; the next category
+  opens only on Cyril's explicit prompt.

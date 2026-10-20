@@ -4786,6 +4786,99 @@ M1, 21.01s post-M2); alive x3 True. THE SMOKE_TEST 7.11 reply text synced
 re-smokes the drop (the tip makes the re-smoke one command: type the tip
 line after drop).
 
+***STEP 341 (2026-10-20): THE RENDER CATEGORY ACCEPTED (docs only; HEAD
+c748c5c).*** CYRIL'S SMOKE (Render, 2026-10-20, the Release PureEngine.exe,
+recorded verbatim in the 341 prompt): all items PASS; 2D lit vs unlit = N/A
+(could not judge the lighting difference in normal play); the drop used
+with debug3d cam 0 8 18 0 0 0 (the Step-340 tip); bounce/occlusion OK.
+THE APPROVALS (granted by sending the 341 prompt; Cyril may strike lines):
+the A/B/H wording edits APPROVED - A "against the committed tree"; B
+"inside the existing harness or a new target"; H "the data-dump goldens
+count"; the limits L1-L8 APPROVED AS KNOWN LIMITS - each keeps its
+evidence line, no stronger guarantees implied.
+
+THE CATEGORY COMPLETION REPORT:
+THE ORIGINAL GAPS: (1) the 2D drawWorld path (~190 lines) had NO headless
+test - only the F-04 cassert (the 326 audit); (2) the 2D pins unvalidated
+(no mutation evidence); (3) the texture-release contracts were a
+local-vector simulation (checkTextureRegistry never touched the
+renderer); (4) the lit overload fallback-or-own ambiguity (PIN 7 could
+not tell the paths); (5) the destroyAll partial-init contract documented
+but never executed; (6) the font draw-side layout unpinned (the pure
+checks covered only the mapping/width math); (7) the digit UV cell
+mapping (the Step-243 fix) documented, not execution-proven; (8) the
+zero-face OBJ rejection unpinned (the 331 discovery); (9) the debug3d
+drop sandbox unjudgeable at the default camera (the 339/340 blocker).
+
+THE CHANGES MADE (the commits): 327 the 2D drawWorld pins PINs 1-7
+(46d97c6, the texel-free channel isolation); 329 the mutations A-D
+validated PINs 2/4/3/5 + the releaseTexture gap closed through the public
+API (0aa719e); 330 the mesh3d OBJ-loader split (0509c06 + the fixes);
+331 the gate recovery (the lock cleared + the golden byte-identity
+verified); 332 the zero-face OBJ pin + the equivalent mutation (2aea156);
+333 the compile-time audit (the NO DEMONSTRATED IMPROVEMENT verdict, the
+limits recorded as data) (4adf367-era); 334 the lit-vs-fallback
+distinguishability pin (a660656, PIN 8); 335 the partial-init destroyAll
+pin (c674b59); 336 the font draw-side layout pin (ad7b779); 337 the digit
+UV controlled-atlas pin (569cbe0); 338 the acceptance audit (4adf367);
+339 the drop huge-box classified (5bc3ff6); 340 the drop camera tip + the
+frustum-fit pin (832e807/f231993/c748c5c).
+
+THE FILES AFFECTED: tests/hostile_data_test.cpp (checkDraw2DContract
+PINs 1-8, checkTextureRegistry's renderer-backed section, checkPartial
+InitTeardown, checkFontDrawLayout, checkDigitUvAtlas, checkDropCamFit);
+src/mesh3d.h (196 -> 108) + src/mesh3d_obj.h/.cpp (the split); src/main.cpp
+(the drop camera constants + the reply tip); Blueprint/SMOKE_TEST.md (the
+7.11 reply synced).
+
+THE PINS WITH THE MUTATION EVIDENCE (the commit + the failing line):
+- PIN 1 the depth sort (327, 46d97c6): the comparator flip -> "draw2d:
+  the higher depth must win the overlap (the red-colliding A covers the
+  green B)".
+- PINs 2/3/4/5 (329, 0aa719e): the mutations A-D - the collision-override
+  bypass -> PIN 2 (+ the co-failing PIN 1 as designed); the meshId-skip
+  bypass -> PIN 4; the dead-skip bypass -> PIN 3; the blend/depth-restore
+  bypass -> PIN 5 (the exact lines quoted in the 329 record).
+- PIN 6 the OOB fallback (327): the something-drew assert BY DESIGN (the
+  L4 limit; no mutation run - the diagnostic is NDEBUG-gated, the mutation
+  would be vacuous by construction).
+- PINs 7/8 the lit callable + the distinguishability (334, a660656): the
+  forced-fallback mutation -> "draw2d: the lit pass with zero ambient and
+  no lights must render the entity black (the lighting math must differ
+  from the unlit path)".
+- the texture release (329, 0aa719e): the renderer-backed release/refuse
+  contracts (the counts) - exercised by the same-draw-path mutations A-D.
+- the partial-init destroyAll (335, c674b59): the destroyAll removed from
+  the :225 failure path -> "partialinit: after a failed init the texture
+  registry must be empty (the failure path must run destroyAll)".
+- the font layout (336, ad7b779): the drawn-only counter -> "fontdraw: a
+  glyph-less character must consume its advance slot (the ink centroid
+  must shift right)".
+- the digit UV (337, 569cbe0): the divisor 37 -> 11 -> "fontatlas: digit 7
+  must sample its own 37-cell slot (the solid cell must fill the quad)".
+- the zero-face OBJ (332, 2aea156): the UV-pair drop -> "4 faces must
+  expand to 60 floats, got 36" + "one good face must expand to 15 floats,
+  got 9".
+- the drop camera fit/tip (340, 832e807/f231993): the target y 0->6 ->
+  "dropcam: the sandbox geometry must fit the frustum at the documented
+  drop camera (the ground + the box at the start/mid-bounce/rest)"; the
+  tip removed -> "dropcam: the drop reply must contain the camera tip
+  built from the constants".
+
+THE REMAINING LIMITS (the approved L1-L8): L1 the live smoke HUMAN-ONLY
+(now PASS, 2026-10-20 - the evidence recorded above); L2 7 of 8 init
+failure paths read-verified only; L3 the destroyAll GL-name freeing
+unobservable through the public API; L4 PIN 6 something-drew by design;
+L5 the compile-time NO DEMONSTRATED IMPROVEMENT for pe_core; L6 the
+mesh3d include payoff nil for the all-16-header TUs; L7 the point-light
+attenuation geometry unpinned headless; L8 the renderer.h mixed line
+endings.
+
+THE STATUS: **Render ACCEPTED (2026-10-20, HEAD c748c5c)** with the
+approved limits L1-L8 listed above. THE FREEZE RULE: Render reopens only
+on a measured regression (the same as Core Foundation and Entity/Scene/
+Persistence). The next category opens only on Cyril's explicit prompt.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
