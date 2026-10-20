@@ -1628,3 +1628,26 @@ ImGui / ECS / glTF / networking (the freezes stand).
 - **status:** inspect only; the bounded fix recommended (the drop-reply
   cam tip OR the documented-default change + the frustum-fit pin);
   RENDER STAYS VERIFICATION REQUIRED.
+## Entry 71
+
+- **what:** the drop camera tip + the frustum-fit pin (340) - the 339
+  bounded fix landed; the 339 classification A confirmed by the fix
+  design (the camera constants change the framing; the entities untouched).
+- **class:** the bounded-fix execution + the mutation-design discipline.
+- **the fit-refined camera:** the 339 draft (0,4,14)/(0,-2,0) FAILED its
+  own fit (the box START-pose top corners outside the frustum, the NDC y
+  ~1.16 - the box spawns ABOVE the eye); the landed (0,8,18)/(0,0,0) fits
+  all 16 corners at all 3 poses.
+- **the mutation-design lesson:** the shared camera cannot break one pose
+  without the geometric neighbors - the per-pose FIT asserts made the
+  literal single-assert mutation unachievable; the consolidation into ONE
+  named assert fixed the discipline. The two vacuous attempts (the eye z,
+  the target y 3) had hand-math depth errors - the DIAG2 empirical sweep
+  (the ground min-NDC-y vs the target y: -0.452/-0.723/-1.058/-1.481)
+  selected the mutation constant from MEASURED data, not arithmetic.
+- **the wiring pins:** the FIT parses the constants from main.cpp source
+  (the drift fails the gate); the TIP is a source-level wiring pin (the
+  runtime reply text = the manual smoke). SMOKE_TEST 7.11 reply synced.
+- **status:** the tip + the pins landed (832e807/f231993); both mutations
+  single-assert; restored; REBUILT; ctest 8/8 x2; alive x3; RENDER STAYS
+  VERIFICATION REQUIRED until the drop re-smoke (one command now).

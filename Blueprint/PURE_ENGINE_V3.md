@@ -4743,6 +4743,49 @@ RENDER STAYS VERIFICATION REQUIRED - the blocker moves from "the drop
 unjudgeable" to "the drop camera default mis-scaled for the sandbox
 geometry" (the fix = ONE bounded step on Cyril's go).
 
+***STEP 340 (2026-10-20): THE DROP CAMERA TIP + THE FRUSTUM-FIT PIN (the
+339 bounded fix, NO physics/draw/default-camera change).*** THE
+IMPLEMENTATION (commit 832e807, CORE-340): the drop camera defined ONCE in
+main.cpp near dropSandbox - const float dropCam[6] = { 0, 8, 18, 0, 0, 0 }
+(the eye xyz + the target xyz, exactly the 6 floats the cam command
+consumes; the FOV stays the Step-215 default, not part of the tip) - and
+the drop reply appends the tip BUILT FROM those constants via
+ostringstream: "drop: ground@N box@N (session-transient, never saved)
+(tip: debug3d cam 0 8 18 0 0 0)". THE CAMERA VALUES ARE THE FIT-REFINED
+339 RECOMMENDATION: the 339 draft (0,4,14)/(0,-2,0) left the box START-pose
+top corners OUTSIDE the frustum (the NDC y ~1.16 - the box spawns at y=6,
+ABOVE the eye 4); (0,8,18)/(0,0,0) fits all 16 corners at all 3 poses (the
+max |NDC| ~0.6). THE PINS (checkDropCamFit): (1) the constants PARSED from
+main.cpp source (the grep-verified-contract pattern - a constant drift
+fails the build gate, not only the smoke); (2) the convention validator
+(the manual column-major clip must equal transformPoint for the same
+input); (3) THE FIT: every NDC of the 8 ground corners + the 8 box corners
+at the start (y=6)/a mid-bounce (y=3)/the rest (y=-2) within [-1,1] with
+the explicit w-divide (transformPoint assumes w=1 and is not used);
+(4) THE TIP: the reply must contain the tip built from the constants
+(the source-level wiring pin; the runtime text = the manual smoke).
+THE MUTATIONS (on the committed tree): M1 the target y 0->3 - VACUOUS
+(TWO attempts: the eye z 18->11 and the target y 0->3 both left every pose
+inside - the hand-math depth errors caught by the vacuous-run discipline;
+the DIAG2 empirical sweep measured the ground min-NDC-y vs the target y:
+0 -> -0.452, 3 -> -0.723, 6 -> -1.058 (EXITS), 9 -> -1.481); M1 retry the
+target y 0->6 (the DIAG2-measured constant) -> NON-VACUOUS. THE
+CONSOLIDATION (commit f231993, CORE-340b): the 4 per-pose FIT asserts
+merged into ONE named assert - the shared camera cannot break one pose
+without the geometric neighbors, so the per-pose split made the literal
+single-assert mutation requirement unachievable; the combined assert:
+"dropcam: the sandbox geometry must fit the frustum at the documented drop
+camera (the ground + the box at the start/mid-bounce/rest)". M1 retry
+result: exit 1, THE FIT assert the only casualty (the TIP + the suite
+passed); M2 the tip removed from the reply -> the TIP assert failed BY
+NAME and NO OTHER: "dropcam: the drop reply must contain the camera tip
+built from the constants" (exit 1; the FIT passed - the constants remain
+defined). Each restored by pathspec -> REBUILD -> ctest 8/8 (34.87s post-
+M1, 21.01s post-M2); alive x3 True. THE SMOKE_TEST 7.11 reply text synced
+(the tip appended). RENDER STAYS VERIFICATION REQUIRED until Cyril
+re-smokes the drop (the tip makes the re-smoke one command: type the tip
+line after drop).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
