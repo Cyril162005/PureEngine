@@ -10452,17 +10452,16 @@ static bool checkDropCamFit() {
         }
         return true;
     };
-    if (!cornerInside(pe::Vec3(0.0f, -3.0f, 0.0f), pe::Vec3(4.0f, 0.5f, 4.0f))) {
-        std::cerr << "dropcam: the ground corners must fit the frustum at the documented drop camera\n"; ok = false;
-    }
-    if (!cornerInside(pe::Vec3(0.0f, 6.0f, 0.0f), pe::Vec3(0.5f, 0.5f, 0.5f))) {
-        std::cerr << "dropcam: the box corners must fit at the start pose (y=6)\n"; ok = false;
-    }
-    if (!cornerInside(pe::Vec3(0.0f, 3.0f, 0.0f), pe::Vec3(0.5f, 0.5f, 0.5f))) {
-        std::cerr << "dropcam: the box corners must fit at a mid-bounce pose (y=3)\n"; ok = false;
-    }
-    if (!cornerInside(pe::Vec3(0.0f, -2.0f, 0.0f), pe::Vec3(0.5f, 0.5f, 0.5f))) {
-        std::cerr << "dropcam: the box corners must fit at the rest pose (y=-2)\n"; ok = false;
+    // ONE FIT assert for the whole sandbox frustum contract: the ground +
+    // the box at the start/mid-bounce/rest must ALL fit; any constant drift
+    // that pushes any pose out fails THIS assert by name (the shared camera
+    // cannot break one pose without the neighbors).
+    const bool groundFit = cornerInside(pe::Vec3(0.0f, -3.0f, 0.0f), pe::Vec3(4.0f, 0.5f, 4.0f));
+    const bool boxStartFit = cornerInside(pe::Vec3(0.0f, 6.0f, 0.0f), pe::Vec3(0.5f, 0.5f, 0.5f));
+    const bool boxMidFit = cornerInside(pe::Vec3(0.0f, 3.0f, 0.0f), pe::Vec3(0.5f, 0.5f, 0.5f));
+    const bool boxRestFit = cornerInside(pe::Vec3(0.0f, -2.0f, 0.0f), pe::Vec3(0.5f, 0.5f, 0.5f));
+    if (!(groundFit && boxStartFit && boxMidFit && boxRestFit)) {
+        std::cerr << "dropcam: the sandbox geometry must fit the frustum at the documented drop camera (the ground + the box at the start/mid-bounce/rest)\n"; ok = false;
     }
     // The TIP: the reply must contain the camera tip built from the SAME
     // constants (the source-level wiring pin).
