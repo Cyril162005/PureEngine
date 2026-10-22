@@ -5163,6 +5163,47 @@ test added. THE RESTORE: audio.h by pathspec -> the src diff clean ->
 REBUILD -> ctest 8/8 -> alive x3. SIMULATION STAYS IN PROGRESS; G1-G6
 UNCHANGED (G1 the known limit, option A).
 
+***STEP 346 (2026-10-22): THE SIMULATION PIN P5 (the input bindings
+reload / reset idempotence) - ALREADY PINNED (the mutation-first evidence;
+NO new test).*** THE INSPECT (file:line): actionOverrides (input.h :83-86,
+the static override map), keysForAction :88-104 (the overrides first, the
+Step-88 defaults fallback), keysForAllActions :115-130 (the Step-157
+union), loadInputBindings :196-256 (the 3-candidate probe; MISSING file
+-> return false, THE OVERRIDES KEPT :200; the malformed/unknown lines
+warned+skipped; if !anyOk return false :251 - the overrides UNTOUCHED;
+success = the ATOMIC MERGE :252-254 - the file actions overridden, the
+absent actions keep their prior state), resetActionOverrides :263-265
+(the table clear -> the Step-88 defaults). THE EXISTING RELOAD/RESET
+CHECKS (quoted): checkInputBindings (:5194-5246): "Bindings load should
+succeed with some valid lines" (:5210), "MoveLeft remap failed" (:5214),
+"Missing file should return false" (:5220), "Failed load must keep the
+remapped overrides" (:5225 - the Step-148 atomic-commit contract),
+"Reset must restore MoveLeft defaults" (:5234), "Reset must restore Jump
+defaults" (:5241), the real-file reload (:5244); checkInputAdoption
+Helper (:5066+, the reset used for its setup :5080).
+THE MUTATION-FIRST PROBE (per the 346 prompt): resetActionOverrides made
+a NO-OP (the clear removed - the stale overrides survive the reset) ->
+the build exit 0 -> the direct run exit 1 -> **THREE existing RELOAD/
+RESET asserts failed**: "Union must restore the defaults after reset"
+(checkInputAdoptionHelper), "Pre-remap union must not track a fresh key"
+(checkInputAdoptionHelper - the stale-override detection), "Reset must
+restore MoveLeft defaults" (checkInputBindings :5234) -> P5 IS ALREADY
+PINNED by checkInputBindings AND checkInputAdoptionHelper. PER THE 346
+PROMPT: named, NO new test added. THE RESTORE: input.h by pathspec ->
+the src diff clean -> REBUILD -> ctest 8/8 -> alive x3.
+
+THE SIMULATION SMOKE FORM (Step 346; NOTHING PASSED - all rows NOT TRIED;
+Cyril fills the one-line reply):
+| row | how to run | status |
+| --- | --- | --- |
+| the arcade feel (the collisions, the hostiles, the HUD) | build\Release\PureEngine.exe (the PLAYING loop; F1 the AABBs; ` the console) | NOT TRIED |
+| the audio audible (the beep/the music/the game-over) | the same session - the collision beeps; the GAME_OVER cue; the music loop from the startup | NOT TRIED |
+| the input responsive (the keys/the mouse/the pad) | the same session - the WASD/arrows, the mouse, the gamepad if plugged | NOT TRIED |
+| the platformer jump (the OPTIONAL under G1 - the character controller has no production consumer; run only if Cyril wants the G1 evidence) | build\Release\Platformer.exe | NOT TRIED |
+THE REPLY TEMPLATE (one line): smoke (Simulation, <date>): arcade=<PASS/
+FAIL> audio=<PASS/FAIL/N/A> input=<PASS/FAIL> platformer=<PASS/FAIL/NOT
+RUN>; notes=<one line>.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

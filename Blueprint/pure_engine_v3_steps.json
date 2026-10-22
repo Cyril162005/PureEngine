@@ -3838,6 +3838,17 @@
    "depends_on": [
     344
    ]
+  },
+  {
+   "id": 346,
+   "name": "SIMULATION: the pin P5 (the input bindings reload / reset idempotence) - ALREADY PINNED by checkInputBindings AND checkInputAdoptionHelper (the mutation-first evidence: resetActionOverrides made a no-op -> THREE existing RELOAD/RESET asserts failed: 'Union must restore the defaults after reset', 'Pre-remap union must not track a fresh key', 'Reset must restore MoveLeft defaults' :5234); NO new test added; the Simulation SMOKE FORM written into V3 (the rows NOT TRIED); Simulation IN PROGRESS",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD d80fa3c == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 345 completed, 346 free. THE INSPECT (file:line): actionOverrides input.h :83-86 (the static override map), keysForAction :88-104 (the overrides first, the defaults fallback), keysForAllActions :115-130 (the Step-157 union), loadInputBindings :196-256 (MISSING file -> return false THE OVERRIDES KEPT :200; the malformed/unknown warned+skipped; if !anyOk return false :251 - the overrides UNTOUCHED; success = the ATOMIC MERGE :252-254 - the file actions overridden, the absent actions keep their prior state), resetActionOverrides :263-265 (the table clear -> the Step-88 defaults). THE EXISTING CHECKS quoted: checkInputBindings (:5194-5246: the load asserts :5210/:5214/:5216/:5218, 'Missing file should return false' :5220, 'Failed load must keep the remapped overrides' :5225 - the Step-148 atomic commit, 'Reset must restore MoveLeft defaults' :5234, 'Reset must restore Jump defaults' :5241, the real-file reload :5244) + checkInputAdoptionHelper (:5066+, the reset used for its setup). THE MUTATION-FIRST PROBE: resetActionOverrides made a NO-OP (the clear removed) -> the build exit 0 -> the direct run exit 1 -> THREE existing RELOAD/RESET asserts failed ('Union must restore the defaults after reset', 'Pre-remap union must not track a fresh key' - the stale-override detection, 'Reset must restore MoveLeft defaults' :5234) -> P5 IS ALREADY PINNED by checkInputBindings AND checkInputAdoptionHelper. PER THE 346 PROMPT: named, NO new test added. THE RESTORE: input.h by pathspec -> the src diff clean -> REBUILD -> ctest 8/8 -> alive x3. THE SIMULATION SMOKE FORM written into V3 (the rows NOT TRIED: the arcade feel, the audio audible, the input responsive, the platformer jump OPTIONAL under G1; the exact commands; the one-line reply template). SIMULATION STAYS IN PROGRESS; G1-G6 UNCHANGED. GATES: the build exit 0 (601.7s), ctest 8/8 (35.29s), alive x3 (the docs commit).",
+   "notes": "Docs commit DOCS-346 (docs only; no src/ change - the probe mutation restored by pathspec before any commit, the src diff verified clean). NO FINDINGS entry (the 346 prompt's record list = V3/tracker/board only). The in-step friction: none beyond the standard drain timeouts. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-346",
+   "depends_on": [
+    345
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."
