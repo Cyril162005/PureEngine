@@ -5204,6 +5204,60 @@ THE REPLY TEMPLATE (one line): smoke (Simulation, <date>): arcade=<PASS/
 FAIL> audio=<PASS/FAIL/N/A> input=<PASS/FAIL> platformer=<PASS/FAIL/NOT
 RUN>; notes=<one line>.
 
+***STEP 347 (2026-10-22): THE SIMULATION CATEGORY ACCEPTANCE AUDIT (docs
+only) - STATUS: VERIFICATION REQUIRED (the smoke NOT PROVIDED).*** THE
+347 PROMPT carried the LITERAL PLACEHOLDER (<paste the filled one-line
+template>) instead of a filled smoke record - per the 338/341 precedent
+(the category stays VERIFICATION REQUIRED until the human smoke passes),
+SIMULATION MOVES TO VERIFICATION REQUIRED with the blocker named: THE
+SMOKE LINE NOT PROVIDED (the Step-346 form is ready: arcade=<...>
+audio=<...> input=<...> platformer=<...>; one line). THE APPROVALS
+(granted by sending the 347 prompt): the limits G1-G6 APPROVED AS KNOWN
+LIMITS, each keeping its evidence line - G1 the swept/character/fixed
+machinery has zero production callers (test-proven only; option A, no
+game wiring); G2 the z-axis pair resolve thin; G3 the audio device
+output human-only; G4 the input device feel human-only; G5 the
+broadphase by design (<=2000, the Step-52); G6 the versioning
+reject-only. The 343 acceptance checklist A-I APPROVED AS WRITTEN.
+
+THE CATEGORY COMPLETION REPORT:
+THE ORIGINAL GAPS (the 343 brief): (1) G1 the production-consumer gap;
+(2) G2 the z-axis thinness; (3) G3/G4 the device human-only surfaces;
+(4) G5/G6 the by-design limits undocumented as approvals; (5) the
+RESTING_VEL parameter semantics unpinned; (6) the audio applyVolumes/mute
+matrix unpinned; (7) the input bindings reload/reset idempotence
+unpinned.
+THE PINS LANDED (the mutation-first, each with the commit + the failing
+line): P3 the RESTING_VEL parameter semantics - ALREADY PINNED
+(c200d24; the resting-guard flip restingVel > 0.0f -> > 1.0f in both
+resolveCollision branches physics.h :199/:226 -> checkBounceRestHeights
+:8936 failed: "the box must settle with |vy| below the threshold (no
+jitter)"); P4 the audio applyVolumes/mute matrix - ALREADY PINNED
+(d80fa3c; the mute bypass (setMuted stops zeroing masterVolume) -> THREE
+existing MUTE asserts failed: "Muted master must be 0"
+(checkMuteToggle :3162), "Mute must zero master while keeping music
+multiplier" (checkMusicVolumeIndependence :3271), "Muted matrix must
+zero both composed paths" (checkAudioVolumeMatrix :3357)); P5 the input
+bindings reload/reset idempotence - ALREADY PINNED (86169f7;
+resetActionOverrides made a no-op -> THREE existing RELOAD/RESET asserts
+failed: "Union must restore the defaults after reset" and "Pre-remap
+union must not track a fresh key" (checkInputAdoptionHelper), "Reset
+must restore MoveLeft defaults" (checkInputBindings :5234)).
+THE PRE-EXISTING COVERAGE (the 342 inventory): 30+ checks from
+checkStaticFloorLanding through checkSweptMoveAndCollide (the resolve
+family, the swept contracts, the character controller, the audio volume
+matrix, the events, the time contracts).
+THE REMAINING LIMITS (the approved G1-G6): carried; NO stronger
+guarantees implied.
+
+THE STATUS: **Simulation = VERIFICATION REQUIRED (2026-10-22, HEAD
+86169f7)** - the blocker: THE SMOKE LINE NOT PROVIDED (the Step-346 form
+awaits: arcade=<...> audio=<...> input=<...> platformer=<...>). THE
+FREEZE RULE: Simulation reopens only on a measured regression (the same
+as Core Foundation, Entity/Scene/Persistence, and Render). The
+ACCEPTANCE completes the moment the filled smoke line arrives (the same
+pattern as Render 338 -> 341).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

@@ -3849,6 +3849,17 @@
    "depends_on": [
     345
    ]
+  },
+  {
+   "id": 347,
+   "name": "SIMULATION: the category acceptance audit (docs only) - STATUS VERIFICATION REQUIRED (the smoke NOT PROVIDED: the 347 prompt carried the literal placeholder instead of the filled one-line template; the Step-346 form awaits); the G1-G6 limits APPROVED as known limits (each keeping its evidence line); the 343 acceptance checklist A-I APPROVED as written; the completion report in V3 (the pins P3/P4/P5 with the mutation evidence); Simulation NOT ACCEPTED this step",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD 86169f7 == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 346 completed, 347 free. THE CRITICAL ITEM DISCLOSED: the 347 prompt's smoke slot carried the LITERAL PLACEHOLDER (<paste the filled one-line template>) instead of a filled smoke record - per the 338/341 precedent (VERIFICATION REQUIRED until the human smoke), Simulation = VERIFICATION REQUIRED with the blocker named (the smoke line not provided; the Step-346 form ready). THE APPROVALS (granted by the 347 prompt): the limits G1-G6 APPROVED AS KNOWN LIMITS (G1 the zero-production-caller machinery test-proven only, option A; G2 the z-axis thin; G3/G4 the device surfaces human-only; G5 the broadphase <=2000; G6 the versioning reject-only) - each keeping its evidence line, no stronger guarantees; the 343 acceptance checklist A-I APPROVED AS WRITTEN. THE COMPLETION REPORT in V3: the original gaps (the 343 brief), the pins landed with the mutation evidence (P3 c200d24 - checkBounceRestHeights :8936 'the box must settle with |vy| below the threshold (no jitter)'; P4 d80fa3c - THREE MUTE asserts: checkMuteToggle :3162 'Muted master must be 0', checkMusicVolumeIndependence :3271, checkAudioVolumeMatrix :3357; P5 86169f7 - THREE RELOAD/RESET asserts: the union-after-reset + the pre-remap-union (checkInputAdoptionHelper), 'Reset must restore MoveLeft defaults' (checkInputBindings :5234)), the pre-existing coverage (30+ checks), the remaining limits. THE STATUS: Simulation VERIFICATION REQUIRED (2026-10-22, HEAD 86169f7); the freeze rule: the reopens only on a measured regression; the acceptance completes on the filled smoke line. GATES: the build exit 0, ctest 8/8, alive x3 (the docs commit).",
+   "notes": "Docs commit DOCS-347 (docs only; no src/ change). The smoke-pending handling follows the 338/341 precedent exactly (Render: VERIFICATION REQUIRED at the audit, ACCEPTED after the smoke). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-347",
+   "depends_on": [
+    346
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

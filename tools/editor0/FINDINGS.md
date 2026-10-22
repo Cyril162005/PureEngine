@@ -1738,3 +1738,20 @@ ImGui / ECS / glTF / networking (the freezes stand).
   which skip loudly without a device).
 - **status:** audio.h restored by pathspec; REBUILT; ctest 8/8; alive x3;
   Simulation IN PROGRESS; G1-G6 unchanged (G1 the known limit, option A).
+## Entry 77
+
+- **what:** the Simulation category acceptance audit (347, docs only) -
+  STATUS VERIFICATION REQUIRED (the smoke NOT PROVIDED).
+- **class:** category lifecycle (the acceptance discipline; the
+  smoke-pending handling per the 338/341 precedent).
+- **the disclosures:** the 347 prompt carried the LITERAL PLACEHOLDER
+  instead of the filled smoke line - Simulation NOT ACCEPTED this step;
+  the Step-346 form awaits (arcade/audio/input/platformer, one line).
+- **the approvals:** the G1-G6 limits as known limits (the evidence
+  lines kept); the 343 checklist A-I as written.
+- **the completion report:** the pins P3/P4/P5 with the mutation
+  evidence (the commits c200d24/d80fa3c/86169f7 + the failing lines);
+  the pre-existing coverage 30+ checks; the limits carried.
+- **status:** Simulation VERIFICATION REQUIRED (2026-10-22, HEAD
+  86169f7); the freeze rule: the reopens only on a measured regression;
+  the acceptance completes on the filled smoke line.
