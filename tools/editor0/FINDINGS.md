@@ -1704,3 +1704,18 @@ ImGui / ECS / glTF / networking (the freezes stand).
   idempotence.
 - **status:** Simulation IN PROGRESS (the brief done), NOT ACCEPTED;
   the acceptance draft written (the A-I shape).
+## Entry 75
+
+- **what:** the Simulation pin P3 (the RESTING_VEL parameter semantics) -
+  ALREADY PINNED by checkBounceRestHeights (the mutation-first evidence).
+- **class:** coverage discovery (the 343 candidate P3 closed as
+  already-covered; no new test needed).
+- **the evidence:** the resting-branch guard flipped (restingVel > 0.0f ->
+  > 1.0f, physics.h :199/:226) -> the build exit 0 -> the direct run exit
+  1 with EXACTLY one existing assert failing: "the box must settle with
+  |vy| below the threshold (no jitter)" (checkBounceRestHeights :8846,
+  the assert :8936).
+- **the decision recorded:** G1 (the swept/character/fixed machinery has
+  no production consumer) = the known limit, option A (no game wiring).
+- **status:** physics.h restored by pathspec; REBUILT; ctest 8/8; alive
+  x3; Simulation IN PROGRESS; G1-G6 unchanged.

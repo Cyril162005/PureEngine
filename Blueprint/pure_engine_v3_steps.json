@@ -3816,6 +3816,17 @@
    "depends_on": [
     342
    ]
+  },
+  {
+   "id": 344,
+   "name": "SIMULATION: the pin P3 (the RESTING_VEL parameter semantics) - ALREADY PINNED by checkBounceRestHeights (the mutation-first evidence: the resting-guard flip restingVel > 0.0f -> > 1.0f in both resolveCollision branches physics.h :199/:226 -> the existing assert :8936 failed 'the box must settle with |vy| below the threshold (no jitter)'); NO new test added; G1 = the known limit (option A) recorded; Simulation IN PROGRESS",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD b7b9cff == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 343 completed, 344 free. THE INSPECT (file:line): RESTING_VEL = 0.5f constexpr physics.h :86; resolveSandboxPairs :283-307 -> resolveCollision(a,b,0.5f,RESTING_VEL) :304; Pong's call site pong.cpp :210/:219 = the PURE DEFAULTS (restitution 0.5 -> max(a.rest,b.rest); restingVel 0.0); the comparison inside resolveCollision (physics.h :89-269): the signature :89-90, the two resting branches :194-206 (static-first: rel < -restingVel bounces; ELSE IF restingVel > 0.0f && rel <= 0.0f -> the normal velocity ZEROED - 'the 0.0 default never zeroes', the Step-238 note) and :219-233 (dynamic-first: rel > restingVel bounces; ELSE IF restingVel > 0.0f && rel >= 0.0f -> zeroed). THE MUTATION-FIRST PROBE (per the 344 prompt): the resting-branch guard flipped restingVel > 0.0f -> restingVel > 1.0f in BOTH branches -> the build exit 0 -> the direct run exit 1 -> an EXISTING check failed: checkBounceRestHeights (:8846), the failing assert :8936 'the box must settle with |vy| below the threshold (no jitter)' -> P3 IS ALREADY PINNED. PER THE 344 PROMPT: named, NO new test added. THE RESTORE: physics.h by pathspec -> the src diff clean -> REBUILD -> ctest 8/8 -> alive x3. THE DECISION RECORDED: G1 = the known limit (option A - no game wiring). SIMULATION STAYS IN PROGRESS; G1-G6 UNCHANGED. GATES: the build exit 0, ctest 8/8, alive x3 (the docs commit).",
+   "notes": "Docs commit DOCS-344 (docs only; no src/ change - the probe mutation restored by pathspec before any commit, the src diff verified clean). The mutation-first protocol worked exactly as designed: ONE existing check (checkBounceRestHeights :8846) caught the resting-semantics flip - the 343 G-list's P3 candidate is CLOSED as already-covered. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-344",
+   "depends_on": [
+    343
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

@@ -5101,6 +5101,32 @@ I. measurement not budget (no timing asserts; the bench = DATA).
 THE LIMITS to carry: G1-G6 above (the consumer gap, the z-thinness, the
 human-only audio/input, the broadphase and versioning by-design limits).
 
+***STEP 344 (2026-10-22): THE SIMULATION PIN P3 (the RESTING_VEL parameter
+semantics) - ALREADY PINNED (the mutation-first evidence; NO new test).***
+THE DECISION RECORDED (the 344 prompt): G1 (the swept/character/fixed
+machinery has no production consumer) = A KNOWN LIMIT, option A (no game
+wiring). THE INSPECT (file:line): RESTING_VEL = 0.5f constexpr (physics.h
+:86); resolveSandboxPairs :283-307 -> resolveCollision(a, b, 0.5f,
+RESTING_VEL) :304; Pong's call site = the PURE DEFAULTS (pong.cpp :210/
+:219: resolveCollision(entities[0], entities[2]) -> restitution 0.5 ->
+max(a.rest, b.rest), restingVel 0.0); THE COMPARISON INSIDE
+resolveCollision (physics.h :89-269): the signature :89-90 (restitution
+0.5, restingVel 0.0 defaults), the two resting branches :194-206 (the
+static-first: rel < -restingVel bounces; ELSE IF restingVel > 0.0f AND
+rel <= 0.0f -> the normal velocity ZEROED - "the 0.0 default never
+zeroes", the Step-238 note) and :219-233 (the dynamic-first: rel >
+restingVel bounces; ELSE IF restingVel > 0.0f AND rel >= 0.0f -> zeroed).
+THE MUTATION-FIRST PROBE (per the 344 prompt): the resting-branch guard
+flipped restingVel > 0.0f -> restingVel > 1.0f in BOTH branches (physics.h
+:199/:226) -> the build exit 0 -> the direct run exit 1 -> **an EXISTING
+check failed: checkBounceRestHeights (tests/hostile_data_test.cpp :8846),
+the failing assert :8936: "the box must settle with |vy| below the
+threshold (no jitter)"** -> P3 IS ALREADY PINNED by checkBounceRestHeights.
+PER THE 344 PROMPT: named, NO new test added. THE RESTORE: physics.h by
+pathspec -> the src diff clean -> REBUILD -> ctest 8/8 -> alive x3.
+SIMULATION STAYS IN PROGRESS; G1-G6 UNCHANGED (G1 now the recorded known
+limit, option A).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
