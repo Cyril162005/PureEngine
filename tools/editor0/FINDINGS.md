@@ -1685,3 +1685,22 @@ ImGui / ECS / glTF / networking (the freezes stand).
   write-safety (the src/ read-only holds).
 - **status:** the four tracks INVENTORIED (none ACCEPTED); the next full
   audit = Simulation on Cyril's pick.
+## Entry 74
+
+- **what:** the Simulation category audit brief (343, docs only; Track A).
+- **class:** planning + the caller-map discovery (the dead production
+  surface).
+- **the central finding:** physics.h :333-656 (~320 lines = HALF the
+  file) - the swept/character/fixed machinery - is TEST-PROVEN (30+ call
+  sites, the mutation-era contracts) with ZERO production callers: main
+  uses applyPhysics only (:1879), the games have ZERO physics.h calls.
+- **the gaps classified:** G1 MISSING (the production consumer); G2 THIN
+  (the z-axis pair resolve); G3/G4 HUMAN-ONLY (the audio device output;
+  the input device feel); G5/G6 BY-DESIGN (the broadphase Step-52; the
+  versioning reject-only).
+- **the 5 candidate pins (not implemented):** P1 the fixed-vs-variable
+  drift; P2 the z-axis resolve; P3 the RESTING_VEL parameter semantics;
+  P4 the audio applyVolumes state; P5 the input bindings reload
+  idempotence.
+- **status:** Simulation IN PROGRESS (the brief done), NOT ACCEPTED;
+  the acceptance draft written (the A-I shape).

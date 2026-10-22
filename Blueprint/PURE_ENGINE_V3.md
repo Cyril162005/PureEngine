@@ -4946,6 +4946,161 @@ deferred by Cyril): any B/C/D implement step (the pins/fixes/features).
 steps, no pins, no fixes until Cyril picks the track for the next full
 audit.**
 
+### Simulation audit brief (Step 343, 2026-10-21, docs only - Track A of
+### the 342 brief; INSPECT, no fixes, no pins; the status after: IN
+### PROGRESS, NOT ACCEPTED)
+
+THE SCOPE: physics.h 656, collision.h 374, simulation.h 162, input.h 430,
+audio.h 470, engine_time.h 112, events.h 157 + the entity sim fields
+(mass/restitution/friction/isStatic/isKinematic/velocity) as used. THE
+EXCLUSIONS: the renderer draw (Render ACCEPTED), the mesh load (Track C),
+the scene save format (Entity/Scene ACCEPTED), editor0.
+
+THE INVENTORY (file:line; the API + the default contract + the tests + the
+consumer + the human-only):
+- gravity/force/integrate: physics.h :41-55 (applyGravity v += G*scale*dt;
+  applyForce; integrate pos += v*dt). The tests: checkApplyForceMath,
+  checkApplyPhysicsSemantics. The consumer: main :1879 (applyPhysics).
+- applyPhysics (simulation.h :117-129, the VARIABLE-step): the gravity
+  conditional on gravityScale > 0; the integration only for the nonzero
+  velocity; isStatic never written. THE CONSUMER: main :1879 - the ONLY
+  production integration path.
+- applyPhysicsFixed (physics.h :632-656, the FIXED-substep): the entities
+  batch + dt + the substep; the free movers integrated per substep.
+  THE CALLERS: tests ONLY (checkApplyPhysicsFixedFreeMovers :2492-2543).
+  NO production caller - see G1.
+- resolveCollision (collision.h :107+, the writes = the positions/
+  velocities; the scale/halfExtents read-only): the restitution/mass/
+  friction handled; the tests: checkResolveRestitutionClamp,
+  checkResolveBounceVsStick, checkResolveApproachingGuard,
+  checkResolveEdgeTouch, checkMassWeighting, checkFriction.
+- resolveSandboxPairs (physics.h :283-307): the Sandbox-role pairs ->
+  resolveCollision(a, b, 0.5f, RESTING_VEL) - RESTING_VEL = 0.5f
+  (constexpr :86) flows ONLY through this path (Pong's default call
+  passes restingVel 0.0: any approaching speed bounces). The tests:
+  checkSandboxResolve, checkBounceTunneling, checkDropPhysics,
+  checkBounceRestHeights. The consumer: main :1870 (the debug3d drop).
+- swept: sweptMoveAndCollide (physics.h :333+), sweptAABB - the swept
+  contract (the earliest-hit clamp, the normal-axis zero, the start-inside
+  delegation). useSwept = the OPT-IN PARAMETER (default false) on
+  updateCharacterController (:478) and updateCharacterControllerFixed
+  (:617) - NOT a global. The tests: checkSweptAABBContract,
+  checkSweptControllerContract, checkSweptFixedContract,
+  checkSweptMoveAndCollide (incl. the dt <= 0 guards).
+- the character controller: updateCharacterController (:474, the variable)
+  vs updateCharacterControllerFixed (:613, the substep loop forwarding
+  useSwept per substep :627). THE CALLERS: tests ONLY (30+ call sites
+  :1514-9124). NO production consumer - see G1.
+- input: input.h :83-115 (the action map + keysForAction/keysForAll
+  Actions), :140 (the gamepad buttons), :154 (keyNameToGLFW), :196
+  (loadInputBindings + resetActionOverrides :263), :273-404 (the mouse
+  state + isDown/isEdge + pollMouse + update). The tests:
+  checkInputEdges, checkMouseInput, checkGamepadDeadzone/Buttons/Edge/
+  PollSafety, checkActionMap, checkKeyNames, checkKeysForAllActions,
+  checkGamepadActions, checkInputAdoptionHelper, checkInputBindings. The
+  consumer: main (the actions + the mouse + the pad). HUMAN-ONLY: the
+  DEVICE feel (the keyboard/gamepad/mouse polling needs a live window).
+- audio: audio.h :124 (init/device), :211-253 (the event sounds),
+  :276-333 (the volumes + mute), :352-373 (playMusicLoop/stopMusic/
+  shutdown), :400-422 (clampVolume01/applyVolumes/loadNamedSound). The
+  tests: checkVolumeClamp, checkMuteToggle, checkPerSoundVolume,
+  checkMusicVolumeIndependence, checkPreInitGuards, checkAudioVolume
+  Matrix, checkAudioDeviceLifecycle, checkAudioPoolRotation. The
+  consumer: main :593+ (the music loop) + the sfx. HUMAN-ONLY: the
+  DEVICE playback (the miniaudio output).
+- time: engine_time.h :68-99 (start/tick/scaledTick; the 150ms stall ->
+  the 0.1 clamp; the negative-scale guard). The tests: checkTimeContract,
+  checkTimeScale. The consumer: main :1512.
+- events: events.h :65-143 (subscribe/unsubscribe/emit/clear/once/
+  handlerCount). The tests: checkEventsOrderAndPayload,
+  checkEventsUnsubscribe, checkEventsEdgeCases, checkEventThrowAndOnce,
+  checkEventReentrantOnceGaps. The consumer: main (the collision events).
+
+THE EXPLICIT COVERAGES:
+- applyPhysics vs applyPhysicsFixed: the variable = the ONLY production
+  path (main :1879); the fixed = test-proven (the substep semantics, the
+  free movers, the statics) with NO production caller. THE DRIFT RISK:
+  the two integrators can diverge silently (the fixed was built for the
+  platformer-era character work that never shipped).
+- resolveCollision / resolveSandboxPairs / RESTING_VEL: the writes =
+  the positions/velocities only (the scale/halfExtents read-only - the
+  339-proven); RESTING_VEL 0.5f = the sandbox-only resting threshold
+  (Pong 0.0); the mass weighting + the friction + the restitution clamp
+  pinned.
+- sweptAABB + sweptMoveAndCollide + useSwept: the contract pinned (the
+  earliest-hit clamp; the dt <= 0 no-op; the start-inside delegation);
+  useSwept = the per-controller opt-in (default false) - the swept path
+  runs ONLY when a caller opts in; no production caller opts in.
+- the character controller fixed vs variable: BOTH test-proven (the
+  coyote/jump-consumed/substep-clamp contracts); NEITHER has a production
+  consumer.
+- input: the actions/bindings/overrides + the reset idempotence + the
+  mouse state + the gamepad bridge pinned headless; the DEVICE polling
+  human-only.
+- audio: the volume/mute/lifecycle/pool-rotation state machine pinned
+  headless; the DEVICE output human-only.
+- time: the clamp/scale/pause pinned (318).
+- events: the order/payload/unsubscribe/once/reentrancy pinned.
+
+THE GAP LIST (classified):
+G1 MISSING: a production consumer for the swept/character/fixed machinery
+   (physics.h :333-656, ~320 lines = HALF the file; test-proven, zero
+   production callers - the arcade uses applyPhysics only).
+G2 THIN: the z-axis pair resolve (resolveCollision is 2D-AABB-focused;
+   the sandbox drop resolves on Y; the Z-axis penetration/bounce behavior
+   is exercised only incidentally by the 3D drop).
+G3 HUMAN-ONLY: the audio device playback end-to-end (the output, the
+   device loss, the real latency) - the state machine is pinned, the
+   sound is not.
+G4 HUMAN-ONLY: the input DEVICE feel (the polling under a real window/
+   gamepad; the headless covers the contracts).
+G5 BY-DESIGN LIMIT: the broadphase grid (the Step-52: fine at <=2000
+   entities; the reopen ONLY on a measured superlinear breach).
+G6 BY-DESIGN LIMIT: the prefab/scene versioning is reject-only (no
+   migration path - the Entity/Scene ACCEPTED contract).
+
+THE CANDIDATE PINS (at most 5, for a LATER phase - NOT implemented here):
+P1. The fixed-vs-variable drift pin: the same scenario (a falling body
+    with the bounces) through applyPhysics AND applyPhysicsFixed over N
+    frames; the assert: the fixed substeps approximate the variable
+    within a stated epsilon at the matching wall-clock points; the
+    mutation: the substep count 0.
+P2. The z-axis sandbox resolve pin: two Sandbox boxes overlapping on Z
+    only; the assert: the separation along Z with the normal-axis
+    velocity zero (no tunneling); the mutation: the z-normal zeroed in
+    resolveCollision.
+P3. The RESTING_VEL parameter semantics pin: the same pair resolved with
+    restingVel 0.5 (the sandbox: the slow contact STICKS) vs 0.0 (Pong:
+    any approach bounces); the assert: the velocity below the threshold
+    zeroes ONLY when the threshold is nonzero; the mutation: the
+    threshold comparison flipped.
+P4. The audio applyVolumes state pin: the volumes/mute matrix -> the
+    internal applied state (the device-independent core) for every
+    combination in the existing matrix; the mutation: the mute bypasses
+    applyVolumes.
+P5. The input bindings reload idempotence pin: load -> override -> reset
+    -> load again; the assert: the same key set as the first load (no
+    accumulation); the mutation: the reset loses the defaults.
+
+THE ACCEPTANCE DRAFT (NOT granted - the mandatory checklist for
+Simulation ACCEPTED, the same shape as Render):
+A. the build exit 0 against the committed tree.
+B. ctest green; the count grows additively (inside the existing harness
+   or a new target; no timing asserts).
+C. the live smoke: alive x3 + the Cyril items (the arcade feel: the
+   collisions, the hostiles; the platformer jumping IF G1 gains a
+   consumer; the audio levels audible; the input responsiveness).
+D. the structure: no physics.h split unless the audit justifies one; the
+   ODR grep 0 held.
+E. the include hygiene: no new heavy includes in the sim headers.
+F. the consumer linkage: any moved body links the new .cpp (the 323
+   pattern).
+G. the contracts pinned before any move (the tests-first).
+H. the behavior proof: the mutation evidence per new pin.
+I. measurement not budget (no timing asserts; the bench = DATA).
+THE LIMITS to carry: G1-G6 above (the consumer gap, the z-thinness, the
+human-only audio/input, the broadphase and versioning by-design limits).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
