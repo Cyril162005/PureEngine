@@ -3827,6 +3827,17 @@
    "depends_on": [
     343
    ]
+  },
+  {
+   "id": 345,
+   "name": "SIMULATION: the pin P4 (the audio applyVolumes / mute matrix) - ALREADY PINNED by THREE checks (the mutation-first evidence: the mute bypass applied - setMuted no longer zeroes masterVolume - and THREE existing MUTE asserts failed: checkMuteToggle 'Muted master must be 0' :3162, checkMusicVolumeIndependence 'Mute must zero master while keeping music multiplier' :3271, checkAudioVolumeMatrix 'Muted matrix must zero both composed paths' :3357); NO new test added; Simulation IN PROGRESS",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD c200d24 == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 344 completed, 345 free. THE INSPECT (file:line): the mute mechanism = setMuted (audio.h :297-307) zeroes masterVolume while remembering savedMasterVolume (the Step-124 note); applyVolumes (:406-419) pushes master*sfx*perSound + master*musicVolume - the mute is NOT a branch in applyVolumes, it is the ZEROED masterVolume; the getters return the STORED multipliers (observable HEADLESS; the setters store unconditionally pre-init); THE EXISTING MUTE CHECKS quoted: checkMuteToggle (:3151-3192, headless, NOT skipped without a device: 'Muted master must be 0' :3162, 'Muted output must stay silent' :3178, the unmute restores :3171/:3183, the toggle flips :3188/:3190), checkMusicVolumeIndependence (:3238-3281, headless: 'Mute must zero master while keeping music multiplier' :3271, the unmute restores :3277), checkAudioVolumeMatrix (:3323-3369, headless: 'Muted matrix must zero both composed paths' :3357, the unmute restores :3365); the DEVICE-ONLY checks (checkAudioPoolRotation, checkAudioDeviceLifecycle) skip loudly on a zero-device machine - THE MUTE CHECKS DO NOT SKIP. THE MUTATION-FIRST PROBE (per the 345 prompt): the mute bypass applied - setMuted stops zeroing masterVolume (the tolerant-regex edit, the anchor count 1) -> the build exit 0 -> the direct run exit 1 -> THREE existing MUTE asserts failed (the named asserts above) -> P4 IS ALREADY PINNED. PER THE 345 PROMPT: named with the assert lines, NO new test added. THE RESTORE: audio.h by pathspec -> the src diff clean -> REBUILD -> ctest 8/8 -> alive x3. SIMULATION STAYS IN PROGRESS; G1-G6 UNCHANGED (G1 the known limit, option A). GATES: the build exit 0 (138.7s, LNK1104=0), ctest 8/8 (14.69s), alive x3 (the docs commit).",
+   "notes": "Docs commit DOCS-345 (docs only; no src/ change - the probe mutation restored by pathspec before any commit, the src diff verified clean). The in-step friction: the first mutation anchor used the literal CRLF joins and matched 0 (audio.h line-endings) - redone with the \\r?\\n-tolerant regex (the established pattern). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-345",
+   "depends_on": [
+    344
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

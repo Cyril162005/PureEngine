@@ -1719,3 +1719,22 @@ ImGui / ECS / glTF / networking (the freezes stand).
   no production consumer) = the known limit, option A (no game wiring).
 - **status:** physics.h restored by pathspec; REBUILT; ctest 8/8; alive
   x3; Simulation IN PROGRESS; G1-G6 unchanged.
+## Entry 76
+
+- **what:** the Simulation pin P4 (the audio applyVolumes / mute matrix) -
+  ALREADY PINNED by THREE checks (the mutation-first evidence).
+- **class:** coverage discovery (the 343 candidate P4 closed as
+  already-covered; no new test needed).
+- **the evidence:** the mute bypass applied (setMuted stops zeroing
+  masterVolume) -> the direct run exit 1 with THREE existing MUTE asserts
+  failing: "Muted master must be 0" (checkMuteToggle :3162), "Mute must
+  zero master while keeping music multiplier"
+  (checkMusicVolumeIndependence :3271), "Muted matrix must zero both
+  composed paths" (checkAudioVolumeMatrix :3357).
+- **the design note:** the mute is NOT a branch in applyVolumes - it is
+  the ZEROED masterVolume set by setMuted; the getters return the STORED
+  multipliers, so the mute/volume contracts are observable HEADLESS (the
+  device-only checks are the pool rotation and the device lifecycle,
+  which skip loudly without a device).
+- **status:** audio.h restored by pathspec; REBUILT; ctest 8/8; alive x3;
+  Simulation IN PROGRESS; G1-G6 unchanged (G1 the known limit, option A).

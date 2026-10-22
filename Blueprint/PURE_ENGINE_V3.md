@@ -5127,6 +5127,42 @@ pathspec -> the src diff clean -> REBUILD -> ctest 8/8 -> alive x3.
 SIMULATION STAYS IN PROGRESS; G1-G6 UNCHANGED (G1 now the recorded known
 limit, option A).
 
+***STEP 345 (2026-10-22): THE SIMULATION PIN P4 (the audio applyVolumes /
+mute matrix) - ALREADY PINNED (the mutation-first evidence; NO new
+test).*** THE INSPECT (file:line): the mute mechanism = setMuted (audio.h
+:297-307) sets masterVolume = 0.0 while REMEMBERING savedMasterVolume
+(the Step-124 note: a volume change made while muted survives in
+savedMasterVolume; unmute restores); applyVolumes (:406-419) pushes
+master*sfx*perSound to every initialized sound + master*musicVolume to
+the music slot - the mute is NOT a branch inside applyVolumes: it is the
+ZEROED masterVolume set by setMuted before applyVolumes runs. The
+getters (getMasterVolume/getSfxVolume/getVolume/getMusicVolume) return
+the STORED multipliers - observable HEADLESS (the setters store
+unconditionally pre-init; applyVolumes no-ops safely pre-init). THE
+EXISTING MUTE CHECKS (quoted): checkMuteToggle (:3151-3192, headless,
+never init()ed - NOT skipped without a device): "Muted master must be 0"
+(:3162), "Muted output must stay silent" (:3178), "Unmute must restore
+remembered volume" (:3171), "Unmute must apply muted-period volume
+change" (:3183); checkMusicVolumeIndependence (:3238-3281, headless):
+"Mute must zero master while keeping music multiplier" (:3271), "Unmute
+must restore master without touching music multiplier" (:3277);
+checkAudioVolumeMatrix (:3323-3369, headless): "Muted matrix must zero
+both composed paths" (:3357), "Unmuted matrix must restore both composed
+paths" (:3365). THE DEVICE-ONLY checks (the skip policy documented
+:3370-3377): checkAudioPoolRotation + checkAudioDeviceLifecycle skip
+loudly on a zero-device machine; THE MUTE CHECKS DO NOT SKIP.
+THE MUTATION-FIRST PROBE (per the 345 prompt): the mute bypass applied -
+setMuted no longer zeroes masterVolume (the mute keeps the non-zero
+gain) -> the build exit 0 -> the direct run exit 1 -> **THREE existing
+MUTE asserts failed**: "Muted master must be 0" (checkMuteToggle
+:3162), "Mute must zero master while keeping music multiplier"
+(checkMusicVolumeIndependence :3271), "Muted matrix must zero both
+composed paths" (checkAudioVolumeMatrix :3357) -> P4 IS ALREADY PINNED
+by THREE checks. PER THE 345 PROMPT: named with the assert lines, NO new
+test added. THE RESTORE: audio.h by pathspec -> the src diff clean ->
+REBUILD -> ctest 8/8 -> alive x3. SIMULATION STAYS IN PROGRESS; G1-G6
+UNCHANGED (G1 the known limit, option A).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
