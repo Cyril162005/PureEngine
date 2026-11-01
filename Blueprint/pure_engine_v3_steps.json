@@ -3859,6 +3859,16 @@
    "commit": "DOCS-347",
    "depends_on": [
     346
+   ]  },
+  {
+   "id": 348,
+   "name": "SIMULATION: the category ACCEPTANCE close (docs only) - STATUS ACCEPTED (the filled smoke line recorded verbatim: arcade=PASS audio=PASS input=PASS platformer=PASS; the Platformer PASS does not prove the G1 machinery - zero production callers); the freeze rule: reopens only on a measured regression; the pins P3/P4/P5 stay as recorded - no criterion left open",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD 71b13db == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 347 completed, 348 free. THE SMOKE (verbatim, Cyril): smoke (Simulation, 2026-10-22): arcade=PASS audio=PASS input=PASS platformer=PASS; notes=PureEngine and Platformer ran and felt normal - all four rows PASS, so the Step-347 rule (ACCEPTED only if no smoke row is FAIL) is met. THE V3 CLOSE (the CATEGORY COMPLETION REPORT close): the smoke recorded verbatim; the G1 caveat (the Platformer PASS does not prove the swept/character/fixed machinery - zero production callers per the 343 caller map; G1 stays a listed limit); the approvals kept (the G1-G6 limits as known limits, each with its evidence line; the 343 acceptance checklist A-I as written); Simulation = ACCEPTED (2026-10-30, recorded at HEAD 71b13db); the freeze rule: the reopens only on a measured regression; the pins P3/P4/P5 stay as recorded (each ALREADY PINNED, the mutation evidence in 344-346); no criterion left open. GATES: the build exit 0 (120.7s, LNK1104=0), ctest 8/8, alive x3 (the docs commit).",
+   "notes": "Docs commit DOCS-348 (docs only; no src/ change). The acceptance completes the 338->341 pattern (Render: VERIFICATION REQUIRED at the audit, ACCEPTED after the smoke). The accepted-freeze baseline now: Core Foundation, Entity/Scene/Persistence, Render, Simulation. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched.",
+   "commit": "DOCS-348",
+   "depends_on": [
+    347
    ]
   }
  ],

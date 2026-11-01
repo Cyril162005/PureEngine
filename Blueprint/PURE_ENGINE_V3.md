@@ -5258,6 +5258,34 @@ as Core Foundation, Entity/Scene/Persistence, and Render). The
 ACCEPTANCE completes the moment the filled smoke line arrives (the same
 pattern as Render 338 -> 341).
 
+***STEP 348 (2026-10-30): THE SIMULATION ACCEPTANCE CLOSE (docs
+only) - STATUS: ACCEPTED.*** THE FILLED SMOKE LINE arrived in the 348 prompt (verbatim, Cyril): smoke (Simulation, 2026-10-22): arcade=PASS audio=PASS input=PASS platformer=PASS; notes=PureEngine and Platformer ran and felt normal
+ALL FOUR ROWS PASS - the Step-347 rule (ACCEPTED only if no smoke row is FAIL) is met; the 338->341 pattern completes (Render: VERIFICATION REQUIRED at the audit, ACCEPTED after the smoke).
+
+THE CATEGORY COMPLETION REPORT CLOSE:
+THE G1 CAVEAT (recorded per the 348 prompt): the Platformer PASS does NOT
+prove the G1 swept/character/fixed machinery (physics.h :333-656, ~320
+lines) - the 343 caller map shows ZERO production physics.h callers
+(main.cpp uses applyPhysics only :1879; the games none), so that
+machinery stays test-proven only, and G1 STAYS a listed, approved known
+limit (option A, no game wiring).
+THE APPROVALS KEPT from 347: the limits G1-G6 APPROVED as known limits,
+each keeping its evidence line (G1 zero production callers test-proven
+only; G2 the z-axis pair resolve thin; G3 the audio device output
+human-only; G4 the input device feel human-only; G5 the broadphase by
+design <=2000, the Step-52; G6 the versioning reject-only); the 343
+acceptance checklist A-I APPROVED as written.
+THE STATUS: **Simulation = ACCEPTED (2026-10-30, recorded at HEAD
+71b13db; all smoke rows PASS).**
+THE FREEZE RULE: the Simulation category reopens ONLY on a measured
+regression (the same as Core Foundation, Entity/Scene/Persistence, and
+Render).
+THE PINS: P3 (the RESTING_VEL parameter semantics, c200d24), P4 (the
+audio applyVolumes/mute matrix, d80fa3c), P5 (the input bindings
+reload/reset idempotence, 86169f7) stay as recorded - each ALREADY
+PINNED with its mutation evidence in Steps 344-346; NO criterion left
+open; the Simulation category is CLOSED at Step 348.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
