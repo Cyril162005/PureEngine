@@ -5286,6 +5286,177 @@ reload/reset idempotence, 86169f7) stay as recorded - each ALREADY
 PINNED with its mutation evidence in Steps 344-346; NO criterion left
 open; the Simulation category is CLOSED at Step 348.
 
+***STEP 349 (2026-11-01): TRACK B - WORLD/CONTENT INVENTORY AUDIT (docs
+only) - STATUS: IN PROGRESS (audit only).*** The 342 brief ordered
+A (Simulation, ACCEPTED 347/348) -> B (World/content) -> C -> D. This
+step audits Track B FROM SOURCE (docs only; no code changes). The grade
+definitions (per the 349 prompt): PROVEN = pinned AND called in
+production; PARTIAL = pinned but unwired, or wired but unpinned;
+UNVERIFIED = neither established from source; ABSENT = no code.
+Production callers exclude tests/ (main.cpp, games/, tools/ counted;
+scene_persist.cpp counted - it ships in the pe_core lib).
+
+1. SEED / RNG / MASTER+DERIVED STREAMS (the Core placement check
+first): ABSENT as a framework. The ONLY randomness in src/ is std::rand
+in particles.h - the in-source gap note :23-28 ("FIRST rng use in src/:
+noted here so the day the engine wants a real rng (seedable,
+deterministic) the call sites are these two lines in emit()"; the
+tests assert RANGES and COUNTS, never exact random values) and the
+call site :104-106 (rand()/RAND_MAX in emit()). NON-seedable,
+unseeded: no master stream, no derived streams, no seed API anywhere
+(grep-verified 2026-11-01). The engine_time.h "seed" (:59-70,
+FrameTime::start) is the CLOCK seed (glfwGetTime) - the map files it
+under Core time as "not an RNG seed" (V3 :2008). main.cpp :2005-2013
+deliberately uses a DETERMINISTIC ring for the death burst ("no rng in
+game code"). Existing pins: the particle range/count checks
+(checkParticleSpawn :1090, checkParticleMotion :1409,
+checkParticleDeath :1432, checkParticleConverter :1460,
+checkParticleColorAndEmit :4354, checkParticleContract :4383) pin the
+rand OUTPUT RANGES only; NO seed-determinism pin is possible
+(non-seedable). Mutation proof: not run. PLACEMENT: the clock seed
+lives in Core (cat 1) - correct; a seedable deterministic RNG
+framework is filed as the P1 shared-foundation FIRST candidate
+(V3 :2066-2075) and P8 procedural generation is DOES NOT EXIST
+(V3 :2172-2185). THE STOP RULE FIRES: the seed/RNG framework is
+ABSENT -> recorded as a CORE GAP (not a Track B feature) and THE
+FIRST REQUIRED PIN before any noise/terrain work (candidate P1
+below; none written).
+
+2. TILEMAP: EXISTS - src/tilemap.h (358 lines). Inventory (file:line):
+Tile :56-60 (tileId 0 = empty; nonzero = solid; textureId = the
+Step-55 slot); Tilemap :62-67 (row-major, row 0 = TOP); tileTrim
+:70-77; tileDataCandidates :80-90 (the assets/ probe, mirrors
+hostile_data); tileParseInt :93-102 / tileParseFloat :105-114
+(strict, no exceptions); tileCenter :117-122 (the map centered,
+row 0 top); tileAt :125-132 (bounds-checked, nullptr outside);
+loadTilemap :139-251 (strict loader: ANY malformed line/unknown
+key/bad dimension/row mismatch/missing file -> warning + EMPTY MAP
+:162/:172/:184/:203/:209/:216/:220/:224/:229/:250 - no partial
+loads, the hostile_data discipline); tilemapToEntities :258-291
+(non-empty tiles -> draw-ready entities; depth/roleId
+caller-supplied; the Step-109 OOB textureId warning :273-286,
+debug-only); collideEntityWithTilemap :299-354 (the
+min-penetration axis push-out per overlapped solid cell; returns
+the FIRST resolved cell's normal; the miss writes nothing).
+THE EXISTING PINS (the assert strings quoted; tests/
+hostile_data_test.cpp): checkTilemapValidLoad :185 - "Valid tilemap
+dimensions did not parse as expected" :209; "Valid tilemap cells
+did not parse as expected" :218; "tileAt out-of-bounds did not
+return nullptr" :223; "tileCenter mapping is wrong" :229;
+"tilemapToEntities skipped the wrong cells" :235;
+"tilemapToEntities did not carry depth/role/texture through" :240.
+checkTilemapMalformedFallsBack :249 - "Malformed tilemap (short
+row) should fall back to an empty map" :268.
+checkTilemapCollidePushesOut :277 - "Solid overlap did not push out
+along +X as expected" :301; "Miss case wrote state it must not
+touch" :313. The SCENE integration (checkSceneLifecycle :319) -
+"loadTilemapIntoScene rejected a valid file" :383; "Bad tilemap
+file clobbered the stored map" :388. The PLATFORMER consumers -
+checkPlatformerLevels :2837 ("Platformer level files did not
+parse" :2844; "Spawn neighborhood blocked" :2852; "Goal airspace
+blocked" :2861; "Level solid counts changed" :2878);
+checkPlatformerLanding :2884 ("No landing on level geometry"
+:2899; "Did not rest on the level floor" :2907);
+checkPlatformerLevelSwitch :2913. Mutation proof: not run (the
+pins landed with Step 63, commit 786381d; no tilemap-specific
+mutation commit is recorded in the tracker). PRODUCTION CALLERS
+(tests excluded): loadTilemapIntoScene x3 (main :761; platformer
+:165/:168); loadTilemap x1 (scene_persist.cpp :391, the v2
+rehydrate; the main/games/tools direct count 0 - the persistence
+path is the caller); tilemapToEntities x5 (main :763/:925/:1469;
+platformer :429/:550); collideEntityWithTilemap x1 (main :1772);
+tileAt/tileCenter x0 DIRECT in production (internal helpers,
+test-called only - the G1-class note, limit L5). The platformer
+consumes the tiles as static entities through the character
+controller (platformer :429 + the :433 comment), NOT
+collideEntityWithTilemap. The Phase-D consumer additionally pins
+the tilemap-REFERENCE contract: "adversarial: a missing referenced
+tilemap file rejects the load (saves reference tilemaps, not
+prefabs)" (consumers/level_pipeline/consumer.cpp :814). GRADE:
+PROVEN (pinned AND called in production). PLACEMENT: cat 2
+World+content per the map (V3 :2016) - correct; the Track B
+surface matches the map filing.
+
+3. NOISE / PERLIN / PROCEDURAL PRIMITIVES: ABSENT - zero hits in
+src/ (grep-verified 2026-11-01; matches the V3 P8 grep of
+2026-10-08). No pins, no callers. BLOCKED behind the seedable RNG
+pin (P1) per the stop rule.
+
+4. TERRAIN / WORLD-GEN SURFACES: ABSENT - zero hits (grep-verified
+2026-11-01). The worlds are hand-authored static tilemap files
+(assets/arcade_arena.txt, assets/platformer_level1/2.txt); the
+death burst is the deterministic ring (main :2005-2013). No pins,
+no callers.
+
+5. THE OTHER WORLD/CONTENT HEADERS THAT EXIST (per the 342 Track B
+table, confirmed from source): scene.h (the Tilemap payload :49-50;
+loadTilemapIntoScene :261-268, data-only - the game converts) - the
+scene-tilemap integration PROVEN (pinned :383/:388 + called main
+:761); scene_persist.cpp (the tilemap= reference :161-164; the
+duplicate-reference reject :259-264; the rehydrate load :390-393) -
+covered by the ACCEPTED Entity/Scene/Persistence category (325,
+frozen); prefab.h / lifecycle.h / hostile_data.h / animation data -
+covered by the 325 acceptance + the 342 table (frozen; NOT
+re-graded here; reopen only on a measured regression).
+
+THE LIMITS (each awaiting Cyril's approval):
+- L1: no seedable/deterministic RNG framework exists in src/ (the
+  only randomness = particles.h :105 std::rand, non-seedable,
+  unseeded; engine_time :61 = the clock seed only; main :2006 = the
+  deliberate deterministic ring). Approved by Cyril: __
+- L2: no noise/Perlin/simplex/fbm primitives anywhere in src/
+  (grep-verified 2026-11-01). Approved by Cyril: __
+- L3: no terrain/world-gen surfaces (the worlds are hand-authored
+  tilemap files). Approved by Cyril: __
+- L4: the tilemap is 2D-ONLY - no 3D interaction contract (the 342
+  table); collideEntityWithTilemap has ONE production caller (main
+  :1772); the platformer resolves via tile-static entities + the
+  character controller instead. Approved by Cyril: __
+- L5 (G1-class): tileAt/tileCenter have ZERO direct production
+  callers outside tilemap.h (internal helpers; production-reachable
+  only via the converter/collide; test-called directly) - listed per
+  the 349 rule as a limit, not PROVEN-in-use. Approved by Cyril: __
+
+THE CANDIDATE PINS (candidates ONLY; NONE written):
+- P1 (CORE - the FIRST REQUIRED PIN per the stop rule): the seedable
+  deterministic RNG framework - the in-source gap note names the two
+  call sites (particles.h :23-28); the test path:
+  seeded-determinism headless asserts (V3 :2072-2073, :2182-2183).
+- P2 (Track B): the collideEntityWithTilemap MULTI-CELL overlap
+  contract (the current pin :277 covers the single-cell case; the
+  header :294-298 documents the multi-cell push-out).
+- P3 (Track B): the Step-109 OOB textureId warn path (tilemap.h
+  :273-286, debug-only stderr) - currently unpinned.
+
+THE TRACK B ACCEPTANCE CHECKLIST DRAFT A-I (NOT granted; Cyril
+approves or strikes later):
+A. the tilemap load/parse contract pinned (the dimensions, the
+   cells, the tileAt bounds, the tileCenter mapping) with the
+   assert strings recorded in this section.
+B. the malformed/missing-file fallback pinned (warning + empty
+   map, no partial load; the scene bad-file refuse :383/:388; the
+   missing tilemap-REFERENCE reject consumer.cpp :814).
+C. the collide push-out contract pinned (the single-cell +X push;
+   the miss writes nothing); the multi-cell case = candidate P2.
+D. the production caller map recorded with file:line; zero-caller
+   items listed as limits (L5), never PROVEN-in-use.
+E. the seed/RNG framework classified ABSENT = the Core gap (the
+   map's P1/P8 candidacy) and the FIRST REQUIRED PIN before any
+   noise/terrain work (the stop rule).
+F. the noise and terrain surfaces recorded ABSENT with the grep
+   evidence; no Track B feature work opens while the RNG gap
+   stands.
+G. the scene/prefab/lifecycle/hostile-data rows stay covered by
+   the ACCEPTED Entity/Scene/Persistence category (325) - frozen;
+   reopen only on a measured regression.
+H. the limits L1-L5 recorded with the blank approval lines; the
+   candidates P1-P3 listed, none written.
+I. the Track B acceptance completes on Cyril's approved checklist
+   + the smoke form (the 338->341 pattern) - NOT granted in 349.
+
+THE STATUS: Track B = IN PROGRESS (audit only). Not ACCEPTED. The
+next step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
