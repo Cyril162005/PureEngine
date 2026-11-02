@@ -81,6 +81,8 @@ FetchContent_MakeAvailable(stb)
 # to keep the build minimal and avoid extra external downloads.
 add_executable(${PROJECT_NAME} 
     src/main.cpp
+    src/seed.cpp
+    src/noise.cpp
     src/window.cpp
     src/scene_persist.cpp
     src/prefab_persist.cpp
@@ -392,6 +394,20 @@ add_executable(noise_test
 target_include_directories(noise_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
 add_test(NAME noise_test COMMAND noise_test)
 set_tests_properties(noise_test PROPERTIES TIMEOUT 60)
+
+# Step 352: the noise->tilemap generator test (World/content). The pins:
+# the byte-identical determinism, the same-origin region overlap, the legal
+# id range + the dimension validation (incl. the 256 cap), the threshold
+# boundary rule, the two-seed independence. Pure headless. The legacy
+# tilemap/scene/platformer pins are exercised UNCHANGED by the full suite.
+add_executable(tilemap_gen_test
+    tests/tilemap_gen_test.cpp
+    src/seed.cpp
+    src/noise.cpp
+)
+target_include_directories(tilemap_gen_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
+add_test(NAME tilemap_gen_test COMMAND tilemap_gen_test)
+set_tests_properties(tilemap_gen_test PROPERTIES TIMEOUT 60)
 
 # Pong API-gate target: a second game built ONLY on public engine headers
 # (math, entity, renderer, camera, input). Headers are included by relative

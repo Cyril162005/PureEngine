@@ -177,6 +177,7 @@
 // architectural hat. Header-only: no CMakeLists.txt change.
 #include "simulation.h"
 #include "tilemap.h"    // Integration sprint: arena collision geometry + tile entities
+#include "tilemap_gen.h"  // Step 352: the noise->tilemap generator (the one console consumer)
 #include "scene.h"      // Integration sprint: SceneManager owns the arena entity lists
 #include "events.h"     // Integration sprint: collision/scene-change bus
 #include "console.h"    // Integration sprint: runtime debug console (typed, drawn)
@@ -1476,6 +1477,42 @@ if (clip != animations.end()) {
     // non-core (Step 94, core 0..4 guarded) -> report. Ends back at the
     // original count: the renderer is never left broken, and normal
     // drawing is untouched after the command.
+    // --- Step 352: tilemap noise <seed> - the ONE production caller of the
+    // noise->tilemap generator (tilemap_gen.h). Session-transient: the
+    // generated tilemap has NO file name, so saves omit the tilemap
+    // reference (scene_persist only writes tilemap=<basename> when
+    // tilemapFile is non-empty) - the map is NOT saved, and the reply says
+    // so. Modeled on dropSandbox (the session-transient reply pattern).
+    pe::registerCommand(console, "tilemap", [&](const std::vector<std::string>& args) {
+        if (args.size() < 2 || args[0] != "noise") {
+            return std::string("usage: tilemap noise <seed>");
+        }
+        if (!activeScene) {
+            return std::string("tilemap noise: no active scene");
+        }
+        std::uint64_t master = 0;
+        try {
+            master = std::stoull(args[1]);
+        } catch (...) {
+            return std::string("usage: tilemap noise <seed> (the seed must be a non-negative integer)");
+        }
+        constexpr int kNoiseGenCommandDim = 64;        // the command's fixed region (under the 256 cap)
+        constexpr float kNoiseGenCommandScale = 16.0f; // ~1 noise feature per 16 tiles
+        pe::Tilemap gen = pe::generateTilemapFromNoise(master, 0.0f, 0.0f,
+                                                       kNoiseGenCommandDim, kNoiseGenCommandDim,
+                                                       kNoiseGenCommandScale);
+        activeScene->tilemap = gen;
+        activeScene->tilemapFile.clear();  // session-transient: no file reference
+        cachedTileEntities = pe::tilemapToEntities(activeScene->tilemap, 0, 3);
+        cachedTileClear.assign(cachedTileEntities.size(), 0);
+        std::size_t solidCount = 0;
+        for (const pe::Tile& t : gen.tiles) { if (t.tileId != 0) ++solidCount; }
+        std::ostringstream reply;
+        reply << "tilemap noise: seed " << master << " -> " << gen.width << "x" << gen.height
+              << " (" << solidCount << " solid / " << gen.tiles.size() << " tiles); session-transient, never saved"
+              << " (a save omits the tilemap reference - no tilemap file name)";
+        return reply.str();
+    });
     pe::registerCommand(console, "textures", [&](const std::vector<std::string>&) {
         const int before = renderer.textureCount();
         const int newId = renderer.registerNonCoreTexture("checker.png");
