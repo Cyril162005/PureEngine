@@ -5457,6 +5457,73 @@ I. the Track B acceptance completes on Cyril's approved checklist
 THE STATUS: Track B = IN PROGRESS (audit only). Not ACCEPTED. The
 next step: none.
 
+***STEP 350 (2026-11-02): CORE ADDENDUM - THE SEED/RNG FOUNDATION
+(ABSENT -> PRESENT, unwired; additive code + tests; SEED-350 =
+58623ed).*** The 349 stop-rule FIRST REQUIRED PIN is RESOLVED: the
+seedable deterministic RNG framework now EXISTS as the additive Core
+module src/seed.h + src/seed.cpp (the .h/.cpp split per the
+architecture objective), with tests/seed_test.cpp (the new ctest
+target; the suite is 9 tests). The named stream: xoshiro256** seeded
+via the canonical SplitMix64 expansion. deriveSeed(master, stableId)
+is order-independent by construction (a pure function of (master,
+stableId); FNV-1a-64 over the id + two SplitMix64 mix rounds).
+nextFloat01 uses the OWNED top-24-bits * 2^-24 mapping (provably in
+[0,1), never 1.0; no std::*_distribution, no std::rand).
+THE GOLDEN CROSS-CHECK was performed BEFORE recording: SplitMix64
+state 0's first 8 outputs of the BUILT BINARY equal the PUBLISHED
+reference vector (fetched 2026-11-01 from the Cipher docs page
+"Vector 1 - Seed 0: First 8 outputs (verified against reference C
+implementation)" citing prng.di.unimi.it/splitmix64.c; the three
+constants verified byte-for-byte in the fetched reference source; the
+seed-42 Rosetta Code vector is pinned as a second state). The
+recorded Rng(0) constants: 0x99EC5F36CB75F2B4 0xBF6E1F784956452A
+0x1A5F849D4933E6E0 0x6AA594F1262D2D2C 0xBBA5AD4A1F842E59
+0xFFEF8375D9EBCACA 0x6C160DEED2F54C98 0x8920AD648FC30A3F.
+THE PINS (each quoted; tests/seed_test.cpp; ctest 9/9): "golden:
+SplitMix64 state 0 must match the published reference vector";
+"golden: SplitMix64 seed 42 must match the published Rosetta Code
+vector"; "golden: the first 8 xoshiro256** outputs must equal the
+recorded constants"; "determinism: the same seed must produce the
+identical 1000-value sequence"; "derivation: the derived seeds must
+not depend on the derivation order"; "independence: the derived
+streams must differ from the master and each other, and their first
+64 outputs must differ"; "range: 1e6 nextFloat01 values must all lie
+in [0,1) and never reach 1.0".
+THE MUTATIONS (one per pin family, the 285 protocol; BOTH
+NON-VACUOUS - each applied to the committed tree 58623ed, the named
+asserts failed, then restored by pathspec, then REBUILD + ctest 9/9 +
+git diff --stat -- src/ EMPTY):
+- MUT A (the golden family): the SplitMix64 constant
+  0xBF58476D1CE4E5B9 -> 0xBF58476D1CE4E5BA -> seed_test exit 1 with
+  the THREE golden-family asserts failing BY NAME ("golden: SplitMix64
+  state 0 must match the published reference vector"; "golden:
+  SplitMix64 seed 42 must match the published Rosetta Code vector";
+  "golden: the first 8 xoshiro256** outputs must equal the recorded
+  constants"); the other families PASS.
+- MUT B (the derivation family): deriveSeed made STATEFUL (a static
+  call counter mixed into the result -> order-dependent) -> seed_test
+  exit 1 with EXACTLY the derivation assert failing BY NAME
+  ("derivation: the derived seeds must not depend on the derivation
+  order"); the other families PASS.
+THE SCOPE RULES HELD: ADDITIVE - no accepted file edited except the
+CMake registration (pe_core gains src/seed.cpp; the new seed_test
+target per the math_test/time_test pattern) and the test harness;
+particles.h NOT touched; no game wiring; no noise/terrain; no
+time/random seed modes (fixed + derived only). Core stays ACCEPTED;
+the freeze rule NOT reopened.
+THE 349 LIMITS: L1-L5 APPROVED by Cyril (the 350 prompt). L1 (no
+seedable RNG framework) is RESOLVED BY THIS STEP (PRESENT, unwired);
+L2 (no noise) / L3 (no terrain) still stand - NOT added per the 350
+scope; the 349 stop rule (the first required pin before any
+noise/terrain work) is SATISFIED; L4 (the 2D-only tilemap) / L5 (the
+internal-only tileAt/tileCenter) unchanged.
+THE REMAINING LIMITS (recorded per the 350 prompt): the module UNWIRED
+in production (zero production callers; the only consumer is the
+test); no time/random seed modes (fixed + derived only); particles.h
+still std::rand.
+THE STATUS: the seed/RNG foundation PRESENT, unwired. The next step:
+none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
