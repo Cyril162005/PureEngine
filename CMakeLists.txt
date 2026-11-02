@@ -315,7 +315,9 @@ add_custom_command(TARGET resources_test POST_BUILD
 # Same headers, same inline functions, just precompiled. Games may either
 # include headers directly (header-only, current) or link pe_core. No behaviour
 # change; arcade/platformer/Pong keep header-only and stay green.
-add_library(pe_core STATIC src/pe_core.cpp src/scene_persist.cpp src/mesh3d_obj.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
+# Step 350: src/seed.cpp joins the compiled core (the seed/RNG foundation,
+# .h/.cpp split per the architecture objective; no consumer yet - unwired).
+add_library(pe_core STATIC src/pe_core.cpp src/seed.cpp src/scene_persist.cpp src/mesh3d_obj.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
 target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/deps")
 target_include_directories(pe_core PUBLIC "${stb_SOURCE_DIR}")
 target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/include")
@@ -360,6 +362,20 @@ target_include_directories(time_test PRIVATE "${glfw_SOURCE_DIR}/include")
 target_link_libraries(time_test PRIVATE glfw)
 add_test(NAME time_test COMMAND time_test)
 set_tests_properties(time_test PROPERTIES TIMEOUT 60)
+
+# Step 350: the seed/RNG foundation test (Core Foundation). The five pins:
+# the golden published-vector cross-check + the recorded xoshiro256**
+# constants, the 1000-value determinism, the order-independent deriveSeed,
+# the stream independence, the [0,1) range. Pure headless: no window, no GL,
+# no audio, no game wiring. --print-vectors is a utility mode (used once to
+# record the golden constants; ctest never passes it).
+add_executable(seed_test
+    tests/seed_test.cpp
+    src/seed.cpp
+)
+target_include_directories(seed_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
+add_test(NAME seed_test COMMAND seed_test)
+set_tests_properties(seed_test PROPERTIES TIMEOUT 60)
 
 # Pong API-gate target: a second game built ONLY on public engine headers
 # (math, entity, renderer, camera, input). Headers are included by relative
