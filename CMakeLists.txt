@@ -317,7 +317,7 @@ add_custom_command(TARGET resources_test POST_BUILD
 # change; arcade/platformer/Pong keep header-only and stay green.
 # Step 350: src/seed.cpp joins the compiled core (the seed/RNG foundation,
 # .h/.cpp split per the architecture objective; no consumer yet - unwired).
-add_library(pe_core STATIC src/pe_core.cpp src/seed.cpp src/scene_persist.cpp src/mesh3d_obj.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
+add_library(pe_core STATIC src/pe_core.cpp src/seed.cpp src/noise.cpp src/scene_persist.cpp src/mesh3d_obj.cpp src/stb_impl.cpp "${glfw_SOURCE_DIR}/deps/glad_gl.c")
 target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/deps")
 target_include_directories(pe_core PUBLIC "${stb_SOURCE_DIR}")
 target_include_directories(pe_core PUBLIC "${glfw_SOURCE_DIR}/include")
@@ -376,6 +376,22 @@ add_executable(seed_test
 target_include_directories(seed_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
 add_test(NAME seed_test COMMAND seed_test)
 set_tests_properties(seed_test PROPERTIES TIMEOUT 60)
+
+# Step 351: the value-noise 2D test (World/content). The six pins: purity
+# (order-independent identical bits), the 1e6-sample [0,1) range, the
+# negative-coords continuity + the interpolation contract, the lattice
+# exactness, the derived-seed independence, the regression-only golden.
+# Pure headless: no window, no GL, no audio, no game wiring.
+# --print-vectors is a utility mode (used once to record the golden
+# constants; ctest never passes it).
+add_executable(noise_test
+    tests/noise_test.cpp
+    src/noise.cpp
+    src/seed.cpp
+)
+target_include_directories(noise_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
+add_test(NAME noise_test COMMAND noise_test)
+set_tests_properties(noise_test PROPERTIES TIMEOUT 60)
 
 # Pong API-gate target: a second game built ONLY on public engine headers
 # (math, entity, renderer, camera, input). Headers are included by relative
