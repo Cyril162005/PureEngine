@@ -5524,6 +5524,82 @@ still std::rand.
 THE STATUS: the seed/RNG foundation PRESENT, unwired. The next step:
 none.
 
+***STEP 351 (2026-11-02): TRACK B ADDENDUM - VALUE-NOISE 2D (Noise ABSENT
+-> PRESENT, unwired, value-noise only; additive code + tests; NOISE-351 =
+01a0457).*** The World/content category gains the minimal 2D value-noise
+module: src/noise.h + src/noise.cpp (the .h/.cpp split); noise.h includes
+seed.h ONLY among engine headers (<cstdint> is the system exception).
+THE FP-FLAG PRECHECK (the 351 prompt, FIRST): CMakeLists.txt +
+build/CMakeCache.txt + all 22 generated .vcxproj grepped - NO /fp:fast,
+no /fp: of any kind, no /arch:, no fma, no non-empty FloatingPointModel
+(the Release flags = /MD /O2 /Ob2 /DNDEBUG, the MSVC default /fp:precise,
+NO FMA contraction) - NO STOP.
+THE API: the PURE valueNoise2D(seed, x, y) - no Rng&, no state, no
+globals; the lattice value = hash(seed, floorf(x), floorf(y)) via the
+EXISTING seed.cpp SplitMix64 mixer, mapped with the OWNED top-24-bit
+mapping (the Rng contract); the quintic fade (6t^5-15t^4+10t^3); the
+bilinear interpolation; floorf NEVER int truncation; the result
+GUARANTEED below 1.0 by construction (every corner in [0,1) and the
+bilinear of [0,1) values with weights in [0,1] cannot leave the corner
+min/max - no clamp). THE SMALL API ADDITION (disclosed): latticeValue2D
+exposed - the lattice-exactness pin requires observing the raw lattice
+value; duplicating the hash inside the test would violate
+single-source.
+THE PINS (each quoted; tests/noise_test.cpp; ctest 10/10): "purity: the
+same (seed,x,y) must produce identical bits, and stay identical after a
+different 1000-point sequence is sampled in between"; "range: 1e6
+samples (lattice edges, negatives, |coords| up to 1e5) must all lie in
+[0,1) and never reach 1.0"; "negative coords: the field must be
+continuous across x=0 and y=0 (|n(-eps)-n(+eps)| small)"; "negative
+coords: n(-0.5,-0.5) must differ from n(0.5,0.5) for a fixed seed";
+"negative coords: each sampled value must lie within the min/max of its
+four surrounding lattice values (the interpolation contract)"; "lattice
+exactness: at integer coordinates the noise value must equal the raw
+lattice value bit-exact"; "independence: two derived seeds must differ
+at >= 60 of 64 sample points"; "golden: the fixed 8 coordinates must
+reproduce the recorded regression constants bit-exact (regression-only;
+no external vector exists)" - the recorded constants (seed
+0x0000000000003501, via the one-shot --print-vectors): 0x3D298580
+0x3EFE6107 0x3F221D64 0x3DFB5798 0x3ED507A0 0x3F2B333D 0x3EBCC6ED
+0x3EA8A1AB.
+THE MUTATIONS (the 285 protocol; BOTH NON-VACUOUS - each applied to the
+committed tree 01a0457, the named asserts failed, then restored by
+pathspec, then REBUILD + ctest 10/10 + git diff --stat -- src/ EMPTY):
+- MUT A (floorf -> (int) truncation, BOTH axes) -> noise_test exit 1,
+  THREE asserts failed BY NAME: "range: 1e6 samples (lattice edges,
+  negatives, |coords| up to 1e5) must all lie in [0,1) and never reach
+  1.0"; "negative coords: each sampled value must lie within the
+  min/max of its four surrounding lattice values (the interpolation
+  contract)"; "golden: the fixed 8 coordinates must reproduce the
+  recorded regression constants bit-exact (regression-only; no external
+  vector exists)". THE MECHANISM (disclosed): the truncation bug is
+  LIMIT-CONSISTENT at the lattice boundaries (it maps (-1,0) onto cell
+  0 with a negative local coordinate, and the quintic fade is ~0
+  there), so the continuity clause ALONE would stay green; the pin-3
+  interpolation-contract clause (the value must lie within the four
+  TRUE surrounding corners) is what fails pin 3 BY NAME, exactly as the
+  351 prompt requires; pin 4 (lattice exactness) also survives (the
+  integer casts agree with floorf).
+- MUT B (the lattice hash made STATEFUL - a static call counter mixed
+  in) -> noise_test exit 1, FIVE asserts failed BY NAME, led by
+  "purity: the same (seed,x,y) must produce identical bits, and stay
+  identical after a different 1000-point sequence is sampled in
+  between" (the 351 prompt's required pin 1 failure); the continuity
+  clause, the interpolation contract, the lattice exactness and the
+  golden followed (the order-dependence consequences).
+THE SCOPE RULES HELD: ADDITIVE World module (category 2); no accepted
+file edited except the CMake registration (pe_core gains src/noise.cpp;
+the new noise_test target) and the test harness; no particles/tilemap/
+games edits; no wiring; no terrain; NO fbm; no 3D; no gradient/Perlin
+(later steps if opened). Track B stays IN PROGRESS (the 349 audit);
+the freeze rules NOT reopened.
+THE LIMITS (recorded per the 351 prompt): zero production callers (the
+only consumer is the test); no fbm/octaves; no gradient/Perlin noise;
+no 3D; the golden is REGRESSION-ONLY (recorded from this implementation;
+no external reference vector exists for this composition).
+THE STATUS: value-noise 2D PRESENT, unwired, value-noise only. The next
+step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
