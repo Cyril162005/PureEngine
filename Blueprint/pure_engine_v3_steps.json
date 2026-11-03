@@ -3909,6 +3909,16 @@
    "commit": "GEN-352",
    "depends_on": [
     351
+   ]  },
+  {
+   "id": 353,
+   "name": "TRACK B: the tilemap-noise smoke recorded (docs only; DOCS-353) - the 352 pending human smoke arrived VERBATIM: 'smoke (tilemap noise, 2026-11-03): map-changed=YES game-runs=YES; notes=seed 7 red, seed 8 blue, same session, playable' - BOTH ROWS YES, the 352 smoke cycle COMPLETE (the console command ran on the live game, the map changed visibly between two seeds in the same session, the game stayed playable); no criterion left open; the limits unchanged (no fbm, no gradient, console-only, not saved); Track B stays IN PROGRESS; next: none",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD bb8d021 == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 352 completed, 353 free. THE SMOKE (verbatim, Cyril): 'smoke (tilemap noise, 2026-11-03): map-changed=YES game-runs=YES; notes=seed 7 red, seed 8 blue, same session, playable' - both rows YES, so per the 338->341 pattern the 352 smoke cycle is COMPLETE: the console command 'tilemap noise <seed>' ran on the live game, the map CHANGED VISIBLY between two seeds in the SAME session (seed 7 red, seed 8 blue), and the game stayed playable. NO criterion left open from the 352 record (the five new pins + the legacy-unchanged record stand; both mutations were non-vacuous). THE LIMITS unchanged: no fbm, no gradient, console-only, not saved (session-transient; the save omits the reference). Track B stays IN PROGRESS (the 349 audit); the freeze rules NOT reopened. GATES: the build exit 0, ctest 11/11, alive x3, diff --check (the docs commit).",
+   "notes": "Docs commit DOCS-353 (docs only; no src/ change). The smoke recording completes the 352-requested human smoke cycle (the 338->341 pattern: the audit/feature at VERIFICATION-pending, the human smoke, the small docs step records it). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched. Next: none.",
+   "commit": "DOCS-353",
+   "depends_on": [
+    352
    ]
   }
  ],

@@ -5669,6 +5669,20 @@ IN PROGRESS (the 349 audit); the freeze rules NOT reopened.
 THE STATUS: the noise->tilemap consumer PRESENT with ONE production
 caller; still no terrain. The next step: none.
 
+***STEP 353 (2026-11-03): THE TILEMAP-NOISE SMOKE RECORDED (docs only;
+DOCS-353).*** The 352 pending human smoke arrived (verbatim, Cyril):
+"smoke (tilemap noise, 2026-11-03): map-changed=YES game-runs=YES;
+notes=seed 7 red, seed 8 blue, same session, playable"
+BOTH ROWS YES -> the 352 smoke cycle is COMPLETE: the console command
+"tilemap noise <seed>" ran on the LIVE game, the map CHANGED VISIBLY
+between two seeds in the SAME session (seed 7 red, seed 8 blue), and
+the game stayed playable. NO criterion left open from the 352 record
+(the five new pins + the legacy-unchanged record stand; both mutations
+were non-vacuous; the human smoke is now filled). THE LIMITS unchanged:
+no fbm, no gradient, console-only, not saved (session-transient; the
+save omits the reference). Track B stays IN PROGRESS (the 349 audit);
+the freeze rules NOT reopened. The next step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
