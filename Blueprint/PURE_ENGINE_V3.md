@@ -5600,6 +5600,75 @@ no external reference vector exists for this composition).
 THE STATUS: value-noise 2D PRESENT, unwired, value-noise only. The next
 step: none.
 
+***STEP 352 (2026-11-03): TRACK B ADDENDUM - THE NOISE->TILEMAP CONSUMER
+(additive; ONE production caller via the console; GEN-352 = 9f7ce0c).***
+The 351 value-noise gains its FIRST production consumer: the tilemap-path
+generator src/tilemap_gen.h (NEW; tilemap.h itself UNTOUCHED - the
+header-only discipline of the tilemap path) + the ONE console command
+"tilemap noise <seed>" in main.cpp (modeled on dropSandbox;
+session-transient).
+THE READ (the 352 prompt, FIRST - recorded, NOT ambiguous): tileId 0 =
+EMPTY (skipped by draw + collide), nonzero = SOLID, textureId == tileId
+(tilemap.h :241-242); the legal renderer range [0, TEXTURE_SLOTS-1] =
+[0,4] (tilemap.h :53-54, TEXTURE_SLOTS = 5; the OOB warn + the checker
+fallback :273-286); the loader dims width>0/height>0 (:171), rows ==
+height (:222), row length == width (:227), NO upper bound - the
+generator adds the documented 256 cap.
+THE GENERATOR: generateTilemapFromNoise(masterSeed, originX, originY, w,
+h, scale) - seed = deriveSeed(master, "tilemap") (the named stable id
+from the 350 API); the WORLD-ANCHORED noise coordinates
+((originX+col)/scale, (originY+row)/scale); the owned threshold mapping
+(named constants kNoiseGenThresholdA=0.42/B=0.68; tiles 0=EMPTY, 1, 2;
+STRICT less-than: exactly AT a threshold maps to the higher band); the
+same dimension validation as loadTilemap plus the cap.
+THE ONE CONSOLE COMMAND: "tilemap noise <seed>" - 64x64 at scale 16 on
+the LIVE scene (the named constants kNoiseGenCommandDim/Scale), the
+cachedTileEntities + cachedTileClear refresh (the scene_reload
+pattern), tilemapFile CLEARED -> saves OMIT the tilemap reference
+(scene_persist writes tilemap=<basename> only when tilemapFile is
+non-empty) - the reply states "session-transient, never saved (a save
+omits the tilemap reference - no tilemap file name)".
+THE PINS (each quoted; tests/tilemap_gen_test.cpp; ctest 11/11):
+"determinism: the same arguments must produce byte-identical tiles
+across two runs"; "region consistency: the 8x8 and 16x16 generations
+from the same origin must be byte-equal on the overlap"; "validity: all
+tile ids must lie in the legal renderer range [0,4] with the loader
+solid/texture semantics, and bad dimensions (zero, negative, over the
+cap) must yield the empty map"; "threshold boundary: a noise value
+exactly at a threshold must map to the documented higher band (strict
+less-than)"; "independence: two seeds must differ in >= 1 tile of a
+fixed region"; pin 6 LEGACY = NO new assert - the existing
+tilemap/scene/platformer pins stay green UNCHANGED (the full 11-test
+suite is the gate).
+THE MUTATIONS (the 285 protocol; BOTH NON-VACUOUS - each applied to the
+committed tree 9f7ce0c, the named assert failed, then restored by
+pathspec, then REBUILD + ctest 11/11 + git diff --stat -- src/ EMPTY):
+- MUT A (region-relative instead of the world coordinate - the
+  region-centered coords depending on w/h) -> tilemap_gen_test exit 1
+  with EXACTLY the region-consistency assert failing BY NAME
+  ("region consistency: the 8x8 and 16x16 generations from the same
+  origin must be byte-equal on the overlap"); the others PASS.
+- MUT B (the threshold comparison flipped: strict < -> <=) ->
+  tilemap_gen_test exit 1 with EXACTLY the threshold-boundary assert
+  failing BY NAME ("threshold boundary: a noise value exactly at a
+  threshold must map to the documented higher band (strict
+  less-than)"); the others PASS.
+THE BUILD DISCLOSURE: the first build attempt FAILED (the test used the
+pe:: constants unqualified - C2065) - fixed by qualifying; no pin or
+code semantics changed.
+THE HUMAN SMOKE (Cyril, PENDING - the 338->341 pattern): run
+build\Release\PureEngine.exe, open the debug console, run
+"tilemap noise 7" (then "tilemap noise 8" - a different seed must give
+a different map); confirm the arena tilemap CHANGES VISIBLY and the
+game still runs; the reply template: "smoke (tilemap noise, <date>):
+map-changed=<YES/NO> game-runs=<YES/NO>; notes=<one line>."
+THE LIMITS (recorded per the 352 prompt): no fbm, no gradient noise,
+console-only (ONE command; the generator has no other caller), NOT
+saved (session-transient; the save omits the reference). Track B stays
+IN PROGRESS (the 349 audit); the freeze rules NOT reopened.
+THE STATUS: the noise->tilemap consumer PRESENT with ONE production
+caller; still no terrain. The next step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
