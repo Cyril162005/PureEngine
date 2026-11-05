@@ -3939,6 +3939,16 @@
    "commit": "DOCS-355",
    "depends_on": [
     354
+   ]  },
+  {
+   "id": 356,
+   "name": "STOPPED at the mandated read (the 356 conditional stop fired; DOCS-356 = the stop note): the integer-id deriveSeed overload DOES NOT EXIST - seed.h :57 is the ONLY signature (uint64 master, const char* stableId; seed.cpp :62 the definition; the call sites pass string literals) and the 356 contract says deriveSeed(seed, i) - per the prompt's own rule: no silent API change, STOP and report; NO code, no pins, nothing mutated; the FP precheck unchanged; the valueNoise2D NaN/inf record written to V3 (no guard; the standard-UB conversion; MSVC x64 yields the integer-indefinite value; no crash/indexing); THE OPTIONS AWAITING CYRIL: (a) the string form deriveSeed(seed, 'fbm-octave-<i>') (the 355 amendment b, no API change), (b) an authorized integer overload in a revised 356",
+   "status": "blocked",
+   "definition_of_done": "PREFLIGHT: HEAD 761da36 == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 355 completed, 356 free. THE MANDATED READ EXECUTED: seed.h deriveSeed signature = (std::uint64_t master, const char* stableId) ONLY (seed.h :57; seed.cpp :62; no integer-id overload - an early script regex printed a false YES on the master parameter, corrected by reading the raw signatures); the FP precheck UNCHANGED (CMakeLists no fp/fma/arch flags; CMAKE_CXX_FLAGS_RELEASE = /MD /O2 /Ob2 /DNDEBUG; 0 vcxproj with fp/arch/fma); the valueNoise2D NaN/inf record: noise.cpp :56-57 floorf + the int64 cast with NO guard (the standard-UB conversion; MSVC x64 cvttss2si yields 0x8000000000000000; the hash is pure arithmetic - no crash/indexing; platform-defined result). THE CONDITIONAL STOP FIRED per the prompt's own rule (no silent API change): NO code, no pins, no mutations, the tree untouched. THE OPTIONS (Cyril's pick): (a) the string form deriveSeed(seed, 'fbm-octave-<i>') (the 355 amendment b); (b) an authorized integer-id overload in a revised 356. GATES: the build exit 0, ctest 11/11, alive x3, diff --check (the stop-note commit).",
+   "notes": "Docs commit DOCS-356 = the STOP note (docs only; no src/ change). The step is BLOCKED on the human decision (a)/(b); no work beyond the mandated read was performed. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched. Next: none until Cyril picks (a) or (b).",
+   "commit": "DOCS-356",
+   "depends_on": [
+    355
    ]
   }
  ],

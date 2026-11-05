@@ -5865,6 +5865,44 @@ THE STATUS: Track B stays IN PROGRESS (the 349 audit); the terrain
 contract is DEFINED (docs only), nothing implemented. The next step:
 none (the PROPOSED 356-358 await Cyril's pick).
 
+***STEP 356 STOP NOTE (2026-11-05): THE CONDITIONAL STOP FIRED - THE
+INTEGER-ID DERIVESEED OVERLOAD DOES NOT EXIST (docs only; DOCS-356;
+NO code written; the tree UNTOUCHED by the step).*** The 356 prompt's
+own rule: "If an integer-id deriveSeed overload does not exist, STOP
+and report (no silent API change)." THE READ (the evidence): seed.h
+:57 is the ONLY deriveSeed signature - std::uint64_t deriveSeed(
+std::uint64_t master, const char* stableId); (seed.cpp :62 the
+definition; the only call sites pass string literals, e.g.
+tilemap_gen.h :78 deriveSeed(masterSeed, "tilemap")); NO integer-id
+overload exists. THE CONTRACT MISMATCH: the 356 contract says
+"octave i>0 uses deriveSeed(seed, i)" - an integer id; the existing
+API takes a string stable id; adding the overload silently would be
+an API change to the frozen-additive seed.h (the 350 module).
+THE FP PRECHECK: unchanged (no /fp:fast, no /fp:, no /arch:, no fma;
+the Release flags = /MD /O2 /Ob2 /DNDEBUG) - no STOP from the flags.
+THE VALUE-NOISE NAN/INF RECORD (the 356 read item): valueNoise2D
+(noise.cpp :56-57) does floorf then casts to int64 with NO NaN/inf
+guard (the 351 contract covered the valid domain only): floorf(NaN) =
+NaN and floorf of an infinity stays infinite, and the float->int64
+conversion of a NaN/out-of-range value is UNDEFINED by the standard
+([conv.fpint]); in practice on MSVC x64 (cvttss2si) it yields the
+documented "integer indefinite value" 0x8000000000000000, which then
+feeds the pure arithmetic hash - no crash, no array indexing (the
+hash has no lookups), but the result is platform-defined, not
+portable. THE 356 fbm2D contract therefore guards non-finite coords
+to 0.0f BEFORE any valueNoise2D call (the right layer for it).
+THE OPTIONS (Cyril's pick; NEITHER executed): (a) amend the contract
+to the STRING form - octave i uses deriveSeed(seed, "fbm-octave-<i>")
+- exactly the 355 record's amendment (b); no API change; the pins and
+the mutations work identically; (b) authorize an explicit integer-id
+overload in seed.h (e.g. deriveSeed(master, uint64 stableId) - the
+FNV-1a over the 8 raw bytes, the same mixer) as a NAMED item in a
+revised 356 (an announced, additive API change with the seed.h pins
+extended for the overload).
+THE STATUS: the 356 step STOPPED at the mandated read; no code; no
+pins; nothing mutated; the tree clean. The next step: none until
+Cyril picks (a) or (b).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
