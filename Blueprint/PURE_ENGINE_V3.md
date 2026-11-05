@@ -5683,6 +5683,61 @@ no fbm, no gradient, console-only, not saved (session-transient; the
 save omits the reference). Track B stays IN PROGRESS (the 349 audit);
 the freeze rules NOT reopened. The next step: none.
 
+***STEP 354 (2026-11-05): TRACK B - THE TILEMAP MUTATION RUN (an evidence
+step; docs only; no new pins, no fixes; DOCS-354).*** The committed tree
+2e0859b was mutated ONE FAMILY AT A TIME; each mutation was built, the
+targeted test run, the named assert recorded, then restored by pathspec
+(the diff verified empty per family) and the run finished with REBUILD +
+ctest 11/11 + git diff --stat -- src/ EMPTY. NO production edit
+survives; NO vacuous pin found (every mutation failed its named assert -
+no "survived" record was needed).
+THE FAMILIES (the mutation quoted; the failing assert; the exit):
+1. THE VALID DIMS (src/tilemap.h :233, [map.width = width;] -> [map.width
+   = width + 1;]) -> hostile_data_test exit 1: "Valid tilemap dimensions
+   did not parse as expected" (checkTilemapValidLoad :209 - the target);
+   the bonus failures: "loadTilemapIntoScene rejected a valid file"
+   (:383) and "Platformer level files did not parse" (:2844).
+2. THE MALFORMED FALLBACK (src/tilemap.h :227, the row-width mismatch
+   [!= width] -> [> width + 1000] (never true)) -> exit 1: "Malformed
+   tilemap (short row) should fall back to an empty map"
+   (checkTilemapMalformedFallsBack :268 - the target); the bonus:
+   "Bad tilemap file clobbered the stored map" (:388).
+3. THE COLLIDE PUSH-OUT, BOTH AXES (src/tilemap.h :342/:345,
+   [+= normal * overlap] -> [+= 0.0f * normal * overlap]) -> exit 1:
+   "Solid overlap did not push out along +X as expected"
+   (checkTilemapCollidePushesOut :301 - the target).
+4. THE SCENE INTEGRATION (src/scene.h :266, loadTilemapIntoScene
+   [scene.tilemap = loaded;] -> [scene.tilemap = Tilemap{};]) -> exit 1:
+   "loadTilemapIntoScene rejected a valid file" (:383 - the target; the
+   :388 bad-file clobber assert was NOT reached by this mutation - the
+   width guard still rejects the bad file before the store - but :388
+   HAS its mutation evidence from F2's bonus failure).
+5. THE TILEMAP-REFERENCE REJECT (src/scene_persist.cpp :392,
+   [if (tm.width <= 0 || tm.tiles.empty()) return false;] -> [if (false)
+   return false;]) -> LevelPipelineConsumer exit 1: "FAIL: adversarial:
+   a missing referenced tilemap file rejects the load (saves reference
+   tilemaps, not prefabs)" (consumer.cpp :814 - the target); the other
+   consumer adversarial asserts stayed PASS.
+6. THE NOISE GENERATOR (352) RE-CONFIRMED: (a) the region-relative
+   (region-centered) coords -> tilemap_gen_test exit 1: "region
+   consistency: the 8x8 and 16x16 generations from the same origin must
+   be byte-equal on the overlap"; (b) the threshold flip (strict < ->
+   <=) -> exit 1: "threshold boundary: a noise value exactly at a
+   threshold must map to the documented higher band (strict
+   less-than)" - BOTH still fail BY NAME (the 352 records hold).
+THE GRADES (per the 354 rule: PROVEN only where a mutation failed by
+name): loadTilemap valid dims PROVEN (F1); loadTilemap malformed
+fallback PROVEN (F2); collide push-out PROVEN (F3); scene tilemap
+integration PROVEN (F4 by name at :383, with :388 covered by F2's bonus
+failure); tilemap reference reject PROVEN (F5); the noise generator
+(352) PROVEN re-confirmed (F6a/F6b). NO PARTIAL; NO VACUOUS.
+THE LIMITS (recorded): the mutation run covers the loader/collide/
+scene/reference/generator asserts; the OOB textureId warn path
+(tilemap.h :273-286) and the tileAt/tileCenter internals remain pinned
+only by the existing checks (no new pins per the 354 scope). Track B
+stays IN PROGRESS (the 349 audit); the freeze rules NOT reopened. The
+next step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
