@@ -69,4 +69,55 @@ float valueNoise2D(std::uint64_t seed, float x, float y) {
     return lerpf(lerpf(v00, v10, fx), lerpf(v01, v11, fx), fy);
 }
 
+namespace {
+// The fbm octave-id table (constant literals; NO snprintf, no runtime
+// strings). Index 0 = "" (octave 0 uses the RAW seed and never reads the
+// table entry).
+const char* const kOctaveId[kFbmMaxOctaves] = {
+    "", "fbm-octave-1", "fbm-octave-2", "fbm-octave-3",
+    "fbm-octave-4", "fbm-octave-5", "fbm-octave-6", "fbm-octave-7"
+};
+static_assert(sizeof(kOctaveId) / sizeof(kOctaveId[0]) == kFbmMaxOctaves,
+    "the fbm octave-id table must have exactly kFbmMaxOctaves entries");
+} // namespace
+
+float fbm2D(std::uint64_t seed, float x, float y, int octaves,
+            float lacunarity, float gain) {
+    // Invalid params -> the documented 0.0f, guarded BEFORE any
+    // valueNoise2D call (no UB; the valueNoise2D NaN/inf behavior is
+    // platform-defined - see the 356 STOP-note record).
+    if (octaves < 1 || octaves > kFbmMaxOctaves) {
+        return 0.0f;
+    }
+    if (!std::isfinite(lacunarity) || !(lacunarity > 0.0f)) {
+        return 0.0f;
+    }
+    if (!std::isfinite(gain) || gain < 0.0f) {
+        return 0.0f;
+    }
+    if (!std::isfinite(x) || !std::isfinite(y)) {
+        return 0.0f;
+    }
+    double sum = 0.0;
+    double ampSum = 0.0;
+    double amplitude = 1.0;
+    float fx = x;
+    float fy = y;
+    for (int i = 0; i < octaves; ++i) {
+        std::uint64_t seedI = seed;   // octave 0: the RAW seed
+        if (i > 0) {
+            seedI = deriveSeed(seed, kOctaveId[i]);   // octaves 1..7: the table literals
+        }
+        const float n = valueNoise2D(seedI, fx, fy);
+        sum += amplitude * static_cast<double>(n);
+        ampSum += amplitude;
+        amplitude *= static_cast<double>(gain);
+        fx *= lacunarity;
+        fy *= lacunarity;
+    }
+    // The amplitude-weighted mean: a convex combination of [0,1) values in
+    // double - < 1.0 by construction (see the header contract), no clamp.
+    return static_cast<float>(sum / ampSum);
+}
+
 } // namespace pe

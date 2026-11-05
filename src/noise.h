@@ -24,8 +24,11 @@
  *    duplicating the hash inside the test would violate single-source).
  *
  * WHAT THIS IS NOT (the recorded limits):
- *  - UNWIRED: zero production callers; the only consumer is tests/noise_test.cpp.
- *  - No fbm/octaves, no gradient/Perlin noise, no 3D (later steps if opened).
+ *  - UNWIRED: zero production callers; the only consumers are the tests
+ *    (noise_test.cpp, fbm_test.cpp) until 357.
+ *  - No gradient/Perlin noise, no 3D (later steps if opened). fbm2D
+ *    (multi-octave) added Step 356 (amended, Option A) - still unwired
+ *    until 357.
  *  - The golden constants are REGRESSION-ONLY (recorded from this
  *    implementation; no external reference vector exists for this composition).
  */
@@ -44,6 +47,38 @@ float latticeValue2D(std::uint64_t seed, std::int64_t ix, std::int64_t iy);
 /** PURE 2D value noise in [0,1): quintic fade + bilinear over the SplitMix64
  *  lattice. floorf cell selection (never truncation). Pure: no state. */
 float valueNoise2D(std::uint64_t seed, float x, float y);
+
+/**
+ * The fbm octave-id table length (the hard cap; octaves outside [1,8] are
+ * invalid). The octave-id literal table itself stays PRIVATE to noise.cpp
+ * (the composition pin spells its literals out in the test - no shared
+ * helper, no new header API beyond this constant).
+ */
+inline constexpr int kFbmMaxOctaves = 8;
+
+/**
+ * Deterministic fractal Brownian motion over valueNoise2D (PURE, 2D, no
+ * state) - Step 356 (amended, Option A: the string-form octave seeds).
+ *  - octave 0 uses the RAW seed; octave i in 1..7 uses
+ *    deriveSeed(seed, kOctaveId[i]) where kOctaveId is the constant literal
+ *    table {"", "fbm-octave-1" ... "fbm-octave-7"} (private to noise.cpp;
+ *    MAX_OCTAVES = kFbmMaxOctaves = 8, static_assert'd there).
+ *  - octave i samples valueNoise2D(seedI, x*lacunarity^i, y*lacunarity^i)
+ *    with amplitude gain^i; the accumulation is in DOUBLE; the result is
+ *    the amplitude-weighted mean sum(a_i*n_i)/sum(a_i), cast ONCE to
+ *    float - < 1.0 by construction (a convex combination of [0,1) values;
+ *    the float quantization of the n_i keeps the double quotient 2^-24
+ *    below 1.0, far beyond the double rounding error).
+ *  - invalid params (octaves < 1 or > kFbmMaxOctaves; non-finite or <= 0
+ *    lacunarity; non-finite or < 0 gain; non-finite x or y) -> the
+ *    documented value 0.0f, guarded BEFORE any valueNoise2D call, no UB
+ *    (valueNoise2D itself leaves NaN/inf coords platform-defined - see
+ *    the 356 STOP-note record).
+ *  - gain == 0 is valid: the result == the octave-0 value bit-exact.
+ *  - UNWIRED until 357; the golden is regression-only.
+ */
+float fbm2D(std::uint64_t seed, float x, float y, int octaves,
+            float lacunarity, float gain);
 
 } // namespace pe
 

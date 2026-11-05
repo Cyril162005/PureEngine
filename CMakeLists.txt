@@ -409,6 +409,24 @@ target_include_directories(tilemap_gen_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
 add_test(NAME tilemap_gen_test COMMAND tilemap_gen_test)
 set_tests_properties(tilemap_gen_test PROPERTIES TIMEOUT 60)
 
+# Step 356 (amended, Option A): the deterministic fbm2D test (noise.h/.cpp,
+# additive; the string-form octave seeds - NO integer deriveSeed overload,
+# seed.h/seed.cpp untouched). The nine pins: the bit-identical determinism,
+# the octave-0 identity, the test-composed reference (the literals spelled
+# out in the test), the 1e6-sample [0,1) range, the seed sensitivity, the
+# octave-seed distinctness, the invalid-param classes, the gain-zero
+# identity, the regression-only golden. Pure headless.
+# --print-vectors is a utility mode (used once to record the golden;
+# ctest never passes it).
+add_executable(fbm_test
+    tests/fbm_test.cpp
+    src/noise.cpp
+    src/seed.cpp
+)
+target_include_directories(fbm_test PRIVATE "${CMAKE_SOURCE_DIR}/src")
+add_test(NAME fbm_test COMMAND fbm_test)
+set_tests_properties(fbm_test PROPERTIES TIMEOUT 60)
+
 # Pong API-gate target: a second game built ONLY on public engine headers
 # (math, entity, renderer, camera, input). Headers are included by relative
 # path from games/pong/pong.cpp — src/ is deliberately NOT on this target's
