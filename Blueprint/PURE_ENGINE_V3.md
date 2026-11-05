@@ -5738,6 +5738,133 @@ only by the existing checks (no new pins per the 354 scope). Track B
 stays IN PROGRESS (the 349 audit); the freeze rules NOT reopened. The
 next step: none.
 
+***STEP 355 (2026-11-05): TRACK B - TERRAIN DEFINITION + MINIMAL CONTRACT
+(docs only; no code; DOCS-355).*** The 349/354 records stand (no
+re-inventory). THE READ: tilemap_gen.h (the 352 generator) + noise.h +
+the grep -i terrain|height|biome|chunk|elevation across src/ games/
+tools/. THE GREP (recorded): terrain = 3 hits, ALL in the limit comments
+(noise.h :23 "future terrain work"; seed.h :31 "no terrain/world-gen";
+tilemap_gen.h :26 "No terrain, no fbm") - NO terrain code; biome =
+ABSENT (zero hits); chunk = 1 hit (physics.h :607 - a fixed-dt
+TIME-STEP chunk, not terrain chunking); elevation = ABSENT (zero hits);
+height = 37 hits, ALL incidental struct/parameter fields (Tilemap::
+height, the window/camera/UI dims, the Mat4 aspect, the platformer
+rest-height comments) - NONE terrain-semantic (no heightmap field
+anywhere).
+1. DOES THE 352 BAND-MAPPING ALREADY CONSTITUTE 2D TERRAIN? YES - at
+   its smallest: valueNoise2D (ONE octave; noise.h) -> the owned banded
+   mapping (tilemap_gen.h :43-48: below 0.42 EMPTY(0), 0.42-0.68 tile 1,
+   >= 0.68 tile 2) sampled at the WORLD-ANCHORED coords (:100-103) -> a
+   height-like scalar banded into tiles = the classic terrain recipe,
+   minimal. MISSING vs the wishlist: (a) multi-octave detail
+   (valueNoise2D is single-octave; no fbm exists - the grep + the 349
+   P8 record); (b) named terrain types (the bands are unnamed roles
+   kNoiseGenTileLow/High, not terrain names); (c) the seed in the scene
+   (NOT saved - see 4).
+2. THE SMALLEST ADDITIVE PROPOSAL - the candidate ACCEPTED WITH
+   AMENDMENTS: fbm2D(octaves, lacunarity, gain) built ONLY on
+   valueNoise2D, pure, then named bands -> the EXISTING tile ids; 2D
+   only. THE AMENDMENTS: (a) the octave sum MUST be normalized by the
+   exact amplitude sum (sum of gain^i for i < octaves) so the pinned
+   [0,1) range holds mathematically (the raw sum is bounded by
+   1/(1-gain) and exceeds 1 - the prompt's own 'range after octave sum'
+   pin implies this); (b) per-octave DECORRELATED fields via
+   deriveSeed(seed, "fbm-octave-<i>") (scaled coords on the SAME
+   lattice with lacunarity 2.0 would be perfectly correlated); (c) the
+   OCTAVE-0 IDENTITY: fbm2D(seed,x,y,1,l,g) == valueNoise2D(seed,x,y)
+   bit-exact (a pin - the 352 single-sample behavior stays
+   expressible); (d) the bands become NAMED terrain constants mapping
+   ONLY to the existing ids 0/1/2 (TEXTURE_SLOTS = 5 permits up to 4;
+   no new ids without a texture decision); (e) the fbm generator is a
+   NEW function (generateTilemapFromNoiseFbm) - the 352 generator and
+   its regression-golden stay byte-valid UNTOUCHED; (f) the second
+   console command "tilemap fbm <seed>" (the second production caller,
+   additive, session-transient like the first).
+3. NEEDED OR DEFERRED (one line each; default DEFERRED): chunking -
+   DEFERRED (the 256 cap bounds a generated map at 65,536 cells and the
+   draw path never feeds the chase/scan loops, tilemap.h :256, so no
+   measured need exists); 3D/heightmap - DEFERRED (the game path is
+   2D-flat, the v1.1 ruling; no heightmap consumer exists); biomes -
+   DEFERRED (a second low-frequency field needs a SECOND tile theme to
+   pick from - a content decision, not an engine need); volumetric -
+   DEFERRED (no consumer; 3D noise would double the surface for
+   nothing); domain warping - DEFERRED (a quality feature; the smoke
+   already shows visible per-seed variety); editor panel - DEFERRED
+   (the Tools phase is a CONSUMER phase, the 284 ruling, and the
+   persistence question in 4 gates any editor).
+4. PERSISTENCE: the generator seed is NOT saved. THE EVIDENCE: the 352
+   command clears tilemapFile (main.cpp, the tilemap noise handler) and
+   scene_persist.cpp :161-164 writes "tilemap=<basename>" ONLY when
+   tilemapFile is non-empty (else the reference is OMITTED with the
+   documented fallback comment); the seed itself has NO field in Scene
+   (scene.h :45-50: name/entities/tilemap/tilemapFile). SAVING it would
+   touch the FROZEN Entity/Scene format (the 325 acceptance): a new
+   scene-file key (a v2 extension or a v3 bump), the load path is
+   versioned REJECT-ONLY (the 349 G6) so old binaries would reject new
+   files, and the field-exact round-trip pins (the consumer
+   entityFieldMatches + the manager round-trips) would need
+   replumbing. THE RECOMMENDATION: KEEP CONSOLE-ONLY (session-transient;
+   no current consumer needs a persistent generated map) and record the
+   seed-in-scene reopen as a HUMAN-ONLY decision. NOT reopened (per the
+   prompt).
+5. THE TEST STRATEGY FOR THE CANDIDATE (the pins + ONE non-vacuous
+   mutation per contract): the range pin (1e6 fbm2D samples across
+   octave configs, all in [0,1), never 1.0; mutation: remove the
+   amplitude-sum normalization -> values above 1 -> fails BY NAME);
+   the octave-0 identity pin (fbm2D at 1 octave == valueNoise2D
+   bit-exact; mutation: octave 0 samples a derived seed -> fails BY
+   NAME); the octave-count pin (2 octaves differ from 1 octave at a
+   fixed sample set + the 1000-value determinism across two instances;
+   mutation: the octave loop skips the last octave -> the 2-octave
+   field equals the 1-octave field -> fails BY NAME); the band boundary
+   pin (the named bands at the exact thresholds, the strict-less-than
+   rule; mutation: a comparison flipped -> fails BY NAME, the 352 MUT B
+   pattern); the generator region pin (the fbm generator 8x8 vs 16x16
+   from the same origin byte-equal on the overlap; mutation:
+   region-relative coords -> fails BY NAME, the 352 MUT A pattern).
+6. THE RECOMMENDATION: (A) 2 code steps then the Track B acceptance
+   audit. THE COST/BENEFIT (3 lines): the cost = 2 additive code steps
+   at the 350-353 cadence (fbm2D + the pins/mutations; the fbm
+   generator + the second console command + the smoke) plus one docs
+   audit; the benefit = the 352 generator becomes genuinely
+   terrain-shaped (the smoke already shows visible per-seed variety)
+   and Track B closes with every surface mutation-proven instead of
+   closing with "terrain = an approved limit" (which would read as
+   unfinished); the risk = low - additive only (the 352 generator and
+   golden untouched; the persistence stays deferred-by-decision). THE
+   MAX 3 FUTURE STEPS (ALL PROPOSED, none opened): PROPOSED Step 356 -
+   fbm2D in noise.h (pure, normalized, the octave-0 identity) + the
+   pins + the mutations; PROPOSED Step 357 - the named terrain bands +
+   generateTilemapFromNoiseFbm + the "tilemap fbm <seed>" console
+   command + the pins/mutations + the human smoke line; PROPOSED Step
+   358 - the Track B acceptance audit (the 343/349 style: the
+   inventory, the grades, the A-I checklist, the smoke form).
+THE TRACK B ACCEPTANCE CHECKLIST DRAFT A-I (NOT granted; Cyril approves
+or strikes later): A. the 352 band-mapping recorded as the minimal
+terrain field (the thresholds/ids/the world-anchored coords) with the
+limits named. B. fbm2D PROVEN: pure, the exact normalization, the
+octave-0 identity, the range pinned (1e6, never 1.0), the determinism,
+ONE non-vacuous mutation per contract. C. the named terrain bands: the
+constants documented, mapping ONLY to the existing tile ids [0,2]
+within the legal renderer range [0,4], the strict-less-than boundary
+pinned. D. the fbm generator: the region consistency, the determinism,
+the validity (the legal ids + the dims + the cap), ONE console command
+as the production caller, session-transient (the save omits the
+reference). E. the persistence: the seed-in-scene recorded as
+DEFERRED-BY-DECISION (the frozen-format cost stated in 4; no reopen
+without Cyril's explicit decision). F. the deferred list (chunking,
+3D/heightmap, biomes, volumetric, domain warping, editor panel)
+recorded with the one-line justifications; the reopen = a measured need
+or a content decision. G. the legacy surfaces: the seed/noise/tilemap/
+scene/platformer pins stay green UNCHANGED (the full suite is the
+gate). H. the Track B grades PROVEN per the 354 run (all six families
+non-vacuous) plus the new fbm pins at the same bar. I. the Track B
+acceptance completes on Cyril's approved checklist + the filled smoke
+line (the 338->341 pattern) - NOT granted in 355.
+THE STATUS: Track B stays IN PROGRESS (the 349 audit); the terrain
+contract is DEFINED (docs only), nothing implemented. The next step:
+none (the PROPOSED 356-358 await Cyril's pick).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
