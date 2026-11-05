@@ -5903,6 +5903,63 @@ THE STATUS: the 356 step STOPPED at the mandated read; no code; no
 pins; nothing mutated; the tree clean. The next step: none until
 Cyril picks (a) or (b).
 
+***STEP 356 (SECOND STOP NOTE, 2026-11-05): THE WRONG-ASSERT RULE FIRED
+AT MUTATION (g) (docs only; DOCS-356B; no src/ change survives).*** THE
+AMENDED STEP (Option A - the string-form octave seeds per Cyril; NO
+integer overload; seed.h/seed.cpp UNTOUCHED, the diff verified EMPTY)
+LANDED THE CODE: FBM-356 = d570a80 - fbm2D in noise.h/.cpp (additive;
+MAX_OCTAVES = kFbmMaxOctaves = 8; the PRIVATE literal table in noise.cpp
+with the static_assert; the double accumulation + the exact amplitude-sum
+normalization; the invalid-param guards before any valueNoise2D call;
+gain==0 == the octave-0 value; the header-contract comment written).
+THE PINS: all 9 green (fbm_test; ctest 12/12). THE TEST DISCLOSURE: the
+first pin-4 run FAILED on a TEST bug (the sample count 990000 + 4128 =
+994128 < 1e6 - NOT an implementation leak; every sampled value was in
+range) - fixed by raising the Rng sweep to 1e6 BEFORE the commit.
+THE MUTATIONS on the committed tree d570a80 (each built, run, recorded,
+restored by pathspec, the diff empty): a the divisor sum(a_i) -> octaves
+-> exit 1, "composition: the 3-octave fbm2D (gain 0.5, lacunarity 2)
+must equal the reference composed in the test from public valueNoise2D
+and deriveSeed (bit-exact)" BY NAME (the prompt allowed pin 3 or 4) +
+the gain-zero and golden cascades; b the loop bound off by one -> exit
+1, the composition pin BY NAME + a REAL DIVIDEND: the octaves=1 config
+runs ZERO octaves -> 0/0 = NaN -> the RANGE pin caught it (the [0,1)
+membership) - the NaN leak is not invisible; c all octaves the raw seed
+-> exit 1, the composition pin BY NAME + the golden; d octave 0 uses
+deriveSeed(seed, "fbm-octave-0") -> exit 1, "octave-0 identity: fbm2D
+at one octave must equal valueNoise2D bit-exact" BY NAME (as required)
++ the composition/gain-zero/golden cascades; e the lacunarity ignored
+-> exit 1, the composition pin BY NAME + the golden; f the gain ignored
+-> exit 1, the composition pin BY NAME + the gain-zero and golden
+cascades.
+MUTATION (g) (two table entries made identical: noise.cpp kOctaveId[2]
+-> "fbm-octave-1") -> exit 1 with pins 3 and 9 failing - BUT NOT THE
+REQUIRED PIN 6 ("octave-seed distinctness: the seven octave-literal
+derivations must be pairwise distinct and differ from the raw seed"
+STAYED GREEN): pin 6 tests the PUBLIC deriveSeed API on the test's own
+spelled-out literals, while the mutation corrupts the PRIVATE kOctaveId
+table inside noise.cpp - the table is INVISIBLE to pin 6 BY
+CONSTRUCTION (my implementation choice: the 356 contract lists the
+table under the header-contract items, but pin 3's "NO shared helper,
+no new header API" phrase made me keep it private). PER THE 356 RULE
+("Survivor or wrong-assert failure: STOP and report") THE STEP STOPS
+HERE. THE CORRUPTION IS NOT INVISIBLE (the composition pin 3 and the
+golden 9 catch it), but the named-assert mapping the prompt expected
+requires the table to be visible to the test.
+THE STATE: the tree clean (every mutation restored; the final REBUILD
+exit 0 + ctest 12/12 + git diff --stat -- src/ EMPTY +
+git diff --stat -- src/seed.h src/seed.cpp EMPTY). NO survivor.
+THE OPTIONS (Cyril's pick; NEITHER executed): (i) authorize exposing
+kOctaveId in noise.h as a public constexpr literal table (the 356
+contract's own text places the table + its static_assert in the header
+contract; pin 6 then iterates THE TABLE and mutation (g) fails pin 6 BY
+NAME - a small follow-up commit + the mutation re-run); (ii) keep the
+table private and rule pin 6's scope satisfied via the pin-3/pin-9
+evidence for mutation (g) (recorded: the mutation NON-VACUOUS overall;
+pin-6-vacuous-as-specified).
+THE STATUS: the 356 amended step is BLOCKED at mutation (g) on the
+wrong-assert rule. The next step: none until Cyril picks (i) or (ii).
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
