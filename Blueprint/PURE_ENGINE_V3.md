@@ -6300,6 +6300,118 @@ RULE: Track B reopens only on a measured regression (the same as Core
 Foundation, Entity/Scene/Persistence, Render, and Simulation). The next
 track opens only on Cyril's explicit prompt. The next step: none.
 
+***STEP 361 (2026-11-06): TRACK C - GRAPHICS ASSETS AUDIT RECORDED
+(read-only; docs only; DOCS-361).*** THE AUDIT was executed 2026-11-06
+at HEAD 6f17eb8 under the 361 authorization: READ-ONLY - NO tracked
+file touched; the bench CSVs written to %TEMP% OUTSIDE the repo; the
+EXISTING untracked savedata/bench200.txt re-used (nothing written into
+the tree); assets/hostile_default.txt + Testing/ preserved; the 342
+inventory HELD with NO material corrections; the master-memory Step-354
+claim (commit 4f2ade8) VERIFIED against git log.
+
+THE STATUS: **Track C - AUDITED (findings recorded); implementation
+direction PENDING; not ACCEPTED.** This status phrase extends the
+acceptance vocabulary for audit bookkeeping only; the category remains
+NOT ACCEPTED. (The formal vocabulary - NOT AUDITED / IN PROGRESS /
+BLOCKED / VERIFICATION REQUIRED / ACCEPTED, V3:4555 - has no word for
+the post-audit pre-decision state; recorded per the 361 prompt.)
+
+THE CATEGORY MAP: the five ACCEPTED categories (Core Foundation
+319/325; Entity/Scene/Persistence 325; Render 341; Simulation 348;
+World/Content = Track B 360) are CROSS-REFERENCED, NOT restated. Track
+C leaves NOT AUDITED | INVENTORIED (342) -> AUDITED (this record).
+Track D stays NOT AUDITED | INVENTORIED (the tool slices 287-313
+landed; the 307 milestone: COMPLETE with a RECOMMENDED PAUSE; the
+Tools phase OPEN, 284).
+
+THE L0-L3 READINESS MAP (L0 absent / L1 test-only / L2 asset-capable
+prototype / L3 production-shaped; the debug-shape marks):
+- the built-in meshes (the cube, the pyramid): L1, DEBUG-SHAPE ONLY
+  (mesh3d.h :11-28, :46-84: "no glTF, no index buffers, no materials
+  system, no normals").
+- the OBJ loader + the mesh registry: L2 (a real format, a tiny
+  subset); the debug-shape DEFAULT (the unregistered meshId falls back
+  to the cube; renderer.h :752; the 339 record :776-780).
+- the texture pipeline (PNG -> the slots): L2 (resources.h :16-33,
+  :93; the growable registry renderer.h :215, :1194; TEXTURE_SLOTS=5
+  tilemap.h :53-54, the OOB warn :275-286).
+- the asset storage/identification: L1 (the texture registry + the
+  blob/pack/process-lifetime cache resources.h :41-69; NO asset
+  database, NO metadata, NO dependency tracking :23-27).
+- the serialization of the asset references: L1 for 3D / L2 for 2D
+  (textureId IS saved, scene_persist.cpp :173; meshId is NOT - ZERO
+  references in scene_persist.cpp, grep-verified; the documented
+  contract V3:3967).
+- the 2D sprite animation: L2 (real spritesheets; animation.h :31-96;
+  paddle_spritesheet.png + paddle_animations.txt).
+- the skeletal/3D animation: L0 (zero skeletal/bone/joint matches in
+  animation.h; one rigid transform per entity, renderer.h :763-780).
+- the 2D lighting: L2 (lighting.h; the lit 2D pass, the Render PIN 8).
+- the 3D lighting: L1, DEBUG-GRADE (one FIXED directional light, the
+  CPU per-face loop; renderer.h :860-880).
+- the audio: L2 (WAV + pack v1; the volume matrix; the device surfaces
+  human-only G3; the mixer graph frozen).
+- the packaging: L1 (scripts/package.ps1 EXISTS, FINDINGS 44; the
+  export slice MISSING, 308; never audited).
+- the editor asset browser: L0 (308); the 3D viewer: L1 (311).
+
+THE FRESH BENCH (the harness re-run, NO tracked file touched) beside
+the HISTORICAL (the 313 record):
+- Fresh: 2D median 1.9934 / p95 8.2450 / max 47.1301 / mean 2.9558 ms;
+  3D median 31.5667 / p95 50.0669 / max 120.5074 / mean 34.3219 ms.
+- Historical (313): 2D 1.0709 / 4.0543 / 22.0148 / 1.5718; 3D 32.5299 /
+  54.7805 / 510.2322 / 37.1151.
+- THE PROVENANCE: the SAME T0 machine as FINDINGS 52 (Intel Core
+  i3-3120M @ 2.50GHz, 4 logical cores, 8052 MB, Windows 10.0.22621;
+  Intel HD Graphics 4000, GL 3.3.0 Build 10.18.10.4885); the hidden
+  800x600 GL 3.3 core window; vsync off; glFinish per frame; 60
+  untimed warmup frames; N=600 samples; the scene bench200.txt,
+  200 entities; gl_error=0; HEAD 6f17eb8 at run time.
+- THE QUALIFIERS: a SINGLE RUN, no run-to-run variance; the median is
+  the comparable figure, the p95/max are noise-sensitive;
+  draw_calls/bytes_uploaded UNAVAILABLE; "indicative, this machine,
+  not a budget".
+
+THE VERDICTS:
+(i) THE ASSET-PIPELINE IMPORT+PERSISTENCE SEAM IS THE BOTTLENECK
+between the primitive-based testing and the real-asset 2D/3D
+development: the OBJ loader reads v/f only (3 positive 1-based
+indices, positions-only; vn/vt/o/g/s "skipped silently",
+mesh3d_obj.cpp :41-54, :96-101; the UVs synthesized per-face planar
+:58-94) and meshId is NOT serialized, so a level cannot contain an
+imported model. AGAINST (weighed): the pipeline is NOT absent - the 2D
+real assets work end-to-end (the PNG sprites, the spritesheet clips,
+the WAV/pack audio, the tilemaps).
+(ii) THE 3D RENDER PERFORMANCE IS THE BINDING CONSTRAINT ON THE 3D
+HALF: the 313 breach REPRODUCED fresh (the 3D median 31.5667ms vs the
+16.6ms line, 1.9x), caused by the CPU per-face lighting loop
+(renderer.h :860-880) that scales with the triangle count - a
+~1000-triangle model at today's per-face CPU cost is ~2 ORDERS OF
+MAGNITUDE over the budget measured on 200 twelve-triangle cubes.
+THE 313 NUANCE: the "measured need" side is arguably MET (the breach
+reproduced); the EXPLICIT OPEN is NOT granted - THIS RECORD AUTHORIZES
+NO PERFORMANCE WORK.
+(iii) the consumer-chain finding (folded into (i)): the 3D assets have
+NO production consumer - the games are 2D, the scenes cannot persist
+meshes, the only 3D windows are the console (meshid/texid, main.cpp
+:1306/:1326), the startup OBJ loads (meshId 3/5, main.cpp :692/:710),
+and the editor's 3D view (311). An unaudited capability with no
+serialization and no consumer repeats the G1 zero-caller pattern.
+
+THE CONSTRAINTS (recorded, NOTHING lifted): glTF, PBR, materials, the
+scripting, the hot-reload, the retained UI, the AI/MCP, the volumetric,
+the ECS, the networking (the freeze matrix: V3 :649/:871/:1494/:1614/
+:1643-1645/:1965-1966; AGENTS.md :88-100); the scene-format contracts
+(the dead-drop, the 4dp, the index semantics, the no-count-field, the
+meshId non-serialization, the strict version reject) change ONLY with
+explicit human approval (V3:3721-3725); the 3D perf work stays behind
+the 313 deferral (the measured need + the explicit open).
+
+THE IMPLEMENTATION DIRECTION (the mesh serialization vs the loader
+extension vs the 3D perf) IS NOT CHOSEN BY THIS RECORD - it remains
+the Project Owner's separate decision. NO code, NO freeze lift, NO
+Track C/D implementation, NO optimization. The next step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

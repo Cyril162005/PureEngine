@@ -3,7 +3,7 @@
 Per-session rows; update your row when you start/stop. Claims need real
 command output behind them (see AGENTS.md reporting expectations).
 Feature history stays in pure_engine_v3_steps.json + PURE_ENGINE_V3.md �
-this board never replaces it. Highest step id: 360 (325 entries, no dups; the 360 entry = the Track B ACCEPTANCE (docs only; DOCS-360): Cyril's approvals recorded (the checklist A-I APPROVED; the limits L1-L8 all APPROVED; the terrain definition APPROVED - '352 bands + FBM detail'); Track B = ACCEPTED (2026-11-06, HEAD cbcdfc2); the completion report in V3 (the 349 gaps -> the 350-357 additive chain -> the pins with the mutation evidence -> the approved limits L1-L8 carried); the freeze rule: reopens only on a measured regression; next: none; see the tracker/V3;
+this board never replaces it. Highest step id: 361 (326 entries, no dups; the 361 entry = the Track C Graphics-Assets AUDIT recorded (read-only; docs only; DOCS-361): the status 'Track C - AUDITED (findings recorded); implementation direction PENDING; not ACCEPTED' (the vocabulary-extension sentence recorded); the verdicts: (i) the import+persistence seam is the bottleneck (meshId NOT serialized - zero references in scene_persist.cpp; the OBJ loader v/f-only) and (ii) the 3D render performance is the binding constraint on the 3D half (the 313 breach REPRODUCED fresh on T0: 3D median 31.5667ms vs the 16.6ms line; 2D 1.9934ms); the L0-L3 map with the debug-shape marks; the consumer chain absent; the implementation direction NOT chosen (the Project Owner's separate decision); see the tracker/V3;
 the former '287 entries' count was stale).
 
 ## Focus (binding for all sessions)
