@@ -3980,6 +3980,17 @@
    "depends_on": [
     358
    ]
+  },
+  {
+   "id": 360,
+   "name": "TRACK B: the ACCEPTANCE (docs only; DOCS-360) - CYRIL'S APPROVALS (the 360 prompt): the checklist A-I APPROVED; the limits L1-L8 all APPROVED; the terrain definition APPROVED ('352 bands + FBM detail'); Track B = ACCEPTED (2026-11-06, recorded at HEAD cbcdfc2); the Track B (World/content) completion report in V3 (the 349 gaps -> the 350-357 additive chain with the commits -> the files -> the pins with the mutation evidence -> the smoke records 353/358 verbatim -> the approved limits L1-L8 carried); the 359 'Approved by Cyril: __' blanks LEFT AS WRITTEN (the historical record; the 338/349 precedent); THE FREEZE RULE: Track B reopens only on a measured regression (the same as Core Foundation, Entity/Scene/Persistence, Render, and Simulation); the next track opens only on Cyril's explicit prompt; next: none",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD cbcdfc2 == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 359 completed, 360 free. THE APPROVALS (the 360 prompt): the checklist A-I APPROVED; the limits L1-L8 all APPROVED; the terrain definition APPROVED ('352 bands + FBM detail'). THE RECORD: the V3 STEP-360 block (the approvals + the Track B (World/content) completion report: the original gaps, the changes 349-359 with the commits 58623ed/01a0457/9f7ce0c/d570a80/ce6b0fc/f2c66d4/cbcdfc2, the files, the pins with the mutation evidence all non-vacuous by name, the smoke records 353/358 verbatim, the approved limits L1-L8 carried with their evidence lines - no stronger guarantees); the 359 blanks left as written; the board line 6 -> 360 (325 entries); the README 360 clause at the 359->343 seam (the L27 paren walk 370/370). THE STATUS: Track B = ACCEPTED (2026-11-06, recorded at HEAD cbcdfc2). THE FREEZE RULE: Track B reopens only on a measured regression. NO code, NO new pins, NO Step 361. GATES: the build exit 0, ctest 12/12 (37.94s), alive x3 (PureEngine.exe=True Pong.exe=True Platformer.exe=True), diff --check exit 0, git diff --stat -- src/ EMPTY, the FFFD parity (board 28/28; the diff added=0 removed=0).",
+   "notes": "Docs commit DOCS-360 (docs only; no src/ change). The cmake/ctest invocation used the VS-bundled full paths from the CMakeCache (cmake not on the shell PATH). The FINDINGS update skipped (no new transferable lesson; the 359 precedent). SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched. Next: none.",
+   "commit": "DOCS-360",
+   "depends_on": [
+    359
+   ]
   }
  ],
  "kill_criteria": "If any step's scope keeps expanding instead of shrinking, stop, cut scope, and re-record a smaller definition_of_done before continuing. Do not introduce an abstraction, manager, registry, or subsystem unless the current implementation demonstrates a concrete need for it."

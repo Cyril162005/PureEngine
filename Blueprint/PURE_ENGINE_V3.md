@@ -6237,6 +6237,69 @@ fbm generator is the final surface in the 355-proposed plan; no slice
 pending).
 THE STATUS: Track B = VERIFICATION REQUIRED. The next step: none.
 
+***STEP 360 (2026-11-06): TRACK B ACCEPTED (docs only; DOCS-360).***
+CYRIL'S APPROVALS (granted by the 360 prompt): the checklist A-I:
+APPROVED; the limits L1-L8: all APPROVED; the terrain definition:
+APPROVED ("352 bands + FBM detail"). THE 359 BLANKS: the "Approved by
+Cyril: __" lines in the 359 block are LEFT AS WRITTEN (the historical
+record; the same precedent as the 338/349 blanks) - the approvals live
+in THIS block.
+
+THE TRACK B (WORLD/CONTENT) CATEGORY COMPLETION REPORT:
+THE ORIGINAL GAPS (the 349 inventory): the World/content track
+unaudited; NO seedable deterministic RNG framework; NO noise; NO
+terrain generation; the tileAt/tileCenter internals with zero direct
+production callers.
+THE CHANGES LANDED (the commits): 349 the inventory audit (the L1-L5
+limits + the stop rule); 350 the seed/RNG foundation (SEED-350 =
+58623ed: xoshiro256** + the SplitMix64 derivation; the published-vector
+golden cross-check; the 349 stop rule satisfied); 351 the value-noise
+2D (NOISE-351 = 01a0457; the fp-precision precheck clean); 352 the
+noise->tilemap consumer + the "tilemap noise <seed>" console command
+(GEN-352 = 9f7ce0c); 353 the first smoke recorded; 354 the tilemap
+mutation run (F1-F6, no vacuous pin); 355 the terrain-definition ruling
++ the minimal contract; 356 the fbm2D composition (FBM-356 = d570a80;
+the (g)->pin-6 mapping withdrawn; pin 6 relabeled); 357 the fbm terrain
+generator + the "tilemap fbm <seed>" command (GEN-357 = ce6b0fc; the
+thresholds MEASURED 0.40/0.60); 358 the fbm smoke recorded (f2c66d4);
+359 the acceptance audit (cbcdfc2; the spot-checks re-executed; the
+verdict VERIFICATION REQUIRED).
+THE FILES: src/seed.h/.cpp, src/noise.h/.cpp, src/tilemap_gen.h (NEW);
+tests/seed_test.cpp, tests/noise_test.cpp, tests/tilemap_gen_test.cpp
+(NEW targets); src/main.cpp (the two console branches ONLY);
+src/tilemap.h, src/scene.h, src/scene_persist.cpp UNTOUCHED except the
+354 mutations (restored); the CMake registrations additive.
+THE PINS WITH THE MUTATION EVIDENCE (all non-vacuous by name): the seed
+family (the 3 goldens, the determinism, the derivation, the
+independence, the range; MUT A the SplitMix64 constant, MUT B the
+stateful deriveSeed); the 351 noise family (8 pins; MUT A the floorf
+truncation, MUT B the stateful lattice hash); the 352 generator (5
+pins; the region-relative and the threshold-flip mutations); the 356
+fbm family (9 pins; a-g, (g) via the composition pin 3 + the golden
+pin 9); the 357 fbm family (8 pins; a-e incl. the measured-threshold
+boundary and the occupancy floor); the loader/collide/scene rows (F1-
+F5) + the F6a/F6b 352 re-confirmation; the 359 spot-checks b/c
+re-executed BY NAME.
+THE SMOKE RECORDS (verbatim): 353 "smoke (tilemap noise, 2026-11-03):
+map-changed=YES game-runs=YES; notes=seed 7 red, seed 8 blue, same
+session, playable"; 358 "smoke (tilemap fbm, 2026-11-06):
+map-changed=YES more-detail=YES game-runs=YES; notes=none".
+THE REMAINING LIMITS (the approved L1-L8, each keeping its evidence
+line; no stronger guarantees implied): L1 console-only/not saved; L2 2D
+only, no chunking/biomes/3D/volumetric/domain-warping; L3 particles.h
+:105 still std::rand; L4 the valueNoise2D NaN/inf behavior
+platform-defined (guarded in fbm2D); L5 the goldens regression-only;
+L6 tileAt/tileCenter zero direct production callers; L7 the OOB
+textureId warn path pin-only; L8 the 349 L1-L5 disposition (L1-L3
+resolved, L4/L5 stand). THE CROSS-TRACK G1 (the unwired physics.h
+machinery) stays a Track A item, NOT Track B.
+THE STATUS: **Track B = ACCEPTED (2026-11-06, recorded at HEAD
+cbcdfc2)** - the checklist A-I APPROVED, the limits L1-L8 APPROVED, the
+terrain definition APPROVED ("352 bands + FBM detail"). THE FREEZE
+RULE: Track B reopens only on a measured regression (the same as Core
+Foundation, Entity/Scene/Persistence, Render, and Simulation). The next
+track opens only on Cyril's explicit prompt. The next step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
