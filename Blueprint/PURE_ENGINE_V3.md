@@ -6103,6 +6103,140 @@ chunking, no biomes. Track B stays IN PROGRESS (the 349 audit; the
 acceptance audit is PROPOSED as 359 - a HUMAN decision). The next
 step: none.
 
+***STEP 359 (2026-11-06): TRACK B ACCEPTANCE AUDIT (docs only; a
+self-audit RE-VERIFIED from the tree; DOCS-359).*** METHOD: the prior
+reports not trusted - re-verified from the tree (the file:line, the
+test output); the repository wins over any step report. THE SPOT-CHECK
+RE-EXECUTIONS (the 357 mutations, on the committed tree ce6b0fc): b
+(the threshold comparison < -> <=) re-run -> build 0 -> fbm_test exit
+1: "fbm threshold boundary: an fbm value exactly at each threshold
+must map to the documented band (strict less-than)" BY NAME -> the
+pathspec restore; c (the octaves hard-set to 1) re-run -> build 0 ->
+exit 1: "fbm detail: the fbm-generated tilemap must differ from the
+octaves=1-equivalent tilemap over the fixed region (>= 200 of 4096
+cells)" BY NAME -> the restore; the final REBUILD exit 0 + ctest 12/12
++ git diff --stat -- src/ EMPTY. NO survivor; NO wrong-assert.
+THE A-I CHECKLIST RECOVERY: the 349 draft RECOVERED from V3 (A the
+tilemap load/parse contract; B the malformed/missing fallback; C the
+collide push-out; D the production caller map; E the seed/RNG
+framework; F the noise/terrain surfaces; G the scene/prefab/lifecycle
+rows; H the limits; I the acceptance on the approved checklist + the
+smoke) + the 355 refresh. PRESENT - no STOP.
+THE NINE REQUIRED CHECKS:
+1. THE TERRAIN DEFINITION: the 355 ruling stands in V3 - the 352 band
+   map = the minimal 2D terrain field; fbm adds the multi-octave detail
+   ONLY. CONFIRMED from the tree: tilemap_gen.h :41-48 (the 352
+   bands/thresholds) and :102-130 (the fbm block: the SAME
+   kNoiseGenTile* ids; no new names or ids). FLAG FOR CYRIL (a
+   decision, not a gap): whether "the minimal 2D terrain + the fbm
+   detail" remains the accepted terrain definition going forward.
+2. THE 352 GENERATOR BODY AND GOLDEN: git diff 9f7ce0c..HEAD --
+   src/tilemap_gen.h = 74 insertions, 0 DELETIONS (the pure insertion
+   at the namespace close; byte-identical through the old line 101);
+   the 352 generator has NO numeric golden (its pins are relational) -
+   the original 352 pin set stays GREEN (the ctest 12/12). VERIFIED.
+3. THE FBM CHAIN: valueNoise2D (noise.cpp :53; the 351 pins) -> fbm2D
+   (noise.cpp :84; the 356 pins incl. the octave-0 identity and the
+   test-composed reference) -> generateTilemapFromFbm (tilemap_gen.h
+   :145; the 357 pins). THE THRESHOLDS 0.40/0.60 backed by the recorded
+   measurement (the V3 357 block: the --measure over the 1024x1024
+   regions x 3 masters; p25 = 0.396-0.400, p75 = 0.597-0.605). THE
+   OCCUPANCY PIN MARGIN: the pin requires >= 5%; the measured 64x64
+   fractions >= 23% per band (EMPTY 972-1061, LOW 2003-2103, HIGH
+   946-1121 of 4096) - a 4.6x margin. THE MEASUREMENT USED ONLY 3
+   MASTERS (stated). The goldens (the 351 published-vector golden, the
+   356 fbm golden) REGRESSION-ONLY (labeled). VERIFIED.
+4. THE MUTATION REACHABILITY (the FINDINGS 78 lesson): the 5 mutations
+   of 357 - a the region coords -> pin fbm-2 (reads the generated
+   tiles) REACHABLE; b the threshold flip -> pin fbm-4 (calls
+   tileIdForFbmValue directly) REACHABLE (the re-run confirmed); c the
+   octaves=1 -> pin fbm-7 (compares vs the octaves=1 reference)
+   REACHABLE (the re-run confirmed); d the seed-id collision -> pin
+   fbm-6 part 2 (composes the 352-stream reference) REACHABLE; e the
+   swapped thresholds -> pins fbm-4/fbm-5 REACHABLE. The 7 mutations of
+   356 - a/b/c/e/f -> pin 3 (the test-composed reference) REACHABLE; d
+   -> pin 2 (the identity) REACHABLE; g the table corruption -> pin 6
+   UNREACHABLE AS ORIGINALLY MAPPED (the recorded 356 lesson; the
+   mapping WITHDRAWN per the 356 closure) - (g) is detected by pins
+   3/9 (reachable). NO unreachable mapping remains. VERIFIED.
+5. THE PRODUCTION CALLERS (the sweep, tests excluded):
+   generateTilemapFromNoise: main.cpp :1533 ONLY (the console "tilemap
+   noise" branch); generateTilemapFromFbm: main.cpp :1503 ONLY (the
+   console "tilemap fbm" branch); deriveSeed: noise.cpp :109 (the fbm
+   octaves) + tilemap_gen.h :78/:153 (the two generators); valueNoise2D:
+   noise.cpp :111 (the fbm octave 0) + tilemap_gen.h :91 (the 352
+   generator); fbm2D: tilemap_gen.h :164 (the fbm generator);
+   latticeValue2D/splitMix64: internal (noise.cpp/seed.cpp). NO games/,
+   NO tools/ callers. BOTH console commands SESSION-TRANSIENT (the
+   tilemapFile cleared; scene_persist.cpp :161-164 omits the
+   reference; :162 the only tilemap= write). particles.h :105 still
+   std::rand (untouched by the chain). VERIFIED.
+6. THE SMOKES: 353 and 358 quoted in ALL FOUR artifacts with the
+   ESTABLISHED multi-slot convention (the board line 6 + the session
+   row; the tracker name + the DoD; the README one line; V3 the block -
+   the V3 form LINE-WRAPPED, the content verbatim across the wrap - the
+   same convention as 353). No inconsistent duplication. CONSISTENT
+   with the automated evidence (all-YES smokes match the green
+   pins/mutations). VERIFIED (the convention note recorded).
+7. THE ARTIFACT INTEGRITY: the tracker 323 entries, 0 dups, the JSON
+   parses; V3/board/README/FINDINGS match f2c66d4 (the working diff =
+   only the allowed hostile_default.txt); the smoke 358 present in all
+   four artifacts (the counts in 6); no aborted-run residue (the diff
+   clean). VERIFIED.
+8. THE GATES AT HEAD (re-executed): the build exit 0 (LNK1104=0), ctest
+   12/12, alive x3 ($null -ne $p, all True), the FFFD parity (all 5
+   files), diff --check exit 0, git diff --stat -- src/ EMPTY, HEAD ==
+   origin/main (f2c66d4). VERIFIED.
+9. THE LIMITS (each with the blank approval):
+   L1 console-only/not saved (session-transient; the save omits the
+   reference, scene_persist.cpp :161-164). Approved by Cyril: __
+   L2 2D only; no chunking, no biomes, no 3D/volumetric, no domain
+   warping (the 355 deferrals). Approved by Cyril: __
+   L3 particles.h :105 still std::rand (untouched by the chain).
+   Approved by Cyril: __
+   L4 the valueNoise2D NaN/inf behavior platform-defined (guarded only
+   in fbm2D; the 356 STOP-note record). Approved by Cyril: __
+   L5 the 351/356/357 goldens regression-only. Approved by Cyril: __
+   L6 tileAt/tileCenter zero direct production callers (the internal
+   helpers; the 349 L5). Approved by Cyril: __
+   L7 the OOB textureId warn path (tilemap.h :273-286) pin-only (the
+   debug stderr; no headless pin). Approved by Cyril: __
+   L8 the 349 limits L1-L5 status: L1 (the seed) RESOLVED by 350; L2
+   (the noise) RESOLVED by 351/356; L3 (the terrain) RESOLVED by
+   352/357 as the minimal field + fbm; L4 (the 2D-only tilemap) stands;
+   L5 (the tileAt/tileCenter internals) stands (= L6 here). Approved by
+   Cyril: __
+   THE CROSS-TRACK G1 (~320 lines of the unwired physics.h machinery)
+   is NOT a Track B item (the 343 finding; the separate track).
+THE CRITERIA GRADES (the recovered A-I; each with the evidence):
+- A the 352 load/parse contract pinned: PROVEN (checkTilemapValidLoad
+  :209; the 354 F1 mutation).
+- B the malformed/missing fallback: PROVEN (checkTilemapMalformedFall
+  sBack :268; the 354 F2 + the :388 bonus).
+- C the collide push-out: PROVEN (checkTilemapCollidePushesOut :301;
+  the 354 F3, both axes).
+- D the production caller map: PROVEN (the sweep in 5; the zero-caller
+  items listed as the limits L6).
+- E the seed/RNG framework: PROVEN (the 350 pins; the published-vector
+  cross-check; the 349 stop rule resolved).
+- F the noise/terrain surfaces recorded: PROVEN (the 351/352/356/357
+  records; the 357 thresholds measured, not assumed).
+- G the scene/prefab/lifecycle/hostile rows: PROVEN (the 325
+  acceptance + the 354 scene-integration mutation).
+- H the limits recorded: PROVEN (the 349 L1-L5 + the 359 L1-L8 above,
+  the approvals blank).
+- I the acceptance: NOT GRANTED - see the verdict.
+NO PARTIAL; NO UNVERIFIED.
+THE VERDICT (the status words ONLY): **VERIFICATION REQUIRED** - the
+exact approvals needed from Cyril: (1) the checklist A-I above (or the
+amended wording), (2) the limits L1-L8 with their evidence lines, (3)
+the check-1 flag (the terrain-definition confirmation). The rule
+honored: NOT ACCEPTED on my own.
+THE SEPARATE RECOMMENDATION: Track B CLOSES (after the approvals - the
+fbm generator is the final surface in the 355-proposed plan; no slice
+pending).
+THE STATUS: Track B = VERIFICATION REQUIRED. The next step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
