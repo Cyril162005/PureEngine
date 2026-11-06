@@ -1755,3 +1755,4 @@ ImGui / ECS / glTF / networking (the freezes stand).
 - **status:** Simulation VERIFICATION REQUIRED (2026-10-22, HEAD
   86169f7); the freeze rule: the reopens only on a measured regression;
   the acceptance completes on the filled smoke line.
+78 (356, 2026-11-06): fbm2D PRESENT (the amended Option A - the string-form octave seeds; the private kOctaveId table ruled KEEP per option (ii)). The process lesson: the pin-3 no-shared-helper and the pin-6 catch-table-corruption requirements were mutually unsatisfiable - the mutation-to-pin mappings must be reachable from the pin's inputs; mutation (g) NON-VACUOUS via the composition (pin 3) and the golden (pin 9); the (g)->pin 6 mapping withdrawn; pin 6 relabeled (the deriveSeed distinctness for the 7 reference literals).

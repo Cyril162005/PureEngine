@@ -5960,6 +5960,45 @@ pin-6-vacuous-as-specified).
 THE STATUS: the 356 amended step is BLOCKED at mutation (g) on the
 wrong-assert rule. The next step: none until Cyril picks (i) or (ii).
 
+***STEP 356 (CLOSURE, 2026-11-06): OPTION (ii) RULED - THE (g) MAPPING
+AMENDED, PIN 6 RELABELED (docs only; DOCS-356C).*** CYRIL'S DECISION:
+option (ii) - kOctaveId stays PRIVATE in noise.cpp; noise.h gets no new
+API; the table visibility stays as implemented. THE RECORD:
+1. MUTATION (g) (two kOctaveId entries identical: kOctaveId[2] ->
+   "fbm-octave-1") IS NON-VACUOUS - detected by pin 3 (the
+   composition): "composition: the 3-octave fbm2D (gain 0.5, lacunarity
+   2) must equal the reference composed in the test from public
+   valueNoise2D and deriveSeed (bit-exact)" - and by pin 9 (the
+   golden): "regression golden: the fixed 8 coordinate/config pairs
+   must reproduce the recorded constants bit-exact (regression-only;
+   no external vector exists)". THE ORIGINALLY SPECIFIED "fails pin 6"
+   MAPPING IS WITHDRAWN: pin 6 exercises the PUBLIC deriveSeed on the
+   test's own literals and CANNOT reach the private table. Pin 6 is
+   NOT claimed as a detector of (g).
+2. PIN 6 RELABELED: "deriveSeed distinctness for the 7 reference
+   literals" - it guards pin 3's reference (the derived octave seeds
+   the composition depends on). THE LIMIT: pin 6 does NOT observe
+   noise.cpp's kOctaveId table.
+3. THE PROCESS LESSON (recorded): the prompt's pin-3 "no shared
+   helper" and pin-6 "catch table corruption" were mutually
+   unsatisfiable; the mutation-to-pin mappings must be REACHABLE FROM
+   THE PIN'S INPUTS (a pin cannot detect corruption of data it never
+   reads).
+4. THE MUTATIONS a-f UNCHANGED and PROVEN (the named asserts by name:
+   a->pin 3; b->pin 3 (+ the range-NaN dividend); c->pin 3; d->pin 2;
+   e->pin 3; f->pin 3); the 9 pins green; seed.h/seed.cpp UNTOUCHED
+   (the diff EMPTY at the 356B run and at this closure).
+5. THE TRACKER 356: status blocked -> completed (in place, no duplicate
+   id; the JSON parses); the commits: FBM-356 d570a80 (the code + the 9
+   pins) + DOCS-356B 30f48af (the wrong-assert stop note) + DOCS-356C
+   (this closure). Track B: fbm2D PRESENT, ZERO production callers
+   until 357 (the limit stays listed). THE LIMITS (unchanged): unwired,
+   MAX_OCTAVES=8, the golden regression-only, the valueNoise2D NaN
+   behavior platform-defined (guarded in fbm2D only).
+THE STATUS: the 356 amended step is COMPLETED under option (ii); the
+Track B PROPOSED 357 (the fbm generator + the second console command)
+awaits Cyril's prompt. The next step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
