@@ -6088,6 +6088,21 @@ THE STATUS: the fbm terrain generator PRESENT with the second
 production caller; fbm2D has ONE production caller via the console.
 The next step: none.
 
+***STEP 358 (2026-11-06): THE TILEMAP-FBM SMOKE RECORDED (docs only;
+DOCS-358).*** The 357 pending human smoke arrived (verbatim, Cyril, one
+unbroken line): "smoke (tilemap fbm, 2026-11-06): map-changed=YES
+more-detail=YES game-runs=YES; notes=none"
+ALL THREE ROWS YES -> the 357 smoke cycle is COMPLETE: the console
+command "tilemap fbm <seed>" ran on the LIVE game, the map CHANGED,
+showed MORE DETAIL than "tilemap noise" (the human-confirmed fbm detail
+- closing the loop on the 355 measurement-first thresholds), and the
+game stayed playable. NO criterion left open from the 357 record (the
+8 fbm pins + the legacy-unchanged record stand; the five mutations were
+non-vacuous). THE LIMITS unchanged: console-only, not saved, 2D, no
+chunking, no biomes. Track B stays IN PROGRESS (the 349 audit; the
+acceptance audit is PROPOSED as 359 - a HUMAN decision). The next
+step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance

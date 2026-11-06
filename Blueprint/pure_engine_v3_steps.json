@@ -3959,6 +3959,16 @@
    "commit": "GEN-357",
    "depends_on": [
     356
+   ]  },
+  {
+   "id": 358,
+   "name": "TRACK B: the tilemap-fbm smoke recorded (docs only; DOCS-358) - the 357 pending human smoke arrived VERBATIM: 'smoke (tilemap fbm, 2026-11-06): map-changed=YES more-detail=YES game-runs=YES; notes=none' - ALL THREE ROWS YES, the 357 smoke cycle COMPLETE (the console command ran on the live game, the map changed, showed MORE DETAIL than 'tilemap noise', the game stayed playable); no criterion left open; the limits unchanged (console-only, not saved, 2D, no chunking, no biomes); the Track B acceptance audit PROPOSED as 359 (a HUMAN decision); next: none",
+   "status": "completed",
+   "definition_of_done": "PREFLIGHT: HEAD 54adda1 == origin/main; the tree clean except the untouched hostile_default.txt + Testing/; the tracker: 357 completed, 358 free. THE IDEMPOTENCE GUARD: the smoke line verified ABSENT from V3/tracker/board/README before the write (no duplicate). THE SMOKE (verbatim, Cyril, one unbroken line): 'smoke (tilemap fbm, 2026-11-06): map-changed=YES more-detail=YES game-runs=YES; notes=none' - ALL THREE ROWS YES, so per the 338->341 pattern the 357 smoke cycle is COMPLETE: the console command 'tilemap fbm <seed>' ran on the live game, the map CHANGED, showed MORE DETAIL than 'tilemap noise' (the human-confirmed fbm detail - closing the loop on the 355 measurement-first thresholds), and the game stayed playable. NO criterion left open from the 357 record (the 8 fbm pins + the legacy-unchanged record stand; the five mutations were non-vacuous). THE LIMITS unchanged: console-only, not saved, 2D, no chunking, no biomes. Track B stays IN PROGRESS (the 349 audit); the acceptance audit is PROPOSED as 359 - a HUMAN decision, NOT opened. GATES: the build exit 0, ctest 12/12, alive x3, diff --check, the FFFD parity, the src/ diff EMPTY (the docs commit).",
+   "notes": "Docs commit DOCS-358 (docs only; no src/ change). The smoke recording completes the 357-requested human smoke cycle (the 338->341 pattern). The Track B acceptance audit is PROPOSED as 359 - not opened. SEARCH HYGIENE: build/, .git/, .kilo/, .goose/ excluded; the .kilo worktrees untouched; hostile_default.txt + Testing/ untouched. Next: none.",
+   "commit": "DOCS-358",
+   "depends_on": [
+    357
    ]
   }
  ],
