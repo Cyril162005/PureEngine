@@ -1484,7 +1484,39 @@ if (clip != animations.end()) {
     // tilemapFile is non-empty) - the map is NOT saved, and the reply says
     // so. Modeled on dropSandbox (the session-transient reply pattern).
     pe::registerCommand(console, "tilemap", [&](const std::vector<std::string>& args) {
-        if (args.size() < 2 || args[0] != "noise") {
+        if (args.size() < 2) {
+            return std::string("usage: tilemap noise <seed> | tilemap fbm <seed>");
+        }
+        if (args[0] == "fbm") {
+            // Step 357: the fbm generator branch (the SECOND production
+            // caller of the noise path; session-transient, never saved).
+            if (!activeScene) {
+                return std::string("tilemap fbm: no active scene");
+            }
+            std::uint64_t fbmMaster = 0;
+            try {
+                fbmMaster = std::stoull(args[1]);
+            } catch (...) {
+                return std::string("usage: tilemap fbm <seed> (the seed must be a non-negative integer)");
+            }
+            constexpr int kFbmGenCommandDim = 64;   // the command's fixed region (under the 256 cap; the same as the noise branch)
+            pe::Tilemap fgen = pe::generateTilemapFromFbm(fbmMaster, 0.0f, 0.0f,
+                                                          kFbmGenCommandDim, kFbmGenCommandDim,
+                                                          pe::kFbmGenScale);
+            activeScene->tilemap = fgen;
+            activeScene->tilemapFile.clear();  // session-transient: no file reference
+            cachedTileEntities = pe::tilemapToEntities(activeScene->tilemap, 0, 3);
+            cachedTileClear.assign(cachedTileEntities.size(), 0);
+            std::size_t fsolid = 0;
+            for (const pe::Tile& t : fgen.tiles) { if (t.tileId != 0) ++fsolid; }
+            std::ostringstream freply;
+            freply << "tilemap fbm: seed " << fbmMaster << " -> " << fgen.width << "x" << fgen.height
+                   << " (" << fsolid << " solid / " << fgen.tiles.size() << " tiles, " << pe::kFbmGenOctaves
+                   << " octaves); session-transient, never saved"
+                   << " (a save omits the tilemap reference - no tilemap file name)";
+            return freply.str();
+        }
+        if (args[0] != "noise") {
             return std::string("usage: tilemap noise <seed>");
         }
         if (!activeScene) {

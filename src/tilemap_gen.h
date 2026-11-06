@@ -99,6 +99,80 @@ inline Tilemap generateTilemapFromNoise(std::uint64_t masterSeed,
     return map;
 }
 
+// --- The Step 357 fbm generator constants (named, pinned) ---
+// The scale/octaves/lacunarity/gain are the documented fbm defaults (the
+// command passes the scale; the generator reads the rest). The thresholds
+// are MEASURED (the fbm distribution concentrates near 0.5 - the 352
+// thresholds (0.42/0.68) would give a degenerate occupancy; the measured
+// percentiles and the band fractions are recorded in V3). STRICT
+// less-than: exactly AT a threshold maps to the higher band (the 352
+// rule). The band NAMES and TILE IDS are reused from the 352 generator
+// EXACTLY (kNoiseGenTileEmpty/Low/High = ids 0/1/2) - no new names or ids.
+inline constexpr float kFbmGenScale          = 16.0f;  // the documented default scale
+inline constexpr int   kFbmGenOctaves        = 4;      // the default octave count (<= kFbmMaxOctaves)
+inline constexpr float kFbmGenLacunarity     = 2.0f;
+inline constexpr float kFbmGenGain           = 0.5f;
+inline constexpr float kFbmGenThresholdLow   = 0.40f;  // MEASURED: the p25 across the 3 masters = 0.396-0.400
+inline constexpr float kFbmGenThresholdHigh  = 0.60f;  // MEASURED: the p75 across the 3 masters = 0.597-0.605
+static_assert(kFbmGenOctaves >= 1 && kFbmGenOctaves <= kFbmMaxOctaves,
+    "the fbm generator octave count must be within the fbm2D contract");
+static_assert(kFbmGenThresholdLow > 0.0f && kFbmGenThresholdLow < kFbmGenThresholdHigh &&
+              kFbmGenThresholdHigh < 1.0f,
+    "the fbm band thresholds must be ordered inside [0,1)");
+
+// The owned fbm value->tile mapping (the same three band ids as the 352
+// generator; its own thresholds because the fbm distribution differs).
+// Deliberately NOT a parameterized refactor of tileIdForNoiseValue - the
+// 352 ruling: the 352 function body stays untouched.
+inline int tileIdForFbmValue(float v) {
+    if (v < kFbmGenThresholdLow) {
+        return kNoiseGenTileEmpty;
+    }
+    if (v < kFbmGenThresholdHigh) {
+        return kNoiseGenTileLow;
+    }
+    return kNoiseGenTileHigh;
+}
+
+/**
+ * Generate a w x h tilemap from the 2D fbm field (Step 357). The SAME
+ * dimension validation and world-anchored coordinates as the 352
+ * generator; the stream seed is deriveSeed(masterSeed, "tilemap-fbm")
+ * (DISTINCT from the 352 "tilemap"); the field is fbm2D at the named
+ * fbm constants (kFbmGenOctaves/Lacunarity/Gain). Pure in (masterSeed,
+ * originX, originY, w, h, scale).
+ */
+inline Tilemap generateTilemapFromFbm(std::uint64_t masterSeed,
+                                      float originX, float originY,
+                                      int w, int h, float scale) {
+    if (w <= 0 || h <= 0 || w > kNoiseGenMaxDim || h > kNoiseGenMaxDim ||
+        !(scale > 0.0f)) {
+        std::cerr << "Warning: fbm tilemap generation got bad dimensions/scale; using empty map." << std::endl;
+        return Tilemap{};
+    }
+    const std::uint64_t streamSeed = deriveSeed(masterSeed, "tilemap-fbm");
+    Tilemap map;
+    map.width = w;
+    map.height = h;
+    map.tileSize = 1.0f;
+    map.tiles.reserve(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
+    for (int row = 0; row < h; ++row) {
+        for (int col = 0; col < w; ++col) {
+            // WORLD-ANCHORED fbm coordinates (the region-consistency pin).
+            const float fbmNx = (originX + static_cast<float>(col)) / scale;
+            const float fbmNy = (originY + static_cast<float>(row)) / scale;
+            const float v = fbm2D(streamSeed, fbmNx, fbmNy, kFbmGenOctaves,
+                                  kFbmGenLacunarity, kFbmGenGain);
+            Tile t;
+            t.tileId = tileIdForFbmValue(v);
+            t.solid = (t.tileId != 0);   // the loader semantics (:241)
+            t.textureId = t.tileId;      // the loader semantics (:242)
+            map.tiles.push_back(t);
+        }
+    }
+    return map;
+}
+
 } // namespace pe
 
 #endif // PUREENGINE_TILEMAP_GEN_H
