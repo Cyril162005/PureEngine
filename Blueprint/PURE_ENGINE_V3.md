@@ -5999,6 +5999,95 @@ THE STATUS: the 356 amended step is COMPLETED under option (ii); the
 Track B PROPOSED 357 (the fbm generator + the second console command)
 awaits Cyril's prompt. The next step: none.
 
+***STEP 357 (2026-11-06): TRACK B - THE FBM TERRAIN GENERATOR + THE
+SECOND CONSOLE COMMAND (additive code + tests; GEN-357 = ce6b0fc).***
+The 355-proposed Step 357 EXECUTED (the authorization: 357 only). fbm2D
+gains its FIRST production caller (the fbm path; the noise path's
+second). THE FIRST READ (recorded; NOT ambiguous - no STOP): the 352
+generator has EXACTLY 3 named bands (kNoiseGenTileEmpty/Low/High = ids
+0/1/2), the thresholds 0.42/0.68, the cap kNoiseGenMaxDim = 256, the
+dimension validation (dims > 0, scale > 0 -> else the empty map + the
+warning).
+THE GENERATOR: generateTilemapFromFbm(masterSeed, originX, originY, w,
+h, scale) - NEW in tilemap_gen.h; the 352 function body UNTOUCHED (no
+shared-code refactor; tileIdForFbmValue is deliberately NOT a
+parameterized refactor of tileIdForNoiseValue); the bands REUSED from
+352 EXACTLY (no new names or ids); the seed = deriveSeed(master,
+"tilemap-fbm") (DISTINCT from the 352 "tilemap"); the WORLD-ANCHORED
+coords (originX+col)/scale; the SAME dimension validation + the 256
+cap. THE NAMED CONSTANTS (the header, pinned): kFbmGenScale = 16,
+kFbmGenOctaves = 4 (the default), kFbmGenLacunarity = 2, kFbmGenGain =
+0.5, kFbmGenThresholdLow/High = MEASURED.
+THE MEASURED THRESHOLDS (the --measure utility: the 1024x1024 regions x
+3 masters {7, 8, 0x3561...}, 1,048,576 samples each): min 0.029-0.046,
+max 0.948-0.960, mean 0.497-0.502; p25 = 0.396-0.400, p75 = 0.597-0.605
+-> THE THRESHOLDS CHOSEN 0.40/0.60 (the measured quartiles; the 352
+thresholds 0.42/0.68 would sit inside the fbm mass and give a
+degenerate occupancy). THE MEASURED BAND FRACTIONS at 0.40/0.60: EMPTY
+24.9-25.8%, LOW 49.0-49.9%, HIGH 24.3-26.0% (the 1M-sample regions);
+the 64x64 seed set: EMPTY 972-1061, LOW 2003-2103, HIGH 946-1121 of
+4096 - EVERY BAND >= 23% (the pin-5 margin). THE DETAIL: the fbm
+(4-octave) tiles differ from the octaves=1-equivalent tiles at 1277 of
+4096 cells (31.2%).
+THE CONSOLE COMMAND: "tilemap fbm <seed>" - a BRANCH added to the
+existing tilemap handler (the "tilemap noise" path UNCHANGED); 64x64 at
+kFbmGenScale on the LIVE scene (kFbmGenCommandDim = 64, the fbm
+branch's own constant - the first build FAILED referencing the noise
+branch's constant before its declaration, C2065, fixed, disclosed);
+the same refresh pattern; the session-transient reply (the save omits
+the reference).
+THE PINS (the 8 fbm pins; the tilemap_gen_test target EXTENDED in
+place - NO new test target; ctest 12/12): "fbm determinism: the same
+arguments must produce byte-identical tiles across two runs"; "fbm
+region consistency: the 8x8 and 16x16 generations from the same origin
+must be byte-equal on the overlap"; "fbm validity: all tile ids must
+lie in the legal renderer range [0,4] with the loader solid/texture
+semantics, and bad dimensions (zero, negative, over the cap) must
+yield the empty map"; "fbm threshold boundary: an fbm value exactly at
+each threshold must map to the documented band (strict less-than)";
+"fbm band occupancy: for the fixed seed set over the 64x64 region
+every band must cover >= 5% of tiles"; "fbm independence: two seeds
+must differ in >= 1 tile of a fixed region"; "fbm independence: the
+fbm tilemap must differ from the same-master 352-stream fbm reference
+in >= 1 tile (the seed ids are distinct)"; "fbm detail: the
+fbm-generated tilemap must differ from the octaves=1-equivalent
+tilemap over the fixed region (>= 200 of 4096 cells)". PIN 8 LEGACY =
+NO new assert - the 352 pins/golden, the 351/356 pins, the
+tilemap/scene/platformer pins stay green UNCHANGED (the full 12-test
+suite is the gate).
+THE MUTATIONS (the 285 protocol; ALL FIVE NON-VACUOUS - each applied to
+the committed tree ce6b0fc, the named assert failed, then restored by
+pathspec, the diff empty; the run finished with REBUILD + ctest 12/12 +
+src/ EMPTY): a the region-relative (region-centered) coords ->
+tilemap_gen_test exit 1: "fbm region consistency: the 8x8 and 16x16
+generations from the same origin must be byte-equal on the overlap" BY
+NAME; b the threshold comparison flipped (strict < -> <=) -> exit 1:
+"fbm threshold boundary: an fbm value exactly at each threshold must
+map to the documented band (strict less-than)" BY NAME; c the octaves
+hard-set to 1 -> exit 1: "fbm detail: the fbm-generated tilemap must
+differ from the octaves=1-equivalent tilemap over the fixed region (>=
+200 of 4096 cells)" BY NAME (0 differences mutated vs 1277 unmutated);
+d the seed id "tilemap-fbm" -> "tilemap" -> exit 1: "fbm independence:
+the fbm tilemap must differ from the same-master 352-stream fbm
+reference in >= 1 tile (the seed ids are distinct)" BY NAME (the
+colliding id makes the fbm tiles IDENTICAL to the 352-stream
+reference); e the band thresholds swapped -> exit 1: the fbm threshold
+boundary BY NAME AND the fbm band occupancy BY NAME (both allowed
+pins; the bands collapse - LOW disappears below the 5% floor).
+THE HUMAN SMOKE (Cyril, PENDING - the 338->341 pattern): run
+build\Release\PureEngine.exe, open the debug console, run "tilemap fbm
+7" then "tilemap fbm 8" in the SAME session - confirm the map CHANGES,
+shows MORE DETAIL than "tilemap noise 7", and the game still runs; the
+reply template: "smoke (tilemap fbm, <date>): map-changed=<YES/NO>
+more-detail=<YES/NO> game-runs=<YES/NO>; notes=<one line>."
+THE LIMITS (recorded per the 357 prompt): console-only (the second
+command), not saved (session-transient; the save omits the reference),
+2D, no chunking. Track B stays IN PROGRESS (the 349 audit); the freeze
+rules NOT reopened.
+THE STATUS: the fbm terrain generator PRESENT with the second
+production caller; fbm2D has ONE production caller via the console.
+The next step: none.
+
 ## Kill criteria
 
 ***STOP NOTE (Step 284, 2026-10-03): THE PUSH FAILED (RESOLVED 2026-10-03: the human switched origin to the SSH alias remote with a repo-scoped deploy key; the 284 record was pushed and Steps 285-286 completed and pushed). The original failure text is kept below for history.*** The Step 284 record commit `64fb5a3` (the governance
